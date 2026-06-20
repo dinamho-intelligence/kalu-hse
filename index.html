@@ -295,14 +295,23 @@
     }
 
     .ats-banner {
-      margin: 0; padding: 10px 20px;
+      margin: 0; padding: 12px 20px;
       background: rgba(0,200,150,0.1);
       border-bottom: 1px solid rgba(0,200,150,0.3);
       color: var(--verde-ok); font-size: 13px; font-weight: 500;
-      display: none; align-items: center; gap: 8px;
+      display: none; align-items: center; justify-content: space-between;
       font-family: 'JetBrains Mono', monospace;
     }
     .ats-banner.visible { display: flex; }
+    .btn-nueva-sesion {
+      padding: 6px 16px; border-radius: 8px;
+      background: var(--verde-ok); border: none;
+      color: var(--negro); font-size: 12px; font-weight: 700;
+      cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+      letter-spacing: 0.5px; white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .btn-nueva-sesion:hover { opacity: 0.85; transform: translateY(-1px); }
 
     .mensajes {
       flex: 1; overflow-y: auto;
@@ -648,7 +657,8 @@
     <div class="chat-main">
       <div class="chat-topbar" id="chat-topbar"></div>
       <div class="ats-banner" id="ats-banner">
-        ✓ ATS generado — pendiente aprobación supervisor HSE
+        <span>✓ ATS generado — pendiente aprobación supervisor HSE</span>
+        <button class="btn-nueva-sesion" onclick="iniciarCountdown()">NUEVA SESIÓN</button>
       </div>
       <div class="mensajes" id="mensajes">
         <div class="typing" id="typing">
@@ -701,6 +711,7 @@
   let grabando = false;
   let subtitulosTimeout = null;
   let pendingCountdown = false;
+  let autoCountdownTimer = null;
 
   // ── INICIO ──
   function agregarEmpleado() {
@@ -909,8 +920,8 @@
 
       if (data.atsDetectado) {
         document.getElementById('ats-banner').classList.add('visible');
-        // El countdown arranca DESPUÉS de que el typewriter termine
-        pendingCountdown = true;
+        // Auto-countdown después de 90 segundos sin interacción
+        autoCountdownTimer = setTimeout(() => iniciarCountdown(), 90000);
       }
     } catch(e) {
       mostrarTyping(false);
@@ -925,6 +936,7 @@
 
   // ── COUNTDOWN ──
   function iniciarCountdown() {
+    if (autoCountdownTimer) { clearTimeout(autoCountdownTimer); autoCountdownTimer = null; }
     const overlay = document.getElementById('countdown-overlay');
     const numEl   = document.getElementById('countdown-num');
     const barEl   = document.getElementById('countdown-bar-fill');
@@ -951,6 +963,7 @@
     // Limpiar estado
     sessionId = ''; atsItemId = ''; empleados = []; empleadoActivo = '';
     mensajesCount = 0; pendingCountdown = false;
+    if (autoCountdownTimer) { clearTimeout(autoCountdownTimer); autoCountdownTimer = null; }
 
     // Limpiar UI chat
     document.getElementById('mensajes').innerHTML = `

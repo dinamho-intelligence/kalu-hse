@@ -589,6 +589,12 @@
       });
       const data = await res.json();
 
+  if (data.bloqueado) {
+      btn.disabled = false;
+      btn.textContent = 'INICIAR SESIÓN CON KALU';
+      alert(data.mensaje);
+      return;
+  }
       sessionId      = data.sessionId || '';
       atsItemId      = data.atsItemId || '';
       empleadoActivo = empleados[0];

@@ -68,7 +68,7 @@
 
     @keyframes pulso { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-    /* PANTALLA INICIO */
+    /* ─── PANTALLA INICIO ─── */
     #pantalla-inicio {
       position: fixed; inset: 0;
       display: flex; flex-direction: column;
@@ -80,18 +80,69 @@
     }
     #pantalla-inicio.saliendo { opacity: 0; transform: translateY(-20px); pointer-events: none; }
 
-    .kalu-avatar-inicio { width: 280px; height: 280px; margin-bottom: 24px; position: relative; flex-shrink: 0; }
+    /* ─── AVATAR INICIO ANIMADO ─── */
+    .kalu-avatar-inicio {
+      width: 220px; height: 220px;
+      margin-bottom: 24px;
+      position: relative;
+      flex-shrink: 0;
+    }
     .kalu-avatar-inicio svg { width: 100%; height: 100%; }
-    .kalu-avatar-inicio .ring-1 { animation: girar 8s linear infinite; transform-origin: 140px 140px; }
-    .kalu-avatar-inicio .ring-2 { animation: girar 12s linear infinite reverse; transform-origin: 140px 140px; }
-    .kalu-avatar-inicio .ring-3 { animation: girar 20s linear infinite; transform-origin: 140px 140px; }
-    .kalu-avatar-inicio .core-pulse { animation: corePulse 3s ease-in-out infinite; transform-origin: 140px 140px; }
-    .kalu-avatar-inicio .float-wrap { animation: flotar 4s ease-in-out infinite; }
 
-    @keyframes girar { to { transform: rotate(360deg); } }
-    @keyframes flotar { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-    @keyframes corePulse { 0%,100%{opacity:0.85;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
+    /* Anillos orbitales */
+    .ring-orbit { animation: girar 10s linear infinite; transform-origin: 110px 110px; }
+    .ring-orbit-2 { animation: girar 16s linear infinite reverse; transform-origin: 110px 110px; }
+    .ring-orbit-3 { animation: girar 24s linear infinite; transform-origin: 110px 110px; }
 
+    /* Float suave del grupo principal */
+    .avatar-float { animation: flotar 4s ease-in-out infinite; }
+
+    /* Halo de voz — expandido cuando habla */
+    .halo-voz {
+      transform-origin: 110px 110px;
+      animation: haloIdle 3s ease-in-out infinite;
+    }
+    .halo-voz-2 {
+      transform-origin: 110px 110px;
+      animation: haloIdle2 3s ease-in-out infinite 0.5s;
+    }
+
+    /* Core del avatar */
+    .avatar-core { animation: corePulse 3s ease-in-out infinite; transform-origin: 110px 110px; }
+
+    /* Boca inicio */
+    #boca-inicio {
+      transition: d 0.1s ease;
+    }
+
+    /* Ojos inicio */
+    .ojo-pupila-inicio {
+      animation: parpadeoInicio 6s ease-in-out infinite;
+      transform-origin: center;
+    }
+
+    @keyframes girar     { to { transform: rotate(360deg); } }
+    @keyframes flotar    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    @keyframes corePulse { 0%,100%{opacity:0.85;transform:scale(1)} 50%{opacity:1;transform:scale(1.03)} }
+    @keyframes haloIdle  { 0%,100%{opacity:0.15;transform:scale(1)} 50%{opacity:0.35;transform:scale(1.06)} }
+    @keyframes haloIdle2 { 0%,100%{opacity:0.08;transform:scale(1)} 50%{opacity:0.2;transform:scale(1.12)} }
+    @keyframes parpadeoInicio {
+      0%,88%,100% { transform: scaleY(1); }
+      92%,96%     { transform: scaleY(0.05); }
+    }
+
+    /* Estados del avatar inicio */
+    .kalu-avatar-inicio.estado-hablando .halo-voz   { animation: haloHabla 0.4s ease-in-out infinite alternate; }
+    .kalu-avatar-inicio.estado-hablando .halo-voz-2 { animation: haloHabla2 0.4s ease-in-out infinite alternate 0.2s; }
+    .kalu-avatar-inicio.estado-escuchando .halo-voz { animation: haloEscucha 1.2s ease-in-out infinite; }
+    .kalu-avatar-inicio.estado-alerta .halo-voz     { animation: haloAlerta 0.5s ease-in-out infinite alternate; }
+
+    @keyframes haloHabla   { from{opacity:0.2;transform:scale(1)} to{opacity:0.6;transform:scale(1.1)} }
+    @keyframes haloHabla2  { from{opacity:0.1;transform:scale(1)} to{opacity:0.4;transform:scale(1.18)} }
+    @keyframes haloEscucha { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.08)} }
+    @keyframes haloAlerta  { from{opacity:0.3;transform:scale(1)} to{opacity:0.7;transform:scale(1.09)} }
+
+    /* ─── FORM INICIO ─── */
     .inicio-form {
       width: 100%; max-width: 440px;
       background: var(--negro-2);
@@ -152,12 +203,13 @@
     .btn-iniciar:hover { background: var(--naranja-2); transform: translateY(-1px); box-shadow: 0 8px 24px var(--naranja-glow); }
     .btn-iniciar:disabled { background: var(--gris-3); cursor: not-allowed; transform: none; box-shadow: none; color: var(--gris-2); }
 
-    /* PANTALLA CHAT */
+    /* ─── PANTALLA CHAT ─── */
     #pantalla-chat { display: none; position: fixed; inset: 0; flex-direction: column; padding-top: 60px; }
     #pantalla-chat.visible { display: flex; }
 
     .chat-layout { display: flex; flex: 1; overflow: hidden; }
 
+    /* ─── PANEL KALU CARA ─── */
     .kalu-panel {
       width: 200px; flex-shrink: 0;
       background: var(--negro-2);
@@ -166,28 +218,113 @@
       align-items: center; padding: 24px 16px; gap: 16px;
     }
 
+    /* Wrapper del avatar en chat — con halo de estado */
     .kalu-cara-wrap {
-      width: 140px; height: 140px; position: relative;
+      width: 150px; height: 150px;
+      position: relative;
+      border-radius: 50%;
+      overflow: visible;
+    }
+
+    /* SVG del avatar chat ocupa todo el wrapper */
+    .kalu-cara-wrap svg {
+      width: 150px; height: 150px;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+
+    /* Anillo exterior de estado (idle, hablando, escuchando, alerta) */
+    .kalu-cara-wrap::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
       border-radius: 50%;
       border: 2px solid rgba(0,212,255,0.4);
-      overflow: hidden;
-      box-shadow: 0 0 20px rgba(0,212,255,0.2), 0 0 40px rgba(0,212,255,0.1);
+      transition: border-color 0.3s, box-shadow 0.3s;
     }
-    .kalu-cara-wrap svg { width: 100%; height: 100%; animation: parpadeo 6s ease-in-out infinite; }
 
-    @keyframes parpadeo {
-      0%,90%,100% { transform: scaleY(1); }
-      92%,98%     { transform: scaleY(0.05); }
+    /* Estado: idle */
+    .kalu-cara-wrap.estado-idle::before {
+      border-color: rgba(0,212,255,0.35);
+      box-shadow: 0 0 14px rgba(0,212,255,0.15), 0 0 28px rgba(0,212,255,0.08);
+    }
+
+    /* Estado: escuchando */
+    .kalu-cara-wrap.estado-escuchando::before {
+      border-color: rgba(242,140,0,0.7);
+      box-shadow: 0 0 20px rgba(242,140,0,0.3), 0 0 40px rgba(242,140,0,0.15);
+      animation: ringEscucha 1.2s ease-in-out infinite;
+    }
+
+    /* Estado: hablando */
+    .kalu-cara-wrap.estado-hablando::before {
+      border-color: rgba(0,212,255,0.9);
+      box-shadow: 0 0 24px rgba(0,212,255,0.5), 0 0 48px rgba(0,212,255,0.25);
+      animation: ringHabla 0.15s ease-in-out infinite alternate;
+    }
+
+    /* Estado: alerta */
+    .kalu-cara-wrap.estado-alerta::before {
+      border-color: rgba(255,59,48,0.9);
+      box-shadow: 0 0 24px rgba(255,59,48,0.5), 0 0 48px rgba(255,59,48,0.25);
+      animation: ringAlerta 0.6s ease-in-out infinite alternate;
+    }
+
+    @keyframes ringEscucha { 0%,100%{box-shadow:0 0 12px rgba(242,140,0,0.2)} 50%{box-shadow:0 0 28px rgba(242,140,0,0.5)} }
+    @keyframes ringHabla   { from{box-shadow:0 0 16px rgba(0,212,255,0.3)} to{box-shadow:0 0 36px rgba(0,212,255,0.7)} }
+    @keyframes ringAlerta  { from{box-shadow:0 0 16px rgba(255,59,48,0.3)} to{box-shadow:0 0 36px rgba(255,59,48,0.7)} }
+
+    /* Indicador de onda de voz debajo del avatar */
+    .voz-onda {
+      display: flex; align-items: center; justify-content: center;
+      gap: 3px; height: 24px; margin-top: 8px;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .voz-onda.visible { opacity: 1; }
+    .voz-onda span {
+      display: inline-block;
+      width: 3px; border-radius: 2px;
+      background: var(--azul-ciborg);
+      height: 4px;
+      transition: height 0.08s ease;
+    }
+
+    /* Parpadeo del avatar chat */
+    .kalu-cara-wrap .ojos-grupo {
+      animation: parpadeoChat 7s ease-in-out infinite;
+      transform-origin: 70px 52px;
+    }
+    @keyframes parpadeoChat {
+      0%,85%,100% { transform: scaleY(1); }
+      88%,95%     { transform: scaleY(0.05); }
+    }
+
+    /* Boca del avatar chat */
+    #kalu-boca-chat {
+      transition: d 0.08s ease;
     }
 
     .kalu-nombre { font-size: 13px; font-weight: 700; color: var(--naranja); text-align: center; letter-spacing: 1px; }
     .kalu-modo { font-size: 10px; color: var(--gris-2); text-align: center; font-family: 'JetBrains Mono', monospace; background: var(--negro-3); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--gris-3); }
+
+    /* Label de estado bajo el nombre */
+    .kalu-estado-label {
+      font-size: 10px; font-family: 'JetBrains Mono', monospace;
+      color: var(--azul-ciborg); text-align: center;
+      letter-spacing: 1px; opacity: 0.7;
+      transition: color 0.3s;
+      min-height: 16px;
+    }
+    .kalu-estado-label.escuchando { color: var(--naranja); opacity: 1; }
+    .kalu-estado-label.hablando   { color: var(--azul-ciborg); opacity: 1; }
+    .kalu-estado-label.alerta     { color: var(--rojo-alerta); opacity: 1; }
 
     .kalu-stats { width: 100%; margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
     .stat-item { display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
     .stat-item .label { color: var(--gris-2); }
     .stat-item .value { color: var(--naranja); font-weight: 600; }
 
+    /* ─── CHAT MAIN ─── */
     .chat-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
     .chat-topbar {
@@ -253,7 +390,6 @@
       color: var(--negro); font-weight: 500;
     }
 
-    /* BOTÓN ESCUCHAR — fix del autoplay */
     .kalu-audio { margin-top: 6px; }
     .btn-escuchar {
       padding: 4px 14px; border-radius: 20px;
@@ -352,7 +488,7 @@
       display: none; font-family: 'JetBrains Mono', monospace;
     }
 
-    /* COUNTDOWN OVERLAY */
+    /* ─── COUNTDOWN OVERLAY ─── */
     #countdown-overlay {
       display: none; position: fixed; inset: 0; z-index: 500;
       background: rgba(10,12,15,0.92); backdrop-filter: blur(8px);
@@ -366,21 +502,6 @@
     @keyframes numPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.08);opacity:0.85} }
     .countdown-bar { width: 200px; height: 3px; background: var(--negro-4); border-radius: 2px; overflow: hidden; }
     .countdown-bar-fill { height: 100%; background: var(--naranja); border-radius: 2px; transition: width 1s linear; }
-
-
-    /* ── BOTÓN ESCUCHAR — fix autoplay Chrome ── */
-    .kalu-audio { margin-top: 6px; }
-    .btn-escuchar {
-      padding: 3px 12px; border-radius: 20px;
-      border: 1px solid rgba(0,212,255,0.35);
-      background: rgba(0,212,255,0.07);
-      color: var(--azul-ciborg);
-      font-size: 11px; font-weight: 600;
-      cursor: pointer; font-family: 'JetBrains Mono', monospace;
-      letter-spacing: 0.5px; transition: all 0.15s;
-    }
-    .btn-escuchar:hover { background: rgba(0,212,255,0.18); }
-    .btn-escuchar:disabled { opacity: 0.5; cursor: not-allowed; }
 
     @media (max-width: 600px) { .kalu-panel { display: none; } .burbuja { max-width: 90%; } }
   </style>
@@ -420,8 +541,86 @@
 
 <!-- PANTALLA INICIO -->
 <div id="pantalla-inicio">
-  <div class="kalu-avatar-inicio">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAVcAAAC3CAYAAACmAh0uAACiTElEQVR4nOy9d7hc13Xe/dt7nzL99oreG9FIkAB7AUlQJEXKNCWr2bKi2Int2I5LHMdOnOI45YuTOIljR5ZkySq2mlVpdYtmp9g7QYAAQRSiA7dNOWXv/f2xz8y9FyQlmyDEdt7nORhMuTNnynnP2mu9610ickCOHK8VxIzNAsb9VyFQSAQCg8FgAAwGgUBaM3YPJzpXYMBa99q07RzGnYOM+yNrUNlLAmhmP5eIHDlyHIz3Wu9AjkMbbaYzICxgwWLRZFcQ2f8lFkMaCsH5YIMfVqDQGLSz+zqFgS1YsEJhXN8HZHn6L1yVDbb9I0frykiPVA0jiQgjqNJMlWoyrRo2GRTICTWnYUqVFIlCIsVEVaVxbS19DmAqsJHN2sBnWakFWpnBaI6cG/+d3F1gPXdlgaVifDp1H1qo01u8Oe9e26aBm41VCZh/y/CUPSZchNZqLRXMzqO1mCJ5OeRBJ2jA2ZnpxJkVSuipg9Y5pyCKTOxW9K5IeWOvDOCvxdME5lgrYpV5Uqz/cBK7eXfBXJE0J8fBn1O3+YKDmYzF2E8t7rByUdSDJEjifqkJmHWcbhomkd0dXIkdOolIrk9EiOHK8VxIzNAsb9VyFQSAQCg8FgAAwGgUBaM3YPJzpXYMBa99q07RzGnYOM+yNrUNlLAmhmP5eIHDlyJM4p+cF4ecF4H5MWmEaUSoKHrfMBgBgKbLhWsIWZnR3eVUNSxpUy6Uf43Jk7HkM/aKA1aDdm2QVOWOuCoR6OSi2T3WYMr0YQZPB1O7MBT0KFVWVbMSfIaFwHlYXAAAAAAAAAAS0lEQVR4nGNgGAWkAgAAAiAAFhLfWAAAAABJRU5ErkJggg==" alt="KALU" style="width:280px;height:280px;object-fit:contain;animation:flotar 4s ease-in-out infinite;filter:drop-shadow(0 0 32px rgba(242,140,0,0.4));"/>
+
+  <!-- AVATAR INICIO SVG ANIMADO -->
+  <div class="kalu-avatar-inicio" id="avatar-inicio">
+    <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Halos de voz exterior (responden al estado) -->
+      <circle class="halo-voz-2" cx="110" cy="110" r="102" stroke="#00D4FF" stroke-width="0.8" opacity="0.1"/>
+      <circle class="halo-voz"   cx="110" cy="110" r="94"  stroke="#00D4FF" stroke-width="1.2" opacity="0.18"/>
+
+      <!-- Anillos orbitales -->
+      <g class="ring-orbit">
+        <ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(242,140,0,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/>
+        <circle cx="110" cy="26" r="4" fill="#F28C00" opacity="0.8"/>
+      </g>
+      <g class="ring-orbit-2">
+        <ellipse cx="110" cy="110" rx="76" ry="76" stroke="rgba(0,212,255,0.2)" stroke-width="0.8" stroke-dasharray="2 10" fill="none"/>
+        <circle cx="186" cy="110" r="3" fill="#00D4FF" opacity="0.7"/>
+      </g>
+      <g class="ring-orbit-3">
+        <ellipse cx="110" cy="110" rx="68" ry="68" stroke="rgba(242,140,0,0.12)" stroke-width="0.6" stroke-dasharray="6 14" fill="none"/>
+        <circle cx="110" cy="178" r="2.5" fill="#F28C00" opacity="0.5"/>
+      </g>
+
+      <!-- Grupo flotante (cara + core) -->
+      <g class="avatar-float">
+        <!-- Fondo circular del avatar -->
+        <circle class="avatar-core" cx="110" cy="110" r="58" fill="#111318" stroke="#00D4FF" stroke-width="1.5" opacity="0.9"/>
+        <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
+
+        <!-- Arcos de cabeza superiores -->
+        <path d="M72 95 Q70 78 90 68 Q110 60 130 68 Q150 78 148 95" fill="#111318"/>
+        <path d="M75 100 Q73 82 93 72 Q110 65 127 72 Q147 82 145 100" fill="#1E2028"/>
+
+        <!-- Detalles laterales ciborg -->
+        <rect x="62" y="90" width="8" height="22" rx="2" fill="#F28C00" opacity="0.3"/>
+        <rect x="150" y="90" width="8" height="22" rx="2" fill="#00D4FF" opacity="0.3"/>
+        <circle cx="66" cy="88" r="2.5" fill="#F28C00" opacity="0.8"/>
+        <circle cx="154" cy="88" r="2.5" fill="#00D4FF" opacity="0.8"/>
+
+        <!-- OJOS — grupo para parpadeo -->
+        <g class="ojo-pupila-inicio">
+          <!-- Ojo izquierdo -->
+          <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
+          <ellipse cx="91" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
+          <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
+          <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
+          <!-- Cejas -->
+          <path d="M82 89 Q91 85 100 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <!-- Conector ojo izq -->
+          <line x1="82" y1="98" x2="75" y2="96" stroke="#00D4FF" stroke-width="1.2" opacity="0.6"/>
+        </g>
+
+        <g class="ojo-pupila-inicio">
+          <!-- Ojo derecho -->
+          <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
+          <ellipse cx="129" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
+          <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
+          <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
+          <!-- Cejas -->
+          <path d="M120 89 Q129 85 138 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <!-- Conector ojo der -->
+          <line x1="138" y1="98" x2="145" y2="96" stroke="#F28C00" stroke-width="1.2" opacity="0.6"/>
+        </g>
+
+        <!-- Nariz -->
+        <path d="M107 103 Q110 109 113 103" stroke="#4A4E5A" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+        <!-- BOCA DINÁMICA — ruta base: cerrada / neutra -->
+        <path id="boca-inicio"
+              d="M94 120 Q110 130 126 120"
+              stroke="#F28C00" stroke-width="2.2" fill="none" stroke-linecap="round"
+              style="transition: d 0.08s ease;"/>
+
+        <!-- Mentón / jaw line -->
+        <path d="M78 112 Q110 132 142 112" stroke="rgba(0,212,255,0.15)" stroke-width="0.5" fill="none"/>
+
+        <!-- Detalle cara: líneas laterales sutiles -->
+        <path d="M148 108 Q155 112 152 122" stroke="#F28C00" stroke-width="0.8" fill="none" opacity="0.5"/>
+        <path d="M72 108 Q65 112 68 122" stroke="#00D4FF" stroke-width="0.8" fill="none" opacity="0.5"/>
+      </g>
+    </svg>
   </div>
 
   <div class="inicio-form">
@@ -454,38 +653,74 @@
 
     <!-- Panel KALU cara -->
     <div class="kalu-panel">
-      <div class="kalu-cara-wrap">
-        <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- AVATAR CHAT SVG -->
+      <div class="kalu-cara-wrap estado-idle" id="kalu-cara-wrap">
+        <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" id="kalu-svg-chat">
           <rect width="140" height="140" fill="#0A0C0F"/>
+
+          <!-- Fondo cabeza -->
           <ellipse cx="70" cy="38" rx="42" ry="30" fill="#1A1D24"/>
           <path d="M28 45 Q20 30 35 20 Q70 5 105 20 Q120 30 112 45" fill="#111318"/>
+
+          <!-- Lados ciborg -->
           <path d="M28 45 Q25 60 28 75" stroke="#222630" stroke-width="8" fill="none" stroke-linecap="round"/>
           <path d="M112 45 Q115 60 112 75" stroke="#222630" stroke-width="8" fill="none" stroke-linecap="round"/>
           <ellipse cx="70" cy="80" rx="36" ry="42" fill="#1E2028"/>
+
+          <!-- Detalles ciborg pequeños -->
           <path d="M96 75 Q108 78 105 90" stroke="#F28C00" stroke-width="1" fill="none" opacity="0.6"/>
           <circle cx="107" cy="72" r="2" fill="#F28C00" opacity="0.8"/>
-          <circle cx="33" cy="72" r="2" fill="#00D4FF" opacity="0.8"/>
-          <rect x="42" y="65" width="22" height="16" rx="6" fill="rgba(0,212,255,0.1)" stroke="#00D4FF" stroke-width="1.5"/>
-          <rect x="76" y="65" width="22" height="16" rx="6" fill="rgba(0,212,255,0.1)" stroke="#00D4FF" stroke-width="1.5"/>
-          <line x1="64" y1="73" x2="76" y2="73" stroke="#00D4FF" stroke-width="1.5"/>
-          <line x1="42" y1="73" x2="36" y2="70" stroke="#00D4FF" stroke-width="1.5"/>
-          <line x1="98" y1="73" x2="104" y2="70" stroke="#00D4FF" stroke-width="1.5"/>
-          <ellipse cx="53" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
-          <ellipse cx="87" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
-          <ellipse cx="53" cy="73" rx="3" ry="3" fill="#00D4FF"/>
-          <ellipse cx="87" cy="73" rx="3" ry="3" fill="#00D4FF"/>
-          <ellipse cx="54" cy="72" rx="1" ry="1" fill="white"/>
-          <ellipse cx="88" cy="72" rx="1" ry="1" fill="white"/>
+          <circle cx="33"  cy="72" r="2" fill="#00D4FF" opacity="0.8"/>
+
+          <!-- OJOS — grupo con parpadeo -->
+          <g class="ojos-grupo">
+            <!-- Ojo izquierdo -->
+            <rect x="42" y="65" width="22" height="16" rx="6" fill="rgba(0,212,255,0.1)" stroke="#00D4FF" stroke-width="1.5"/>
+            <ellipse cx="53" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="53" cy="73" rx="3"   ry="3" fill="#00D4FF"/>
+            <ellipse cx="54" cy="72" rx="1"   ry="1" fill="white"/>
+            <!-- Ojo derecho -->
+            <rect x="76" y="65" width="22" height="16" rx="6" fill="rgba(0,212,255,0.1)" stroke="#00D4FF" stroke-width="1.5"/>
+            <ellipse cx="87" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="87" cy="73" rx="3"   ry="3" fill="#00D4FF"/>
+            <ellipse cx="88" cy="72" rx="1"   ry="1" fill="white"/>
+            <!-- Conectores -->
+            <line x1="64" y1="73" x2="76" y2="73" stroke="#00D4FF" stroke-width="1.5"/>
+            <line x1="42" y1="73" x2="36" y2="70" stroke="#00D4FF" stroke-width="1.5"/>
+            <line x1="98" y1="73" x2="104" y2="70" stroke="#F28C00" stroke-width="1.5"/>
+          </g>
+
+          <!-- Cejas -->
           <path d="M44 62 Q53 58 62 62" stroke="#A0A4AD" stroke-width="2" fill="none" stroke-linecap="round"/>
           <path d="M78 62 Q87 58 96 62" stroke="#A0A4AD" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+          <!-- Nariz -->
           <path d="M67 78 Q70 85 73 78" stroke="#4A4E5A" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-          <path d="M59 96 Q70 104 81 96" stroke="#F28C00" stroke-width="2" fill="none" stroke-linecap="round" id="kalu-boca"/>
+
+          <!-- BOCA DINÁMICA -->
+          <path id="kalu-boca-chat"
+                d="M59 96 Q70 104 81 96"
+                stroke="#F28C00" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+          <!-- Mandíbula / jaw -->
           <path d="M34 95 Q70 115 106 95" stroke="rgba(0,212,255,0.2)" stroke-width="0.5" fill="none"/>
+
+          <!-- Frente ciborg -->
           <path d="M40 45 Q50 35 60 48" stroke="#222630" stroke-width="6" fill="none" stroke-linecap="round"/>
           <path d="M60 40 Q70 32 80 40" stroke="#1A1D24" stroke-width="5" fill="none" stroke-linecap="round"/>
         </svg>
       </div>
+
+      <!-- Ondas de voz bajo el avatar -->
+      <div class="voz-onda" id="voz-onda">
+        <span id="vb0"></span><span id="vb1"></span><span id="vb2"></span>
+        <span id="vb3"></span><span id="vb4"></span><span id="vb5"></span>
+        <span id="vb6"></span>
+      </div>
+
       <div class="kalu-nombre">KALU IA</div>
+      <div class="kalu-estado-label" id="kalu-estado-label">// idle</div>
       <div class="kalu-modo" id="kalu-modo-label">MODO —</div>
       <div class="kalu-stats" id="kalu-stats"></div>
     </div>
@@ -531,13 +766,13 @@
 
 <script>
   // ── CONFIG ──
-  const N8N_BASE = 'https://dnmintell.app.n8n.cloud/webhook';
+  const N8N_BASE       = 'https://dnmintell.app.n8n.cloud/webhook';
   const WEBHOOK_INICIAR = `${N8N_BASE}/kalu-v3-iniciar`;
   const WEBHOOK_MENSAJE = `${N8N_BASE}/kalu-v3-mensaje`;
   const WEBHOOK_STT     = `${N8N_BASE}/kalu-hse-stt`;
   const WEBHOOK_TTS     = `${N8N_BASE}/kalu-hse-tts`;
 
-  // ── ESTADO ──
+  // ── ESTADO GENERAL ──
   let empleados = [];
   let empleadoActivo = '';
   let sessionId = '';
@@ -550,6 +785,166 @@
   let pendingCountdown = false;
   let autoCountdownTimer = null;
 
+  // ── SISTEMA DE ESTADOS DEL AVATAR ──
+  // Estados: 'idle' | 'escuchando' | 'hablando' | 'alerta'
+  let estadoAvatar = 'idle';
+
+  // Audio context + analyser para lip-sync
+  let audioCtx = null;
+  let analyser = null;
+  let lipSyncRAF = null;
+  let lipSyncSource = null;
+
+  // Curvas de boca por estado (SVG path d)
+  const BOCAS = {
+    // avatar inicio (viewBox 220x220, boca centrada en y≈120)
+    inicio: {
+      cerrada:    'M94 120 Q110 130 126 120',
+      abierta_s:  'M92 119 Q110 132 128 119',
+      abierta_m:  'M90 118 Q110 135 130 118',
+      abierta_l:  'M88 117 Q110 138 132 117',
+      sorpresa:   'M96 118 Q110 136 124 118',
+      alerta:     'M94 122 Q110 118 126 122',  // boca en línea recta
+    },
+    // avatar chat (viewBox 140x140, boca en y≈96-104)
+    chat: {
+      cerrada:    'M59 96 Q70 104 81 96',
+      abierta_s:  'M57 95 Q70 106 83 95',
+      abierta_m:  'M55 95 Q70 108 85 95',
+      abierta_l:  'M54 94 Q70 111 86 94',
+      sorpresa:   'M60 95 Q70 108 80 95',
+      alerta:     'M59 98 Q70 94 81 98',       // boca en línea recta
+    }
+  };
+
+  function setBocaInicio(tipo) {
+    const el = document.getElementById('boca-inicio');
+    if (el) el.setAttribute('d', BOCAS.inicio[tipo] || BOCAS.inicio.cerrada);
+  }
+
+  function setBocaChat(tipo) {
+    const el = document.getElementById('kalu-boca-chat');
+    if (el) el.setAttribute('d', BOCAS.chat[tipo] || BOCAS.chat.cerrada);
+  }
+
+  function setEstadoAvatar(estado) {
+    if (estadoAvatar === estado) return;
+    estadoAvatar = estado;
+
+    // wrapper del chat
+    const wrap = document.getElementById('kalu-cara-wrap');
+    if (wrap) {
+      wrap.className = `kalu-cara-wrap estado-${estado}`;
+    }
+
+    // wrapper del inicio
+    const ini = document.getElementById('avatar-inicio');
+    if (ini) {
+      ini.className = `kalu-avatar-inicio estado-${estado}`;
+    }
+
+    // label de estado
+    const lbl = document.getElementById('kalu-estado-label');
+    if (lbl) {
+      lbl.className = `kalu-estado-label ${estado}`;
+      const labels = { idle: '// idle', escuchando: '// escuchando', hablando: '// hablando', alerta: '// alerta HSE' };
+      lbl.textContent = labels[estado] || `// ${estado}`;
+    }
+
+    // Boca según estado
+    if (estado === 'idle') {
+      setBocaInicio('cerrada'); setBocaChat('cerrada');
+    } else if (estado === 'escuchando') {
+      setBocaInicio('abierta_s'); setBocaChat('abierta_s');
+    } else if (estado === 'alerta') {
+      setBocaInicio('alerta'); setBocaChat('alerta');
+    }
+    // 'hablando' lo maneja el lip-sync en tiempo real
+
+    // Ondas de voz
+    const onda = document.getElementById('voz-onda');
+    if (onda) onda.classList.toggle('visible', estado === 'hablando');
+  }
+
+  // ── LIP-SYNC VIA WEB AUDIO API ──
+  // Analiza el volumen del audio TTS en tiempo real y mueve la boca en proporción
+
+  function iniciarLipSync(audioElement) {
+    detenerLipSync();
+
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.4;
+
+      lipSyncSource = audioCtx.createMediaElementSource(audioElement);
+      lipSyncSource.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const barras = [
+        document.getElementById('vb0'), document.getElementById('vb1'),
+        document.getElementById('vb2'), document.getElementById('vb3'),
+        document.getElementById('vb4'), document.getElementById('vb5'),
+        document.getElementById('vb6'),
+      ];
+
+      function tick() {
+        analyser.getByteFrequencyData(dataArray);
+
+        // Volumen promedio de las frecuencias de voz (aprox 80-3000Hz en 256 bins a 44100Hz)
+        const voz = dataArray.slice(2, 30);
+        const promedio = voz.reduce((a, b) => a + b, 0) / voz.length;
+        const norm = Math.min(promedio / 90, 1); // 0..1
+
+        // Actualizar boca según volumen
+        let bocaTipo;
+        if (norm < 0.15)      bocaTipo = 'cerrada';
+        else if (norm < 0.35) bocaTipo = 'abierta_s';
+        else if (norm < 0.6)  bocaTipo = 'abierta_m';
+        else                  bocaTipo = 'abierta_l';
+
+        setBocaInicio(bocaTipo);
+        setBocaChat(bocaTipo);
+
+        // Actualizar barras de onda
+        const segmentos = Math.floor(dataArray.length / 7);
+        barras.forEach((b, i) => {
+          if (!b) return;
+          const val = dataArray[i * segmentos] / 255;
+          const h = Math.max(3, Math.round(val * 22));
+          b.style.height = h + 'px';
+          b.style.opacity = 0.4 + val * 0.6;
+        });
+
+        lipSyncRAF = requestAnimationFrame(tick);
+      }
+
+      tick();
+    } catch(e) {
+      // Web Audio no disponible — sin lip-sync, boca fija abierta durante TTS
+    }
+  }
+
+  function detenerLipSync() {
+    if (lipSyncRAF) { cancelAnimationFrame(lipSyncRAF); lipSyncRAF = null; }
+    if (lipSyncSource) {
+      try { lipSyncSource.disconnect(); } catch(e) {}
+      lipSyncSource = null;
+    }
+    analyser = null;
+    // Reset barras
+    for (let i = 0; i < 7; i++) {
+      const b = document.getElementById('vb' + i);
+      if (b) { b.style.height = '4px'; b.style.opacity = '0.3'; }
+    }
+    setBocaInicio('cerrada');
+    setBocaChat('cerrada');
+  }
+
   // ── INICIO ──
   function agregarEmpleado() {
     const inp = document.getElementById('input-nombre');
@@ -558,6 +953,9 @@
     empleados.push(nombre);
     renderChips();
     inp.value = ''; inp.focus();
+    // Avatar inicio reacciona brevemente
+    setBocaInicio('abierta_s');
+    setTimeout(() => setBocaInicio('cerrada'), 400);
   }
 
   document.getElementById('input-nombre').addEventListener('keydown', e => {
@@ -580,6 +978,7 @@
     const btn = document.getElementById('btn-iniciar');
     btn.disabled = true;
     btn.textContent = 'CONECTANDO CON KALU...';
+    setEstadoAvatar('escuchando');
 
     try {
       const res = await fetch(WEBHOOK_INICIAR, {
@@ -589,12 +988,14 @@
       });
       const data = await res.json();
 
-  if (data.bloqueado) {
-      btn.disabled = false;
-      btn.textContent = 'INICIAR SESIÓN CON KALU';
-      alert(data.mensaje);
-      return;
-  }
+      if (data.bloqueado) {
+        btn.disabled = false;
+        btn.textContent = 'INICIAR SESIÓN CON KALU';
+        setEstadoAvatar('idle');
+        alert(data.mensaje);
+        return;
+      }
+
       sessionId      = data.sessionId || '';
       atsItemId      = data.atsItemId || '';
       empleadoActivo = empleados[0];
@@ -618,6 +1019,7 @@
         const chat = document.getElementById('pantalla-chat');
         chat.classList.add('visible');
         renderSelectorEmp();
+        setEstadoAvatar('hablando');
         agregarMensajeKALU(data.mensaje, true);
       }, 500);
 
@@ -625,6 +1027,7 @@
       alert('Error al conectar con KALU. Verificá tu conexión.');
       btn.disabled = false;
       btn.textContent = 'INICIAR SESIÓN CON KALU';
+      setEstadoAvatar('idle');
     }
   }
 
@@ -648,9 +1051,6 @@
     const contenido = document.createElement('div');
     contenido.className = 'contenido typewriter-cursor';
 
-    // Botón ▶ Escuchar — solución al bloqueo de autoplay de Chrome
-    // El autoplay falla cuando no hay interacción previa; el botón manual
-    // siempre funciona porque es un evento de click directo del usuario.
     const audioWrap = document.createElement('div');
     audioWrap.className = 'kalu-audio';
     const btnEscuchar = document.createElement('button');
@@ -667,11 +1067,14 @@
 
     typewriterEffect(contenido, texto, () => {
       contenido.classList.remove('typewriter-cursor');
+      // Vuelve a idle cuando termina de "hablar" (si no hay audio real)
+      if (estadoAvatar === 'hablando' && !lipSyncSource) {
+        setTimeout(() => setEstadoAvatar('idle'), 600);
+      }
     });
 
     mostrarSubtitulos(texto);
 
-    // Intentar autoplay; si Chrome lo bloquea, el botón queda como fallback
     if (reproducir) reproducirVozAuto(texto);
   }
 
@@ -739,7 +1142,10 @@
   function mostrarTyping(show) {
     const t = document.getElementById('typing');
     t.classList.toggle('visible', show);
-    if (show) document.getElementById('mensajes').scrollTop = 99999;
+    if (show) {
+      document.getElementById('mensajes').scrollTop = 99999;
+      setEstadoAvatar('escuchando'); // KALU "piensa" → estado escuchando
+    }
   }
 
   async function enviarMensaje() {
@@ -764,6 +1170,15 @@
       });
       const data = await res.json();
       mostrarTyping(false);
+      setEstadoAvatar('hablando');
+
+      // Detectar alerta HSE en respuesta
+      const textoUpper = (data.mensaje || '').toUpperCase();
+      if (textoUpper.includes('PELIGRO') || textoUpper.includes('ALERTA') || textoUpper.includes('RIESGO ALTO')) {
+        setEstadoAvatar('alerta');
+        setTimeout(() => setEstadoAvatar('hablando'), 2000);
+      }
+
       agregarMensajeKALU(data.mensaje || 'Sin respuesta', true);
 
       if (data.atsDetectado) {
@@ -772,6 +1187,8 @@
       }
     } catch(e) {
       mostrarTyping(false);
+      setEstadoAvatar('alerta');
+      setTimeout(() => setEstadoAvatar('idle'), 3000);
       const err = document.getElementById('error-msg');
       err.textContent = 'Error de conexión. Intentá de nuevo.';
       err.style.display = 'block';
@@ -803,6 +1220,9 @@
   }
 
   function resetSesion() {
+    detenerLipSync();
+    setEstadoAvatar('idle');
+
     sessionId = ''; atsItemId = ''; empleados = []; empleadoActivo = '';
     mensajesCount = 0; pendingCountdown = false;
     if (autoCountdownTimer) { clearTimeout(autoCountdownTimer); autoCountdownTimer = null; }
@@ -861,6 +1281,7 @@
       mediaRecorder.start(250);
       grabando = true;
 
+      setEstadoAvatar('escuchando');
       document.getElementById('btn-mic').classList.add('grabando');
       document.getElementById('voz-estado').textContent = 'Grabando... (tocá para detener)';
       document.getElementById('voz-ind').classList.add('visible');
@@ -874,6 +1295,7 @@
       mediaRecorder.stop(); grabando = false;
       document.getElementById('btn-mic').classList.remove('grabando');
       document.getElementById('voz-estado').textContent = 'Procesando...';
+      setEstadoAvatar('idle');
     }
   }
 
@@ -896,17 +1318,18 @@
         await enviarMensaje();
       } else {
         mostrarError('No se entendió el audio. Intentá de nuevo.');
+        setEstadoAvatar('idle');
       }
     } catch(e) {
       ind.classList.remove('visible');
       mostrarError('Error al procesar el audio.');
+      setEstadoAvatar('idle');
     }
   }
 
-  // ── VOZ TTS ──
+  // ── VOZ TTS con LIP-SYNC ──
 
-  // Autoplay silencioso — funciona si el usuario ya interactuó con la página.
-  // Si Chrome lo bloquea, no pasa nada: el botón ▶ Escuchar queda visible.
+  // Autoplay silencioso — con lip-sync integrado
   async function reproducirVozAuto(texto) {
     try {
       const res = await fetch(WEBHOOK_TTS, {
@@ -916,13 +1339,32 @@
       });
       if (!res.ok) return;
       const blob = await res.blob();
-      const audio = new Audio(URL.createObjectURL(blob));
-      audio.play().catch(() => {}); // silencioso si bloquea
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+
+      audio.addEventListener('play', () => {
+        setEstadoAvatar('hablando');
+        iniciarLipSync(audio);
+      });
+      audio.addEventListener('ended', () => {
+        detenerLipSync();
+        setEstadoAvatar('idle');
+        URL.revokeObjectURL(url);
+      });
+      audio.addEventListener('error', () => {
+        detenerLipSync();
+        setEstadoAvatar('idle');
+      });
+
+      audio.play().catch(() => {
+        // Chrome bloqueó autoplay — el botón ▶ Escuchar queda como fallback
+        detenerLipSync();
+        setEstadoAvatar('idle');
+      });
     } catch(e) {}
   }
 
-  // Reproducción manual desde el botón ▶ Escuchar — siempre funciona
-  // porque es un evento directo de click del usuario (desbloquea autoplay).
+  // Reproducción manual — siempre funciona (click directo del usuario)
   async function reproducirVoz(btn, texto) {
     btn.textContent = '⏳ Cargando...';
     btn.disabled = true;
@@ -936,43 +1378,31 @@
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
-      audio.onended = () => {
-        btn.textContent = '▶ Escuchar';
-        btn.disabled = false;
-        URL.revokeObjectURL(url);
-      };
-      audio.play();
-      btn.textContent = '🔊 Reproduciendo...';
-    } catch(e) {
-      btn.textContent = '▶ Escuchar';
-      btn.disabled = false;
-    }
-  }
 
-  // ── VOZ TTS MANUAL — siempre funciona porque es click directo del usuario ──
-  async function reproducirVoz(btn, texto) {
-    btn.textContent = '⏳ Cargando...';
-    btn.disabled = true;
-    try {
-      const res = await fetch(WEBHOOK_TTS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto })
+      audio.addEventListener('play', () => {
+        setEstadoAvatar('hablando');
+        iniciarLipSync(audio);
+        btn.textContent = '🔊 Reproduciendo...';
       });
-      if (!res.ok) throw new Error('TTS error');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => {
+      audio.addEventListener('ended', () => {
+        detenerLipSync();
+        setEstadoAvatar('idle');
         btn.textContent = '▶ Escuchar';
         btn.disabled = false;
         URL.revokeObjectURL(url);
-      };
+      });
+      audio.addEventListener('error', () => {
+        detenerLipSync();
+        setEstadoAvatar('idle');
+        btn.textContent = '▶ Escuchar';
+        btn.disabled = false;
+      });
+
       audio.play();
-      btn.textContent = '🔊 Reproduciendo...';
     } catch(e) {
       btn.textContent = '▶ Escuchar';
       btn.disabled = false;
+      setEstadoAvatar('idle');
     }
   }
 

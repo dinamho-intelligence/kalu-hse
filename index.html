@@ -499,11 +499,28 @@
       </div>
     </div>
 
-    <!-- PASO 1 — tarea y cuadrilla -->
+    <!-- PASO 1 — identificación y cuadrilla -->
     <div class="paso-contenido visible" id="paso-1">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="campo">
+          <label>Empresa ejecutora</label>
+          <input type="text" id="input-empresa" placeholder="Ej: Dinamho T&T, Total QC..." />
+        </div>
+        <div class="campo">
+          <label>Cliente</label>
+          <input type="text" id="input-cliente" value="Baker Hughes" />
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Área / Locación exacta</label>
+        <input type="text" id="input-area" placeholder="Ej: Area QC, Base Baker Hughes Villavicencio, Oficina inspección..." />
+      </div>
+
       <div class="campo">
         <label>Tarea del día</label>
-        <input type="text" id="input-tarea" placeholder="Ej: Inspección dimensional, Videoscopía, Limpieza de herramientas..." />
+        <input type="text" id="input-tarea" placeholder="Ej: Inspección dimensional, Videoscopía, Cambio de enchufe..." />
       </div>
 
       <div class="campo">
@@ -513,6 +530,11 @@
           <button class="btn-agregar" onclick="agregarEmpleado()">+</button>
         </div>
         <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="campo">
+        <label>Responsable / Quien firma el ATS</label>
+        <input type="text" id="input-responsable" placeholder="Nombre completo del responsable" />
       </div>
 
       <div class="btns-nav">
@@ -772,6 +794,10 @@
 
   function irPaso2() {
     const tarea = document.getElementById('input-tarea').value.trim();
+    const empresa = document.getElementById('input-empresa').value.trim();
+    const area = document.getElementById('input-area').value.trim();
+    if (!empresa) { alert('Ingresá la empresa ejecutora'); return; }
+    if (!area) { alert('Ingresá el área o locación'); return; }
     if (!tarea) { alert('Ingresá la tarea del día'); return; }
     if (empleados.length === 0) { alert('Agregá al menos un empleado'); return; }
     document.getElementById('paso-1').classList.remove('visible');
@@ -832,8 +858,12 @@
 
   // ── INICIAR SESIÓN ──
   async function iniciarSesion() {
-    const tarea       = document.getElementById('input-tarea').value.trim();
-    const condiciones = document.getElementById('input-condiciones').value.trim();
+    const tarea         = document.getElementById('input-tarea').value.trim();
+    const empresa       = document.getElementById('input-empresa').value.trim();
+    const cliente       = document.getElementById('input-cliente').value.trim();
+    const area          = document.getElementById('input-area').value.trim();
+    const responsable   = document.getElementById('input-responsable').value.trim() || empleados[0] || '';
+    const condiciones   = document.getElementById('input-condiciones').value.trim();
     const observaciones = document.getElementById('input-observaciones').value.trim();
 
     if (equipos.length === 0) { alert('Agregá al menos un equipo o herramienta'); return; }
@@ -849,7 +879,7 @@
       const res = await fetch(WEBHOOK_INICIAR, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empleados, tarea, equipos, condiciones, observaciones })
+        body: JSON.stringify({ empleados, tarea, empresa, cliente, area, responsable, equipos, condiciones, observaciones })
       });
       const data = await res.json();
 
@@ -1021,6 +1051,10 @@
     document.getElementById('chips').innerHTML='';
     document.getElementById('chips-equipos').innerHTML='';
     document.getElementById('input-tarea').value='';
+    document.getElementById('input-empresa').value='';
+    document.getElementById('input-cliente').value='Baker Hughes';
+    document.getElementById('input-area').value='';
+    document.getElementById('input-responsable').value='';
     document.getElementById('input-nombre').value='';
     document.getElementById('input-equipo').value='';
     document.getElementById('input-condiciones').value='';

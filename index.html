@@ -27,149 +27,143 @@
       --rojo-alerta: #FF3B30;
     }
 
-    html, body {
-      height: 100%;
-      font-family: 'Space Grotesk', sans-serif;
-      background: var(--negro);
-      color: var(--blanco);
-      overflow: hidden;
-    }
+    html, body { height: 100%; font-family: 'Space Grotesk', sans-serif; background: var(--negro); color: var(--blanco); overflow: hidden; }
 
     header {
       position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-      height: 60px;
-      background: rgba(10,12,15,0.95);
+      height: 60px; background: rgba(10,12,15,0.95);
       border-bottom: 1px solid rgba(242,140,0,0.2);
       backdrop-filter: blur(12px);
-      display: flex; align-items: center;
-      padding: 0 24px; gap: 16px;
+      display: flex; align-items: center; padding: 0 24px; gap: 16px;
     }
-
     .logo-dnm { display: flex; align-items: center; gap: 10px; }
-    .logo-hex { width: 36px; height: 36px; position: relative; display: flex; align-items: center; justify-content: center; }
+    .logo-hex { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
     .logo-hex svg { width: 36px; height: 36px; }
     .logo-text { display: flex; flex-direction: column; line-height: 1.1; }
     .logo-text .brand { font-size: 13px; font-weight: 700; color: var(--naranja); letter-spacing: 1px; }
-    .logo-text .sub   { font-size: 10px; font-weight: 400; color: var(--gris-2); letter-spacing: 0.5px; font-family: 'JetBrains Mono', monospace; }
+    .logo-text .sub   { font-size: 10px; color: var(--gris-2); letter-spacing: 0.5px; font-family: 'JetBrains Mono', monospace; }
     .header-divider { width: 1px; height: 24px; background: var(--gris-3); margin: 0 4px; }
     .kalu-label { font-size: 15px; font-weight: 600; color: var(--blanco); }
-
     .status-pill {
-      margin-left: auto;
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 12px; border-radius: 20px;
-      font-size: 11px; font-weight: 500;
-      font-family: 'JetBrains Mono', monospace;
-      border: 1px solid;
+      margin-left: auto; display: flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500;
+      font-family: 'JetBrains Mono', monospace; border: 1px solid;
     }
     .status-pill.online  { background: rgba(0,200,150,0.1); border-color: rgba(0,200,150,0.3); color: var(--verde-ok); }
-    .status-pill.offline { background: rgba(255,59,48,0.1);  border-color: rgba(255,59,48,0.3);  color: var(--rojo-alerta); }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulso 2s infinite; }
-
     @keyframes pulso { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
     /* ─── PANTALLA INICIO ─── */
     #pantalla-inicio {
       position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 80px 24px 32px;
+      display: flex; flex-direction: row;
+      align-items: stretch;
+      padding-top: 60px;
       background: var(--negro);
       z-index: 10;
       transition: opacity 0.5s ease, transform 0.5s ease;
+      overflow: hidden;
     }
     #pantalla-inicio.saliendo { opacity: 0; transform: translateY(-20px); pointer-events: none; }
 
-    /* ─── AVATAR INICIO ANIMADO ─── */
-    .kalu-avatar-inicio {
-      width: 220px; height: 220px;
-      margin-bottom: 24px;
-      position: relative;
-      flex-shrink: 0;
+    /* Columna izquierda — avatar */
+    .inicio-avatar-col {
+      width: 320px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 24px;
+      border-right: 1px solid rgba(242,140,0,0.1);
+      background: var(--negro-2);
     }
-    .kalu-avatar-inicio svg { width: 100%; height: 100%; }
 
-    /* Anillos orbitales */
-    .ring-orbit { animation: girar 10s linear infinite; transform-origin: 110px 110px; }
+    .kalu-avatar-inicio { width: 200px; height: 200px; position: relative; flex-shrink: 0; margin-bottom: 20px; }
+    .kalu-avatar-inicio svg { width: 100%; height: 100%; }
+    .ring-orbit   { animation: girar 10s linear infinite; transform-origin: 110px 110px; }
     .ring-orbit-2 { animation: girar 16s linear infinite reverse; transform-origin: 110px 110px; }
     .ring-orbit-3 { animation: girar 24s linear infinite; transform-origin: 110px 110px; }
-
-    /* Float suave del grupo principal */
     .avatar-float { animation: flotar 4s ease-in-out infinite; }
-
-    /* Halo de voz — expandido cuando habla */
-    .halo-voz {
-      transform-origin: 110px 110px;
-      animation: haloIdle 3s ease-in-out infinite;
-    }
-    .halo-voz-2 {
-      transform-origin: 110px 110px;
-      animation: haloIdle2 3s ease-in-out infinite 0.5s;
-    }
-
-    /* Core del avatar */
+    .halo-voz   { transform-origin: 110px 110px; animation: haloIdle 3s ease-in-out infinite; }
+    .halo-voz-2 { transform-origin: 110px 110px; animation: haloIdle2 3s ease-in-out infinite 0.5s; }
     .avatar-core { animation: corePulse 3s ease-in-out infinite; transform-origin: 110px 110px; }
-
-    /* Boca inicio */
-    #boca-inicio {
-      transition: d 0.1s ease;
-    }
-
-    /* Ojos inicio */
-    .ojo-pupila-inicio {
-      animation: parpadeoInicio 6s ease-in-out infinite;
-      transform-origin: center;
-    }
-
+    .ojo-pupila-inicio { animation: parpadeoInicio 6s ease-in-out infinite; transform-origin: center; }
     @keyframes girar     { to { transform: rotate(360deg); } }
     @keyframes flotar    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
     @keyframes corePulse { 0%,100%{opacity:0.85;transform:scale(1)} 50%{opacity:1;transform:scale(1.03)} }
     @keyframes haloIdle  { 0%,100%{opacity:0.15;transform:scale(1)} 50%{opacity:0.35;transform:scale(1.06)} }
     @keyframes haloIdle2 { 0%,100%{opacity:0.08;transform:scale(1)} 50%{opacity:0.2;transform:scale(1.12)} }
-    @keyframes parpadeoInicio {
-      0%,88%,100% { transform: scaleY(1); }
-      92%,96%     { transform: scaleY(0.05); }
-    }
-
-    /* Estados del avatar inicio */
+    @keyframes parpadeoInicio { 0%,88%,100%{transform:scaleY(1)} 92%,96%{transform:scaleY(0.05)} }
     .kalu-avatar-inicio.estado-hablando .halo-voz   { animation: haloHabla 0.4s ease-in-out infinite alternate; }
     .kalu-avatar-inicio.estado-hablando .halo-voz-2 { animation: haloHabla2 0.4s ease-in-out infinite alternate 0.2s; }
     .kalu-avatar-inicio.estado-escuchando .halo-voz { animation: haloEscucha 1.2s ease-in-out infinite; }
     .kalu-avatar-inicio.estado-alerta .halo-voz     { animation: haloAlerta 0.5s ease-in-out infinite alternate; }
-
     @keyframes haloHabla   { from{opacity:0.2;transform:scale(1)} to{opacity:0.6;transform:scale(1.1)} }
     @keyframes haloHabla2  { from{opacity:0.1;transform:scale(1)} to{opacity:0.4;transform:scale(1.18)} }
     @keyframes haloEscucha { 0%,100%{opacity:0.2;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.08)} }
     @keyframes haloAlerta  { from{opacity:0.3;transform:scale(1)} to{opacity:0.7;transform:scale(1.09)} }
 
-    /* ─── FORM INICIO ─── */
-    .inicio-form {
-      width: 100%; max-width: 440px;
-      background: var(--negro-2);
-      border: 1px solid rgba(242,140,0,0.25);
-      border-radius: 20px;
-      padding: 32px;
-      box-shadow: 0 0 40px rgba(242,140,0,0.08), 0 20px 60px rgba(0,0,0,0.5);
-    }
-    .inicio-form h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: var(--blanco); }
-    .inicio-form p { font-size: 13px; color: var(--gris-2); margin-bottom: 28px; font-family: 'JetBrains Mono', monospace; }
+    .inicio-kalu-titulo { font-size: 18px; font-weight: 700; color: var(--naranja); letter-spacing: 1px; margin-bottom: 6px; }
+    .inicio-kalu-sub { font-size: 11px; color: var(--gris-2); font-family: 'JetBrains Mono', monospace; text-align: center; line-height: 1.6; }
 
-    .campo { margin-bottom: 20px; }
-    .campo label {
-      display: block; font-size: 11px; font-weight: 600;
-      color: var(--naranja); text-transform: uppercase;
-      letter-spacing: 1px; margin-bottom: 8px;
-      font-family: 'JetBrains Mono', monospace;
+    /* Columna derecha — formulario con pasos */
+    .inicio-form-col {
+      flex: 1;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      padding: 32px 40px;
     }
-    .campo input {
+    .inicio-form-col::-webkit-scrollbar { width: 4px; }
+    .inicio-form-col::-webkit-scrollbar-thumb { background: var(--gris-3); border-radius: 2px; }
+
+    /* Pasos */
+    .pasos-header {
+      display: flex; align-items: center; gap: 0;
+      margin-bottom: 32px;
+    }
+    .paso-tab {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 20px; border-radius: 8px;
+      font-size: 12px; font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--gris-3); cursor: default;
+      transition: all 0.3s;
+      border: 1px solid transparent;
+    }
+    .paso-tab.activo { color: var(--naranja); border-color: rgba(242,140,0,0.3); background: var(--naranja-dim); }
+    .paso-tab.completado { color: var(--verde-ok); }
+    .paso-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      background: var(--negro-3); border: 1px solid var(--gris-3);
+      transition: all 0.3s;
+    }
+    .paso-tab.activo .paso-num { background: var(--naranja); border-color: var(--naranja); color: var(--negro); }
+    .paso-tab.completado .paso-num { background: var(--verde-ok); border-color: var(--verde-ok); color: var(--negro); }
+    .paso-sep { width: 24px; height: 1px; background: var(--gris-3); margin: 0 4px; }
+
+    /* Contenido de cada paso */
+    .paso-contenido { display: none; flex-direction: column; gap: 20px; flex: 1; }
+    .paso-contenido.visible { display: flex; }
+
+    .section-title {
+      font-size: 11px; font-weight: 600; color: var(--naranja);
+      text-transform: uppercase; letter-spacing: 1px;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 0;
+    }
+
+    .campo { display: flex; flex-direction: column; gap: 8px; }
+    .campo label { font-size: 11px; font-weight: 600; color: var(--naranja); text-transform: uppercase; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
+    .campo input, .campo textarea {
       width: 100%; padding: 12px 16px;
       background: var(--negro-3); border: 1px solid var(--gris-3);
       border-radius: 10px; color: var(--blanco);
       font-size: 14px; font-family: 'Space Grotesk', sans-serif;
       outline: none; transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .campo input:focus { border-color: var(--naranja); box-shadow: 0 0 0 3px var(--naranja-dim); }
-    .campo input::placeholder { color: var(--gris-3); }
+    .campo textarea { resize: none; min-height: 80px; line-height: 1.5; }
+    .campo input:focus, .campo textarea:focus { border-color: var(--naranja); box-shadow: 0 0 0 3px var(--naranja-dim); }
+    .campo input::placeholder, .campo textarea::placeholder { color: var(--gris-3); }
 
     .agregar-fila { display: flex; gap: 8px; }
     .agregar-fila input { flex: 1; }
@@ -177,11 +171,11 @@
       padding: 12px 16px;
       background: var(--negro-4); border: 1px solid var(--gris-3);
       border-radius: 10px; color: var(--naranja);
-      font-size: 20px; cursor: pointer; transition: all 0.2s;
+      font-size: 20px; cursor: pointer; transition: all 0.2s; flex-shrink: 0;
     }
     .btn-agregar:hover { background: var(--naranja-dim); border-color: var(--naranja); }
 
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; min-height: 28px; }
     .chip {
       display: flex; align-items: center; gap: 6px;
       padding: 5px 12px; border-radius: 20px;
@@ -190,26 +184,73 @@
     }
     .chip button { background: none; border: none; cursor: pointer; color: var(--naranja); font-size: 14px; line-height: 1; padding: 0; }
 
-    .btn-iniciar {
-      width: 100%; padding: 15px;
+    /* Chips de equipos — azul */
+    .chip.equipo {
+      background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.3);
+      color: var(--azul-ciborg);
+    }
+    .chip.equipo button { color: var(--azul-ciborg); }
+
+    /* Equipos sugeridos */
+    .equipos-sugeridos {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+    }
+    .btn-equipo-sug {
+      padding: 4px 12px; border-radius: 20px;
+      border: 1px solid rgba(0,212,255,0.2);
+      background: rgba(0,212,255,0.05);
+      color: var(--gris-2); font-size: 12px;
+      cursor: pointer; transition: all 0.15s;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .btn-equipo-sug:hover { background: rgba(0,212,255,0.12); border-color: rgba(0,212,255,0.4); color: var(--azul-ciborg); }
+    .btn-equipo-sug.seleccionado { background: rgba(0,212,255,0.15); border-color: var(--azul-ciborg); color: var(--azul-ciborg); font-weight: 600; }
+
+    /* Botones de navegación */
+    .btns-nav { display: flex; gap: 12px; margin-top: auto; padding-top: 24px; }
+    .btn-siguiente {
+      flex: 1; padding: 14px;
       background: var(--naranja); border: none; border-radius: 12px;
       color: var(--negro); font-size: 15px; font-weight: 700;
-      cursor: pointer; margin-top: 8px;
-      font-family: 'Space Grotesk', sans-serif;
+      cursor: pointer; font-family: 'Space Grotesk', sans-serif;
       letter-spacing: 0.5px; transition: all 0.2s;
       position: relative; overflow: hidden;
     }
-    .btn-iniciar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent); }
-    .btn-iniciar:hover { background: var(--naranja-2); transform: translateY(-1px); box-shadow: 0 8px 24px var(--naranja-glow); }
-    .btn-iniciar:disabled { background: var(--gris-3); cursor: not-allowed; transform: none; box-shadow: none; color: var(--gris-2); }
+    .btn-siguiente::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent); }
+    .btn-siguiente:hover { background: var(--naranja-2); transform: translateY(-1px); box-shadow: 0 8px 24px var(--naranja-glow); }
+    .btn-siguiente:disabled { background: var(--gris-3); cursor: not-allowed; transform: none; box-shadow: none; color: var(--gris-2); }
+    .btn-volver {
+      padding: 14px 20px;
+      background: var(--negro-3); border: 1px solid var(--gris-3);
+      border-radius: 12px; color: var(--gris-2);
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif; transition: all 0.2s;
+    }
+    .btn-volver:hover { border-color: var(--naranja); color: var(--naranja); }
+
+    /* Generando ATS overlay */
+    .generando-overlay {
+      display: none; position: absolute; inset: 0;
+      background: rgba(10,12,15,0.92); backdrop-filter: blur(8px);
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 20px; z-index: 50; border-radius: 0;
+    }
+    .generando-overlay.visible { display: flex; }
+    .generando-spinner {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 3px solid rgba(242,140,0,0.2);
+      border-top-color: var(--naranja);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .generando-msg { font-size: 14px; color: var(--gris-2); font-family: 'JetBrains Mono', monospace; text-align: center; line-height: 1.8; }
+    .generando-msg span { color: var(--naranja); }
 
     /* ─── PANTALLA CHAT ─── */
     #pantalla-chat { display: none; position: fixed; inset: 0; flex-direction: column; padding-top: 60px; }
     #pantalla-chat.visible { display: flex; }
-
     .chat-layout { display: flex; flex: 1; overflow: hidden; }
 
-    /* ─── PANEL KALU CARA ─── */
     .kalu-panel {
       width: 200px; flex-shrink: 0;
       background: var(--negro-2);
@@ -217,204 +258,71 @@
       display: flex; flex-direction: column;
       align-items: center; padding: 24px 16px; gap: 16px;
     }
-
-    /* Wrapper del avatar en chat — con halo de estado */
-    .kalu-cara-wrap {
-      width: 150px; height: 150px;
-      position: relative;
-      border-radius: 50%;
-      overflow: visible;
-    }
-
-    /* SVG del avatar chat ocupa todo el wrapper */
-    .kalu-cara-wrap svg {
-      width: 150px; height: 150px;
-      border-radius: 50%;
-      overflow: hidden;
-    }
-
-    /* Anillo exterior de estado (idle, hablando, escuchando, alerta) */
+    .kalu-cara-wrap { width: 150px; height: 150px; position: relative; border-radius: 50%; overflow: visible; }
+    .kalu-cara-wrap svg { width: 150px; height: 150px; border-radius: 50%; overflow: hidden; }
     .kalu-cara-wrap::before {
-      content: '';
-      position: absolute;
-      inset: -4px;
-      border-radius: 50%;
-      border: 2px solid rgba(0,212,255,0.4);
-      transition: border-color 0.3s, box-shadow 0.3s;
+      content: ''; position: absolute; inset: -4px; border-radius: 50%;
+      border: 2px solid rgba(0,212,255,0.4); transition: border-color 0.3s, box-shadow 0.3s;
     }
-
-    /* Estado: idle */
-    .kalu-cara-wrap.estado-idle::before {
-      border-color: rgba(0,212,255,0.35);
-      box-shadow: 0 0 14px rgba(0,212,255,0.15), 0 0 28px rgba(0,212,255,0.08);
-    }
-
-    /* Estado: escuchando */
-    .kalu-cara-wrap.estado-escuchando::before {
-      border-color: rgba(242,140,0,0.7);
-      box-shadow: 0 0 20px rgba(242,140,0,0.3), 0 0 40px rgba(242,140,0,0.15);
-      animation: ringEscucha 1.2s ease-in-out infinite;
-    }
-
-    /* Estado: hablando */
-    .kalu-cara-wrap.estado-hablando::before {
-      border-color: rgba(0,212,255,0.9);
-      box-shadow: 0 0 24px rgba(0,212,255,0.5), 0 0 48px rgba(0,212,255,0.25);
-      animation: ringHabla 0.15s ease-in-out infinite alternate;
-    }
-
-    /* Estado: alerta */
-    .kalu-cara-wrap.estado-alerta::before {
-      border-color: rgba(255,59,48,0.9);
-      box-shadow: 0 0 24px rgba(255,59,48,0.5), 0 0 48px rgba(255,59,48,0.25);
-      animation: ringAlerta 0.6s ease-in-out infinite alternate;
-    }
-
+    .kalu-cara-wrap.estado-idle::before { border-color: rgba(0,212,255,0.35); box-shadow: 0 0 14px rgba(0,212,255,0.15), 0 0 28px rgba(0,212,255,0.08); }
+    .kalu-cara-wrap.estado-escuchando::before { border-color: rgba(242,140,0,0.7); box-shadow: 0 0 20px rgba(242,140,0,0.3); animation: ringEscucha 1.2s ease-in-out infinite; }
+    .kalu-cara-wrap.estado-hablando::before { border-color: rgba(0,212,255,0.9); box-shadow: 0 0 24px rgba(0,212,255,0.5); animation: ringHabla 0.15s ease-in-out infinite alternate; }
+    .kalu-cara-wrap.estado-alerta::before { border-color: rgba(255,59,48,0.9); box-shadow: 0 0 24px rgba(255,59,48,0.5); animation: ringAlerta 0.6s ease-in-out infinite alternate; }
     @keyframes ringEscucha { 0%,100%{box-shadow:0 0 12px rgba(242,140,0,0.2)} 50%{box-shadow:0 0 28px rgba(242,140,0,0.5)} }
     @keyframes ringHabla   { from{box-shadow:0 0 16px rgba(0,212,255,0.3)} to{box-shadow:0 0 36px rgba(0,212,255,0.7)} }
     @keyframes ringAlerta  { from{box-shadow:0 0 16px rgba(255,59,48,0.3)} to{box-shadow:0 0 36px rgba(255,59,48,0.7)} }
 
-    /* Indicador de onda de voz debajo del avatar */
-    .voz-onda {
-      display: flex; align-items: center; justify-content: center;
-      gap: 3px; height: 24px; margin-top: 8px;
-      opacity: 0; transition: opacity 0.3s;
-    }
+    .voz-onda { display: flex; align-items: center; justify-content: center; gap: 3px; height: 24px; margin-top: 8px; opacity: 0; transition: opacity 0.3s; }
     .voz-onda.visible { opacity: 1; }
-    .voz-onda span {
-      display: inline-block;
-      width: 3px; border-radius: 2px;
-      background: var(--azul-ciborg);
-      height: 4px;
-      transition: height 0.08s ease;
-    }
-
-    /* Parpadeo del avatar chat */
-    .kalu-cara-wrap .ojos-grupo {
-      animation: parpadeoChat 7s ease-in-out infinite;
-      transform-origin: 70px 52px;
-    }
-    @keyframes parpadeoChat {
-      0%,85%,100% { transform: scaleY(1); }
-      88%,95%     { transform: scaleY(0.05); }
-    }
-
-    /* Boca del avatar chat */
-    #kalu-boca-chat {
-      transition: d 0.08s ease;
-    }
+    .voz-onda span { display: inline-block; width: 3px; border-radius: 2px; background: var(--azul-ciborg); height: 4px; transition: height 0.08s ease; }
+    .kalu-cara-wrap .ojos-grupo { animation: parpadeoChat 7s ease-in-out infinite; transform-origin: 70px 52px; }
+    @keyframes parpadeoChat { 0%,85%,100%{transform:scaleY(1)} 88%,95%{transform:scaleY(0.05)} }
+    #kalu-boca-chat { transition: d 0.08s ease; }
 
     .kalu-nombre { font-size: 13px; font-weight: 700; color: var(--naranja); text-align: center; letter-spacing: 1px; }
     .kalu-modo { font-size: 10px; color: var(--gris-2); text-align: center; font-family: 'JetBrains Mono', monospace; background: var(--negro-3); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--gris-3); }
-
-    /* Label de estado bajo el nombre */
-    .kalu-estado-label {
-      font-size: 10px; font-family: 'JetBrains Mono', monospace;
-      color: var(--azul-ciborg); text-align: center;
-      letter-spacing: 1px; opacity: 0.7;
-      transition: color 0.3s;
-      min-height: 16px;
-    }
+    .kalu-estado-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--azul-ciborg); text-align: center; letter-spacing: 1px; opacity: 0.7; transition: color 0.3s; min-height: 16px; }
     .kalu-estado-label.escuchando { color: var(--naranja); opacity: 1; }
     .kalu-estado-label.hablando   { color: var(--azul-ciborg); opacity: 1; }
     .kalu-estado-label.alerta     { color: var(--rojo-alerta); opacity: 1; }
-
     .kalu-stats { width: 100%; margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
     .stat-item { display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
     .stat-item .label { color: var(--gris-2); }
     .stat-item .value { color: var(--naranja); font-weight: 600; }
 
-    /* ─── CHAT MAIN ─── */
     .chat-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-    .chat-topbar {
-      padding: 12px 20px;
-      background: var(--negro-2);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    }
+    .chat-topbar { padding: 12px 20px; background: var(--negro-2); border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .tag-tarea { padding: 4px 12px; border-radius: 6px; background: var(--naranja-dim); border: 1px solid rgba(242,140,0,0.3); color: var(--naranja-2); font-size: 12px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
     .tag-empleado { padding: 4px 10px; border-radius: 6px; background: var(--negro-3); border: 1px solid var(--gris-3); color: var(--gris-2); font-size: 11px; }
 
-    .ats-banner {
-      margin: 0; padding: 12px 20px;
-      background: rgba(0,200,150,0.1);
-      border-bottom: 1px solid rgba(0,200,150,0.3);
-      color: var(--verde-ok); font-size: 13px; font-weight: 500;
-      display: none; align-items: center; justify-content: space-between;
-      font-family: 'JetBrains Mono', monospace;
-    }
+    .ats-banner { margin: 0; padding: 12px 20px; background: rgba(0,200,150,0.1); border-bottom: 1px solid rgba(0,200,150,0.3); color: var(--verde-ok); font-size: 13px; font-weight: 500; display: none; align-items: center; justify-content: space-between; font-family: 'JetBrains Mono', monospace; }
     .ats-banner.visible { display: flex; }
-    .btn-nueva-sesion {
-      padding: 6px 16px; border-radius: 8px;
-      background: var(--verde-ok); border: none;
-      color: var(--negro); font-size: 12px; font-weight: 700;
-      cursor: pointer; font-family: 'Space Grotesk', sans-serif;
-      letter-spacing: 0.5px; white-space: nowrap; transition: all 0.2s;
-    }
+    .btn-nueva-sesion { padding: 6px 16px; border-radius: 8px; background: var(--verde-ok); border: none; color: var(--negro); font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Space Grotesk', sans-serif; white-space: nowrap; transition: all 0.2s; }
     .btn-nueva-sesion:hover { opacity: 0.85; transform: translateY(-1px); }
 
-    .mensajes {
-      flex: 1; overflow-y: auto;
-      padding: 20px; display: flex; flex-direction: column; gap: 14px;
-      scroll-behavior: smooth;
-    }
+    .mensajes { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
     .mensajes::-webkit-scrollbar { width: 4px; }
-    .mensajes::-webkit-scrollbar-track { background: transparent; }
     .mensajes::-webkit-scrollbar-thumb { background: var(--gris-3); border-radius: 2px; }
 
     .burbuja { max-width: 78%; display: flex; flex-direction: column; gap: 4px; }
     .burbuja.kalu { align-self: flex-start; }
     .burbuja.usuario { align-self: flex-end; }
-
-    .burbuja .remitente {
-      font-size: 10px; font-weight: 600; letter-spacing: 1px;
-      text-transform: uppercase; font-family: 'JetBrains Mono', monospace;
-    }
+    .burbuja .remitente { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
     .burbuja.kalu .remitente    { color: var(--azul-ciborg); }
     .burbuja.usuario .remitente { color: var(--naranja); text-align: right; }
-
-    .burbuja .contenido {
-      padding: 12px 16px; border-radius: 16px;
-      font-size: 14px; line-height: 1.6;
-    }
-    .burbuja.kalu .contenido {
-      background: var(--negro-3);
-      border: 1px solid rgba(0,212,255,0.15);
-      border-bottom-left-radius: 4px;
-      color: var(--gris-1);
-    }
-    .burbuja.usuario .contenido {
-      background: var(--naranja);
-      border-bottom-right-radius: 4px;
-      color: var(--negro); font-weight: 500;
-    }
+    .burbuja .contenido { padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6; }
+    .burbuja.kalu .contenido { background: var(--negro-3); border: 1px solid rgba(0,212,255,0.15); border-bottom-left-radius: 4px; color: var(--gris-1); }
+    .burbuja.usuario .contenido { background: var(--naranja); border-bottom-right-radius: 4px; color: var(--negro); font-weight: 500; }
 
     .kalu-audio { margin-top: 6px; }
-    .btn-escuchar {
-      padding: 4px 14px; border-radius: 20px;
-      border: 1px solid rgba(0,212,255,0.4);
-      background: rgba(0,212,255,0.08);
-      color: var(--azul-ciborg);
-      font-size: 11px; font-weight: 600;
-      cursor: pointer; font-family: 'JetBrains Mono', monospace;
-      letter-spacing: 0.5px; transition: all 0.15s;
-    }
+    .btn-escuchar { padding: 4px 14px; border-radius: 20px; border: 1px solid rgba(0,212,255,0.4); background: rgba(0,212,255,0.08); color: var(--azul-ciborg); font-size: 11px; font-weight: 600; cursor: pointer; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.5px; transition: all 0.15s; }
     .btn-escuchar:hover { background: rgba(0,212,255,0.18); border-color: var(--azul-ciborg); }
     .btn-escuchar:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .typewriter-cursor::after { content: '▋'; animation: cursor 0.8s infinite; color: var(--azul-ciborg); }
     @keyframes cursor { 0%,100%{opacity:1} 50%{opacity:0} }
 
-    .subtitulos-bar {
-      background: rgba(0,0,0,0.85);
-      border-top: 1px solid rgba(0,212,255,0.2);
-      padding: 10px 20px; min-height: 44px;
-      display: flex; align-items: center;
-      font-size: 13px; color: var(--azul-ciborg);
-      font-family: 'JetBrains Mono', monospace;
-      letter-spacing: 0.3px; transition: opacity 0.3s;
-    }
+    .subtitulos-bar { background: rgba(0,0,0,0.85); border-top: 1px solid rgba(0,212,255,0.2); padding: 10px 20px; min-height: 44px; display: flex; align-items: center; font-size: 13px; color: var(--azul-ciborg); font-family: 'JetBrains Mono', monospace; transition: opacity 0.3s; }
     .subtitulos-bar.vacia { opacity: 0.3; }
 
     .typing { display: none; align-self: flex-start; padding: 12px 16px; background: var(--negro-3); border: 1px solid rgba(0,212,255,0.15); border-radius: 16px; border-bottom-left-radius: 4px; }
@@ -426,33 +334,16 @@
     @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
 
     .input-area { background: var(--negro-2); border-top: 1px solid rgba(255,255,255,0.06); padding: 12px 20px; }
-
     .selector-empleado { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 2px; }
-    .btn-emp {
-      padding: 5px 14px; border-radius: 20px; border: 1px solid var(--gris-3);
-      background: var(--negro-3); font-size: 12px; font-weight: 500;
-      cursor: pointer; white-space: nowrap; color: var(--gris-2);
-      font-family: 'Space Grotesk', sans-serif; transition: all 0.15s;
-    }
+    .btn-emp { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--gris-3); background: var(--negro-3); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; color: var(--gris-2); font-family: 'Space Grotesk', sans-serif; transition: all 0.15s; }
     .btn-emp.activo { background: var(--naranja-dim); border-color: var(--naranja); color: var(--naranja-2); }
 
     .input-row { display: flex; gap: 8px; align-items: flex-end; }
-    .input-row textarea {
-      flex: 1; padding: 12px 16px;
-      background: var(--negro-3); border: 1px solid var(--gris-3); border-radius: 12px;
-      color: var(--blanco); font-size: 14px; font-family: 'Space Grotesk', sans-serif;
-      resize: none; outline: none; max-height: 120px; min-height: 46px; line-height: 1.4;
-      transition: border-color 0.2s;
-    }
+    .input-row textarea { flex: 1; padding: 12px 16px; background: var(--negro-3); border: 1px solid var(--gris-3); border-radius: 12px; color: var(--blanco); font-size: 14px; font-family: 'Space Grotesk', sans-serif; resize: none; outline: none; max-height: 120px; min-height: 46px; line-height: 1.4; transition: border-color 0.2s; }
     .input-row textarea:focus { border-color: var(--naranja); }
     .input-row textarea::placeholder { color: var(--gris-3); }
 
-    .btn-accion {
-      width: 46px; height: 46px; border-radius: 12px;
-      border: 1px solid var(--gris-3); background: var(--negro-3);
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s; flex-shrink: 0;
-    }
+    .btn-accion { width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--gris-3); background: var(--negro-3); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
     .btn-accion svg { width: 18px; height: 18px; fill: var(--gris-2); }
     .btn-accion:hover { border-color: var(--naranja); background: var(--naranja-dim); }
     .btn-accion:hover svg { fill: var(--naranja); }
@@ -460,40 +351,18 @@
     .btn-accion.grabando svg { fill: white; }
     @keyframes pulsoRed { 0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,0.4)} 50%{box-shadow:0 0 0 8px rgba(255,59,48,0)} }
 
-    .btn-enviar {
-      width: 46px; height: 46px; border-radius: 12px;
-      background: var(--naranja); border: none;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s; flex-shrink: 0;
-    }
+    .btn-enviar { width: 46px; height: 46px; border-radius: 12px; background: var(--naranja); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
     .btn-enviar svg { width: 18px; height: 18px; fill: var(--negro); }
     .btn-enviar:hover { background: var(--naranja-2); box-shadow: 0 4px 16px var(--naranja-glow); }
     .btn-enviar:disabled { background: var(--gris-3); cursor: not-allowed; box-shadow: none; }
 
-    .voz-ind {
-      display: none; align-items: center; gap: 8px;
-      padding: 5px 12px; margin-bottom: 8px;
-      background: rgba(255,59,48,0.1); border-radius: 8px;
-      border: 1px solid rgba(255,59,48,0.3);
-      font-size: 12px; color: var(--rojo-alerta);
-      font-family: 'JetBrains Mono', monospace;
-    }
+    .voz-ind { display: none; align-items: center; gap: 8px; padding: 5px 12px; margin-bottom: 8px; background: rgba(255,59,48,0.1); border-radius: 8px; border: 1px solid rgba(255,59,48,0.3); font-size: 12px; color: var(--rojo-alerta); font-family: 'JetBrains Mono', monospace; }
     .voz-ind.visible { display: flex; }
     .voz-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rojo-alerta); animation: pulso 1s infinite; }
+    .error-msg { padding: 8px 16px; margin: 4px 0; background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.3); color: var(--rojo-alerta); border-radius: 8px; font-size: 12px; display: none; font-family: 'JetBrains Mono', monospace; }
 
-    .error-msg {
-      padding: 8px 16px; margin: 4px 0;
-      background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.3);
-      color: var(--rojo-alerta); border-radius: 8px; font-size: 12px;
-      display: none; font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* ─── COUNTDOWN OVERLAY ─── */
-    #countdown-overlay {
-      display: none; position: fixed; inset: 0; z-index: 500;
-      background: rgba(10,12,15,0.92); backdrop-filter: blur(8px);
-      flex-direction: column; align-items: center; justify-content: center; gap: 24px;
-    }
+    /* ─── COUNTDOWN ─── */
+    #countdown-overlay { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(10,12,15,0.92); backdrop-filter: blur(8px); flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
     #countdown-overlay.visible { display: flex; }
     .countdown-check { font-size: 48px; color: var(--verde-ok); animation: checkPop 0.4s ease-out; }
     @keyframes checkPop { 0%{transform:scale(0);opacity:0} 70%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
@@ -503,7 +372,14 @@
     .countdown-bar { width: 200px; height: 3px; background: var(--negro-4); border-radius: 2px; overflow: hidden; }
     .countdown-bar-fill { height: 100%; background: var(--naranja); border-radius: 2px; transition: width 1s linear; }
 
-    @media (max-width: 600px) { .kalu-panel { display: none; } .burbuja { max-width: 90%; } }
+    @media (max-width: 700px) {
+      #pantalla-inicio { flex-direction: column; }
+      .inicio-avatar-col { width: 100%; height: 200px; border-right: none; border-bottom: 1px solid rgba(242,140,0,0.1); padding: 20px; flex-direction: row; gap: 20px; }
+      .kalu-avatar-inicio { width: 120px; height: 120px; margin-bottom: 0; }
+      .inicio-form-col { padding: 20px; }
+      .kalu-panel { display: none; }
+      .burbuja { max-width: 90%; }
+    }
   </style>
 </head>
 <body>
@@ -512,7 +388,7 @@
 <header>
   <div class="logo-dnm">
     <div class="logo-hex">
-      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 40 40" fill="none">
         <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
         <polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/>
         <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text>
@@ -542,190 +418,206 @@
 <!-- PANTALLA INICIO -->
 <div id="pantalla-inicio">
 
-  <!-- AVATAR INICIO SVG ANIMADO -->
-  <div class="kalu-avatar-inicio" id="avatar-inicio">
-    <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- Halos de voz exterior (responden al estado) -->
-      <circle class="halo-voz-2" cx="110" cy="110" r="102" stroke="#00D4FF" stroke-width="0.8" opacity="0.1"/>
-      <circle class="halo-voz"   cx="110" cy="110" r="94"  stroke="#00D4FF" stroke-width="1.2" opacity="0.18"/>
-
-      <!-- Anillos orbitales -->
-      <g class="ring-orbit">
-        <ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(242,140,0,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/>
-        <circle cx="110" cy="26" r="4" fill="#F28C00" opacity="0.8"/>
-      </g>
-      <g class="ring-orbit-2">
-        <ellipse cx="110" cy="110" rx="76" ry="76" stroke="rgba(0,212,255,0.2)" stroke-width="0.8" stroke-dasharray="2 10" fill="none"/>
-        <circle cx="186" cy="110" r="3" fill="#00D4FF" opacity="0.7"/>
-      </g>
-      <g class="ring-orbit-3">
-        <ellipse cx="110" cy="110" rx="68" ry="68" stroke="rgba(242,140,0,0.12)" stroke-width="0.6" stroke-dasharray="6 14" fill="none"/>
-        <circle cx="110" cy="178" r="2.5" fill="#F28C00" opacity="0.5"/>
-      </g>
-
-      <!-- Grupo flotante (cara + core) -->
-      <g class="avatar-float">
-        <!-- Fondo circular del avatar -->
-        <circle class="avatar-core" cx="110" cy="110" r="58" fill="#111318" stroke="#00D4FF" stroke-width="1.5" opacity="0.9"/>
-        <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
-
-        <!-- Arcos de cabeza superiores -->
-        <path d="M72 95 Q70 78 90 68 Q110 60 130 68 Q150 78 148 95" fill="#111318"/>
-        <path d="M75 100 Q73 82 93 72 Q110 65 127 72 Q147 82 145 100" fill="#1E2028"/>
-
-        <!-- Detalles laterales ciborg -->
-        <rect x="62" y="90" width="8" height="22" rx="2" fill="#F28C00" opacity="0.3"/>
-        <rect x="150" y="90" width="8" height="22" rx="2" fill="#00D4FF" opacity="0.3"/>
-        <circle cx="66" cy="88" r="2.5" fill="#F28C00" opacity="0.8"/>
-        <circle cx="154" cy="88" r="2.5" fill="#00D4FF" opacity="0.8"/>
-
-        <!-- OJOS — grupo para parpadeo -->
-        <g class="ojo-pupila-inicio">
-          <!-- Ojo izquierdo -->
-          <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
-          <ellipse cx="91" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
-          <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
-          <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-          <!-- Cejas -->
-          <path d="M82 89 Q91 85 100 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-          <!-- Conector ojo izq -->
-          <line x1="82" y1="98" x2="75" y2="96" stroke="#00D4FF" stroke-width="1.2" opacity="0.6"/>
+  <!-- Columna izquierda: avatar -->
+  <div class="inicio-avatar-col">
+    <div class="kalu-avatar-inicio" id="avatar-inicio">
+      <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle class="halo-voz-2" cx="110" cy="110" r="102" stroke="#00D4FF" stroke-width="0.8" opacity="0.1"/>
+        <circle class="halo-voz"   cx="110" cy="110" r="94"  stroke="#00D4FF" stroke-width="1.2" opacity="0.18"/>
+        <g class="ring-orbit">
+          <ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(242,140,0,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/>
+          <circle cx="110" cy="26" r="4" fill="#F28C00" opacity="0.8"/>
         </g>
-
-        <g class="ojo-pupila-inicio">
-          <!-- Ojo derecho -->
-          <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
-          <ellipse cx="129" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
-          <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
-          <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-          <!-- Cejas -->
-          <path d="M120 89 Q129 85 138 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-          <!-- Conector ojo der -->
-          <line x1="138" y1="98" x2="145" y2="96" stroke="#F28C00" stroke-width="1.2" opacity="0.6"/>
+        <g class="ring-orbit-2">
+          <ellipse cx="110" cy="110" rx="76" ry="76" stroke="rgba(0,212,255,0.2)" stroke-width="0.8" stroke-dasharray="2 10" fill="none"/>
+          <circle cx="186" cy="110" r="3" fill="#00D4FF" opacity="0.7"/>
         </g>
-
-        <!-- Nariz -->
-        <path d="M107 103 Q110 109 113 103" stroke="#4A4E5A" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-
-        <!-- BOCA DINÁMICA — ruta base: cerrada / neutra -->
-        <path id="boca-inicio"
-              d="M94 120 Q110 130 126 120"
-              stroke="#F28C00" stroke-width="2.2" fill="none" stroke-linecap="round"
-              style="transition: d 0.08s ease;"/>
-
-        <!-- Mentón / jaw line -->
-        <path d="M78 112 Q110 132 142 112" stroke="rgba(0,212,255,0.15)" stroke-width="0.5" fill="none"/>
-
-        <!-- Detalle cara: líneas laterales sutiles -->
-        <path d="M148 108 Q155 112 152 122" stroke="#F28C00" stroke-width="0.8" fill="none" opacity="0.5"/>
-        <path d="M72 108 Q65 112 68 122" stroke="#00D4FF" stroke-width="0.8" fill="none" opacity="0.5"/>
-      </g>
-    </svg>
+        <g class="ring-orbit-3">
+          <ellipse cx="110" cy="110" rx="68" ry="68" stroke="rgba(242,140,0,0.12)" stroke-width="0.6" stroke-dasharray="6 14" fill="none"/>
+          <circle cx="110" cy="178" r="2.5" fill="#F28C00" opacity="0.5"/>
+        </g>
+        <g class="avatar-float">
+          <circle class="avatar-core" cx="110" cy="110" r="58" fill="#111318" stroke="#00D4FF" stroke-width="1.5" opacity="0.9"/>
+          <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
+          <path d="M72 95 Q70 78 90 68 Q110 60 130 68 Q150 78 148 95" fill="#111318"/>
+          <path d="M75 100 Q73 82 93 72 Q110 65 127 72 Q147 82 145 100" fill="#1E2028"/>
+          <rect x="62" y="90" width="8" height="22" rx="2" fill="#F28C00" opacity="0.3"/>
+          <rect x="150" y="90" width="8" height="22" rx="2" fill="#00D4FF" opacity="0.3"/>
+          <circle cx="66" cy="88" r="2.5" fill="#F28C00" opacity="0.8"/>
+          <circle cx="154" cy="88" r="2.5" fill="#00D4FF" opacity="0.8"/>
+          <g class="ojo-pupila-inicio">
+            <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
+            <ellipse cx="91" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
+            <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
+            <path d="M82 89 Q91 85 100 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <line x1="82" y1="98" x2="75" y2="96" stroke="#00D4FF" stroke-width="1.2" opacity="0.6"/>
+          </g>
+          <g class="ojo-pupila-inicio">
+            <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
+            <ellipse cx="129" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
+            <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
+            <path d="M120 89 Q129 85 138 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <line x1="138" y1="98" x2="145" y2="96" stroke="#F28C00" stroke-width="1.2" opacity="0.6"/>
+          </g>
+          <path d="M107 103 Q110 109 113 103" stroke="#4A4E5A" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+          <path id="boca-inicio" d="M94 120 Q110 130 126 120" stroke="#F28C00" stroke-width="2.2" fill="none" stroke-linecap="round" style="transition: d 0.08s ease;"/>
+          <path d="M78 112 Q110 132 142 112" stroke="rgba(0,212,255,0.15)" stroke-width="0.5" fill="none"/>
+          <path d="M148 108 Q155 112 152 122" stroke="#F28C00" stroke-width="0.8" fill="none" opacity="0.5"/>
+          <path d="M72 108 Q65 112 68 122" stroke="#00D4FF" stroke-width="0.8" fill="none" opacity="0.5"/>
+        </g>
+      </svg>
+    </div>
+    <div class="inicio-kalu-titulo">KALU IA</div>
+    <div class="inicio-kalu-sub">Sistema de validación HSE<br>Dinamho Intelligence v3</div>
   </div>
 
-  <div class="inicio-form">
-    <h2>Nueva sesión HSE</h2>
-    <p>// inicializar validación de seguridad</p>
+  <!-- Columna derecha: formulario por pasos -->
+  <div class="inicio-form-col" style="position:relative;">
 
-    <div class="campo">
-      <label>Tarea del día</label>
-      <input type="text" id="input-tarea" placeholder="Ej: Inspección dimensional, Videoscopía..." />
-    </div>
-
-    <div class="campo">
-      <label>Cuadrilla</label>
-      <div class="agregar-fila">
-        <input type="text" id="input-nombre" placeholder="Nombre del empleado" />
-        <button class="btn-agregar" onclick="agregarEmpleado()">+</button>
+    <!-- Overlay generando ATS -->
+    <div class="generando-overlay" id="generando-overlay">
+      <div class="generando-spinner"></div>
+      <div class="generando-msg">
+        <span>KALU</span> está generando el ATS...<br>
+        Analizando equipos y condiciones<br>
+        Identificando peligros
       </div>
-      <div class="chips" id="chips"></div>
     </div>
 
-    <button class="btn-iniciar" id="btn-iniciar" onclick="iniciarSesion()">
-      INICIAR SESIÓN CON KALU
-    </button>
+    <!-- Tabs de pasos -->
+    <div class="pasos-header">
+      <div class="paso-tab activo" id="tab-1">
+        <div class="paso-num">1</div>
+        Sesión
+      </div>
+      <div class="paso-sep"></div>
+      <div class="paso-tab" id="tab-2">
+        <div class="paso-num">2</div>
+        Equipos y condiciones
+      </div>
+    </div>
+
+    <!-- PASO 1 — tarea y cuadrilla -->
+    <div class="paso-contenido visible" id="paso-1">
+      <div class="campo">
+        <label>Tarea del día</label>
+        <input type="text" id="input-tarea" placeholder="Ej: Inspección dimensional, Videoscopía, Limpieza de herramientas..." />
+      </div>
+
+      <div class="campo">
+        <label>Cuadrilla</label>
+        <div class="agregar-fila">
+          <input type="text" id="input-nombre" placeholder="Nombre del empleado" />
+          <button class="btn-agregar" onclick="agregarEmpleado()">+</button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="btns-nav">
+        <button class="btn-siguiente" id="btn-paso1" onclick="irPaso2()">
+          SIGUIENTE →
+        </button>
+      </div>
+    </div>
+
+    <!-- PASO 2 — equipos y condiciones -->
+    <div class="paso-contenido" id="paso-2">
+
+      <div class="campo">
+        <label>Equipos y herramientas a usar</label>
+        <div class="agregar-fila">
+          <input type="text" id="input-equipo" placeholder="Ej: Hidrolavadora, Dremel, Puente grúa..." />
+          <button class="btn-agregar" onclick="agregarEquipo()">+</button>
+        </div>
+        <!-- Sugerencias rápidas -->
+        <div class="equipos-sugeridos" id="equipos-sugeridos">
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Videoscopio')">Videoscopio</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Galgas de inspección')">Galgas</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Equipo de ultrasonido')">Ultrasonido</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Montacargas')">Montacargas</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Puente grúa')">Puente grúa</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Herramientas de golpe y palanca')">Golpe/palanca</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Herramientas rotativas Dremel')">Dremel</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Extensiones eléctricas')">Extensiones eléctricas</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Herramientas de corte')">Herramientas de corte</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Hidrolavadora')">Hidrolavadora</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Gato hidráulico')">Gato hidráulico</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this, 'Compresor')">Compresor</button>
+        </div>
+        <div class="chips" id="chips-equipos"></div>
+      </div>
+
+      <div class="campo">
+        <label>Condiciones ambientales</label>
+        <input type="text" id="input-condiciones" placeholder="Ej: Lluvia, calor extremo, área abierta, trabajo nocturno..." />
+      </div>
+
+      <div class="campo">
+        <label>Observaciones adicionales <span style="color:var(--gris-3);font-weight:400">(opcional)</span></label>
+        <textarea id="input-observaciones" placeholder="Permisos especiales, restricciones, personal de terceros, condiciones particulares..."></textarea>
+      </div>
+
+      <div class="btns-nav">
+        <button class="btn-volver" onclick="irPaso1()">← Volver</button>
+        <button class="btn-siguiente" id="btn-iniciar" onclick="iniciarSesion()">
+          INICIAR CON KALU
+        </button>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <!-- PANTALLA CHAT -->
 <div id="pantalla-chat">
   <div class="chat-layout">
-
-    <!-- Panel KALU cara -->
     <div class="kalu-panel">
-
-      <!-- AVATAR CHAT SVG -->
       <div class="kalu-cara-wrap estado-idle" id="kalu-cara-wrap">
-        <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" id="kalu-svg-chat">
+        <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect width="140" height="140" fill="#0A0C0F"/>
-
-          <!-- Fondo cabeza -->
           <ellipse cx="70" cy="38" rx="42" ry="30" fill="#1A1D24"/>
           <path d="M28 45 Q20 30 35 20 Q70 5 105 20 Q120 30 112 45" fill="#111318"/>
-
-          <!-- Lados ciborg -->
           <path d="M28 45 Q25 60 28 75" stroke="#222630" stroke-width="8" fill="none" stroke-linecap="round"/>
           <path d="M112 45 Q115 60 112 75" stroke="#222630" stroke-width="8" fill="none" stroke-linecap="round"/>
           <ellipse cx="70" cy="80" rx="36" ry="42" fill="#1E2028"/>
-
-          <!-- Detalles ciborg pequeños -->
           <path d="M96 75 Q108 78 105 90" stroke="#F28C00" stroke-width="1" fill="none" opacity="0.6"/>
           <circle cx="107" cy="72" r="2" fill="#F28C00" opacity="0.8"/>
           <circle cx="33"  cy="72" r="2" fill="#00D4FF" opacity="0.8"/>
-
-          <!-- OJOS — grupo con parpadeo -->
           <g class="ojos-grupo">
-            <!-- Ojo izquierdo -->
             <rect x="42" y="65" width="22" height="16" rx="6" fill="rgba(0,212,255,0.1)" stroke="#00D4FF" stroke-width="1.5"/>
             <ellipse cx="53" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
-            <ellipse cx="53" cy="73" rx="3"   ry="3" fill="#00D4FF"/>
-            <ellipse cx="54" cy="72" rx="1"   ry="1" fill="white"/>
-            <!-- Ojo derecho -->
+            <ellipse cx="53" cy="73" rx="3" ry="3" fill="#00D4FF"/>
+            <ellipse cx="54" cy="72" rx="1" ry="1" fill="white"/>
             <rect x="76" y="65" width="22" height="16" rx="6" fill="rgba(0,212,255,0.1)" stroke="#00D4FF" stroke-width="1.5"/>
             <ellipse cx="87" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
-            <ellipse cx="87" cy="73" rx="3"   ry="3" fill="#00D4FF"/>
-            <ellipse cx="88" cy="72" rx="1"   ry="1" fill="white"/>
-            <!-- Conectores -->
+            <ellipse cx="87" cy="73" rx="3" ry="3" fill="#00D4FF"/>
+            <ellipse cx="88" cy="72" rx="1" ry="1" fill="white"/>
             <line x1="64" y1="73" x2="76" y2="73" stroke="#00D4FF" stroke-width="1.5"/>
             <line x1="42" y1="73" x2="36" y2="70" stroke="#00D4FF" stroke-width="1.5"/>
             <line x1="98" y1="73" x2="104" y2="70" stroke="#F28C00" stroke-width="1.5"/>
           </g>
-
-          <!-- Cejas -->
           <path d="M44 62 Q53 58 62 62" stroke="#A0A4AD" stroke-width="2" fill="none" stroke-linecap="round"/>
           <path d="M78 62 Q87 58 96 62" stroke="#A0A4AD" stroke-width="2" fill="none" stroke-linecap="round"/>
-
-          <!-- Nariz -->
           <path d="M67 78 Q70 85 73 78" stroke="#4A4E5A" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-
-          <!-- BOCA DINÁMICA -->
-          <path id="kalu-boca-chat"
-                d="M59 96 Q70 104 81 96"
-                stroke="#F28C00" stroke-width="2" fill="none" stroke-linecap="round"/>
-
-          <!-- Mandíbula / jaw -->
+          <path id="kalu-boca-chat" d="M59 96 Q70 104 81 96" stroke="#F28C00" stroke-width="2" fill="none" stroke-linecap="round"/>
           <path d="M34 95 Q70 115 106 95" stroke="rgba(0,212,255,0.2)" stroke-width="0.5" fill="none"/>
-
-          <!-- Frente ciborg -->
           <path d="M40 45 Q50 35 60 48" stroke="#222630" stroke-width="6" fill="none" stroke-linecap="round"/>
           <path d="M60 40 Q70 32 80 40" stroke="#1A1D24" stroke-width="5" fill="none" stroke-linecap="round"/>
         </svg>
       </div>
-
-      <!-- Ondas de voz bajo el avatar -->
       <div class="voz-onda" id="voz-onda">
         <span id="vb0"></span><span id="vb1"></span><span id="vb2"></span>
         <span id="vb3"></span><span id="vb4"></span><span id="vb5"></span>
         <span id="vb6"></span>
       </div>
-
       <div class="kalu-nombre">KALU IA</div>
       <div class="kalu-estado-label" id="kalu-estado-label">// idle</div>
       <div class="kalu-modo" id="kalu-modo-label">MODO —</div>
       <div class="kalu-stats" id="kalu-stats"></div>
     </div>
 
-    <!-- Área conversación -->
     <div class="chat-main">
       <div class="chat-topbar" id="chat-topbar"></div>
       <div class="ats-banner" id="ats-banner">
@@ -737,9 +629,7 @@
           <div class="typing-dots"><span></span><span></span><span></span></div>
         </div>
       </div>
-      <div class="subtitulos-bar vacia" id="subtitulos">
-        // esperando respuesta de KALU...
-      </div>
+      <div class="subtitulos-bar vacia" id="subtitulos">// esperando respuesta de KALU...</div>
       <div class="input-area">
         <div class="selector-empleado" id="selector-emp"></div>
         <div class="voz-ind" id="voz-ind">
@@ -760,20 +650,18 @@
         </div>
       </div>
     </div>
-
   </div>
 </div>
 
 <script>
-  // ── CONFIG ──
-  const N8N_BASE       = 'https://dnmintell.app.n8n.cloud/webhook';
+  const N8N_BASE        = 'https://dnmintell.app.n8n.cloud/webhook';
   const WEBHOOK_INICIAR = `${N8N_BASE}/kalu-v3-iniciar`;
   const WEBHOOK_MENSAJE = `${N8N_BASE}/kalu-v3-mensaje`;
   const WEBHOOK_STT     = `${N8N_BASE}/kalu-hse-stt`;
   const WEBHOOK_TTS     = `${N8N_BASE}/kalu-hse-tts`;
 
-  // ── ESTADO GENERAL ──
   let empleados = [];
+  let equipos = [];
   let empleadoActivo = '';
   let sessionId = '';
   let atsItemId = '';
@@ -784,213 +672,192 @@
   let subtitulosTimeout = null;
   let pendingCountdown = false;
   let autoCountdownTimer = null;
-
-  // ── SISTEMA DE ESTADOS DEL AVATAR ──
-  // Estados: 'idle' | 'escuchando' | 'hablando' | 'alerta'
   let estadoAvatar = 'idle';
-
-  // Audio context + analyser para lip-sync
   let audioCtx = null;
   let analyser = null;
   let lipSyncRAF = null;
   let lipSyncSource = null;
 
-  // Curvas de boca por estado (SVG path d)
   const BOCAS = {
-    // avatar inicio (viewBox 220x220, boca centrada en y≈120)
     inicio: {
-      cerrada:    'M94 120 Q110 130 126 120',
-      abierta_s:  'M92 119 Q110 132 128 119',
-      abierta_m:  'M90 118 Q110 135 130 118',
-      abierta_l:  'M88 117 Q110 138 132 117',
-      sorpresa:   'M96 118 Q110 136 124 118',
-      alerta:     'M94 122 Q110 118 126 122',  // boca en línea recta
+      cerrada:   'M94 120 Q110 130 126 120',
+      abierta_s: 'M92 119 Q110 132 128 119',
+      abierta_m: 'M90 118 Q110 135 130 118',
+      abierta_l: 'M88 117 Q110 138 132 117',
+      alerta:    'M94 122 Q110 118 126 122',
     },
-    // avatar chat (viewBox 140x140, boca en y≈96-104)
     chat: {
-      cerrada:    'M59 96 Q70 104 81 96',
-      abierta_s:  'M57 95 Q70 106 83 95',
-      abierta_m:  'M55 95 Q70 108 85 95',
-      abierta_l:  'M54 94 Q70 111 86 94',
-      sorpresa:   'M60 95 Q70 108 80 95',
-      alerta:     'M59 98 Q70 94 81 98',       // boca en línea recta
+      cerrada:   'M59 96 Q70 104 81 96',
+      abierta_s: 'M57 95 Q70 106 83 95',
+      abierta_m: 'M55 95 Q70 108 85 95',
+      abierta_l: 'M54 94 Q70 111 86 94',
+      alerta:    'M59 98 Q70 94 81 98',
     }
   };
 
-  function setBocaInicio(tipo) {
-    const el = document.getElementById('boca-inicio');
-    if (el) el.setAttribute('d', BOCAS.inicio[tipo] || BOCAS.inicio.cerrada);
-  }
-
-  function setBocaChat(tipo) {
-    const el = document.getElementById('kalu-boca-chat');
-    if (el) el.setAttribute('d', BOCAS.chat[tipo] || BOCAS.chat.cerrada);
-  }
+  function setBocaInicio(t) { const e=document.getElementById('boca-inicio'); if(e) e.setAttribute('d', BOCAS.inicio[t]||BOCAS.inicio.cerrada); }
+  function setBocaChat(t)   { const e=document.getElementById('kalu-boca-chat'); if(e) e.setAttribute('d', BOCAS.chat[t]||BOCAS.chat.cerrada); }
 
   function setEstadoAvatar(estado) {
     if (estadoAvatar === estado) return;
     estadoAvatar = estado;
-
-    // wrapper del chat
     const wrap = document.getElementById('kalu-cara-wrap');
-    if (wrap) {
-      wrap.className = `kalu-cara-wrap estado-${estado}`;
-    }
-
-    // wrapper del inicio
+    if (wrap) wrap.className = `kalu-cara-wrap estado-${estado}`;
     const ini = document.getElementById('avatar-inicio');
-    if (ini) {
-      ini.className = `kalu-avatar-inicio estado-${estado}`;
-    }
-
-    // label de estado
+    if (ini) ini.className = `kalu-avatar-inicio estado-${estado}`;
     const lbl = document.getElementById('kalu-estado-label');
     if (lbl) {
       lbl.className = `kalu-estado-label ${estado}`;
-      const labels = { idle: '// idle', escuchando: '// escuchando', hablando: '// hablando', alerta: '// alerta HSE' };
-      lbl.textContent = labels[estado] || `// ${estado}`;
+      lbl.textContent = { idle:'// idle', escuchando:'// escuchando', hablando:'// hablando', alerta:'// alerta HSE' }[estado] || `// ${estado}`;
     }
-
-    // Boca según estado
-    if (estado === 'idle') {
-      setBocaInicio('cerrada'); setBocaChat('cerrada');
-    } else if (estado === 'escuchando') {
-      setBocaInicio('abierta_s'); setBocaChat('abierta_s');
-    } else if (estado === 'alerta') {
-      setBocaInicio('alerta'); setBocaChat('alerta');
-    }
-    // 'hablando' lo maneja el lip-sync en tiempo real
-
-    // Ondas de voz
+    if (estado === 'idle')       { setBocaInicio('cerrada');   setBocaChat('cerrada'); }
+    else if (estado === 'escuchando') { setBocaInicio('abierta_s'); setBocaChat('abierta_s'); }
+    else if (estado === 'alerta')     { setBocaInicio('alerta');    setBocaChat('alerta'); }
     const onda = document.getElementById('voz-onda');
     if (onda) onda.classList.toggle('visible', estado === 'hablando');
   }
 
-  // ── LIP-SYNC VIA WEB AUDIO API ──
-  // Analiza el volumen del audio TTS en tiempo real y mueve la boca en proporción
-
   function iniciarLipSync(audioElement) {
     detenerLipSync();
-
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
-
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.4;
-
       lipSyncSource = audioCtx.createMediaElementSource(audioElement);
       lipSyncSource.connect(analyser);
       analyser.connect(audioCtx.destination);
-
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const barras = [
-        document.getElementById('vb0'), document.getElementById('vb1'),
-        document.getElementById('vb2'), document.getElementById('vb3'),
-        document.getElementById('vb4'), document.getElementById('vb5'),
-        document.getElementById('vb6'),
-      ];
-
+      const barras = [0,1,2,3,4,5,6].map(i => document.getElementById('vb'+i));
       function tick() {
         analyser.getByteFrequencyData(dataArray);
-
-        // Volumen promedio de las frecuencias de voz (aprox 80-3000Hz en 256 bins a 44100Hz)
         const voz = dataArray.slice(2, 30);
-        const promedio = voz.reduce((a, b) => a + b, 0) / voz.length;
-        const norm = Math.min(promedio / 90, 1); // 0..1
-
-        // Actualizar boca según volumen
-        let bocaTipo;
-        if (norm < 0.15)      bocaTipo = 'cerrada';
-        else if (norm < 0.35) bocaTipo = 'abierta_s';
-        else if (norm < 0.6)  bocaTipo = 'abierta_m';
-        else                  bocaTipo = 'abierta_l';
-
-        setBocaInicio(bocaTipo);
-        setBocaChat(bocaTipo);
-
-        // Actualizar barras de onda
-        const segmentos = Math.floor(dataArray.length / 7);
-        barras.forEach((b, i) => {
-          if (!b) return;
-          const val = dataArray[i * segmentos] / 255;
-          const h = Math.max(3, Math.round(val * 22));
-          b.style.height = h + 'px';
-          b.style.opacity = 0.4 + val * 0.6;
-        });
-
+        const norm = Math.min(voz.reduce((a,b)=>a+b,0)/voz.length/90, 1);
+        const t = norm<0.15?'cerrada':norm<0.35?'abierta_s':norm<0.6?'abierta_m':'abierta_l';
+        setBocaInicio(t); setBocaChat(t);
+        const seg = Math.floor(dataArray.length/7);
+        barras.forEach((b,i) => { if(!b) return; const v=dataArray[i*seg]/255; b.style.height=Math.max(3,Math.round(v*22))+'px'; b.style.opacity=0.4+v*0.6; });
         lipSyncRAF = requestAnimationFrame(tick);
       }
-
       tick();
-    } catch(e) {
-      // Web Audio no disponible — sin lip-sync, boca fija abierta durante TTS
-    }
+    } catch(e) {}
   }
 
   function detenerLipSync() {
     if (lipSyncRAF) { cancelAnimationFrame(lipSyncRAF); lipSyncRAF = null; }
-    if (lipSyncSource) {
-      try { lipSyncSource.disconnect(); } catch(e) {}
-      lipSyncSource = null;
-    }
+    if (lipSyncSource) { try { lipSyncSource.disconnect(); } catch(e) {} lipSyncSource = null; }
     analyser = null;
-    // Reset barras
-    for (let i = 0; i < 7; i++) {
-      const b = document.getElementById('vb' + i);
-      if (b) { b.style.height = '4px'; b.style.opacity = '0.3'; }
-    }
-    setBocaInicio('cerrada');
-    setBocaChat('cerrada');
+    for (let i=0;i<7;i++) { const b=document.getElementById('vb'+i); if(b){b.style.height='4px';b.style.opacity='0.3';} }
+    setBocaInicio('cerrada'); setBocaChat('cerrada');
   }
 
-  // ── INICIO ──
+  // ── PASO 1 ──
   function agregarEmpleado() {
     const inp = document.getElementById('input-nombre');
     const nombre = inp.value.trim();
-    if (!nombre || empleados.includes(nombre)) { inp.value = ''; return; }
+    if (!nombre || empleados.includes(nombre)) { inp.value=''; return; }
     empleados.push(nombre);
     renderChips();
-    inp.value = ''; inp.focus();
-    // Avatar inicio reacciona brevemente
+    inp.value=''; inp.focus();
     setBocaInicio('abierta_s');
-    setTimeout(() => setBocaInicio('cerrada'), 400);
+    setTimeout(()=>setBocaInicio('cerrada'), 400);
   }
-
-  document.getElementById('input-nombre').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); agregarEmpleado(); }
-  });
-
+  document.getElementById('input-nombre').addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();agregarEmpleado();} });
   function renderChips() {
-    document.getElementById('chips').innerHTML = empleados.map((e,i) => `
-      <div class="chip">${e}<button onclick="quitarEmp(${i})">×</button></div>
-    `).join('');
+    document.getElementById('chips').innerHTML = empleados.map((e,i) =>
+      `<div class="chip">${e}<button onclick="quitarEmp(${i})">×</button></div>`).join('');
   }
-
   function quitarEmp(i) { empleados.splice(i,1); renderChips(); }
 
-  async function iniciarSesion() {
+  function irPaso2() {
     const tarea = document.getElementById('input-tarea').value.trim();
     if (!tarea) { alert('Ingresá la tarea del día'); return; }
     if (empleados.length === 0) { alert('Agregá al menos un empleado'); return; }
+    document.getElementById('paso-1').classList.remove('visible');
+    document.getElementById('paso-2').classList.add('visible');
+    document.getElementById('tab-1').classList.remove('activo');
+    document.getElementById('tab-1').classList.add('completado');
+    document.getElementById('tab-1').querySelector('.paso-num').textContent = '✓';
+    document.getElementById('tab-2').classList.add('activo');
+  }
+
+  function irPaso1() {
+    document.getElementById('paso-2').classList.remove('visible');
+    document.getElementById('paso-1').classList.add('visible');
+    document.getElementById('tab-2').classList.remove('activo');
+    document.getElementById('tab-1').classList.add('activo');
+    document.getElementById('tab-1').classList.remove('completado');
+    document.getElementById('tab-1').querySelector('.paso-num').textContent = '1';
+  }
+
+  // ── PASO 2: EQUIPOS ──
+  function agregarEquipo() {
+    const inp = document.getElementById('input-equipo');
+    const eq = inp.value.trim();
+    if (!eq || equipos.includes(eq)) { inp.value=''; return; }
+    equipos.push(eq);
+    renderChipsEquipos();
+    inp.value=''; inp.focus();
+  }
+  document.getElementById('input-equipo').addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();agregarEquipo();} });
+
+  function toggleEquipoSug(btn, nombre) {
+    if (equipos.includes(nombre)) {
+      equipos = equipos.filter(e => e !== nombre);
+      btn.classList.remove('seleccionado');
+    } else {
+      equipos.push(nombre);
+      btn.classList.add('seleccionado');
+    }
+    renderChipsEquipos();
+  }
+
+  function renderChipsEquipos() {
+    document.getElementById('chips-equipos').innerHTML = equipos.map((e,i) =>
+      `<div class="chip equipo">${e}<button onclick="quitarEquipo(${i})">×</button></div>`).join('');
+    // Sync botones sugeridos
+    document.querySelectorAll('.btn-equipo-sug').forEach(btn => {
+      btn.classList.toggle('seleccionado', equipos.includes(btn.getAttribute('onclick').match(/'([^']+)'\)/)?.[1]));
+    });
+  }
+  function quitarEquipo(i) {
+    const nombre = equipos[i];
+    equipos.splice(i,1);
+    renderChipsEquipos();
+    document.querySelectorAll('.btn-equipo-sug').forEach(btn => {
+      if (btn.getAttribute('onclick').includes(`'${nombre}'`)) btn.classList.remove('seleccionado');
+    });
+  }
+
+  // ── INICIAR SESIÓN ──
+  async function iniciarSesion() {
+    const tarea       = document.getElementById('input-tarea').value.trim();
+    const condiciones = document.getElementById('input-condiciones').value.trim();
+    const observaciones = document.getElementById('input-observaciones').value.trim();
+
+    if (equipos.length === 0) { alert('Agregá al menos un equipo o herramienta'); return; }
+    if (!condiciones) { alert('Describí las condiciones ambientales'); return; }
 
     const btn = document.getElementById('btn-iniciar');
     btn.disabled = true;
-    btn.textContent = 'CONECTANDO CON KALU...';
+    btn.textContent = 'GENERANDO ATS...';
     setEstadoAvatar('escuchando');
+    document.getElementById('generando-overlay').classList.add('visible');
 
     try {
       const res = await fetch(WEBHOOK_INICIAR, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empleados, tarea })
+        body: JSON.stringify({ empleados, tarea, equipos, condiciones, observaciones })
       });
       const data = await res.json();
 
+      document.getElementById('generando-overlay').classList.remove('visible');
+
       if (data.bloqueado) {
         btn.disabled = false;
-        btn.textContent = 'INICIAR SESIÓN CON KALU';
+        btn.textContent = 'INICIAR CON KALU';
         setEstadoAvatar('idle');
         alert(data.mensaje);
         return;
@@ -1006,417 +873,238 @@
         <div class="stat-item"><span class="label">MODO</span><span class="value">${data.modo || '—'}</span></div>
         <div class="stat-item"><span class="label">APROB.</span><span class="value">${data.tipoAprobacion || '—'}</span></div>
       `;
-
       document.getElementById('chat-topbar').innerHTML = `
         <span class="tag-tarea">${tarea}</span>
-        ${empleados.map(e => `<span class="tag-empleado">${e}</span>`).join('')}
+        ${empleados.map(e=>`<span class="tag-empleado">${e}</span>`).join('')}
       `;
 
       const inicio = document.getElementById('pantalla-inicio');
       inicio.classList.add('saliendo');
       setTimeout(() => {
         inicio.style.display = 'none';
-        const chat = document.getElementById('pantalla-chat');
-        chat.classList.add('visible');
+        document.getElementById('pantalla-chat').classList.add('visible');
         renderSelectorEmp();
         setEstadoAvatar('hablando');
         agregarMensajeKALU(data.mensaje, true);
       }, 500);
 
     } catch(e) {
+      document.getElementById('generando-overlay').classList.remove('visible');
       alert('Error al conectar con KALU. Verificá tu conexión.');
       btn.disabled = false;
-      btn.textContent = 'INICIAR SESIÓN CON KALU';
+      btn.textContent = 'INICIAR CON KALU';
       setEstadoAvatar('idle');
     }
   }
 
   function renderSelectorEmp() {
-    document.getElementById('selector-emp').innerHTML = empleados.map(e => `
-      <button class="btn-emp ${e===empleadoActivo?'activo':''}" onclick="selecEmp('${e}')">${e}</button>
-    `).join('');
+    document.getElementById('selector-emp').innerHTML = empleados.map(e =>
+      `<button class="btn-emp ${e===empleadoActivo?'activo':''}" onclick="selecEmp('${e}')">${e}</button>`).join('');
   }
-
-  function selecEmp(nombre) { empleadoActivo = nombre; renderSelectorEmp(); }
+  function selecEmp(nombre) { empleadoActivo=nombre; renderSelectorEmp(); }
 
   // ── CHAT ──
-  function agregarMensajeKALU(texto, reproducir = false) {
+  function agregarMensajeKALU(texto, reproducir=false) {
     const cont = document.getElementById('mensajes');
     const typing = document.getElementById('typing');
     mensajesCount++;
-
     const div = document.createElement('div');
     div.className = 'burbuja kalu';
-
     const contenido = document.createElement('div');
     contenido.className = 'contenido typewriter-cursor';
-
     const audioWrap = document.createElement('div');
     audioWrap.className = 'kalu-audio';
-    const btnEscuchar = document.createElement('button');
-    btnEscuchar.className = 'btn-escuchar';
-    btnEscuchar.textContent = '▶ Escuchar';
-    btnEscuchar.onclick = () => reproducirVoz(btnEscuchar, texto);
-    audioWrap.appendChild(btnEscuchar);
-
+    const btnEsc = document.createElement('button');
+    btnEsc.className = 'btn-escuchar';
+    btnEsc.textContent = '▶ Escuchar';
+    btnEsc.onclick = () => reproducirVoz(btnEsc, texto);
+    audioWrap.appendChild(btnEsc);
     div.innerHTML = '<div class="remitente">KALU IA</div>';
     div.appendChild(contenido);
     div.appendChild(audioWrap);
     cont.insertBefore(div, typing);
     cont.scrollTop = cont.scrollHeight;
-
     typewriterEffect(contenido, texto, () => {
       contenido.classList.remove('typewriter-cursor');
-      // Vuelve a idle cuando termina de "hablar" (si no hay audio real)
-      if (estadoAvatar === 'hablando' && !lipSyncSource) {
-        setTimeout(() => setEstadoAvatar('idle'), 600);
-      }
+      if (estadoAvatar==='hablando' && !lipSyncSource) setTimeout(()=>setEstadoAvatar('idle'),600);
     });
-
     mostrarSubtitulos(texto);
-
     if (reproducir) reproducirVozAuto(texto);
   }
 
   function typewriterEffect(el, texto, onDone) {
-    let charIdx = 0;
-    el.innerHTML = '';
-
-    const interval = setInterval(() => {
+    let charIdx=0; el.innerHTML='';
+    const iv = setInterval(()=>{
       charIdx++;
-      el.innerHTML = texto.substring(0, charIdx).replace(/\n/g, '<br>');
-      document.getElementById('mensajes').scrollTop = 99999;
-
-      if (charIdx >= texto.length) {
-        clearInterval(interval);
-        if (onDone) onDone();
-        if (pendingCountdown) {
-          pendingCountdown = false;
-          setTimeout(() => iniciarCountdown(), 1200);
-        }
+      el.innerHTML = texto.substring(0,charIdx).replace(/\n/g,'<br>');
+      document.getElementById('mensajes').scrollTop=99999;
+      if (charIdx>=texto.length) {
+        clearInterval(iv);
+        if(onDone) onDone();
+        if(pendingCountdown){pendingCountdown=false;setTimeout(()=>iniciarCountdown(),1200);}
       }
-    }, 18);
+    },18);
   }
 
   function mostrarSubtitulos(texto) {
-    const bar = document.getElementById('subtitulos');
+    const bar=document.getElementById('subtitulos');
     bar.classList.remove('vacia');
-    const palabras = texto.split(' ');
-    let idx = 0;
-
-    if (subtitulosTimeout) clearInterval(subtitulosTimeout);
-
-    subtitulosTimeout = setInterval(() => {
-      const fin = Math.min(idx + 6, palabras.length);
-      bar.textContent = palabras.slice(idx, fin).join(' ');
-      idx = fin;
-      if (idx >= palabras.length) {
-        clearInterval(subtitulosTimeout);
-        setTimeout(() => {
-          bar.classList.add('vacia');
-          bar.textContent = '// esperando respuesta...';
-        }, 2000);
-      }
-    }, 400);
+    const palabras=texto.split(' '); let idx=0;
+    if(subtitulosTimeout) clearInterval(subtitulosTimeout);
+    subtitulosTimeout=setInterval(()=>{
+      const fin=Math.min(idx+6,palabras.length);
+      bar.textContent=palabras.slice(idx,fin).join(' '); idx=fin;
+      if(idx>=palabras.length){clearInterval(subtitulosTimeout);setTimeout(()=>{bar.classList.add('vacia');bar.textContent='// esperando respuesta...';},2000);}
+    },400);
   }
 
   function agregarMensajeUsuario(texto, remitente) {
-    const cont = document.getElementById('mensajes');
-    const typing = document.getElementById('typing');
-    const div = document.createElement('div');
-    div.className = 'burbuja usuario';
-    div.innerHTML = `
-      <div class="remitente">${esc(remitente)}</div>
-      <div class="contenido">${esc(texto)}</div>
-    `;
-    cont.insertBefore(div, typing);
-    cont.scrollTop = cont.scrollHeight;
+    const cont=document.getElementById('mensajes');
+    const typing=document.getElementById('typing');
+    const div=document.createElement('div');
+    div.className='burbuja usuario';
+    div.innerHTML=`<div class="remitente">${esc(remitente)}</div><div class="contenido">${esc(texto)}</div>`;
+    cont.insertBefore(div,typing); cont.scrollTop=cont.scrollHeight;
   }
 
-  function esc(t) {
-    return String(t)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/\n/g,'<br>');
-  }
+  function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 
   function mostrarTyping(show) {
-    const t = document.getElementById('typing');
-    t.classList.toggle('visible', show);
-    if (show) {
-      document.getElementById('mensajes').scrollTop = 99999;
-      setEstadoAvatar('escuchando'); // KALU "piensa" → estado escuchando
-    }
+    document.getElementById('typing').classList.toggle('visible',show);
+    if(show){document.getElementById('mensajes').scrollTop=99999;setEstadoAvatar('escuchando');}
   }
 
   async function enviarMensaje() {
-    const ta = document.getElementById('input-msg');
-    const texto = ta.value.trim();
-    if (!texto || !sessionId) return;
-
-    const btnEnv = document.getElementById('btn-enviar');
-    const btnMic = document.getElementById('btn-mic');
-    btnEnv.disabled = true; btnMic.disabled = true; ta.disabled = true;
-
+    const ta=document.getElementById('input-msg');
+    const texto=ta.value.trim();
+    if(!texto||!sessionId) return;
+    const btnEnv=document.getElementById('btn-enviar');
+    const btnMic=document.getElementById('btn-mic');
+    btnEnv.disabled=true; btnMic.disabled=true; ta.disabled=true;
     agregarMensajeUsuario(texto, empleadoActivo);
-    ta.value = ''; ta.style.height = 'auto';
+    ta.value=''; ta.style.height='auto';
     mostrarTyping(true);
-    document.getElementById('error-msg').style.display = 'none';
-
+    document.getElementById('error-msg').style.display='none';
     try {
-      const res = await fetch(WEBHOOK_MENSAJE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, atsItemId, mensaje: texto, empleado: empleadoActivo })
-      });
-      const data = await res.json();
-      mostrarTyping(false);
-      setEstadoAvatar('hablando');
-
-      // Detectar alerta HSE en respuesta
-      const textoUpper = (data.mensaje || '').toUpperCase();
-      if (textoUpper.includes('PELIGRO') || textoUpper.includes('ALERTA') || textoUpper.includes('RIESGO ALTO')) {
-        setEstadoAvatar('alerta');
-        setTimeout(() => setEstadoAvatar('hablando'), 2000);
-      }
-
-      agregarMensajeKALU(data.mensaje || 'Sin respuesta', true);
-
-      if (data.atsDetectado) {
-        document.getElementById('ats-banner').classList.add('visible');
-        autoCountdownTimer = setTimeout(() => iniciarCountdown(), 90000);
-      }
+      const res=await fetch(WEBHOOK_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,atsItemId,mensaje:texto,empleado:empleadoActivo})});
+      const data=await res.json();
+      mostrarTyping(false); setEstadoAvatar('hablando');
+      const u=(data.mensaje||'').toUpperCase();
+      if(u.includes('PELIGRO')||u.includes('ALERTA')||u.includes('RIESGO ALTO')){setEstadoAvatar('alerta');setTimeout(()=>setEstadoAvatar('hablando'),2000);}
+      agregarMensajeKALU(data.mensaje||'Sin respuesta',true);
+      if(data.atsDetectado){document.getElementById('ats-banner').classList.add('visible');autoCountdownTimer=setTimeout(()=>iniciarCountdown(),90000);}
     } catch(e) {
-      mostrarTyping(false);
-      setEstadoAvatar('alerta');
-      setTimeout(() => setEstadoAvatar('idle'), 3000);
-      const err = document.getElementById('error-msg');
-      err.textContent = 'Error de conexión. Intentá de nuevo.';
-      err.style.display = 'block';
-    } finally {
-      btnEnv.disabled = false; btnMic.disabled = false;
-      ta.disabled = false; ta.focus();
-    }
+      mostrarTyping(false); setEstadoAvatar('alerta'); setTimeout(()=>setEstadoAvatar('idle'),3000);
+      const err=document.getElementById('error-msg'); err.textContent='Error de conexión. Intentá de nuevo.'; err.style.display='block';
+    } finally { btnEnv.disabled=false; btnMic.disabled=false; ta.disabled=false; ta.focus(); }
   }
 
-  // ── COUNTDOWN ──
   function iniciarCountdown() {
-    if (autoCountdownTimer) { clearTimeout(autoCountdownTimer); autoCountdownTimer = null; }
-    const overlay = document.getElementById('countdown-overlay');
-    const numEl   = document.getElementById('countdown-num');
-    const barEl   = document.getElementById('countdown-bar-fill');
-    const total   = 5;
-    let seg       = total;
-
-    overlay.classList.add('visible');
-    numEl.textContent = seg;
-    barEl.style.width = '100%';
-
-    const tick = setInterval(() => {
-      seg--;
-      numEl.textContent = seg;
-      barEl.style.width = ((seg / total) * 100) + '%';
-      if (seg <= 0) { clearInterval(tick); resetSesion(); }
-    }, 1000);
+    if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
+    const overlay=document.getElementById('countdown-overlay');
+    const numEl=document.getElementById('countdown-num');
+    const barEl=document.getElementById('countdown-bar-fill');
+    const total=5; let seg=total;
+    overlay.classList.add('visible'); numEl.textContent=seg; barEl.style.width='100%';
+    const tick=setInterval(()=>{seg--;numEl.textContent=seg;barEl.style.width=((seg/total)*100)+'%';if(seg<=0){clearInterval(tick);resetSesion();}},1000);
   }
 
   function resetSesion() {
-    detenerLipSync();
-    setEstadoAvatar('idle');
-
-    sessionId = ''; atsItemId = ''; empleados = []; empleadoActivo = '';
-    mensajesCount = 0; pendingCountdown = false;
-    if (autoCountdownTimer) { clearTimeout(autoCountdownTimer); autoCountdownTimer = null; }
-
-    document.getElementById('mensajes').innerHTML = `
-      <div class="typing" id="typing">
-        <div class="typing-dots"><span></span><span></span><span></span></div>
-      </div>`;
+    detenerLipSync(); setEstadoAvatar('idle');
+    sessionId=''; atsItemId=''; empleados=[]; equipos=[]; empleadoActivo='';
+    mensajesCount=0; pendingCountdown=false;
+    if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
+    document.getElementById('mensajes').innerHTML=`<div class="typing" id="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
     document.getElementById('ats-banner').classList.remove('visible');
-    document.getElementById('kalu-stats').innerHTML = '';
-    document.getElementById('kalu-modo-label').textContent = 'MODO —';
-    document.getElementById('chips').innerHTML = '';
-    document.getElementById('input-tarea').value = '';
-    document.getElementById('input-nombre').value = '';
-    document.getElementById('subtitulos').textContent = '// esperando respuesta de KALU...';
+    document.getElementById('kalu-stats').innerHTML='';
+    document.getElementById('kalu-modo-label').textContent='MODO —';
+    document.getElementById('chips').innerHTML='';
+    document.getElementById('chips-equipos').innerHTML='';
+    document.getElementById('input-tarea').value='';
+    document.getElementById('input-nombre').value='';
+    document.getElementById('input-equipo').value='';
+    document.getElementById('input-condiciones').value='';
+    document.getElementById('input-observaciones').value='';
+    document.querySelectorAll('.btn-equipo-sug').forEach(b=>b.classList.remove('seleccionado'));
+    document.getElementById('subtitulos').textContent='// esperando respuesta de KALU...';
     document.getElementById('subtitulos').classList.add('vacia');
-
     document.getElementById('countdown-overlay').classList.remove('visible');
     document.getElementById('pantalla-chat').classList.remove('visible');
-    const inicio = document.getElementById('pantalla-inicio');
-    inicio.style.display = 'flex';
-    inicio.style.opacity = '0';
-    inicio.style.transform = 'translateY(20px)';
+    // Reset pasos
+    document.getElementById('paso-2').classList.remove('visible');
+    document.getElementById('paso-1').classList.add('visible');
+    document.getElementById('tab-2').classList.remove('activo');
+    document.getElementById('tab-1').classList.add('activo');
+    document.getElementById('tab-1').classList.remove('completado');
+    document.getElementById('tab-1').querySelector('.paso-num').textContent='1';
+    const btn=document.getElementById('btn-iniciar'); btn.disabled=false; btn.textContent='INICIAR CON KALU';
+    const inicio=document.getElementById('pantalla-inicio');
+    inicio.style.display='flex'; inicio.style.opacity='0'; inicio.style.transform='translateY(20px)';
     inicio.classList.remove('saliendo');
-    setTimeout(() => {
-      inicio.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-      inicio.style.opacity = '1';
-      inicio.style.transform = 'translateY(0)';
-    }, 50);
-
-    const btn = document.getElementById('btn-iniciar');
-    btn.disabled = false;
-    btn.textContent = 'INICIAR SESIÓN CON KALU';
+    setTimeout(()=>{inicio.style.transition='opacity 0.5s ease, transform 0.5s ease';inicio.style.opacity='1';inicio.style.transform='translateY(0)';},50);
   }
 
-  // ── GRABACIÓN DE VOZ ──
-  async function toggleGrabacion() {
-    if (grabando) detenerGrabacion();
-    else await iniciarGrabacion();
-  }
+  async function toggleGrabacion() { if(grabando) detenerGrabacion(); else await iniciarGrabacion(); }
 
   async function iniciarGrabacion() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunks = [];
-      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-
-      mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        await transcribirAudio(new Blob(audioChunks, { type: mime }), mime);
-      };
-      mediaRecorder.start(250);
-      grabando = true;
-
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      audioChunks=[];
+      const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4';
+      mediaRecorder=new MediaRecorder(stream,{mimeType:mime});
+      mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+      mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());await transcribirAudio(new Blob(audioChunks,{type:mime}),mime);};
+      mediaRecorder.start(250); grabando=true;
       setEstadoAvatar('escuchando');
       document.getElementById('btn-mic').classList.add('grabando');
-      document.getElementById('voz-estado').textContent = 'Grabando... (tocá para detener)';
+      document.getElementById('voz-estado').textContent='Grabando... (tocá para detener)';
       document.getElementById('voz-ind').classList.add('visible');
-    } catch(e) {
-      alert('No se pudo acceder al micrófono.');
-    }
+    } catch(e) { alert('No se pudo acceder al micrófono.'); }
   }
 
   function detenerGrabacion() {
-    if (mediaRecorder && grabando) {
-      mediaRecorder.stop(); grabando = false;
-      document.getElementById('btn-mic').classList.remove('grabando');
-      document.getElementById('voz-estado').textContent = 'Procesando...';
-      setEstadoAvatar('idle');
-    }
+    if(mediaRecorder&&grabando){mediaRecorder.stop();grabando=false;document.getElementById('btn-mic').classList.remove('grabando');document.getElementById('voz-estado').textContent='Procesando...';setEstadoAvatar('idle');}
   }
 
-  async function transcribirAudio(blob, mime) {
-    const ind = document.getElementById('voz-ind');
+  async function transcribirAudio(blob,mime) {
+    const ind=document.getElementById('voz-ind');
     try {
-      const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-      const fd = new FormData();
-      fd.append('audio', blob, `audio.${ext}`);
-      fd.append('empleado', empleadoActivo);
-
-      const res = await fetch(WEBHOOK_STT, { method: 'POST', body: fd });
-      const data = await res.json();
-      ind.classList.remove('visible');
-
-      if (data.texto?.trim()) {
-        const ta = document.getElementById('input-msg');
-        ta.value = data.texto.trim();
-        autoResize(ta);
-        await enviarMensaje();
-      } else {
-        mostrarError('No se entendió el audio. Intentá de nuevo.');
-        setEstadoAvatar('idle');
-      }
-    } catch(e) {
-      ind.classList.remove('visible');
-      mostrarError('Error al procesar el audio.');
-      setEstadoAvatar('idle');
-    }
+      const ext=mime.includes('mp4')?'mp4':'webm';
+      const fd=new FormData(); fd.append('audio',blob,`audio.${ext}`); fd.append('empleado',empleadoActivo);
+      const res=await fetch(WEBHOOK_STT,{method:'POST',body:fd});
+      const data=await res.json(); ind.classList.remove('visible');
+      if(data.texto?.trim()){const ta=document.getElementById('input-msg');ta.value=data.texto.trim();autoResize(ta);await enviarMensaje();}
+      else{mostrarError('No se entendió el audio. Intentá de nuevo.');setEstadoAvatar('idle');}
+    } catch(e){ind.classList.remove('visible');mostrarError('Error al procesar el audio.');setEstadoAvatar('idle');}
   }
 
-  // ── VOZ TTS con LIP-SYNC ──
-
-  // Autoplay silencioso — con lip-sync integrado
   async function reproducirVozAuto(texto) {
     try {
-      const res = await fetch(WEBHOOK_TTS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto })
-      });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-
-      audio.addEventListener('play', () => {
-        setEstadoAvatar('hablando');
-        iniciarLipSync(audio);
-      });
-      audio.addEventListener('ended', () => {
-        detenerLipSync();
-        setEstadoAvatar('idle');
-        URL.revokeObjectURL(url);
-      });
-      audio.addEventListener('error', () => {
-        detenerLipSync();
-        setEstadoAvatar('idle');
-      });
-
-      audio.play().catch(() => {
-        // Chrome bloqueó autoplay — el botón ▶ Escuchar queda como fallback
-        detenerLipSync();
-        setEstadoAvatar('idle');
-      });
-    } catch(e) {}
+      const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+      if(!res.ok) return;
+      const blob=await res.blob(); const url=URL.createObjectURL(blob); const audio=new Audio(url);
+      audio.addEventListener('play',()=>{setEstadoAvatar('hablando');iniciarLipSync(audio);});
+      audio.addEventListener('ended',()=>{detenerLipSync();setEstadoAvatar('idle');URL.revokeObjectURL(url);});
+      audio.addEventListener('error',()=>{detenerLipSync();setEstadoAvatar('idle');});
+      audio.play().catch(()=>{detenerLipSync();setEstadoAvatar('idle');});
+    } catch(e){}
   }
 
-  // Reproducción manual — siempre funciona (click directo del usuario)
-  async function reproducirVoz(btn, texto) {
-    btn.textContent = '⏳ Cargando...';
-    btn.disabled = true;
+  async function reproducirVoz(btn,texto) {
+    btn.textContent='⏳ Cargando...'; btn.disabled=true;
     try {
-      const res = await fetch(WEBHOOK_TTS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto })
-      });
-      if (!res.ok) throw new Error('TTS error');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-
-      audio.addEventListener('play', () => {
-        setEstadoAvatar('hablando');
-        iniciarLipSync(audio);
-        btn.textContent = '🔊 Reproduciendo...';
-      });
-      audio.addEventListener('ended', () => {
-        detenerLipSync();
-        setEstadoAvatar('idle');
-        btn.textContent = '▶ Escuchar';
-        btn.disabled = false;
-        URL.revokeObjectURL(url);
-      });
-      audio.addEventListener('error', () => {
-        detenerLipSync();
-        setEstadoAvatar('idle');
-        btn.textContent = '▶ Escuchar';
-        btn.disabled = false;
-      });
-
+      const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+      if(!res.ok) throw new Error('TTS error');
+      const blob=await res.blob(); const url=URL.createObjectURL(blob); const audio=new Audio(url);
+      audio.addEventListener('play',()=>{setEstadoAvatar('hablando');iniciarLipSync(audio);btn.textContent='🔊 Reproduciendo...';});
+      audio.addEventListener('ended',()=>{detenerLipSync();setEstadoAvatar('idle');btn.textContent='▶ Escuchar';btn.disabled=false;URL.revokeObjectURL(url);});
+      audio.addEventListener('error',()=>{detenerLipSync();setEstadoAvatar('idle');btn.textContent='▶ Escuchar';btn.disabled=false;});
       audio.play();
-    } catch(e) {
-      btn.textContent = '▶ Escuchar';
-      btn.disabled = false;
-      setEstadoAvatar('idle');
-    }
+    } catch(e){btn.textContent='▶ Escuchar';btn.disabled=false;setEstadoAvatar('idle');}
   }
 
-  // ── UTILS ──
-  function mostrarError(msg) {
-    const err = document.getElementById('error-msg');
-    err.textContent = msg; err.style.display = 'block';
-    setTimeout(() => { err.style.display = 'none'; }, 4000);
-  }
-
-  function autoResize(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-  }
+  function mostrarError(msg){const err=document.getElementById('error-msg');err.textContent=msg;err.style.display='block';setTimeout(()=>{err.style.display='none';},4000);}
+  function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 </script>
 </body>
 </html>

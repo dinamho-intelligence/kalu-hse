@@ -421,6 +421,138 @@
     .countdown-bar { width: 200px; height: 3px; background: var(--negro-4); border-radius: 2px; overflow: hidden; }
     .countdown-bar-fill { height: 100%; background: var(--naranja); border-radius: 2px; transition: width 1s linear; }
 
+    /* ─── PANTALLA INVESTIGADOR ─── */
+    #pantalla-investigador {
+      position: fixed; inset: 0;
+      display: none; flex-direction: row;
+      align-items: stretch;
+      padding-top: 60px;
+      background: var(--negro);
+      z-index: 10;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      overflow: hidden;
+    }
+    #pantalla-investigador.visible { display: flex; }
+    #pantalla-investigador.saliendo { opacity: 0; transform: translateY(-20px); pointer-events: none; }
+
+    .inv-avatar-col {
+      width: 320px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 24px;
+      border-right: 1px solid rgba(255,59,48,0.15);
+      background: var(--negro-2);
+    }
+    .kalu-avatar-inv { width: 180px; height: 180px; position: relative; flex-shrink: 0; margin-bottom: 20px; }
+    .kalu-avatar-inv svg { width: 100%; height: 100%; }
+    .inv-kalu-titulo { font-size: 16px; font-weight: 700; color: var(--rojo-alerta); letter-spacing: 1px; margin-bottom: 6px; }
+    .inv-kalu-sub { font-size: 11px; color: var(--gris-2); font-family: 'JetBrains Mono', monospace; text-align: center; line-height: 1.6; margin-bottom: 20px; }
+    .alerta-badge {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 8px;
+      background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.3);
+      font-size: 11px; color: var(--rojo-alerta);
+      font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .alerta-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rojo-alerta); animation: pulso 1s infinite; }
+
+    .inv-form-col {
+      flex: 1; display: flex; flex-direction: column;
+      overflow-y: auto; padding: 32px 40px;
+    }
+    .inv-form-col::-webkit-scrollbar { width: 4px; }
+    .inv-form-col::-webkit-scrollbar-thumb { background: var(--gris-3); border-radius: 2px; }
+
+    .inv-titulo-form {
+      font-size: 22px; font-weight: 700; color: var(--blanco);
+      margin-bottom: 6px;
+    }
+    .inv-sub-form {
+      font-size: 12px; color: var(--gris-2);
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 28px; letter-spacing: 0.5px;
+    }
+
+    .campo-inv { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .campo-inv label { font-size: 11px; font-weight: 600; color: var(--rojo-alerta); text-transform: uppercase; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
+    .campo-inv input, .campo-inv textarea, .campo-inv select {
+      width: 100%; padding: 12px 16px;
+      background: var(--negro-3); border: 1px solid var(--gris-3);
+      border-radius: 10px; color: var(--blanco);
+      font-size: 14px; font-family: 'Space Grotesk', sans-serif;
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .campo-inv textarea { resize: none; min-height: 90px; line-height: 1.5; }
+    .campo-inv select { cursor: pointer; }
+    .campo-inv input:focus, .campo-inv textarea:focus, .campo-inv select:focus { border-color: var(--rojo-alerta); box-shadow: 0 0 0 3px rgba(255,59,48,0.1); }
+    .campo-inv input::placeholder, .campo-inv textarea::placeholder { color: var(--gris-3); }
+    .campo-inv select option { background: var(--negro-3); }
+
+    .inv-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .btn-inv-iniciar {
+      width: 100%; padding: 16px;
+      background: var(--rojo-alerta); border: none; border-radius: 12px;
+      color: var(--blanco); font-size: 16px; font-weight: 700;
+      cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+      letter-spacing: 0.5px; transition: all 0.2s; margin-top: 8px;
+      position: relative; overflow: hidden;
+    }
+    .btn-inv-iniciar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent); }
+    .btn-inv-iniciar:hover { background: #E0342A; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,59,48,0.3); }
+    .btn-inv-iniciar:disabled { background: var(--gris-3); cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ─── PANTALLA INVESTIGADOR CHAT ─── */
+    #pantalla-inv-chat { display: none; position: fixed; inset: 0; flex-direction: column; padding-top: 60px; }
+    #pantalla-inv-chat.visible { display: flex; }
+
+    .inv-chat-layout { display: flex; flex: 1; overflow: hidden; }
+
+    .inv-panel {
+      width: 200px; flex-shrink: 0;
+      background: var(--negro-2);
+      border-right: 1px solid rgba(255,59,48,0.2);
+      display: flex; flex-direction: column;
+      align-items: center; padding: 24px 16px; gap: 12px;
+    }
+    .inv-panel .kalu-cara-wrap::before { border-color: rgba(255,59,48,0.5); box-shadow: 0 0 20px rgba(255,59,48,0.2); }
+    .inv-nombre { font-size: 13px; font-weight: 700; color: var(--rojo-alerta); text-align: center; letter-spacing: 1px; }
+    .inv-estado-label { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--rojo-alerta); text-align: center; letter-spacing: 1px; opacity: 0.8; }
+
+    .inv-fase-indicator {
+      width: 100%; margin-top: 8px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .fase-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 8px;
+      font-size: 10px; font-family: 'JetBrains Mono', monospace;
+      color: var(--gris-3); border: 1px solid transparent;
+      transition: all 0.3s;
+    }
+    .fase-item.activa { color: var(--rojo-alerta); background: rgba(255,59,48,0.08); border-color: rgba(255,59,48,0.2); }
+    .fase-item.completada { color: var(--verde-ok); }
+    .fase-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    .inv-chat-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .inv-topbar { padding: 12px 20px; background: rgba(255,59,48,0.06); border-bottom: 1px solid rgba(255,59,48,0.15); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .tag-inv { padding: 4px 12px; border-radius: 6px; background: rgba(255,59,48,0.12); border: 1px solid rgba(255,59,48,0.3); color: var(--rojo-alerta); font-size: 12px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+    .inv-mensajes { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
+    .inv-mensajes::-webkit-scrollbar { width: 4px; }
+    .inv-mensajes::-webkit-scrollbar-thumb { background: var(--gris-3); border-radius: 2px; }
+
+    .burbuja.kalu-inv .remitente { color: var(--rojo-alerta); }
+    .burbuja.kalu-inv .contenido { background: var(--negro-3); border: 1px solid rgba(255,59,48,0.15); border-bottom-left-radius: 4px; color: var(--gris-1); }
+
+    .inv-input-area { background: var(--negro-2); border-top: 1px solid rgba(255,255,255,0.06); padding: 12px 20px; }
+    .inv-selector-testigo { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 2px; }
+    .btn-testigo { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--gris-3); background: var(--negro-3); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; color: var(--gris-2); font-family: 'Space Grotesk', sans-serif; transition: all 0.15s; }
+    .btn-testigo.activo { background: rgba(255,59,48,0.12); border-color: var(--rojo-alerta); color: var(--rojo-alerta); }
+
+    .inv-subtitulos { background: rgba(0,0,0,0.85); border-top: 1px solid rgba(255,59,48,0.2); padding: 10px 20px; min-height: 44px; display: flex; align-items: center; font-size: 13px; color: var(--rojo-alerta); font-family: 'JetBrains Mono', monospace; opacity: 0.5; }
+
     @media (max-width: 700px) {
       #pantalla-inicio { flex-direction: column; }
       .inicio-avatar-col { width: 100%; height: 200px; border-right: none; border-bottom: 1px solid rgba(242,140,0,0.1); padding: 20px; flex-direction: row; gap: 20px; }
@@ -693,6 +825,171 @@
   </div>
 </div>
 
+<!-- ─── PANTALLA INVESTIGADOR (formulario) ─── -->
+<div id="pantalla-investigador">
+  <div class="inv-avatar-col">
+    <div class="kalu-avatar-inv">
+      <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="110" cy="110" r="94" stroke="#FF3B30" stroke-width="1.2" opacity="0.18"/>
+        <circle cx="110" cy="110" r="102" stroke="#FF3B30" stroke-width="0.8" opacity="0.08"/>
+        <g style="animation: girar 10s linear infinite; transform-origin: 110px 110px;">
+          <ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(255,59,48,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/>
+          <circle cx="110" cy="26" r="4" fill="#FF3B30" opacity="0.8"/>
+        </g>
+        <g class="avatar-float">
+          <circle cx="110" cy="110" r="58" fill="#111318" stroke="#FF3B30" stroke-width="1.5" opacity="0.9"/>
+          <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
+          <path d="M72 95 Q70 78 90 68 Q110 60 130 68 Q150 78 148 95" fill="#111318"/>
+          <path d="M75 100 Q73 82 93 72 Q110 65 127 72 Q147 82 145 100" fill="#1E2028"/>
+          <rect x="62" y="90" width="8" height="22" rx="2" fill="#FF3B30" opacity="0.3"/>
+          <rect x="150" y="90" width="8" height="22" rx="2" fill="#FF3B30" opacity="0.3"/>
+          <g>
+            <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(255,59,48,0.12)" stroke="#FF3B30" stroke-width="1.5"/>
+            <ellipse cx="91" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#FF3B30"/>
+            <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
+          </g>
+          <g>
+            <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(255,59,48,0.12)" stroke="#FF3B30" stroke-width="1.5"/>
+            <ellipse cx="129" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#FF3B30"/>
+            <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
+          </g>
+          <path d="M94 122 Q110 118 126 122" stroke="#FF3B30" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+    <div class="alerta-badge"><div class="alerta-dot"></div>INVESTIGACIÓN ACTIVA</div>
+    <div class="inv-kalu-titulo">KALU INVESTIGADOR</div>
+    <div class="inv-kalu-sub">Árbol de Causas<br>ISO 45001 · Ley 16.744</div>
+    <button class="btn-volver-home" onclick="volverHomeDesdeInv()">← MÓDULOS</button>
+  </div>
+
+  <div class="inv-form-col">
+    <div class="inv-titulo-form">Abrir investigación</div>
+    <div class="inv-sub-form">// COMPLETÁ LOS DATOS DEL EVENTO — KALU CONDUCE EL RESTO</div>
+
+    <div class="inv-grid-2">
+      <div class="campo-inv">
+        <label>Quién reporta</label>
+        <input type="text" id="inv-reporta" placeholder="Nombre completo" />
+      </div>
+      <div class="campo-inv">
+        <label>Rol</label>
+        <select id="inv-rol">
+          <option value="">Seleccioná...</option>
+          <option value="Trabajador afectado">Trabajador afectado</option>
+          <option value="Supervisor">Supervisor</option>
+          <option value="Compañero testigo">Compañero testigo</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="campo-inv">
+      <label>Empresa</label>
+      <input type="text" id="inv-empresa" placeholder="Empresa ejecutora" />
+    </div>
+
+    <div class="inv-grid-2">
+      <div class="campo-inv">
+        <label>Fecha del evento</label>
+        <input type="date" id="inv-fecha" />
+      </div>
+      <div class="campo-inv">
+        <label>Hora aproximada</label>
+        <input type="time" id="inv-hora" />
+      </div>
+    </div>
+
+    <div class="campo-inv">
+      <label>Locación exacta</label>
+      <input type="text" id="inv-locacion" placeholder="Ej: Taller principal, Área QC, Pozo Norte..." />
+    </div>
+
+    <div class="campo-inv">
+      <label>¿Qué ocurrió? — descripción inicial</label>
+      <textarea id="inv-descripcion" placeholder="Describí brevemente lo que pasó. KALU te irá haciendo preguntas para profundizar..."></textarea>
+    </div>
+
+    <div class="campo-inv">
+      <label>Testigos presentes</label>
+      <div class="agregar-fila">
+        <input type="text" id="inv-testigo-input" placeholder="Nombre del testigo" />
+        <button class="btn-agregar" onclick="agregarTestigo()">+</button>
+      </div>
+      <div class="chips" id="chips-testigos"></div>
+    </div>
+
+    <button class="btn-inv-iniciar" id="btn-inv-iniciar" onclick="iniciarInvestigacion()">
+      🔍 INICIAR INVESTIGACIÓN CON KALU
+    </button>
+  </div>
+</div>
+
+<!-- ─── PANTALLA INVESTIGADOR CHAT ─── -->
+<div id="pantalla-inv-chat">
+  <div class="inv-chat-layout">
+    <div class="inv-panel">
+      <div class="kalu-cara-wrap estado-alerta" id="inv-cara-wrap" style="border-color: rgba(255,59,48,0.5);">
+        <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="140" height="140" fill="#0A0C0F"/>
+          <ellipse cx="70" cy="38" rx="42" ry="30" fill="#1A1D24"/>
+          <path d="M28 45 Q20 30 35 20 Q70 5 105 20 Q120 30 112 45" fill="#111318"/>
+          <path d="M28 45 Q25 60 28 75" stroke="#222630" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path d="M112 45 Q115 60 112 75" stroke="#222630" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <ellipse cx="70" cy="80" rx="36" ry="42" fill="#1E2028"/>
+          <g class="ojos-grupo">
+            <rect x="42" y="65" width="22" height="16" rx="6" fill="rgba(255,59,48,0.1)" stroke="#FF3B30" stroke-width="1.5"/>
+            <ellipse cx="53" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="53" cy="73" rx="3" ry="3" fill="#FF3B30"/>
+            <ellipse cx="54" cy="72" rx="1" ry="1" fill="white"/>
+            <rect x="76" y="65" width="22" height="16" rx="6" fill="rgba(255,59,48,0.1)" stroke="#FF3B30" stroke-width="1.5"/>
+            <ellipse cx="87" cy="73" rx="6" ry="5" fill="#0A0C0F"/>
+            <ellipse cx="87" cy="73" rx="3" ry="3" fill="#FF3B30"/>
+            <ellipse cx="88" cy="72" rx="1" ry="1" fill="white"/>
+          </g>
+          <path d="M44 62 Q53 58 62 62" stroke="#A0A4AD" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M78 62 Q87 58 96 62" stroke="#A0A4AD" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path id="kalu-boca-inv" d="M59 98 Q70 94 81 98" stroke="#FF3B30" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="inv-nombre">KALU INV.</div>
+      <div class="inv-estado-label" id="inv-estado-label">// investigando</div>
+      <div class="inv-fase-indicator">
+        <div class="fase-item activa" id="fase-1"><div class="fase-dot"></div>ALERTA</div>
+        <div class="fase-item" id="fase-2"><div class="fase-dot"></div>DECLARACIONES</div>
+        <div class="fase-item" id="fase-3"><div class="fase-dot"></div>CAUSAS</div>
+        <div class="fase-item" id="fase-4"><div class="fase-dot"></div>INFORME</div>
+      </div>
+    </div>
+
+    <div class="inv-chat-main">
+      <div class="inv-topbar" id="inv-topbar"></div>
+      <div class="inv-mensajes" id="inv-mensajes">
+        <div class="typing" id="inv-typing">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="inv-subtitulos" id="inv-subtitulos">// KALU está procesando el evento...</div>
+      <div class="inv-input-area">
+        <div class="inv-selector-testigo" id="inv-selector-testigo"></div>
+        <div class="error-msg" id="inv-error-msg"></div>
+        <div class="input-row">
+          <textarea id="inv-input-msg" placeholder="Describí lo que viste o viviste..." rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeInv()}"
+            oninput="autoResize(this)"></textarea>
+          <button class="btn-accion" id="inv-btn-mic" onclick="toggleGrabacionInv()" title="Hablar">
+            <svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 18.93V22h2v-2.07A8 8 0 0 0 20 12h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z"/></svg>
+          </button>
+          <button class="btn-enviar" style="background:var(--rojo-alerta);" id="inv-btn-enviar" onclick="enviarMensajeInv()">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ─── PANTALLA CHAT ─── -->
 <div id="pantalla-chat">
   <div class="chat-layout">
@@ -857,14 +1154,173 @@
   }
 
   function abrirModuloInvestigador() {
-    // Próximamente — mostrar toast
-    const card = event.currentTarget;
-    card.style.borderColor = 'var(--naranja)';
-    card.style.boxShadow = '0 0 24px rgba(242,140,0,0.2)';
-    setTimeout(() => { card.style.borderColor = ''; card.style.boxShadow = ''; }, 1000);
-    // TODO: implementar pantalla investigador
-    alert('KALU Investigador está en desarrollo. Próximamente disponible.');
+    document.getElementById('header-modulo').textContent = 'KALU Investigador';
+    const home = document.getElementById('pantalla-home');
+    home.classList.add('saliendo');
+    // Set fecha/hora por defecto
+    const ahora = new Date();
+    document.getElementById('inv-fecha').value = ahora.toISOString().split('T')[0];
+    document.getElementById('inv-hora').value = ahora.toTimeString().slice(0,5);
+    setTimeout(() => {
+      home.style.display = 'none';
+      const inv = document.getElementById('pantalla-investigador');
+      inv.style.opacity = '0'; inv.style.transform = 'translateY(20px)';
+      inv.classList.add('visible');
+      setTimeout(() => { inv.style.transition = 'opacity 0.4s ease, transform 0.4s ease'; inv.style.opacity = '1'; inv.style.transform = 'translateY(0)'; }, 30);
+    }, 400);
   }
+
+  function volverHomeDesdeInv() {
+    document.getElementById('header-modulo').textContent = 'KALU';
+    const inv = document.getElementById('pantalla-investigador');
+    inv.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    inv.style.opacity = '0'; inv.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+      inv.classList.remove('visible'); inv.style.opacity = ''; inv.style.transform = '';
+      const home = document.getElementById('pantalla-home');
+      home.style.display = 'flex'; home.style.opacity = '0';
+      home.classList.remove('saliendo');
+      setTimeout(() => { home.style.transition = 'opacity 0.4s ease'; home.style.opacity = '1'; }, 30);
+    }, 300);
+  }
+
+  // ── INVESTIGADOR ──
+  let testigos = [], testigoActivo = '', invSessionId = '';
+
+  function agregarTestigo() {
+    const inp = document.getElementById('inv-testigo-input');
+    const nombre = inp.value.trim();
+    if (!nombre || testigos.includes(nombre)) { inp.value = ''; return; }
+    testigos.push(nombre); renderChipsTestigos(); inp.value = ''; inp.focus();
+  }
+  document.getElementById('inv-testigo-input').addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();agregarTestigo();} });
+
+  function renderChipsTestigos() {
+    document.getElementById('chips-testigos').innerHTML = testigos.map((t,i) =>
+      `<div class="chip">${t}<button onclick="quitarTestigo(${i})">×</button></div>`).join('');
+  }
+  function quitarTestigo(i) { testigos.splice(i,1); renderChipsTestigos(); }
+
+  async function iniciarInvestigacion() {
+    const reporta = document.getElementById('inv-reporta').value.trim();
+    const rol = document.getElementById('inv-rol').value;
+    const empresa = document.getElementById('inv-empresa').value.trim();
+    const fecha = document.getElementById('inv-fecha').value;
+    const hora = document.getElementById('inv-hora').value;
+    const locacion = document.getElementById('inv-locacion').value.trim();
+    const descripcion = document.getElementById('inv-descripcion').value.trim();
+
+    if (!reporta) { alert('Ingresá quién reporta'); return; }
+    if (!rol) { alert('Seleccioná el rol'); return; }
+    if (!empresa) { alert('Ingresá la empresa'); return; }
+    if (!locacion) { alert('Ingresá la locación del evento'); return; }
+    if (!descripcion) { alert('Describí brevemente qué ocurrió'); return; }
+
+    const btn = document.getElementById('btn-inv-iniciar');
+    btn.disabled = true; btn.textContent = '⏳ Iniciando investigación...';
+
+    // Armar participantes: reporta + testigos
+    const participantes = [reporta, ...testigos.filter(t => t !== reporta)];
+    testigoActivo = reporta;
+    invSessionId = 'INV-' + Date.now();
+
+    try {
+      const res = await fetch('https://dnmintell.app.n8n.cloud/webhook/kalu-investigador-iniciar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reporta, rol, empresa, fecha, hora, locacion, descripcion, testigos, sessionId: invSessionId })
+      });
+      const data = await res.json();
+
+      // Transición a chat
+      const inv = document.getElementById('pantalla-investigador');
+      inv.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+      inv.style.opacity = '0'; inv.style.transform = 'translateY(-20px)';
+      setTimeout(() => {
+        inv.classList.remove('visible'); inv.style.opacity = ''; inv.style.transform = '';
+        document.getElementById('pantalla-inv-chat').classList.add('visible');
+        document.getElementById('inv-topbar').innerHTML =
+          `<span class="tag-inv">🔍 INVESTIGACIÓN</span><span class="tag-inv">${locacion}</span><span class="tag-inv">${fecha} ${hora}</span>`;
+        renderSelectorTestigos(participantes);
+        agregarMensajeInv(data.mensaje || 'Investigación iniciada. KALU va a conducir las declaraciones.', true);
+        setFaseActiva('fase-1');
+      }, 400);
+    } catch(e) {
+      btn.disabled = false; btn.textContent = '🔍 INICIAR INVESTIGACIÓN CON KALU';
+      alert('Error al conectar. Verificá tu conexión.');
+    }
+  }
+
+  function renderSelectorTestigos(lista) {
+    document.getElementById('inv-selector-testigo').innerHTML = lista.map(t =>
+      `<button class="btn-testigo ${t===testigoActivo?'activo':''}" onclick="selecTestigo('${t}')">${t}</button>`).join('');
+  }
+  function selecTestigo(nombre) { testigoActivo = nombre; renderSelectorTestigos([testigoActivo, ...testigos.filter(t=>t!==testigoActivo)]); }
+
+  function setFaseActiva(faseId) {
+    ['fase-1','fase-2','fase-3','fase-4'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (id === faseId) { el.classList.add('activa'); el.classList.remove('completada'); }
+      else if (['fase-1','fase-2','fase-3','fase-4'].indexOf(id) < ['fase-1','fase-2','fase-3','fase-4'].indexOf(faseId)) { el.classList.remove('activa'); el.classList.add('completada'); }
+      else { el.classList.remove('activa','completada'); }
+    });
+  }
+
+  function agregarMensajeInv(texto, reproducir=false) {
+    const cont = document.getElementById('inv-mensajes');
+    const typing = document.getElementById('inv-typing');
+    const div = document.createElement('div'); div.className = 'burbuja kalu-inv';
+    const contenido = document.createElement('div'); contenido.className = 'contenido typewriter-cursor';
+    const audioWrap = document.createElement('div'); audioWrap.className = 'kalu-audio';
+    const btnEsc = document.createElement('button'); btnEsc.className = 'btn-escuchar'; btnEsc.textContent = '▶ Escuchar';
+    btnEsc.onclick = () => reproducirVoz(btnEsc, texto);
+    audioWrap.appendChild(btnEsc);
+    div.innerHTML = '<div class="remitente">KALU INV.</div>';
+    div.appendChild(contenido); div.appendChild(audioWrap);
+    cont.insertBefore(div, typing); cont.scrollTop = cont.scrollHeight;
+    typewriterEffect(contenido, texto, () => contenido.classList.remove('typewriter-cursor'));
+    document.getElementById('inv-subtitulos').textContent = texto.substring(0, 80) + (texto.length > 80 ? '...' : '');
+    if (reproducir) reproducirVozAuto(texto);
+  }
+
+  function agregarMensajeTestigo(texto, nombre) {
+    const cont = document.getElementById('inv-mensajes');
+    const typing = document.getElementById('inv-typing');
+    const div = document.createElement('div'); div.className = 'burbuja usuario';
+    div.innerHTML = `<div class="remitente">${esc(nombre)}</div><div class="contenido">${esc(texto)}</div>`;
+    cont.insertBefore(div, typing); cont.scrollTop = cont.scrollHeight;
+  }
+
+  async function enviarMensajeInv() {
+    const ta = document.getElementById('inv-input-msg');
+    const texto = ta.value.trim();
+    if (!texto || !invSessionId) return;
+    const btnEnv = document.getElementById('inv-btn-enviar');
+    const btnMic = document.getElementById('inv-btn-mic');
+    btnEnv.disabled = true; btnMic.disabled = true; ta.disabled = true;
+    agregarMensajeTestigo(texto, testigoActivo);
+    ta.value = ''; ta.style.height = 'auto';
+    document.getElementById('inv-typing').classList.add('visible');
+    try {
+      const res = await fetch('https://dnmintell.app.n8n.cloud/webhook/kalu-investigador-mensaje', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: invSessionId, mensaje: texto, declarante: testigoActivo })
+      });
+      const data = await res.json();
+      document.getElementById('inv-typing').classList.remove('visible');
+      agregarMensajeInv(data.mensaje || 'Sin respuesta', true);
+      if (data.fase) setFaseActiva(`fase-${data.fase}`);
+    } catch(e) {
+      document.getElementById('inv-typing').classList.remove('visible');
+      const err = document.getElementById('inv-error-msg');
+      err.textContent = 'Error de conexión. Intentá de nuevo.'; err.style.display = 'block';
+      setTimeout(() => err.style.display = 'none', 4000);
+    } finally { btnEnv.disabled = false; btnMic.disabled = false; ta.disabled = false; ta.focus(); }
+  }
+
+  function toggleGrabacionInv() { if(grabando) detenerGrabacion(); else iniciarGrabacion(); }
 
   function volverHome() {
     document.getElementById('header-modulo').textContent = 'KALU';

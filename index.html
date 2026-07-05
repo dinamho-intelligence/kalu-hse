@@ -840,11 +840,20 @@ function setFaseActiva(faseId){
   });
 }
 // ── CIERRE AUTOMÁTICO INVESTIGACIÓN ──
-function iniciarCierreInv(){
+function iniciarCierreInv(esFinal){
   setFaseActiva('fase-4');
   const overlay=document.getElementById('inv-cierre-overlay');
   const numEl=document.getElementById('inv-cierre-num');
   const barEl=document.getElementById('inv-cierre-bar-fill');
+  const tit=overlay.querySelector('.inv-cierre-titulo');
+  const sub=overlay.querySelector('.inv-cierre-sub');
+  if(esFinal){
+    if(tit)tit.textContent='INVESTIGACIÓN CERRADA';
+    if(sub)sub.innerHTML='4 documentos generados y enviados al supervisor HSE<br>Cerrando pantalla en';
+  }else{
+    if(tit)tit.textContent='DECLARACIÓN REGISTRADA';
+    if(sub)sub.innerHTML='Expediente abierto — faltan declaraciones de testigos<br>Cerrando pantalla en';
+  }
   const total=5;let seg=total;
   overlay.classList.add('visible');numEl.textContent=seg;barEl.style.width='100%';
   const tick=setInterval(()=>{seg--;numEl.textContent=seg;barEl.style.width=((seg/total)*100)+'%';if(seg<=0){clearInterval(tick);resetInvestigacion();}},1000);
@@ -908,9 +917,12 @@ async function enviarMensajeInv(){
     // data.cerrar = true solo cuando el expediente cerró (estado_expediente:"final").
     // En preliminar (informeDetectado true pero cerrar false) NO cierra: queda abierto.
     // El cierre espera a que terminen typewriter + audio y arranca con 1.5s de gracia.
-    if(data.cerrar){
+    if(data.informeDetectado){
+      // Toda declaracion cerrada limpia la pantalla (confidencialidad).
+      // esFinal (data.cerrar) solo cambia el texto del overlay; el expediente
+      // sigue abierto en el backend hasta que no queden pendientes.
       agregarMensajeInv(data.mensaje||'Sin respuesta',true,()=>{
-        setTimeout(()=>iniciarCierreInv(),1500);
+        setTimeout(()=>iniciarCierreInv(data.cerrar),1500);
       });
     }else{
       agregarMensajeInv(data.mensaje||'Sin respuesta',true);

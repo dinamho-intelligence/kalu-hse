@@ -844,19 +844,27 @@ function iniciarCierreInv(esFinal){
   setFaseActiva('fase-4');
   const overlay=document.getElementById('inv-cierre-overlay');
   const numEl=document.getElementById('inv-cierre-num');
-  const barEl=document.getElementById('inv-cierre-bar-fill');
+  const barWrap=overlay.querySelector('.inv-cierre-bar');
   const tit=overlay.querySelector('.inv-cierre-titulo');
   const sub=overlay.querySelector('.inv-cierre-sub');
   if(esFinal){
-    if(tit)tit.textContent='INVESTIGACIÓN CERRADA';
-    if(sub)sub.innerHTML='4 documentos generados y enviados al supervisor HSE<br>Cerrando pantalla en';
+    if(tit)tit.textContent='🔒 INVESTIGACIÓN CERRADA';
+    if(sub)sub.innerHTML='4 documentos enviados al supervisor HSE.<br>Contenido protegido — declaración confidencial.';
   }else{
-    if(tit)tit.textContent='DECLARACIÓN REGISTRADA';
-    if(sub)sub.innerHTML='Expediente abierto — faltan declaraciones de testigos<br>Cerrando pantalla en';
+    if(tit)tit.textContent='🔒 DECLARACIÓN REGISTRADA';
+    if(sub)sub.innerHTML='Expediente abierto — faltan declaraciones de testigos.<br>Contenido protegido — declaración confidencial.';
   }
-  const total=5;let seg=total;
-  overlay.classList.add('visible');numEl.textContent=seg;barEl.style.width='100%';
-  const tick=setInterval(()=>{seg--;numEl.textContent=seg;barEl.style.width=((seg/total)*100)+'%';if(seg<=0){clearInterval(tick);resetInvestigacion();}},1000);
+  // Candado estatico: sin countdown. El HSE decide cuando volver.
+  if(numEl)numEl.style.display='none';
+  if(barWrap)barWrap.style.display='none';
+  let btn=document.getElementById('inv-cierre-btn');
+  if(!btn){
+    btn=document.createElement('button');btn.id='inv-cierre-btn';btn.className='btn-nueva-sesion';btn.style.marginTop='10px';
+    overlay.appendChild(btn);
+  }
+  btn.textContent='↩ VOLVER AL INICIO';
+  btn.onclick=resetInvestigacion;
+  overlay.classList.add('visible');
 }
 function resetInvestigacion(){
   // Cortar cualquier audio TTS que siga sonando tras el cierre

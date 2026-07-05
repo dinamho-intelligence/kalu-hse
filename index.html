@@ -28,7 +28,6 @@
     .status-pill.online{background:rgba(0,200,150,0.1);border-color:rgba(0,200,150,0.3);color:var(--verde-ok);}
     .status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulso 2s infinite;}
     @keyframes pulso{0%,100%{opacity:1}50%{opacity:0.3}}
-
     /* HOME */
     #pantalla-home{position:fixed;inset:0;padding-top:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);z-index:15;transition:opacity 0.5s ease,transform 0.5s ease;}
     #pantalla-home.saliendo{opacity:0;transform:translateY(-20px);pointer-events:none;}
@@ -67,7 +66,6 @@
     .modulo-card:hover .modulo-flecha{color:var(--naranja);transform:translateX(4px);}
     .home-footer{position:absolute;bottom:24px;font-size:11px;color:var(--gris-3);font-family:'JetBrains Mono',monospace;letter-spacing:1px;}
     .home-footer span{color:var(--naranja);}
-
     /* INICIO HSE */
     #pantalla-inicio{position:fixed;inset:0;display:none;flex-direction:row;align-items:stretch;padding-top:60px;background:var(--negro);z-index:10;transition:opacity 0.5s ease,transform 0.5s ease;overflow:hidden;}
     #pantalla-inicio.visible{display:flex;}
@@ -134,7 +132,6 @@
     @keyframes spin{to{transform:rotate(360deg);}}
     .generando-msg{font-size:14px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.8;}
     .generando-msg span{color:var(--naranja);}
-
     /* CHAT HSE */
     #pantalla-chat{display:none;position:fixed;inset:0;flex-direction:column;padding-top:60px;}
     #pantalla-chat.visible{display:flex;}
@@ -223,7 +220,6 @@
     .voz-ind.visible{display:flex;}
     .voz-dot{width:6px;height:6px;border-radius:50%;background:var(--rojo-alerta);animation:pulso 1s infinite;}
     .error-msg{padding:8px 16px;margin:4px 0;background:rgba(255,59,48,0.1);border:1px solid rgba(255,59,48,0.3);color:var(--rojo-alerta);border-radius:8px;font-size:12px;display:none;font-family:'JetBrains Mono',monospace;}
-
     /* COUNTDOWN HSE */
     #countdown-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(10,12,15,0.92);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:24px;}
     #countdown-overlay.visible{display:flex;}
@@ -234,7 +230,6 @@
     @keyframes numPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:0.85}}
     .countdown-bar{width:200px;height:3px;background:var(--negro-4);border-radius:2px;overflow:hidden;}
     .countdown-bar-fill{height:100%;background:var(--naranja);border-radius:2px;transition:width 1s linear;}
-
     /* INVESTIGADOR FORM */
     #pantalla-investigador{position:fixed;inset:0;display:none;flex-direction:row;align-items:stretch;padding-top:60px;background:var(--negro);z-index:10;transition:opacity 0.4s ease,transform 0.4s ease;overflow:hidden;}
     #pantalla-investigador.visible{display:flex;}
@@ -264,7 +259,6 @@
     .btn-inv-iniciar::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent);}
     .btn-inv-iniciar:hover{background:#E0342A;transform:translateY(-1px);box-shadow:0 8px 24px rgba(255,59,48,0.3);}
     .btn-inv-iniciar:disabled{background:var(--gris-3);cursor:not-allowed;transform:none;box-shadow:none;}
-
     /* INVESTIGADOR CHAT */
     #pantalla-inv-chat{display:none;position:fixed;inset:0;flex-direction:column;padding-top:60px;}
     #pantalla-inv-chat.visible{display:flex;}
@@ -291,7 +285,6 @@
     .btn-testigo{padding:5px 14px;border-radius:20px;border:1px solid var(--gris-3);background:var(--negro-3);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--gris-2);font-family:'Space Grotesk',sans-serif;transition:all 0.15s;}
     .btn-testigo.activo{background:rgba(255,59,48,0.12);border-color:var(--rojo-alerta);color:var(--rojo-alerta);}
     .inv-subtitulos{background:rgba(0,0,0,0.85);border-top:1px solid rgba(255,59,48,0.2);padding:10px 20px;min-height:44px;display:flex;align-items:center;font-size:13px;color:var(--rojo-alerta);font-family:'JetBrains Mono',monospace;opacity:0.5;}
-
     /* OVERLAY CIERRE INVESTIGACIÓN */
     #inv-cierre-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(10,12,15,0.95);backdrop-filter:blur(12px);flex-direction:column;align-items:center;justify-content:center;gap:20px;}
     #inv-cierre-overlay.visible{display:flex;}
@@ -301,7 +294,6 @@
     .inv-cierre-num{font-size:80px;font-weight:700;color:var(--rojo-alerta);font-family:'Space Grotesk',sans-serif;line-height:1;text-shadow:0 0 40px rgba(255,59,48,0.4);}
     .inv-cierre-bar{width:200px;height:3px;background:var(--negro-4);border-radius:2px;overflow:hidden;}
     .inv-cierre-bar-fill{height:100%;background:var(--rojo-alerta);border-radius:2px;transition:width 1s linear;}
-
     @media(max-width:700px){
       #pantalla-inicio{flex-direction:column;}
       .inicio-avatar-col{width:100%;height:200px;border-right:none;border-bottom:1px solid rgba(242,140,0,0.1);padding:20px;flex-direction:row;gap:20px;}
@@ -315,7 +307,6 @@
   </style>
 </head>
 <body>
-
 <header>
   <div class="logo-dnm">
     <div class="logo-hex">
@@ -334,7 +325,6 @@
   <span class="kalu-label" id="header-modulo">KALU</span>
   <div class="status-pill online"><div class="status-dot"></div>EN LÍNEA</div>
 </header>
-
 <!-- COUNTDOWN HSE -->
 <div id="countdown-overlay">
   <div class="countdown-check">✓</div>
@@ -342,7 +332,6 @@
   <div class="countdown-num" id="countdown-num">5</div>
   <div class="countdown-bar"><div class="countdown-bar-fill" id="countdown-bar-fill" style="width:100%"></div></div>
 </div>
-
 <!-- OVERLAY CIERRE INVESTIGACIÓN -->
 <div id="inv-cierre-overlay">
   <div class="inv-cierre-check">✓</div>
@@ -351,7 +340,6 @@
   <div class="inv-cierre-num" id="inv-cierre-num">5</div>
   <div class="inv-cierre-bar"><div class="inv-cierre-bar-fill" id="inv-cierre-bar-fill" style="width:100%"></div></div>
 </div>
-
 <!-- HOME -->
 <div id="pantalla-home">
   <div class="home-avatar-wrap">
@@ -409,7 +397,6 @@
   </div>
   <div class="home-footer">Powered by <span>Dinamho Intelligence</span></div>
 </div>
-
 <!-- PANTALLA INICIO HSE -->
 <div id="pantalla-inicio">
   <div class="inicio-avatar-col">
@@ -490,7 +477,6 @@
     </div>
   </div>
 </div>
-
 <!-- PANTALLA INVESTIGADOR FORM -->
 <div id="pantalla-investigador">
   <div class="inv-avatar-col">
@@ -569,7 +555,6 @@
     <button class="btn-inv-iniciar" id="btn-inv-iniciar" onclick="iniciarInvestigacion()">🔍 INICIAR INVESTIGACIÓN CON KALU</button>
   </div>
 </div>
-
 <!-- INVESTIGADOR CHAT -->
 <div id="pantalla-inv-chat">
   <div class="inv-chat-layout">
@@ -639,7 +624,6 @@
     </div>
   </div>
 </div>
-
 <!-- CHAT HSE -->
 <div id="pantalla-chat">
   <div class="chat-layout">
@@ -699,7 +683,6 @@
     </div>
   </div>
 </div>
-
 <script>
 const N8N_BASE        = 'https://dnmintell.app.n8n.cloud/webhook';
 const WEBHOOK_INICIAR = `${N8N_BASE}/kalu-v3-iniciar`;
@@ -708,13 +691,11 @@ const WEBHOOK_STT     = `${N8N_BASE}/kalu-hse-stt`;
 const WEBHOOK_TTS     = `${N8N_BASE}/kalu-hse-tts`;
 const WEBHOOK_INV_INICIAR = `${N8N_BASE}/kalu-investigador-iniciar`;
 const WEBHOOK_INV_MENSAJE = `${N8N_BASE}/kalu-investigador-mensaje`;
-
 let empleados=[],equipos=[],empleadoActivo='',sessionId='',atsItemId='';
 let mensajesCount=0,mediaRecorder=null,audioChunks=[],grabando=false,grabandoInv=false;
 let subtitulosTimeout=null,pendingCountdown=false,autoCountdownTimer=null;
 let estadoAvatar='idle',audioCtx=null,analyser=null,lipSyncRAF=null,lipSyncSource=null;
-let testigos=[],testigoActivo='',invSessionId='';
-
+let testigos=[],testigoActivo='',invSessionId='',invAudioActual=null;
 const BOCAS={
   inicio:{cerrada:'M94 120 Q110 130 126 120',abierta_s:'M92 119 Q110 132 128 119',abierta_m:'M90 118 Q110 135 130 118',abierta_l:'M88 117 Q110 138 132 117'},
   chat:{cerrada:'M59 96 Q70 104 81 96',abierta_s:'M57 95 Q70 106 83 95',abierta_m:'M55 95 Q70 108 85 95',abierta_l:'M54 94 Q70 111 86 94'}
@@ -761,7 +742,6 @@ function detenerLipSync(){
   for(let i=0;i<7;i++){const b=document.getElementById('vb'+i);if(b){b.style.height='4px';b.style.opacity='0.3';}}
   setBocaInicio('cerrada');setBocaChat('cerrada');
 }
-
 // ── NAVEGACIÓN ──
 function abrirModuloHSE(){
   document.getElementById('header-modulo').textContent='KALU HSE';
@@ -786,13 +766,11 @@ function volverHome(){
   const inicio=document.getElementById('pantalla-inicio');inicio.style.transition='opacity 0.3s ease,transform 0.3s ease';inicio.style.opacity='0';inicio.style.transform='translateY(20px)';
   setTimeout(()=>{inicio.classList.remove('visible');inicio.style.opacity='';inicio.style.transform='';const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');setTimeout(()=>{home.style.transition='opacity 0.4s ease';home.style.opacity='1';},30);},300);
 }
-
 // ── INVESTIGADOR ──
 function agregarTestigo(){const inp=document.getElementById('inv-testigo-input');const nombre=inp.value.trim();if(!nombre||testigos.includes(nombre)){inp.value='';return;}testigos.push(nombre);renderChipsTestigos();inp.value='';inp.focus();}
 document.getElementById('inv-testigo-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();agregarTestigo();}});
 function renderChipsTestigos(){document.getElementById('chips-testigos').innerHTML=testigos.map((t,i)=>`<div class="chip">${t}<button onclick="quitarTestigo(${i})">×</button></div>`).join('');}
 function quitarTestigo(i){testigos.splice(i,1);renderChipsTestigos();}
-
 async function iniciarInvestigacion(){
   const reporta=document.getElementById('inv-reporta').value.trim();
   const rol=document.getElementById('inv-rol').value;
@@ -823,10 +801,8 @@ async function iniciarInvestigacion(){
     },400);
   }catch(e){btn.disabled=false;btn.textContent='🔍 INICIAR INVESTIGACIÓN CON KALU';alert('Error al conectar.');}
 }
-
 function renderSelectorTestigos(lista){document.getElementById('inv-selector-testigo').innerHTML=lista.map(t=>`<button class="btn-testigo ${t===testigoActivo?'activo':''}" onclick="selecTestigo('${t}')">${t}</button>`).join('');}
 function selecTestigo(nombre){testigoActivo=nombre;renderSelectorTestigos([testigoActivo,...testigos.filter(t=>t!==testigoActivo)]);}
-
 function setFaseActiva(faseId){
   ['fase-1','fase-2','fase-3','fase-4'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
@@ -837,7 +813,6 @@ function setFaseActiva(faseId){
     else{el.classList.remove('activa','completada');}
   });
 }
-
 // ── CIERRE AUTOMÁTICO INVESTIGACIÓN ──
 function iniciarCierreInv(){
   setFaseActiva('fase-4');
@@ -848,8 +823,10 @@ function iniciarCierreInv(){
   overlay.classList.add('visible');numEl.textContent=seg;barEl.style.width='100%';
   const tick=setInterval(()=>{seg--;numEl.textContent=seg;barEl.style.width=((seg/total)*100)+'%';if(seg<=0){clearInterval(tick);resetInvestigacion();}},1000);
 }
-
 function resetInvestigacion(){
+  // Cortar cualquier audio TTS que siga sonando tras el cierre
+  if(invAudioActual){try{invAudioActual.pause();invAudioActual.currentTime=0;}catch(e){}invAudioActual=null;}
+  if(window.speechSynthesis)speechSynthesis.cancel();
   invSessionId='';testigos=[];testigoActivo='';
   document.getElementById('inv-cierre-overlay').classList.remove('visible');
   document.getElementById('pantalla-inv-chat').classList.remove('visible');
@@ -864,8 +841,7 @@ function resetInvestigacion(){
   const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');
   setTimeout(()=>{home.style.transition='opacity 0.5s ease';home.style.opacity='1';},50);
 }
-
-function agregarMensajeInv(texto,reproducir=false){
+function agregarMensajeInv(texto,reproducir=false,onFinalizado=null){
   const cont=document.getElementById('inv-mensajes');
   const typing=document.getElementById('inv-typing');
   const div=document.createElement('div');div.className='burbuja kalu-inv';
@@ -877,18 +853,19 @@ function agregarMensajeInv(texto,reproducir=false){
   div.innerHTML='<div class="remitente">KALU INV.</div>';
   div.appendChild(contenido);div.appendChild(audioWrap);
   cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
-  typewriterEffect(contenido,texto,()=>contenido.classList.remove('typewriter-cursor'));
+  // Coordinación de cierre: esperar a que terminen typewriter Y audio antes de continuar
+  let twListo=false, audioListo=!reproducir; // si no hay audio, se da por listo
+  function chequearFin(){ if(twListo&&audioListo&&onFinalizado){ const cb=onFinalizado; onFinalizado=null; cb(); } }
+  typewriterEffect(contenido,texto,()=>{contenido.classList.remove('typewriter-cursor');twListo=true;chequearFin();});
   document.getElementById('inv-subtitulos').textContent=texto.substring(0,80)+(texto.length>80?'...':'');
-  if(reproducir)reproducirVozAutoInv(texto);
+  if(reproducir)reproducirVozAutoInv(texto,()=>{audioListo=true;chequearFin();});
 }
-
 function agregarMensajeTestigo(texto,nombre){
   const cont=document.getElementById('inv-mensajes');const typing=document.getElementById('inv-typing');
   const div=document.createElement('div');div.className='burbuja usuario';
   div.innerHTML=`<div class="remitente">${esc(nombre)}</div><div class="contenido">${esc(texto)}</div>`;
   cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
 }
-
 async function enviarMensajeInv(){
   const ta=document.getElementById('inv-input-msg');const texto=ta.value.trim();
   if(!texto||!invSessionId)return;
@@ -900,18 +877,22 @@ async function enviarMensajeInv(){
     const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:invSessionId,mensaje:texto,declarante:testigoActivo})});
     const data=await res.json();
     document.getElementById('inv-typing').classList.remove('visible');
-    agregarMensajeInv(data.mensaje||'Sin respuesta',true);
     if(data.fase)setFaseActiva(`fase-${data.fase}`);
     // ── CIERRE AUTOMÁTICO AL DETECTAR INFORME ──
+    // El cierre NO se dispara por tiempo fijo: espera a que terminen typewriter + audio,
+    // y recién ahí arranca el countdown (con 1.5s de gracia para leer las acciones).
     if(data.informeDetectado){
-      setTimeout(()=>iniciarCierreInv(),2000);
+      agregarMensajeInv(data.mensaje||'Sin respuesta',true,()=>{
+        setTimeout(()=>iniciarCierreInv(),1500);
+      });
+    }else{
+      agregarMensajeInv(data.mensaje||'Sin respuesta',true);
     }
   }catch(e){
     document.getElementById('inv-typing').classList.remove('visible');
     const err=document.getElementById('inv-error-msg');err.textContent='Error de conexión.';err.style.display='block';setTimeout(()=>err.style.display='none',4000);
   }finally{btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus();}
 }
-
 // ── VOZ INVESTIGADOR ──
 async function toggleGrabacionInv(){if(grabandoInv)detenerGrabacionInv();else await iniciarGrabacionInv();}
 async function iniciarGrabacionInv(){
@@ -942,13 +923,17 @@ async function transcribirAudioInv(blob,mime){
     else{document.getElementById('inv-error-msg').textContent='No se entendió. Intentá de nuevo.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
   }catch(e){ind.classList.remove('visible');document.getElementById('inv-error-msg').textContent='Error al procesar audio.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
 }
-async function reproducirVozAutoInv(texto){
+async function reproducirVozAutoInv(texto,onEnded=null){
+  const done=()=>{ if(onEnded){const cb=onEnded;onEnded=null;cb();} };
   try{
     const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
-    if(!res.ok)return;const blob=await res.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);
-    audio.addEventListener('ended',()=>{URL.revokeObjectURL(url);});
-    audio.play().catch(()=>{});
-  }catch(e){}
+    if(!res.ok){done();return;}
+    const blob=await res.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);
+    invAudioActual=audio;
+    audio.addEventListener('ended',()=>{URL.revokeObjectURL(url);if(invAudioActual===audio)invAudioActual=null;done();});
+    audio.addEventListener('error',()=>{if(invAudioActual===audio)invAudioActual=null;done();});
+    audio.play().catch(()=>{done();});
+  }catch(e){done();}
 }
 async function reproducirVozInv(btn,texto){
   btn.textContent='⏳ Cargando...';btn.disabled=true;
@@ -961,7 +946,6 @@ async function reproducirVozInv(btn,texto){
     audio.play();
   }catch(e){btn.textContent='▶ Escuchar';btn.disabled=false;}
 }
-
 // ── HSE CHAT ──
 function agregarMensajeKALU(texto,reproducir=false){
   const cont=document.getElementById('mensajes');const typing=document.getElementById('typing');mensajesCount++;
@@ -983,7 +967,6 @@ function mostrarSubtitulos(texto){const bar=document.getElementById('subtitulos'
 function agregarMensajeUsuario(texto,remitente){const cont=document.getElementById('mensajes');const typing=document.getElementById('typing');const div=document.createElement('div');div.className='burbuja usuario';div.innerHTML=`<div class="remitente">${esc(remitente)}</div><div class="contenido">${esc(texto)}</div>`;cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;}
 function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 function mostrarTyping(show){document.getElementById('typing').classList.toggle('visible',show);if(show){document.getElementById('mensajes').scrollTop=99999;setEstadoAvatar('escuchando');}}
-
 async function enviarMensaje(){
   const ta=document.getElementById('input-msg');const texto=ta.value.trim();if(!texto||!sessionId)return;
   const btnEnv=document.getElementById('btn-enviar');const btnMic=document.getElementById('btn-mic');
@@ -998,7 +981,6 @@ async function enviarMensaje(){
   }catch(e){mostrarTyping(false);setEstadoAvatar('alerta');setTimeout(()=>setEstadoAvatar('idle'),3000);document.getElementById('error-msg').textContent='Error de conexión.';document.getElementById('error-msg').style.display='block';}
   finally{btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus();}
 }
-
 function iniciarCountdown(){
   if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
   const overlay=document.getElementById('countdown-overlay');const numEl=document.getElementById('countdown-num');const barEl=document.getElementById('countdown-bar-fill');
@@ -1023,7 +1005,6 @@ function resetSesion(){
   const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');
   setTimeout(()=>{home.style.transition='opacity 0.5s ease';home.style.opacity='1';},50);
 }
-
 // ── HSE VOZ ──
 async function toggleGrabacion(){if(grabando)detenerGrabacion();else await iniciarGrabacion();}
 async function iniciarGrabacion(){
@@ -1070,7 +1051,6 @@ async function reproducirVoz(btn,texto){
 }
 function mostrarError(msg){const err=document.getElementById('error-msg');err.textContent=msg;err.style.display='block';setTimeout(()=>{err.style.display='none';},4000);}
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
-
 // ── HSE FORM ──
 function agregarEmpleado(){const inp=document.getElementById('input-nombre');const nombre=inp.value.trim();if(!nombre||empleados.includes(nombre)){inp.value='';return;}empleados.push(nombre);renderChips();inp.value='';inp.focus();}
 document.getElementById('input-nombre').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();agregarEmpleado();}});
@@ -1090,7 +1070,6 @@ function renderChipsEquipos(){document.getElementById('chips-equipos').innerHTML
 function quitarEquipo(i){const nombre=equipos[i];equipos.splice(i,1);renderChipsEquipos();document.querySelectorAll('.btn-equipo-sug').forEach(btn=>{if(btn.getAttribute('onclick').includes(`'${nombre}'`))btn.classList.remove('seleccionado');});}
 function renderSelectorEmp(){document.getElementById('selector-emp').innerHTML=empleados.map(e=>`<button class="btn-emp ${e===empleadoActivo?'activo':''}" onclick="selecEmp('${e}')">${e}</button>`).join('');}
 function selecEmp(nombre){empleadoActivo=nombre;renderSelectorEmp();}
-
 async function iniciarSesion(){
   const tarea=document.getElementById('input-tarea').value.trim();const empresa=document.getElementById('input-empresa').value.trim();const cliente=document.getElementById('input-cliente').value.trim();const area=document.getElementById('input-area').value.trim();const responsable=document.getElementById('input-responsable').value.trim()||empleados[0]||'';const condiciones=document.getElementById('input-condiciones').value.trim();const observaciones=document.getElementById('input-observaciones').value.trim();
   if(equipos.length===0){alert('Agregá al menos un equipo');return;}if(!condiciones){alert('Describí las condiciones ambientales');return;}

@@ -235,6 +235,8 @@
     #pantalla-investigador.visible{display:flex;}
     #pantalla-investigador.saliendo{opacity:0;transform:translateY(-20px);pointer-events:none;}
     .inv-avatar-col{width:320px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;border-right:1px solid rgba(255,59,48,0.15);background:var(--negro-2);}
+    .kalu-avatar-inv.pensando{animation:pulsoPensando 1.1s ease-in-out infinite;}
+    @keyframes pulsoPensando{0%,100%{opacity:.72;filter:drop-shadow(0 0 3px rgba(255,59,48,.25));}50%{opacity:1;filter:drop-shadow(0 0 18px rgba(255,59,48,.65));}}
     .kalu-avatar-inv{width:180px;height:180px;position:relative;flex-shrink:0;margin-bottom:20px;}
     .kalu-avatar-inv svg{width:100%;height:100%;}
     .inv-kalu-titulo{font-size:16px;font-weight:700;color:var(--rojo-alerta);letter-spacing:1px;margin-bottom:6px;}
@@ -697,6 +699,7 @@ let mensajesCount=0,mediaRecorder=null,audioChunks=[],grabando=false,grabandoInv
 let subtitulosTimeout=null,pendingCountdown=false,autoCountdownTimer=null;
 let estadoAvatar='idle',audioCtx=null,analyser=null,lipSyncRAF=null,lipSyncSource=null;
 let testigos=[],testigoActivo='',invSessionId='',invAudioActual=null;
+let invVozCancel=null,invAbortChunk=null;
 const BOCAS={
   inicio:{cerrada:'M94 120 Q110 130 126 120',abierta_s:'M92 119 Q110 132 128 119',abierta_m:'M90 118 Q110 135 130 118',abierta_l:'M88 117 Q110 138 132 117'},
   chat:{cerrada:'M59 96 Q70 104 81 96',abierta_s:'M57 95 Q70 106 83 95',abierta_m:'M55 95 Q70 108 85 95',abierta_l:'M54 94 Q70 111 86 94'}
@@ -814,16 +817,16 @@ async function continuarInvestigacion(){
   document.getElementById('inv-topbar').innerHTML=`<span class="tag-inv">🔍 EXPEDIENTE</span><span class="tag-inv">${id}</span><span class="tag-inv">Reingreso HSE</span>`;
   document.getElementById('inv-mensajes').innerHTML=`<div class="typing" id="inv-typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
   renderSelectorTestigos([nombre]);
-  document.getElementById('inv-typing').classList.add('visible');
+  document.getElementById('inv-typing').classList.add('visible');setPensandoInv(true);
   try{
     const trigger='El HSE autoriza el ingreso de '+nombre+' para declarar. Salúdalo con calma, recuérdale que esto busca mejorar y no culpar, y comienza a tomar su declaración con una sola pregunta.';
     const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:id,mensaje:trigger,declarante:'Sistema'})});
     const data=await res.json();
-    document.getElementById('inv-typing').classList.remove('visible');
+    document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
     if(data.fase)setFaseActiva(`fase-${data.fase}`);
     agregarMensajeInv(data.mensaje||'Retomando expediente...',true);
   }catch(e){
-    document.getElementById('inv-typing').classList.remove('visible');
+    document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
     alert('No se pudo retomar el expediente. Verificá el INV-ID.');
   }
 }
@@ -849,10 +852,10 @@ function iniciarCierreInv(esFinal){
   const sub=overlay.querySelector('.inv-cierre-sub');
   if(esFinal){
     if(tit)tit.textContent='🔒 INVESTIGACIÓN CERRADA';
-    if(sub)sub.innerHTML='4 documentos enviados al supervisor HSE.<br>Contenido protegido — declaración confidencial.';
+    if(sub)sub.innerHTML='4 documentos enviados al supervisor HSE.<br>Expediente <b style="color:var(--naranja)">'+invSessionId+'</b> — contenido protegido.';
   }else{
     if(tit)tit.textContent='🔒 DECLARACIÓN REGISTRADA';
-    if(sub)sub.innerHTML='Expediente abierto — faltan declaraciones de testigos.<br>Contenido protegido — declaración confidencial.';
+    if(sub)sub.innerHTML='Expediente abierto — faltan declaraciones de testigos.<br>ID para continuar (HSE): <b style="color:var(--naranja)">'+invSessionId+'</b>';
   }
   // Candado estatico: sin countdown. El HSE decide cuando volver.
   if(numEl)numEl.style.display='none';
@@ -867,8 +870,8 @@ function iniciarCierreInv(esFinal){
   overlay.classList.add('visible');
 }
 function resetInvestigacion(){
-  // Cortar cualquier audio TTS que siga sonando tras el cierre
-  if(invAudioActual){try{invAudioActual.pause();invAudioActual.currentTime=0;}catch(e){}invAudioActual=null;}
+  // Cortar la cadena de voz TTS (todas las oraciones pendientes) tras el cierre
+  cancelarVozInv();
   if(window.speechSynthesis)speechSynthesis.cancel();
   invSessionId='';testigos=[];testigoActivo='';
   document.getElementById('inv-cierre-overlay').classList.remove('visible');
@@ -915,11 +918,11 @@ async function enviarMensajeInv(){
   const btnEnv=document.getElementById('inv-btn-enviar');const btnMic=document.getElementById('inv-btn-mic');
   btnEnv.disabled=true;btnMic.disabled=true;ta.disabled=true;
   agregarMensajeTestigo(texto,testigoActivo);ta.value='';ta.style.height='auto';
-  document.getElementById('inv-typing').classList.add('visible');
+  document.getElementById('inv-typing').classList.add('visible');setPensandoInv(true);
   try{
     const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:invSessionId,mensaje:texto,declarante:testigoActivo})});
     const data=await res.json();
-    document.getElementById('inv-typing').classList.remove('visible');
+    document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
     if(data.fase)setFaseActiva(`fase-${data.fase}`);
     // ── CIERRE SOLO EN INFORME FINAL ──
     // data.cerrar = true solo cuando el expediente cerró (estado_expediente:"final").
@@ -970,17 +973,61 @@ async function transcribirAudioInv(blob,mime){
     else{document.getElementById('inv-error-msg').textContent='No se entendió. Intentá de nuevo.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
   }catch(e){ind.classList.remove('visible');document.getElementById('inv-error-msg').textContent='Error al procesar audio.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
 }
+// Parte el texto en trozos hablables (oraciones), agrupando fragmentos muy cortos
+// para que OpenAI TTS reciba pedazos chicos y la primera voz suene enseguida.
+function partirEnOraciones(texto){
+  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
+  const chunks=[];let buffer='';
+  for(const frag of bruto){
+    const f=frag.trim();if(!f)continue;
+    buffer=buffer?buffer+' '+f:f;
+    if(buffer.length>=45){chunks.push(buffer);buffer='';}
+  }
+  if(buffer.trim())chunks.push(buffer.trim());
+  return chunks;
+}
+async function ttsBlob(texto){
+  const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+  if(!res.ok)throw new Error('tts');
+  return await res.blob();
+}
+// Corta la reproducción encadenada (usada al cerrar el expediente).
+function cancelarVozInv(){
+  if(invVozCancel){const c=invVozCancel;invVozCancel=null;c();}
+  if(invAbortChunk){const a=invAbortChunk;invAbortChunk=null;a();}
+  if(invAudioActual){try{invAudioActual.pause();invAudioActual.currentTime=0;}catch(e){}invAudioActual=null;}
+}
 async function reproducirVozAutoInv(texto,onEnded=null){
   const done=()=>{ if(onEnded){const cb=onEnded;onEnded=null;cb();} };
+  const chunks=partirEnOraciones(texto);
+  if(!chunks.length){done();return;}
+  let cancelado=false;
+  invVozCancel=()=>{cancelado=true;};
   try{
-    const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
-    if(!res.ok){done();return;}
-    const blob=await res.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);
-    invAudioActual=audio;
-    audio.addEventListener('ended',()=>{URL.revokeObjectURL(url);if(invAudioActual===audio)invAudioActual=null;done();});
-    audio.addEventListener('error',()=>{if(invAudioActual===audio)invAudioActual=null;done();});
-    audio.play().catch(()=>{done();});
-  }catch(e){done();}
+    // Pedimos la 1ª oración y, mientras suena cada una, prefetcheamos la siguiente.
+    let sigProm=ttsBlob(chunks[0]).catch(()=>null);
+    for(let i=0;i<chunks.length&&!cancelado;i++){
+      const blob=await sigProm;
+      sigProm=(i+1<chunks.length)?ttsBlob(chunks[i+1]).catch(()=>null):null;
+      if(!blob||cancelado)continue;
+      await new Promise(resolve=>{
+        const url=URL.createObjectURL(blob);const audio=new Audio(url);
+        invAudioActual=audio;let cerrado=false;
+        const fin=()=>{if(cerrado)return;cerrado=true;URL.revokeObjectURL(url);if(invAudioActual===audio)invAudioActual=null;invAbortChunk=null;resolve();};
+        invAbortChunk=()=>{try{audio.pause();}catch(e){}fin();};
+        audio.addEventListener('ended',fin);
+        audio.addEventListener('error',fin);
+        audio.play().catch(fin);
+      });
+    }
+  }catch(e){}
+  invVozCancel=null;invAbortChunk=null;
+  done();
+}
+// Cue visual mientras KALU "piensa" (antes de que llegue la respuesta).
+function setPensandoInv(on){
+  const a=document.querySelector('.kalu-avatar-inv');if(a)a.classList.toggle('pensando',on);
+  if(on){const s=document.getElementById('inv-subtitulos');if(s)s.textContent='Analizando la declaración…';}
 }
 async function reproducirVozInv(btn,texto){
   btn.textContent='⏳ Cargando...';btn.disabled=true;

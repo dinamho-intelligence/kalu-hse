@@ -7,6 +7,7 @@
     // Acceso solo por getkalu.com: si abren la .vercel.app u otro host, rebota al dominio propio.
     (function(){try{var h=location.hostname||'';if(h.indexOf('vercel.app')!==-1){location.replace('https://getkalu.com'+location.pathname+location.search+location.hash);}}catch(e){}})();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <title>KALU — Dinamho Intelligence</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
@@ -35,6 +36,23 @@
     /* HOME */
     #pantalla-home{position:fixed;inset:0;padding-top:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);z-index:15;transition:opacity 0.5s ease,transform 0.5s ease;}
     #pantalla-home.saliendo{opacity:0;transform:translateY(-20px);pointer-events:none;}
+    /* LOGIN */
+    #pantalla-login{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);padding:24px;transition:opacity .4s ease;}
+    #pantalla-login.oculto{opacity:0;pointer-events:none;}
+    .login-card{width:100%;max-width:380px;background:var(--negro-2);border:1px solid var(--negro-4);border-radius:16px;padding:34px 28px;box-shadow:0 20px 60px rgba(0,0,0,.55);}
+    .login-logo{display:flex;align-items:center;justify-content:center;}
+    .login-title{text-align:center;color:var(--naranja);font-weight:700;font-size:26px;letter-spacing:1px;margin-top:10px;}
+    .login-sub{text-align:center;color:#8A909C;font-size:11px;font-family:'JetBrains Mono',monospace;margin-bottom:20px;letter-spacing:.5px;}
+    .login-label{display:block;color:#A0A4AD;font-size:12px;margin:14px 0 6px;font-family:'JetBrains Mono',monospace;}
+    .login-input{width:100%;background:var(--negro);border:1px solid var(--negro-4);border-radius:10px;padding:12px 14px;color:#EAECEF;font-size:15px;outline:none;transition:border .2s;}
+    .login-input:focus{border-color:var(--naranja);}
+    .login-btn{width:100%;margin-top:22px;background:var(--naranja);color:#141414;border:none;border-radius:10px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;transition:filter .2s;}
+    .login-btn:hover{filter:brightness(1.08);}
+    .login-btn:disabled{opacity:.6;cursor:default;}
+    .login-error{color:#FF5A4E;font-size:13px;text-align:center;margin-top:14px;min-height:16px;}
+    .login-foot{text-align:center;color:#5A606B;font-size:11px;margin-top:20px;}
+    #btn-logout{background:transparent;border:1px solid var(--negro-4);color:#A0A4AD;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;margin-left:12px;transition:all .2s;}
+    #btn-logout:hover{border-color:var(--naranja);color:var(--naranja);}
     .home-avatar-wrap{width:160px;height:160px;position:relative;margin-bottom:16px;}
     .home-avatar-wrap svg{width:100%;height:100%;}
     .ring-orbit{animation:girar 10s linear infinite;transform-origin:110px 110px;}
@@ -313,6 +331,23 @@
   </style>
 </head>
 <body>
+<!-- LOGIN -->
+<div id="pantalla-login">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 40 40" fill="none" width="40" height="40"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="14" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text></svg>
+    </div>
+    <div class="login-title">KALU</div>
+    <div class="login-sub">// ACCESO SEGURO · DINAMHO INTELLIGENCE</div>
+    <label class="login-label" for="login-email">Correo</label>
+    <input class="login-input" id="login-email" type="email" autocomplete="username" placeholder="tu@empresa.com" />
+    <label class="login-label" for="login-pass">Contraseña</label>
+    <input class="login-input" id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" />
+    <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-foot">Acceso exclusivo para empresas registradas.</div>
+  </div>
+</div>
 <header>
   <div class="logo-dnm">
     <div class="logo-hex">
@@ -330,6 +365,7 @@
   <div class="header-divider"></div>
   <span class="kalu-label" id="header-modulo">KALU</span>
   <div class="status-pill online"><div class="status-dot"></div>EN LÍNEA</div>
+  <button id="btn-logout" onclick="hacerLogout()" style="display:none;">Salir</button>
 </header>
 <!-- COUNTDOWN HSE -->
 <div id="countdown-overlay">
@@ -1184,6 +1220,75 @@ async function iniciarSesion(){
     setTimeout(()=>{inicio.classList.remove('visible');inicio.style.opacity='';inicio.style.transform='';document.getElementById('pantalla-chat').classList.add('visible');renderSelectorEmp();setEstadoAvatar('hablando');agregarMensajeKALU(data.mensaje,true);},500);
   }catch(e){document.getElementById('generando-overlay').classList.remove('visible');alert('Error al conectar con KALU.');btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');}
 }
+</script>
+<script>
+  // ===== AUTENTICACIÓN KALU (Supabase) =====
+  const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
+  const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
+  const sb = window.supabase.createClient(SB_URL, SB_ANON);
+  window.kaluAuth = { token:null, perfil:null };
+
+  async function cargarPerfil(){
+    try{
+      const { data:{ user } } = await sb.auth.getUser();
+      if(!user) return null;
+      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id').eq('id', user.id).single();
+      window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null };
+    }catch(e){ window.kaluAuth.perfil = window.kaluAuth.perfil || { rol:'trabajador' }; }
+    return window.kaluAuth.perfil;
+  }
+
+  function mostrarLogin(mostrar){
+    const el=document.getElementById('pantalla-login');
+    const salir=document.getElementById('btn-logout');
+    if(!el) return;
+    if(mostrar){ el.classList.remove('oculto'); el.style.display='flex'; if(salir)salir.style.display='none'; }
+    else { el.classList.add('oculto'); if(salir)salir.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 400); }
+  }
+
+  function aplicarRol(){
+    // Gating por rol: se completa en el paso siguiente. El rol ya queda en window.kaluAuth.perfil.rol
+  }
+
+  async function hacerLogin(){
+    const email=(document.getElementById('login-email').value||'').trim();
+    const pass=document.getElementById('login-pass').value||'';
+    const err=document.getElementById('login-error');
+    const btn=document.getElementById('login-btn');
+    err.textContent='';
+    if(!email||!pass){ err.textContent='Completá correo y contraseña.'; return; }
+    btn.disabled=true; btn.textContent='Ingresando…';
+    try{
+      const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
+      if(error){ err.textContent='Correo o contraseña incorrectos.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+      window.kaluAuth.token = data.session.access_token;
+      await cargarPerfil(); aplicarRol();
+      document.getElementById('login-pass').value='';
+      btn.disabled=false; btn.textContent='Ingresar';
+      mostrarLogin(false);
+    }catch(e){ err.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Ingresar'; }
+  }
+
+  async function hacerLogout(){
+    try{ await sb.auth.signOut(); }catch(e){}
+    window.kaluAuth={ token:null, perfil:null };
+    location.reload();
+  }
+
+  // Enter para enviar
+  ['login-email','login-pass'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); hacerLogin(); } });
+  });
+
+  // Al cargar: si ya hay sesión, saltear el login; si no, mostrarlo.
+  (async ()=>{
+    try{
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session){ window.kaluAuth.token=session.access_token; await cargarPerfil(); aplicarRol(); mostrarLogin(false); }
+      else { mostrarLogin(true); }
+    }catch(e){ mostrarLogin(true); }
+  })();
 </script>
 </body>
 </html>

@@ -732,8 +732,12 @@ const WEBHOOK_INICIAR = `${N8N_BASE}/kalu-v3-iniciar`;
 const WEBHOOK_MENSAJE = `${N8N_BASE}/kalu-v3-mensaje`;
 const WEBHOOK_STT     = `${N8N_BASE}/kalu-hse-stt`;
 const WEBHOOK_TTS     = `${N8N_BASE}/kalu-hse-tts`;
-const WEBHOOK_INV_INICIAR = `${N8N_BASE}/kalu-investigador-iniciar`;
-const WEBHOOK_INV_MENSAJE = `${N8N_BASE}/kalu-investigador-mensaje`;
+// Modo Grandes Ligas: entrar con ?gl=1 usa los webhooks v2 (Supabase). Sin el parametro, todo sigue igual (SharePoint).
+const GL_MODE = new URLSearchParams(location.search).has('gl');
+const INV_SUF = GL_MODE ? '-v2' : '';
+const WEBHOOK_INV_INICIAR = `${N8N_BASE}/kalu-investigador-iniciar${INV_SUF}`;
+const WEBHOOK_INV_MENSAJE = `${N8N_BASE}/kalu-investigador-mensaje${INV_SUF}`;
+if(GL_MODE){try{const h=document.querySelector('header');if(h){const b=document.createElement('div');b.textContent='● GL · SUPABASE';b.style.cssText='margin-left:12px;color:#00D4FF;font-size:11px;font-family:JetBrains Mono,monospace;border:1px solid rgba(0,212,255,.4);border-radius:6px;padding:3px 8px;letter-spacing:.5px;';h.appendChild(b);}}catch(e){}}
 let empleados=[],equipos=[],empleadoActivo='',sessionId='',atsItemId='';
 let mensajesCount=0,mediaRecorder=null,audioChunks=[],grabando=false,grabandoInv=false;
 let subtitulosTimeout=null,pendingCountdown=false,autoCountdownTimer=null;
@@ -832,7 +836,7 @@ async function iniciarInvestigacion(){
   const participantes=[reporta,...testigos.filter(t=>t!==reporta)];
   testigoActivo=reporta;invSessionId='INV-'+Date.now();
   try{
-    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,sessionId:invSessionId})});
+    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null})});
     const data=await res.json();
     const inv=document.getElementById('pantalla-investigador');inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='0';inv.style.transform='translateY(-20px)';
     setTimeout(()=>{

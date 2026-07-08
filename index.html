@@ -340,9 +340,9 @@
     <div class="login-title">KALU</div>
     <div class="login-sub">// ACCESO SEGURO · DINAMHO INTELLIGENCE</div>
     <label class="login-label" for="login-email">Correo</label>
-    <input class="login-input" id="login-email" type="email" autocomplete="username" placeholder="tu@empresa.com" />
+    <input class="login-input" id="login-email" type="email" autocomplete="off" placeholder="tu@empresa.com" />
     <label class="login-label" for="login-pass">Contraseña</label>
-    <input class="login-input" id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" />
+    <input class="login-input" id="login-pass" type="password" autocomplete="off" placeholder="••••••••" />
     <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
     <div class="login-error" id="login-error"></div>
     <div class="login-foot">Acceso exclusivo para empresas registradas.</div>
@@ -1228,7 +1228,8 @@ async function iniciarSesion(){
   // ===== AUTENTICACIÓN KALU (Supabase) =====
   const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
-  const sb = window.supabase.createClient(SB_URL, SB_ANON);
+  // Sesión en sessionStorage: sobrevive el refresh, pero se cierra al cerrar la pestaña/navegador (seguro para dispositivos compartidos)
+  const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   window.kaluAuth = { token:null, perfil:null };
 
   async function cargarPerfil(){
@@ -1245,7 +1246,7 @@ async function iniciarSesion(){
     const el=document.getElementById('pantalla-login');
     const salir=document.getElementById('btn-logout');
     if(!el) return;
-    if(mostrar){ el.classList.remove('oculto'); el.style.display='flex'; if(salir)salir.style.display='none'; }
+    if(mostrar){ el.classList.remove('oculto'); el.style.display='flex'; if(salir)salir.style.display='none'; const em=document.getElementById('login-email'); const pw=document.getElementById('login-pass'); if(em)em.value=''; if(pw)pw.value=''; }
     else { el.classList.add('oculto'); if(salir)salir.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 400); }
   }
 

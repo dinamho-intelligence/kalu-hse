@@ -835,7 +835,7 @@ async function iniciarInvestigacion(){
   const participantes=[reporta,...testigos.filter(t=>t!==reporta)];
   testigoActivo=reporta;invSessionId='INV-'+Date.now();
   try{
-    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null})});
+    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null})});
     const data=await res.json();
     const inv=document.getElementById('pantalla-investigador');inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='0';inv.style.transform='translateY(-20px)';
     setTimeout(()=>{

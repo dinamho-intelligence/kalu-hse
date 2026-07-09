@@ -1019,15 +1019,12 @@ async function transcribirAudioInv(blob,mime){
 // Parte el texto en trozos hablables (oraciones), agrupando fragmentos muy cortos
 // para que OpenAI TTS reciba pedazos chicos y la primera voz suene enseguida.
 function partirEnOraciones(texto){
+  // Menos costuras = voz mas pareja. Mandamos la 1a frase (arranque rapido) y el RESTO en un solo bloque.
   const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
-  const chunks=[];let buffer='';
-  for(const frag of bruto){
-    const f=frag.trim();if(!f)continue;
-    buffer=buffer?buffer+' '+f:f;
-    if(buffer.length>=45){chunks.push(buffer);buffer='';}
-  }
-  if(buffer.trim())chunks.push(buffer.trim());
-  return chunks;
+  const frases=bruto.map(f=>f.trim()).filter(Boolean);
+  if(frases.length<=1) return frases.length?frases:[(texto||'').trim()].filter(Boolean);
+  const resto=frases.slice(1).join(' ');
+  return resto ? [frases[0], resto] : [frases[0]];
 }
 async function ttsBlob(texto){
   const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});

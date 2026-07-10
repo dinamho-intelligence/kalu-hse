@@ -152,7 +152,7 @@
     .generando-overlay.visible{display:flex;}
     .generando-spinner{width:48px;height:48px;border-radius:50%;border:3px solid rgba(242,140,0,0.2);border-top-color:var(--naranja);animation:spin 1s linear infinite;}
     @keyframes spin{to{transform:rotate(360deg);}}
-    .generando-msg{font-size:14px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.8;}
+    .generando-msg{font-size:14px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.8;transition:opacity .3s ease;max-width:360px;}
     .generando-msg span{color:var(--naranja);}
     /* CHAT HSE */
     #pantalla-chat{display:none;position:fixed;inset:0;flex-direction:column;padding-top:60px;}
@@ -1162,13 +1162,33 @@ function renderChipsEquipos(){document.getElementById('chips-equipos').innerHTML
 function quitarEquipo(i){const nombre=equipos[i];equipos.splice(i,1);renderChipsEquipos();document.querySelectorAll('.btn-equipo-sug').forEach(btn=>{if(btn.getAttribute('onclick').includes(`'${nombre}'`))btn.classList.remove('seleccionado');});}
 function renderSelectorEmp(){document.getElementById('selector-emp').innerHTML=empleados.map(e=>`<button class="btn-emp ${e===empleadoActivo?'activo':''}" onclick="selecEmp('${e}')">${e}</button>`).join('');}
 function selecEmp(nombre){empleadoActivo=nombre;renderSelectorEmp();}
+// Mensajes calidos que rotan mientras KALU genera el ATS (rompe el hielo, humaniza la espera).
+const MSGS_GENERANDO=[
+  '<span>KALU</span> está preparando todo con calma…<br>Dame un momentito.',
+  'Mientras armo el análisis…<br>¿cómodo por acá? Es más fácil de lo que parece.',
+  '¿Es tu primera vez charlando con una IA?<br>Tranquilo, vamos juntos, a tu ritmo.',
+  'Estoy revisando los equipos y las condiciones<br>para cuidarte mejor en el turno.',
+  'Ya casi…<br>quiero que salgas a trabajar con todo claro.'
+];
+let genMsgTimer=null,genMsgIdx=0;
+function iniciarMensajesGenerando(){
+  const el=document.getElementById('generando-msg');if(!el)return;
+  genMsgIdx=0;el.style.opacity='1';el.innerHTML=MSGS_GENERANDO[0];
+  clearInterval(genMsgTimer);
+  genMsgTimer=setInterval(()=>{
+    genMsgIdx=(genMsgIdx+1)%MSGS_GENERANDO.length;
+    el.style.opacity='0';
+    setTimeout(()=>{el.innerHTML=MSGS_GENERANDO[genMsgIdx];el.style.opacity='1';},300);
+  },3800);
+}
+function detenerMensajesGenerando(){clearInterval(genMsgTimer);genMsgTimer=null;}
 async function iniciarSesion(){
   const tarea=document.getElementById('input-tarea').value.trim();const empresa=document.getElementById('input-empresa').value.trim();const cliente=document.getElementById('input-cliente').value.trim();const area=document.getElementById('input-area').value.trim();const responsable=document.getElementById('input-responsable').value.trim()||empleados[0]||'';const condiciones=document.getElementById('input-condiciones').value.trim();const observaciones=document.getElementById('input-observaciones').value.trim();
   if(equipos.length===0){alert('Agregá al menos un equipo');return;}if(!condiciones){alert('Describí las condiciones ambientales');return;}
-  const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');document.getElementById('generando-overlay').classList.add('visible');
+  const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
   try{
     const res=await fetch(WEBHOOK_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null})});
-    const data=await res.json();document.getElementById('generando-overlay').classList.remove('visible');
+    const data=await res.json();detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
     if(data.bloqueado){btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');alert(data.mensaje);return;}
     sessionId=data.sessionId||'';atsItemId=data.atsItemId||'';empleadoActivo=empleados[0];
     document.getElementById('kalu-modo-label').textContent=(data.descripcionModo||`Modo ${data.modo}`).toUpperCase();
@@ -1176,7 +1196,7 @@ async function iniciarSesion(){
     document.getElementById('chat-topbar').innerHTML=`<span class="tag-tarea">${tarea}</span>${empleados.map(e=>`<span class="tag-empleado">${e}</span>`).join('')}`;
     const inicio=document.getElementById('pantalla-inicio');inicio.style.transition='opacity 0.5s ease,transform 0.5s ease';inicio.style.opacity='0';inicio.style.transform='translateY(-20px)';
     setTimeout(()=>{inicio.classList.remove('visible');inicio.style.opacity='';inicio.style.transform='';document.getElementById('pantalla-chat').classList.add('visible');renderSelectorEmp();setEstadoAvatar('hablando');agregarMensajeKALU(data.mensaje,true);},500);
-  }catch(e){document.getElementById('generando-overlay').classList.remove('visible');alert('Error al conectar con KALU.');btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');}
+  }catch(e){detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');alert('Error al conectar con KALU.');btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');}
 }
 </script>
 <script>

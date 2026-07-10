@@ -936,6 +936,21 @@ function cancelarVozInv(){
   if(invAbortChunk){const a=invAbortChunk;invAbortChunk=null;a();}
   if(invAudioActual){try{invAudioActual.pause();invAudioActual.currentTime=0;}catch(e){}invAudioActual=null;}
 }
+// Agrupa oraciones en tramos: el 1o corto (arranque rapido), el resto largos (menos costuras/enredos y sin silencios largos).
+function armarTramos(texto){
+  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
+  const chunks=[]; const bounds=[]; let acc=0, buf='';
+  for(const b of bruto){
+    acc+=b.length; const t=b.trim(); if(!t) continue;
+    buf = buf ? (buf+' '+t) : t;
+    const min = chunks.length===0 ? 40 : 140;
+    if(buf.length>=min){ chunks.push(buf); bounds.push(acc); buf=''; }
+  }
+  if(buf){ chunks.push(buf); bounds.push((texto||'').length); }
+  if(!chunks.length && (texto||'').trim()){ chunks.push((texto||'').trim()); bounds.push((texto||'').length); }
+  if(bounds.length) bounds[bounds.length-1]=(texto||'').length;
+  return {chunks,bounds};
+}
 // Revela texto[from..to] de forma pareja a lo largo de durMs (sincronizado con el audio).
 function revelarSync(el,texto,from,to,durMs,scrollId){
   return new Promise(res=>{
@@ -954,10 +969,7 @@ function revelarSync(el,texto,from,to,durMs,scrollId){
 }
 async function reproducirVozAutoInv(texto,onEnded=null,contentEl=null){
   const done=()=>{ if(onEnded){const cb=onEnded;onEnded=null;cb();} };
-  // Partimos en ORACIONES cortas: cada una se genera y suena rapido, sin silencios largos entre tramos.
-  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
-  const chunks=[]; const bounds=[]; let _acc=0;
-  for(const b of bruto){ _acc+=b.length; const t=b.trim(); if(t){ chunks.push(t); bounds.push(_acc); } }
+  const {chunks,bounds}=armarTramos(texto);
   if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); done();return;}
   let cancelado=false;
   invVozCancel=()=>{cancelado=true;};
@@ -1092,10 +1104,8 @@ async function transcribirAudio(blob,mime){
   }catch(e){ind.classList.remove('visible');mostrarError('Error al procesar audio.');setEstadoAvatar('idle');}
 }
 async function reproducirVozAuto(texto,contentEl=null){
-  // Mismo criterio que la investigacion: oraciones cortas + texto revelado al ritmo de la voz.
-  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
-  const chunks=[]; const bounds=[]; let _acc=0;
-  for(const b of bruto){ _acc+=b.length; const t=b.trim(); if(t){ chunks.push(t); bounds.push(_acc); } }
+  // Mismo criterio que la investigacion: tramos agrupados + texto revelado al ritmo de la voz.
+  const {chunks,bounds}=armarTramos(texto);
   if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); setEstadoAvatar('idle'); return; }
   try{
     let sigProm=ttsBlob(chunks[0]).catch(()=>null);
@@ -1241,3 +1251,4 @@ async function iniciarSesion(){
 </script>
 </body>
 </html>
+

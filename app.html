@@ -382,35 +382,27 @@
   <div class="inv-cierre-num" id="inv-cierre-num">5</div>
   <div class="inv-cierre-bar"><div class="inv-cierre-bar-fill" id="inv-cierre-bar-fill" style="width:100%"></div></div>
 </div>
+<style>
+/* === Avatares foto KALU (mascota Sherlock HSE) === */
+.home-avatar-wrap,.kalu-avatar-inicio,.kalu-avatar-inv{position:relative;}
+.kalu-foto{position:relative;z-index:2;width:100%;height:100%;object-fit:cover;object-position:center 30%;border-radius:26px;border:1.5px solid rgba(0,212,255,.35);box-shadow:0 12px 34px rgba(0,0,0,.55);display:block;animation:kaluFlota 4s ease-in-out infinite;}
+.kalu-foto-halo{position:absolute;inset:-16%;z-index:1;border-radius:50%;background:radial-gradient(circle,rgba(0,212,255,.30),rgba(242,140,0,.10) 48%,transparent 70%);filter:blur(12px);pointer-events:none;}
+@keyframes kaluFlota{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes kaluHabla{from{opacity:.5;transform:scale(.94)}to{opacity:1;transform:scale(1.1)}}
+@keyframes kaluEscucha{0%,100%{opacity:.4;transform:scale(.96)}50%{opacity:.9;transform:scale(1.06)}}
+@keyframes kaluAlerta{from{opacity:.5}to{opacity:1}}
+.kalu-avatar-inicio.estado-hablando .kalu-foto-halo{animation:kaluHabla .5s ease-in-out infinite alternate;}
+.kalu-avatar-inicio.estado-escuchando .kalu-foto-halo{animation:kaluEscucha 1.3s ease-in-out infinite;}
+.kalu-avatar-inicio.estado-alerta .kalu-foto{border-color:#FF3B30;}
+.kalu-avatar-inicio.estado-alerta .kalu-foto-halo{background:radial-gradient(circle,rgba(255,59,48,.35),transparent 70%);animation:kaluAlerta .5s ease-in-out infinite alternate;}
+.kalu-avatar-inv .kalu-foto{border-color:rgba(255,59,48,.4);}
+.kalu-avatar-inv .kalu-foto-halo{background:radial-gradient(circle,rgba(255,59,48,.30),transparent 70%);}
+</style>
 <!-- HOME -->
 <div id="pantalla-home">
   <div class="home-avatar-wrap">
-    <svg viewBox="0 0 220 220" fill="none">
-      <circle class="halo-voz-2" cx="110" cy="110" r="102" stroke="#00D4FF" stroke-width="0.8" opacity="0.1"/>
-      <circle class="halo-voz" cx="110" cy="110" r="94" stroke="#00D4FF" stroke-width="1.2" opacity="0.18"/>
-      <g class="ring-orbit"><ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(242,140,0,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/><circle cx="110" cy="26" r="4" fill="#F28C00" opacity="0.8"/></g>
-      <g class="ring-orbit-2"><ellipse cx="110" cy="110" rx="76" ry="76" stroke="rgba(0,212,255,0.2)" stroke-width="0.8" stroke-dasharray="2 10" fill="none"/><circle cx="186" cy="110" r="3" fill="#00D4FF" opacity="0.7"/></g>
-      <g class="ring-orbit-3"><ellipse cx="110" cy="110" rx="68" ry="68" stroke="rgba(242,140,0,0.12)" stroke-width="0.6" stroke-dasharray="6 14" fill="none"/><circle cx="110" cy="178" r="2.5" fill="#F28C00" opacity="0.5"/></g>
-      <g class="avatar-float">
-        <circle class="avatar-core" cx="110" cy="110" r="58" fill="#111318" stroke="#00D4FF" stroke-width="1.5" opacity="0.9"/>
-        <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
-        <path d="M72 95 Q70 78 90 68 Q110 60 130 68 Q150 78 148 95" fill="#111318"/>
-        <path d="M75 100 Q73 82 93 72 Q110 65 127 72 Q147 82 145 100" fill="#1E2028"/>
-        <rect x="62" y="90" width="8" height="22" rx="2" fill="#F28C00" opacity="0.3"/>
-        <rect x="150" y="90" width="8" height="22" rx="2" fill="#00D4FF" opacity="0.3"/>
-        <g class="ojo-pupila-home">
-          <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
-          <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
-          <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-        </g>
-        <g class="ojo-pupila-home">
-          <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
-          <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
-          <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-        </g>
-        <path d="M94 120 Q110 130 126 120" stroke="#F28C00" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-      </g>
-    </svg>
+    <span class="kalu-foto-halo"></span>
+    <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
   </div>
   <div class="home-titulo">KALU IA</div>
   <div class="home-sub">// SELECCIONÁ UN MÓDULO PARA CONTINUAR</div>
@@ -443,26 +435,8 @@
 <div id="pantalla-inicio">
   <div class="inicio-avatar-col">
     <div class="kalu-avatar-inicio" id="avatar-inicio">
-      <svg viewBox="0 0 220 220" fill="none">
-        <circle class="halo-voz-2" cx="110" cy="110" r="102" stroke="#00D4FF" stroke-width="0.8" opacity="0.1"/>
-        <circle class="halo-voz" cx="110" cy="110" r="94" stroke="#00D4FF" stroke-width="1.2" opacity="0.18"/>
-        <g class="ring-orbit"><ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(242,140,0,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/><circle cx="110" cy="26" r="4" fill="#F28C00" opacity="0.8"/></g>
-        <g class="avatar-float">
-          <circle class="avatar-core" cx="110" cy="110" r="58" fill="#111318" stroke="#00D4FF" stroke-width="1.5" opacity="0.9"/>
-          <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
-          <g class="ojo-pupila-inicio">
-            <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
-            <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
-            <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-          </g>
-          <g class="ojo-pupila-inicio">
-            <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(0,212,255,0.12)" stroke="#00D4FF" stroke-width="1.5"/>
-            <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#00D4FF"/>
-            <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-          </g>
-          <path id="boca-inicio" d="M94 120 Q110 130 126 120" stroke="#F28C00" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-        </g>
-      </svg>
+      <span class="kalu-foto-halo"></span>
+      <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
     </div>
     <div class="inicio-kalu-titulo">KALU HSE</div>
     <div class="inicio-kalu-sub">Validación pre-turno<br>Dinamho Intelligence v4</div>
@@ -523,45 +497,8 @@
 <div id="pantalla-investigador">
   <div class="inv-avatar-col">
     <div class="kalu-avatar-inv">
-      <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="110" cy="110" r="102" stroke="#FF3B30" stroke-width="0.8" opacity="0.08"/>
-  <circle cx="110" cy="110" r="94" stroke="#FF3B30" stroke-width="1.2" opacity="0.15"/>
-  <g style="animation:girar 10s linear infinite;transform-origin:110px 110px;">
-    <ellipse cx="110" cy="110" rx="84" ry="84" stroke="rgba(255,59,48,0.25)" stroke-width="1" stroke-dasharray="4 8" fill="none"/>
-    <circle cx="110" cy="26" r="4" fill="#FF3B30" opacity="0.8"/>
-  </g>
-  <g style="animation:girar 18s linear infinite reverse;transform-origin:110px 110px;">
-    <ellipse cx="110" cy="110" rx="72" ry="72" stroke="rgba(255,59,48,0.12)" stroke-width="0.8" stroke-dasharray="2 10" fill="none"/>
-    <circle cx="182" cy="110" r="3" fill="#FF3B30" opacity="0.5"/>
-  </g>
-  <g class="avatar-float">
-    <circle cx="110" cy="110" r="58" fill="#111318" stroke="#FF3B30" stroke-width="1.5" opacity="0.95"/>
-    <circle cx="110" cy="110" r="54" fill="#1A1D24"/>
-    <path d="M72 95 Q70 78 90 68 Q110 60 130 68 Q150 78 148 95" fill="#111318"/>
-    <path d="M75 100 Q73 82 93 72 Q110 65 127 72 Q147 82 145 100" fill="#1E2028"/>
-    <rect x="62" y="90" width="8" height="22" rx="2" fill="#FF3B30" opacity="0.3"/>
-    <rect x="150" y="90" width="8" height="22" rx="2" fill="#FF3B30" opacity="0.3"/>
-    <circle cx="66" cy="88" r="2.5" fill="#FF3B30" opacity="0.7"/>
-    <circle cx="154" cy="88" r="2.5" fill="#FF3B30" opacity="0.7"/>
-    <path d="M96 75 Q108 78 105 90" stroke="#FF3B30" stroke-width="0.8" fill="none" opacity="0.5"/>
-    <path d="M124 75 Q112 78 115 90" stroke="#FF3B30" stroke-width="0.8" fill="none" opacity="0.5"/>
-    <path d="M82 89 Q91 85 100 88" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-    <path d="M120 88 Q129 85 138 89" stroke="#A0A4AD" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-    <rect x="82" y="92" width="18" height="13" rx="5" fill="rgba(255,59,48,0.1)" stroke="#FF3B30" stroke-width="1.5"/>
-    <ellipse cx="91" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
-    <ellipse cx="91" cy="98" rx="2.8" ry="2.8" fill="#FF3B30"/>
-    <ellipse cx="92.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-    <line x1="82" y1="98" x2="75" y2="96" stroke="#FF3B30" stroke-width="1.2" opacity="0.5"/>
-    <rect x="120" y="92" width="18" height="13" rx="5" fill="rgba(255,59,48,0.1)" stroke="#FF3B30" stroke-width="1.5"/>
-    <ellipse cx="129" cy="98" rx="5" ry="5" fill="#0A0C0F"/>
-    <ellipse cx="129" cy="98" rx="2.8" ry="2.8" fill="#FF3B30"/>
-    <ellipse cx="130.5" cy="96.8" rx="0.9" ry="0.9" fill="white"/>
-    <line x1="138" y1="98" x2="145" y2="96" stroke="#FF3B30" stroke-width="1.2" opacity="0.5"/>
-    <path d="M107 103 Q110 109 113 103" stroke="#4A4E5A" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-    <path d="M94 118 Q110 128 126 118" stroke="#FF3B30" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-    <path d="M80 112 Q110 130 140 112" stroke="rgba(255,59,48,0.12)" stroke-width="0.5" fill="none"/>
-  </g>
-</svg>
+      <span class="kalu-foto-halo"></span>
+      <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
     </div>
     <div class="alerta-badge"><div class="alerta-dot"></div>INVESTIGACIÓN ACTIVA</div>
     <div class="inv-kalu-titulo">KALU INVESTIGADOR</div>
@@ -1291,3 +1228,4 @@ async function iniciarSesion(){
 </script>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         

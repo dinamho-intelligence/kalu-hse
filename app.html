@@ -1119,8 +1119,8 @@ async function reproducirVozAuto(texto,contentEl=null){
       await new Promise(resolve=>{
         const url=URL.createObjectURL(blob);const audio=new Audio(url);let cerrado=false;
         const fin=()=>{if(cerrado)return;cerrado=true;URL.revokeObjectURL(url);if(contentEl)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>');resolve();};
-        audio.addEventListener('play',()=>{ setEstadoAvatar('hablando'); iniciarLipSync(audio); if(contentEl){ const d=(isFinite(audio.duration)&&audio.duration>0)?audio.duration*1000:null; revelarSync(contentEl,texto,desde,toBound,d,'mensajes'); } });
-        audio.addEventListener('ended',()=>{detenerLipSync();fin();});
+        audio.addEventListener('play',()=>{ setEstadoAvatar('hablando'); if(contentEl){ const d=(isFinite(audio.duration)&&audio.duration>0)?audio.duration*1000:null; revelarSync(contentEl,texto,desde,toBound,d,'mensajes'); } });
+        audio.addEventListener('ended',fin);
         audio.addEventListener('error',fin);
         audio.play().catch(fin);
       });
@@ -1128,7 +1128,7 @@ async function reproducirVozAuto(texto,contentEl=null){
     }
   }catch(e){}
   if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>');
-  detenerLipSync();setEstadoAvatar('idle');
+  setEstadoAvatar('idle');
 }
 async function reproducirVoz(btn,texto){
   btn.textContent='⏳ Cargando...';btn.disabled=true;
@@ -1251,4 +1251,3 @@ async function iniciarSesion(){
 </script>
 </body>
 </html>
-

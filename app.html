@@ -954,11 +954,11 @@ function revelarSync(el,texto,from,to,durMs,scrollId){
 }
 async function reproducirVozAutoInv(texto,onEnded=null,contentEl=null){
   const done=()=>{ if(onEnded){const cb=onEnded;onEnded=null;cb();} };
-  const chunks=partirEnOraciones(texto);
-  if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); done();return;}
-  // Limites de cada tramo dentro del texto ORIGINAL (para revelar respetando puntuacion/saltos).
+  // Partimos en ORACIONES cortas: cada una se genera y suena rapido, sin silencios largos entre tramos.
   const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
-  const bounds = chunks.length<=1 ? [texto.length] : [(bruto[0]||'').length, texto.length];
+  const chunks=[]; const bounds=[]; let _acc=0;
+  for(const b of bruto){ _acc+=b.length; const t=b.trim(); if(t){ chunks.push(t); bounds.push(_acc); } }
+  if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); done();return;}
   let cancelado=false;
   invVozCancel=()=>{cancelado=true;};
   try{
@@ -1014,8 +1014,13 @@ function agregarMensajeKALU(texto,reproducir=false){
   btnEsc.onclick=()=>reproducirVoz(btnEsc,texto);audioWrap.appendChild(btnEsc);
   div.innerHTML='<div class="remitente">KALU IA</div>';div.appendChild(contenido);div.appendChild(audioWrap);
   cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
-  typewriterEffect(contenido,texto,()=>{contenido.classList.remove('typewriter-cursor');if(estadoAvatar==='hablando'&&!lipSyncSource)setTimeout(()=>setEstadoAvatar('idle'),600);});
-  mostrarSubtitulos(texto);if(reproducir)reproducirVozAuto(texto);
+  if(reproducir){
+    // Texto SINCRONIZADO con la voz (cada oracion aparece mientras KALU la dice).
+    reproducirVozAuto(texto,contenido).then(()=>{contenido.classList.remove('typewriter-cursor');});
+  } else {
+    typewriterEffect(contenido,texto,()=>{contenido.classList.remove('typewriter-cursor');if(estadoAvatar==='hablando'&&!lipSyncSource)setTimeout(()=>setEstadoAvatar('idle'),600);});
+  }
+  mostrarSubtitulos(texto);
 }
 function typewriterEffect(el,texto,onDone){
   let charIdx=0;el.innerHTML='';
@@ -1086,15 +1091,34 @@ async function transcribirAudio(blob,mime){
     else{mostrarError('No se entendió el audio.');setEstadoAvatar('idle');}
   }catch(e){ind.classList.remove('visible');mostrarError('Error al procesar audio.');setEstadoAvatar('idle');}
 }
-async function reproducirVozAuto(texto){
+async function reproducirVozAuto(texto,contentEl=null){
+  // Mismo criterio que la investigacion: oraciones cortas + texto revelado al ritmo de la voz.
+  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
+  const chunks=[]; const bounds=[]; let _acc=0;
+  for(const b of bruto){ _acc+=b.length; const t=b.trim(); if(t){ chunks.push(t); bounds.push(_acc); } }
+  if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); setEstadoAvatar('idle'); return; }
   try{
-    const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
-    if(!res.ok)return;const blob=await res.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);
-    audio.addEventListener('play',()=>{setEstadoAvatar('hablando');iniciarLipSync(audio);});
-    audio.addEventListener('ended',()=>{detenerLipSync();setEstadoAvatar('idle');URL.revokeObjectURL(url);});
-    audio.addEventListener('error',()=>{detenerLipSync();setEstadoAvatar('idle');});
-    audio.play().catch(()=>{detenerLipSync();setEstadoAvatar('idle');});
+    let sigProm=ttsBlob(chunks[0]).catch(()=>null);
+    let prevBound=0;
+    for(let i=0;i<chunks.length;i++){
+      const blob=await sigProm;
+      sigProm=(i+1<chunks.length)?ttsBlob(chunks[i+1]).catch(()=>null):null;
+      const toBound=bounds[i]||texto.length;
+      if(!blob){ if(contentEl)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>'); prevBound=toBound; continue; }
+      const desde=prevBound;
+      await new Promise(resolve=>{
+        const url=URL.createObjectURL(blob);const audio=new Audio(url);let cerrado=false;
+        const fin=()=>{if(cerrado)return;cerrado=true;URL.revokeObjectURL(url);if(contentEl)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>');resolve();};
+        audio.addEventListener('play',()=>{ setEstadoAvatar('hablando'); iniciarLipSync(audio); if(contentEl){ const d=(isFinite(audio.duration)&&audio.duration>0)?audio.duration*1000:null; revelarSync(contentEl,texto,desde,toBound,d,'mensajes'); } });
+        audio.addEventListener('ended',()=>{detenerLipSync();fin();});
+        audio.addEventListener('error',fin);
+        audio.play().catch(fin);
+      });
+      prevBound=toBound;
+    }
   }catch(e){}
+  if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>');
+  detenerLipSync();setEstadoAvatar('idle');
 }
 async function reproducirVoz(btn,texto){
   btn.textContent='⏳ Cargando...';btn.disabled=true;
@@ -1217,4 +1241,3 @@ async function iniciarSesion(){
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  

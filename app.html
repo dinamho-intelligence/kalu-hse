@@ -423,6 +423,13 @@
       <div class="modulo-desc">Investigación de incidentes en campo. Árbol de Causas, declaraciones, alerta inmediata y 4 documentos al supervisor HSE.</div>
       <div class="modulo-flecha">→</div>
     </div>
+    <div class="modulo-card" onclick="location.href='/firmas.html'">
+      <div class="modulo-icon">✍️</div>
+      <div class="modulo-tag activo">● ACTIVO</div>
+      <div class="modulo-nombre">KALU Firmas</div>
+      <div class="modulo-desc">Registros firmables: cada declaración y ATS se firma digitalmente, con identidad y validez legal (Ley 527). Sin papel.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
     <div class="modulo-card proximamente">
       <div class="modulo-icon">🎓</div>
       <div class="modulo-tag pronto">◎ PRÓXIMAMENTE</div>
@@ -1043,7 +1050,7 @@ function agregarMensajeUsuario(texto,remitente){const cont=document.getElementBy
 function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 function mostrarTyping(show){document.getElementById('typing').classList.toggle('visible',show);if(show){document.getElementById('mensajes').scrollTop=99999;setEstadoAvatar('escuchando');}}
 async function enviarMensaje(){
-  const ta=document.getElementById('input-msg');const texto=ta.value.trim();if(!texto||!sessionId)return;
+  if(window.atsCerrado)return; const ta=document.getElementById('input-msg');const texto=ta.value.trim();if(!texto||!sessionId)return;
   const btnEnv=document.getElementById('btn-enviar');const btnMic=document.getElementById('btn-mic');
   btnEnv.disabled=true;btnMic.disabled=true;ta.disabled=true;
   agregarMensajeUsuario(texto,empleadoActivo);ta.value='';ta.style.height='auto';
@@ -1052,9 +1059,9 @@ async function enviarMensaje(){
     const res=await fetch(WEBHOOK_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,atsItemId,mensaje:texto,empleado:empleadoActivo})});
     const data=await res.json();mostrarTyping(false);setEstadoAvatar('hablando');
     agregarMensajeKALU(data.mensaje||'Sin respuesta',true);
-    if(data.atsDetectado){document.getElementById('ats-banner').classList.add('visible');autoCountdownTimer=setTimeout(()=>iniciarCountdown(),90000);}
+    if(data.atsDetectado){window.atsCerrado=true;document.getElementById('ats-banner').classList.add('visible');ta.disabled=true;btnEnv.disabled=true;btnMic.disabled=true;ta.placeholder='ATS generado — sesión cerrada.';if(autoCountdownTimer)clearTimeout(autoCountdownTimer);autoCountdownTimer=setTimeout(()=>iniciarCountdown(),12000);}
   }catch(e){mostrarTyping(false);setEstadoAvatar('alerta');setTimeout(()=>setEstadoAvatar('idle'),3000);document.getElementById('error-msg').textContent='Error de conexión.';document.getElementById('error-msg').style.display='block';}
-  finally{btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus();}
+  finally{ if(!window.atsCerrado){ btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus(); } }
 }
 function iniciarCountdown(){
   if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
@@ -1063,7 +1070,7 @@ function iniciarCountdown(){
   const tick=setInterval(()=>{seg--;numEl.textContent=seg;barEl.style.width=((seg/total)*100)+'%';if(seg<=0){clearInterval(tick);resetSesion();}},1000);
 }
 function resetSesion(){
-  detenerLipSync();setEstadoAvatar('idle');sessionId='';atsItemId='';empleados=[];equipos=[];empleadoActivo='';mensajesCount=0;pendingCountdown=false;
+  detenerLipSync();setEstadoAvatar('idle');window.atsCerrado=false;sessionId='';atsItemId='';empleados=[];equipos=[];empleadoActivo='';mensajesCount=0;pendingCountdown=false;
   if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
   document.getElementById('mensajes').innerHTML=`<div class="typing" id="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
   document.getElementById('ats-banner').classList.remove('visible');document.getElementById('kalu-stats').innerHTML='';document.getElementById('kalu-modo-label').textContent='MODO —';
@@ -1185,7 +1192,7 @@ function detenerMensajesGenerando(){clearInterval(genMsgTimer);genMsgTimer=null;
 async function iniciarSesion(){
   const tarea=document.getElementById('input-tarea').value.trim();const empresa=document.getElementById('input-empresa').value.trim();const cliente=document.getElementById('input-cliente').value.trim();const area=document.getElementById('input-area').value.trim();const responsable=document.getElementById('input-responsable').value.trim()||empleados[0]||'';const condiciones=document.getElementById('input-condiciones').value.trim();const observaciones=document.getElementById('input-observaciones').value.trim();
   if(equipos.length===0){alert('Agregá al menos un equipo');return;}if(!condiciones){alert('Describí las condiciones ambientales');return;}
-  const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
+  const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');window.atsCerrado=false;document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
   try{
     const res=await fetch(WEBHOOK_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null})});
     const data=await res.json();detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
@@ -1271,4 +1278,3 @@ async function iniciarSesion(){
 </script>
 </body>
 </html>
-

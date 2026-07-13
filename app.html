@@ -737,6 +737,7 @@ async function iniciarInvestigacion(){
   try{
     const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null})});
     const data=await res.json();
+    if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
     const inv=document.getElementById('pantalla-investigador');inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='0';inv.style.transform='translateY(-20px)';
     setTimeout(()=>{
       inv.classList.remove('visible');inv.style.opacity='';inv.style.transform='';
@@ -768,6 +769,7 @@ async function continuarInvestigacion(){
     const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:id,mensaje:trigger,declarante:'Sistema'})});
     const data=await res.json();
     document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
+    if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
     if(data.fase)setFaseActiva(`fase-${data.fase}`);
     agregarMensajeInv(data.mensaje||'Retomando expediente...',true);
   }catch(e){
@@ -846,17 +848,22 @@ function _invPadInit(cv){
   cv._clear=()=>{cx.clearRect(0,0,cv.width,cv.height);cv._ink=false;};
 }
 function _invHash(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h*0x01000193)>>>0;}return h.toString(16).padStart(8,'0');}
+function _invLabel(f,rol){return rol==='KALU'?'KALU':((rol)||(f&&f.reporta)||'Declarante');}
+function _invSeqText(f){var t=(f&&f.transcript)||[];return t.map(function(e){return _invLabel(f,e.rol)+': '+(e.texto||'');}).join('\n\n');}
 function mostrarFirmaInv(data){
   const f=window.invFirma||{};
-  const decl=(f.transcript&&f.transcript.length)?f.transcript.join('  '):((data&&data.mensaje)||'');
-  window._invDeclTxt=decl;
+  var seq=(f.transcript&&f.transcript.length)?f.transcript.slice():[];
+  if(!seq.length && data && data.mensaje){seq=[{rol:'KALU',texto:data.mensaje}];}
+  f.transcript=seq;
+  window._invSeqTxt=_invSeqText(f);
+  var seqHtml=seq.map(function(e){var lab=_invLabel(f,e.rol);var col=(e.rol==='KALU')?'#F28C00':'#00D4FF';return '<div style="margin-bottom:8px;"><span style="color:'+col+';font-weight:700;">'+lab.replace(/</g,'&lt;')+':</span> '+(e.texto||'').replace(/</g,'&lt;')+'</div>';}).join('');
   const ov=document.createElement('div');ov.id='inv-firma-overlay';
   ov.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(6,8,11,.94);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
   ov.innerHTML='<div style="max-width:560px;width:100%;background:#12161C;border:1px solid #242B35;border-radius:18px;padding:24px;font-family:Arial,sans-serif;color:#E8EDF2;">'
     +'<div style="font-size:11px;letter-spacing:2px;color:#F28C00;font-weight:700;">FIRMA DE LA DECLARACIÓN · LEY 527</div>'
     +'<div style="font-size:20px;font-weight:800;margin:6px 0 4px;">Firmá tu declaración</div>'
     +'<div style="font-size:13px;color:#95A0AD;margin-bottom:14px;">'+(f.reporta||'Declarante')+' — C.C. '+(f.cedula||'—')+' · '+(f.rol||'')+'</div>'
-    +'<div style="background:#171C24;border:1px solid #242B35;border-radius:12px;padding:12px;font-size:12.5px;line-height:1.5;color:#c7cfda;max-height:150px;overflow:auto;margin-bottom:14px;">'+decl.replace(/</g,'&lt;')+'</div>'
+    +'<div style="background:#171C24;border:1px solid #242B35;border-radius:12px;padding:12px;font-size:12.5px;line-height:1.5;color:#c7cfda;max-height:200px;overflow:auto;margin-bottom:14px;">'+seqHtml+'</div>'
     +'<div style="font-size:11px;color:#95A0AD;margin-bottom:6px;">FIRMÁ EN EL RECUADRO</div>'
     +'<canvas id="inv-firma-pad" style="width:100%;height:150px;background:#fbfdff;border:1px solid #242B35;border-radius:12px;touch-action:none;display:block;"></canvas>'
     +'<div style="display:flex;justify-content:flex-end;margin:6px 0 12px;"><button onclick="document.getElementById(\'inv-firma-pad\')._clear()" style="background:none;border:none;color:#5E6873;font-size:12px;cursor:pointer;">Limpiar</button></div>'
@@ -872,48 +879,53 @@ async function firmarInvDecl(data){
   if(!cv._ink){msg.style.color='#E8930C';msg.textContent='Falta la firma en el recuadro.';return;}
   const btn=document.getElementById('inv-firma-btn');btn.disabled=true;msg.style.color='#95A0AD';msg.textContent='Guardando…';
   try{
-    const ts=new Date().toISOString();const decl=window._invDeclTxt||'';const feedback=(data&&data.mensaje)||'';
-    const hash=_invHash(decl+(f.cedula||'')+ts);const firmaPng=cv.toDataURL('image/png');
+    const ts=new Date().toISOString();const seqTxt=window._invSeqTxt||'';
+    const hash=_invHash(seqTxt+(f.cedula||'')+ts);const firmaPng=cv.toDataURL('image/png');
     let firmanteId=null;
     if(f.cedula){const up=await sb.from('firmantes').upsert({nombre:f.reporta,cedula:f.cedula},{onConflict:'cedula'}).select('id').single();if(up.data)firmanteId=up.data.id;}
-    const tIns=await sb.from('testimonios').insert({inv_id:f.inv_id,firmante_id:firmanteId,rol:(f.rol||'declarante'),transcripcion:decl,feedback:feedback,estado:'firmado',hash:hash,datos_evento:{}}).select('id').single();
+    const tIns=await sb.from('testimonios').insert({inv_id:f.inv_id,firmante_id:firmanteId,rol:(f.rol||'declarante'),transcripcion:seqTxt,feedback:'',estado:'firmado',hash:hash,datos_evento:{}}).select('id').single();
     const testId=tIns.data?tIns.data.id:null;
     if(testId){
       const blob=await (await fetch(firmaPng)).blob();const firmaPath=testId+'/'+Date.now()+'.png';
       await sb.storage.from('firmas').upload(firmaPath,blob,{contentType:'image/png'});
       await sb.from('firmas').insert({doc_tipo:'testimonio',doc_id:testId,firmante_id:firmanteId,rol:(f.rol||'declarante'),metodo:'dibujada',firma_path:firmaPath,hash_doc:hash,dispositivo:navigator.userAgent.slice(0,120)});
     }
-    _pdfTestimonio(f,decl,feedback,firmaPng,hash,ts);
+    _pdfTestimonio(f,(f.transcript||[]),firmaPng,hash,ts);
     msg.style.color='#25C26E';msg.innerHTML='&#10003; Firmado y guardado. PDF descargado.';
     btn.textContent='Continuar →';btn.disabled=false;
     btn.onclick=()=>{const o=document.getElementById('inv-firma-overlay');if(o)o.remove();iniciarCierreInv(data&&data.cerrar);};
   }catch(e){msg.style.color='#FF3B30';msg.textContent='Error: '+((e&&e.message)||e);btn.disabled=false;}
 }
-function _pdfTestimonio(f,decl,feedback,firmaPng,hash,ts){
+function _pdfTestimonio(f,seqArr,firmaPng,hash,ts){
   try{
     const JS=(window.jspdf&&window.jspdf.jsPDF);if(!JS){return;}
-    const doc=new JS({unit:'pt',format:'a4'});const W=595;let y=56;
-    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(20,20,20);doc.text('Registro de declaración — KALU',40,y);y+=10;
-    doc.setDrawColor(242,140,0);doc.setLineWidth(2);doc.line(40,y,W-40,y);y+=22;
+    const doc=new JS({unit:'pt',format:'a4'});const W=595;const M=40;const BOT=800;let y=56;
+    function nl(h){if(y+h>BOT){doc.addPage();y=56;}}
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(20,20,20);doc.text('Registro de declaración — KALU',M,y);y+=10;
+    doc.setDrawColor(242,140,0);doc.setLineWidth(2);doc.line(M,y,W-M,y);y+=22;
     doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
-    doc.text('Expediente: '+(f.inv_id||''),40,y);y+=15;
-    doc.text('Declarante: '+(f.reporta||'')+'    C.C. '+(f.cedula||'')+'    Rol: '+(f.rol||''),40,y);y+=15;
-    doc.text('Fecha: '+new Date(ts).toLocaleString('es-CO'),40,y);y+=24;
-    doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(11);doc.text('Declaración',40,y);y+=16;
-    doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);doc.setFontSize(11);
-    const dl=doc.splitTextToSize(decl||'—',W-80);doc.text(dl,40,y);y+=dl.length*14+14;
-    if(feedback){doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(10);doc.text('Observaciones de KALU',40,y);y+=14;
-      doc.setFont('helvetica','normal');doc.setTextColor(70,70,70);const fl=doc.splitTextToSize(feedback,W-80);doc.text(fl,40,y);y+=fl.length*13+16;}
-    doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(10);doc.text('Firma',40,y);y+=6;
-    try{doc.addImage(firmaPng,'PNG',40,y,150,60);}catch(_){}
-    y+=72;doc.setDrawColor(200);doc.line(40,y,W-40,y);y+=16;
+    doc.text('Expediente: '+(f.inv_id||''),M,y);y+=15;
+    doc.text('Declarante: '+(f.reporta||'')+'    C.C. '+(f.cedula||'')+'    Rol: '+(f.rol||''),M,y);y+=15;
+    doc.text('Fecha: '+new Date(ts).toLocaleString('es-CO'),M,y);y+=24;
+    doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(11);doc.text('Declaración (transcripción de la entrevista)',M,y);y+=16;
+    doc.setFontSize(10.5);
+    (seqArr||[]).forEach(function(e){
+      var isK=(e.rol==='KALU');var lab=isK?'KALU':((e.rol)||(f.reporta||'Declarante'));
+      var lines=doc.splitTextToSize((e.texto||''),W-M*2-8);
+      nl(16+lines.length*13+8);
+      doc.setFont('helvetica','bold');doc.setTextColor(isK?242:20,isK?140:20,isK?0:20);doc.text(lab+':',M,y);y+=13;
+      doc.setFont('helvetica','normal');doc.setTextColor(45,45,45);doc.text(lines,M+8,y);y+=lines.length*13+8;
+    });
+    y+=8;
+    doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(10);nl(96);doc.text('Firma',M,y);y+=6;
+    try{doc.addImage(firmaPng,'PNG',M,y,150,60);}catch(_){}
+    y+=72;doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=16;
     doc.setFontSize(8.5);doc.setTextColor(90,90,90);
     const c='Firmado electrónicamente por '+(f.reporta||'')+', C.C. '+(f.cedula||'')+', el '+new Date(ts).toLocaleString('es-CO')+'. Método: firma en pantalla. Integridad garantizada por hash '+hash+'. Conforme a la Ley 527 de 1999. Documento inalterable — cualquier cambio invalida el hash.';
-    const cl=doc.splitTextToSize(c,W-80);doc.text(cl,40,y);
+    const cl=doc.splitTextToSize(c,W-M*2);doc.text(cl,M,y);
     doc.save('Testimonio_'+(f.inv_id||'KALU')+'.pdf');
   }catch(e){console.error('PDF',e);}
 }
-
 function agregarMensajeInv(texto,reproducir=false,onFinalizado=null){
   const cont=document.getElementById('inv-mensajes');
   const typing=document.getElementById('inv-typing');
@@ -949,12 +961,13 @@ async function enviarMensajeInv(){
   const btnEnv=document.getElementById('inv-btn-enviar');const btnMic=document.getElementById('inv-btn-mic');
   btnEnv.disabled=true;btnMic.disabled=true;ta.disabled=true;
   agregarMensajeTestigo(texto,testigoActivo);ta.value='';ta.style.height='auto';
-  if(window.invFirma&&texto){window.invFirma.transcript.push(texto);}
+  if(window.invFirma&&texto){window.invFirma.transcript.push({rol:testigoActivo,texto:texto});}
   document.getElementById('inv-typing').classList.add('visible');setPensandoInv(true);
   try{
     const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:invSessionId,mensaje:texto,declarante:testigoActivo})});
     const data=await res.json();
     document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
+    if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
     if(data.fase)setFaseActiva(`fase-${data.fase}`);
     // ── CIERRE SOLO EN INFORME FINAL ──
     // data.cerrar = true solo cuando el expediente cerró (estado_expediente:"final").

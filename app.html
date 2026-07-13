@@ -964,7 +964,7 @@ async function enviarMensajeInv(){
   if(window.invFirma&&texto){window.invFirma.transcript.push({rol:testigoActivo,texto:texto});}
   document.getElementById('inv-typing').classList.add('visible');setPensandoInv(true);
   try{
-    const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:invSessionId,mensaje:texto,declarante:testigoActivo})});
+    const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:invSessionId,mensaje:texto,declarante:testigoActivo,cedula:(window.invFirma&&window.invFirma.cedula)||''})});
     const data=await res.json();
     document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
     if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}

@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0A0C0F">
 <title>KALU · Consola HSE</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   :root{--bg:#0A0C0F;--panel:#12161C;--panel2:#171C24;--line:#242B35;--nar:#F28C00;--cy:#00D4FF;--verde:#25C26E;--amber:#E8930C;--rojo:#FF3B30;--tx:#E8EDF2;--tx2:#95A0AD;--tx3:#5E6873;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -51,6 +52,30 @@
   .note{font-size:11px;color:var(--tx3);text-align:center;margin-top:8px;}
   .hide{display:none;}
   .loading{text-align:center;color:var(--tx2);padding:60px;font-family:monospace;}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;}
+  .tab{background:var(--panel);border:1px solid var(--line);color:var(--tx2);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;}
+  .tab.on{border-color:var(--nar);color:var(--tx);background:linear-gradient(180deg,rgba(242,140,0,.14),var(--panel));}
+  .exprow{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:.15s;}
+  .exprow:hover{border-color:var(--nar);}
+  .exprow .info{flex:1;min-width:0;}
+  .exprow .id{font-size:12px;font-family:monospace;color:var(--cy);}
+  .exprow .ti{font-size:14px;font-weight:600;margin-top:2px;}
+  .exprow .me{font-size:11px;color:var(--tx3);margin-top:3px;}
+  .exprow .cnt{font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:rgba(37,194,110,.15);color:var(--verde);white-space:nowrap;}
+  .exprow .cnt.zero{background:rgba(149,160,173,.12);color:var(--tx3);}
+  .back{background:none;border:none;color:var(--nar);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:14px;}
+  .test{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px;}
+  .test .hd{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .test .nm{font-size:15px;font-weight:700;}
+  .test .cc{font-size:11px;color:var(--tx3);font-family:monospace;}
+  .test .rol{margin-left:auto;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;background:rgba(0,212,255,.14);color:var(--cy);}
+  .test .tr{font-size:13px;line-height:1.6;color:var(--tx);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;white-space:pre-wrap;max-height:220px;overflow:auto;margin-bottom:10px;}
+  .test .frow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .test .frow img{width:150px;height:60px;object-fit:contain;background:#fbfdff;border:1px solid var(--line);border-radius:8px;}
+  .test .cons{font-size:11px;color:var(--tx3);flex:1;min-width:180px;}
+  .test .cons code{color:var(--cy);font-family:monospace;word-break:break-all;}
+  .dl{background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F;border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:800;cursor:pointer;}
+  .nofirma{font-size:12px;color:var(--amber);}
 </style>
 </head>
 <body>
@@ -77,6 +102,11 @@
   </div>
 
   <div class="hide" id="scDash">
+    <div class="tabs">
+      <button class="tab on" id="tabTab" onclick="verVista('tablero')">📊 Tablero</button>
+      <button class="tab" id="tabExp" onclick="verVista('exp')">📁 Expedientes</button>
+    </div>
+    <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
     <div class="hide" id="dashContent">
       <div class="kpis" id="kpis"></div>
@@ -91,6 +121,11 @@
         <div class="card full"><h2><span>▸</span> Tarjetas por categoría</h2><div class="cw"><canvas id="cTcat"></canvas></div></div>
       </div>
       <div class="note" id="note"></div>
+    </div>
+    </div>
+    <div class="hide" id="viewExp">
+      <div id="expList"><div class="loading" id="expLoading">Cargando expedientes…</div></div>
+      <div class="hide" id="expDetail"></div>
     </div>
   </div>
 
@@ -228,6 +263,114 @@ function render(ats,inv,tar){
 
   $('note').textContent='Datos en vivo de Supabase · '+ats.length+' ATS, '+inv.length+' investigaciones, '+tar.length+' tarjetas. (Vista sin filtro por empresa — se agrega con el gating por rol.)';
 }
+</script>
+<script>
+// ===== EXPEDIENTES (bloque 2 de la consola HSE) =====
+function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let EXP=null;
+function verVista(v){
+  document.getElementById('tabTab').classList.toggle('on',v==='tablero');
+  document.getElementById('tabExp').classList.toggle('on',v==='exp');
+  document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
+  document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
+  if(v==='exp' && !EXP) loadExpedientes();
+}
+async function loadExpedientes(){
+  try{
+    const [inv,test,firm]=await Promise.all([
+      sbGet('investigaciones?select=inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at&order=created_at.desc'),
+      sbGet('testimonios?select=id,inv_id,rol,transcripcion,hash,estado,creado,firmantes(nombre,cedula)&order=creado.asc'),
+      sbGet('firmas?select=doc_id,firma_path,hash_doc,metodo,firmado_en,rol&doc_tipo=eq.testimonio')
+    ]);
+    const testByInv={}; test.forEach(t=>{(testByInv[t.inv_id]=testByInv[t.inv_id]||[]).push(t);});
+    const firmaByDoc={}; firm.forEach(f=>{firmaByDoc[f.doc_id]=f;});
+    EXP={inv,testByInv,firmaByDoc};
+    renderExpList();
+  }catch(e){ document.getElementById('expList').innerHTML='<div class="loading">No se pudieron cargar los expedientes ('+e.message+').</div>'; }
+}
+function renderExpList(){
+  const {inv,testByInv}=EXP;
+  const rows=inv.filter(v=>v.inv_id).map(v=>{
+    const n=(testByInv[v.inv_id]||[]).length;
+    const ti=(v.titulo||v.descripcion||'Investigación').slice(0,90);
+    const fecha=(v.fecha_evento||(v.created_at||'').slice(0,10)||'');
+    return '<div class="exprow" onclick="openExpediente(\''+v.inv_id+'\')">'
+      +'<div class="info"><div class="id">'+esc(v.inv_id)+'</div><div class="ti">'+esc(ti)+'</div>'
+      +'<div class="me">'+esc(v.reporta||'')+' · '+esc(v.cliente||'')+' · '+fecha+' · '+esc(v.estado||'')+'</div></div>'
+      +'<div class="cnt '+(n?'':'zero')+'">'+n+' firmada'+(n===1?'':'s')+'</div></div>';
+  }).join('');
+  document.getElementById('expList').innerHTML=rows||'<div class="loading">No hay investigaciones con expediente.</div>';
+  document.getElementById('expList').classList.remove('hide');
+  document.getElementById('expDetail').classList.add('hide');
+}
+function volverLista(){ document.getElementById('expDetail').classList.add('hide'); document.getElementById('expList').classList.remove('hide'); }
+async function openExpediente(invId){
+  const tests=(EXP.testByInv[invId]||[]);
+  const inv=EXP.inv.find(v=>v.inv_id===invId)||{};
+  const det=document.getElementById('expDetail');
+  document.getElementById('expList').classList.add('hide');
+  det.classList.remove('hide'); window.scrollTo(0,0);
+  det.innerHTML='<button class="back" onclick="volverLista()">◂ Volver a expedientes</button>'
+    +'<div class="card" style="margin-bottom:16px"><h2><span>▸</span> Expediente '+esc(invId)+'</h2>'
+    +'<div style="font-size:13px;color:var(--tx2);line-height:1.7">'+esc(inv.descripcion||inv.titulo||'')+'<br>'
+    +'<b>Reporta:</b> '+esc(inv.reporta||'—')+' · <b>Cliente:</b> '+esc(inv.cliente||'—')+' · <b>Estado:</b> '+esc(inv.estado||'—')+'</div></div>'
+    +'<div id="testWrap"></div>';
+  const wrap=document.getElementById('testWrap');
+  if(!tests.length){ wrap.innerHTML='<div class="loading">Este expediente aún no tiene declaraciones firmadas.</div>'; return; }
+  for(const t of tests){
+    const fmt=(t.firmantes)||{}; const firma=EXP.firmaByDoc[t.id];
+    const div=document.createElement('div'); div.className='test';
+    div.innerHTML='<div class="hd"><div><div class="nm">'+esc(fmt.nombre||'Declarante')+'</div>'
+      +'<div class="cc">C.C. '+esc(fmt.cedula||'—')+'</div></div><span class="rol">'+esc(t.rol||'declarante')+'</span></div>'
+      +'<div class="tr">'+esc(t.transcripcion||'')+'</div>'
+      +'<div class="frow" id="frow-'+t.id+'"></div>';
+    wrap.appendChild(div);
+    const frow=document.getElementById('frow-'+t.id);
+    let firmaDataUrl=null;
+    if(firma&&firma.firma_path){
+      try{ firmaDataUrl=await fetchFirmaDataUrl(firma.firma_path); frow.innerHTML='<img src="'+firmaDataUrl+'">'; }
+      catch(e){ frow.innerHTML='<span class="nofirma">Firma guardada (no se pudo previsualizar)</span>'; }
+    } else { frow.innerHTML='<span class="nofirma">Sin firma registrada</span>'; }
+    const cons=document.createElement('div'); cons.className='cons';
+    cons.innerHTML='Firmado electrónicamente'+(fmt.nombre?(' por <b style="color:var(--tx2)">'+esc(fmt.nombre)+'</b>'):'')+'. Integridad hash <code>'+esc(t.hash||(firma&&firma.hash_doc)||'—')+'</code>. Conforme a la Ley 527 de 1999.';
+    frow.appendChild(cons);
+    const btn=document.createElement('button'); btn.className='dl'; btn.textContent='⬇ PDF firmado';
+    btn.onclick=(function(tt,ff,fd){return function(){pdfTestimonio(invId,inv,tt,ff,fd);};})(t,fmt,firmaDataUrl);
+    frow.appendChild(btn);
+  }
+}
+async function fetchFirmaDataUrl(path){
+  const r=await fetch(SB_URL+'/storage/v1/object/authenticated/firmas/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
+  if(!r.ok) throw new Error('img '+r.status);
+  const blob=await r.blob();
+  return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(blob);});
+}
+function pdfTestimonio(invId,inv,t,fmt,firmaDataUrl){
+  const jsPDF=window.jspdf&&window.jspdf.jsPDF; if(!jsPDF){alert('No se pudo cargar el generador de PDF.');return;}
+  const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=doc.internal.pageSize.getWidth(); const M=40; const BOT=800; let y=56;
+  function nl(h){if(y+h>BOT){doc.addPage();y=56;}}
+  doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(20,20,20);
+  doc.text('Registro de declaración — KALU',M,y);y+=20;
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(90,90,90);
+  doc.text('Expediente: '+invId,M,y);y+=15;
+  doc.text('Declarante: '+(fmt.nombre||'')+'   C.C. '+(fmt.cedula||'')+'   Rol: '+(t.rol||''),M,y);y+=15;
+  doc.text('Fecha: '+new Date(t.creado||Date.now()).toLocaleString('es-CO'),M,y);y+=22;
+  doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(11);doc.text('Declaración (transcripción de la entrevista)',M,y);y+=16;
+  doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(45,45,45);
+  const lines=doc.splitTextToSize(String(t.transcripcion||''),W-M*2);
+  lines.forEach(function(ln){ nl(14); doc.text(ln,M,y); y+=14; });
+  y+=10; nl(96);
+  doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(10);doc.text('Firma',M,y);y+=6;
+  if(firmaDataUrl){ try{ doc.addImage(firmaDataUrl,'PNG',M,y,150,60);}catch(e){} }
+  y+=72; doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=16;
+  doc.setFontSize(8.5);doc.setTextColor(90,90,90);
+  const c='Firmado electrónicamente por '+(fmt.nombre||'')+', C.C. '+(fmt.cedula||'')+', expediente '+invId+'. Integridad garantizada por hash '+(t.hash||'—')+'. Conforme a la Ley 527 de 1999. Documento inalterable — cualquier cambio invalida el hash.';
+  doc.text(doc.splitTextToSize(c,W-M*2),M,y);
+  doc.save('Testimonio_'+invId+'_'+String(fmt.cedula||'').replace(/\W/g,'')+'.pdf');
+}
+
 </script>
 </body>
 </html>

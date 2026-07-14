@@ -87,15 +87,19 @@
   .detbody td{padding:9px 18px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx);vertical-align:top;}
   .detbody td.mono{font-family:monospace;color:var(--cy);}
   .detempty{padding:26px;text-align:center;color:var(--tx3);}
+  .brandlink{display:flex;align-items:center;gap:12px;text-decoration:none;cursor:pointer;}
+  .brandlink:hover{opacity:.85;}
 </style>
 </head>
 <body>
 <header>
-  <svg class="hex" viewBox="0 0 40 40" fill="none">
-    <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
-    <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial">DI</text>
-  </svg>
-  <div class="brand"><b>DINAMHO</b><span>INTELLIGENCE</span></div>
+  <a class="brandlink" href="/app.html" title="Volver al inicio">
+    <svg class="hex" viewBox="0 0 40 40" fill="none">
+      <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
+      <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial">DI</text>
+    </svg>
+    <div class="brand"><b>DINAMHO</b><span>INTELLIGENCE</span></div>
+  </a>
   <div class="htitle">Consola HSE</div>
   <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="salir()">Salir</button></div>
 </header>

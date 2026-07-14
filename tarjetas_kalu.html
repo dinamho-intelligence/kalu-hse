@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0A0C0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="KALU HSE Tarjetas">
+<link rel="manifest" href="/manifest-tarjetas.json">
+<link rel="apple-touch-icon" href="/icon-tarjetas-192.png">
+<title>KALU · Tarjeta de observación</title>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0C0F; --panel:#12161C; --panel2:#171C24; --line:#242B35;
+    --nar:#F28C00; --cy:#00D4FF; --verde:#25C26E; --amber:#E8930C; --rojo:#FF3B30;
+    --tx:#E8EDF2; --tx2:#95A0AD; --tx3:#5E6873;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; background:radial-gradient(1200px 700px at 15% -10%, #131A22 0%, var(--bg) 55%); color:var(--tx);
+       font-family:Arial,"Segoe UI",system-ui,sans-serif; min-height:100vh; padding:18px;}
+  .wrap{max-width:620px; margin:0 auto;}
+  .top{display:flex; align-items:center; gap:12px; margin-bottom:16px;}
+  .hexlogo{width:38px; height:38px; flex-shrink:0;}
+  .brandmark{display:flex; align-items:center; gap:9px;}
+  .logo-text{display:flex; flex-direction:column; line-height:1.05;}
+  .logo-text .brand{font-size:14px; font-weight:800; letter-spacing:1px; color:var(--tx);}
+  .logo-text .sub{font-size:9px; font-weight:700; letter-spacing:2px; color:var(--nar); margin-top:2px;}
+  .top h1{font-size:16px; margin:0; letter-spacing:.4px;}
+  .top span{color:var(--tx2); font-size:11.5px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;}
+  .card h2{font-size:12px; letter-spacing:1.1px; text-transform:uppercase; color:var(--tx2); margin:0 0 14px;}
+  .card h2 .dot{color:var(--nar);}
+  label{display:block; font-size:12px; color:var(--tx2); margin:0 0 5px; letter-spacing:.3px;}
+  .fld{margin-bottom:14px;}
+  input[type=text],input[type=number],textarea,select{
+    width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:11px; color:var(--tx);
+    font-size:15px; padding:12px 13px; font-family:inherit; outline:none; transition:.15s;}
+  input:focus,textarea:focus,select:focus{border-color:var(--nar);}
+  textarea{min-height:78px; resize:vertical;}
+  .hint{font-size:11px; color:var(--tx3); margin-top:5px;}
+  .btn{width:100%; padding:14px; border:none; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer;
+       background:linear-gradient(135deg,var(--nar),#C86E00); color:#0A0C0F; letter-spacing:.4px; transition:.15s;}
+  .btn:hover{filter:brightness(1.07);} .btn:disabled{opacity:.5; cursor:default;}
+  .btn2{background:var(--panel2); color:var(--tx); border:1px solid var(--line);}
+  .seg{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:14px;}
+  .seg .opt{padding:13px; text-align:center; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+       color:var(--tx2); font-weight:700; font-size:14px; cursor:pointer; transition:.15s;}
+  .seg .opt small{display:block; font-size:10.5px; font-weight:400; color:var(--tx3); margin-top:2px;}
+  .seg .opt.on-seg{border-color:var(--verde); color:var(--verde); background:rgba(37,194,110,.10);}
+  .seg .opt.on-ins{border-color:var(--rojo); color:#FF6b62; background:rgba(255,59,48,.10);}
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{padding:9px 13px; border-radius:20px; border:1px solid var(--line); background:var(--panel2);
+        color:var(--tx2); font-size:13px; cursor:pointer; transition:.15s;}
+  .chip.on{border-color:var(--nar); color:var(--tx); background:rgba(242,140,0,.12);}
+  .risk .chip.on[data-v=bajo]{border-color:var(--verde);color:var(--verde);background:rgba(37,194,110,.12);}
+  .risk .chip.on[data-v=medio]{border-color:var(--amber);color:var(--amber);background:rgba(232,147,12,.14);}
+  .risk .chip.on[data-v=alto]{border-color:var(--rojo);color:#FF6b62;background:rgba(255,59,48,.12);}
+  .photo{display:flex; align-items:center; gap:12px;}
+  .photo .pbtn{flex:1; padding:13px; border:1px dashed var(--line); border-radius:12px; background:var(--panel2);
+        color:var(--tx2); text-align:center; font-size:13.5px; cursor:pointer;}
+  .photo img{width:64px; height:64px; object-fit:cover; border-radius:10px; border:1px solid var(--line); display:none;}
+  .idlock{background:var(--panel2); border:1px solid var(--line); border-radius:11px; padding:12px 14px; margin-bottom:14px;}
+  .idlock .who{font-size:15px; font-weight:700;} .idlock small{color:var(--tx3); font-size:11px; font-family:monospace;}
+  .idlock .src{display:block; margin-top:6px; font-size:10.5px; color:var(--tx3);} .idlock .src b{color:var(--tx2);}
+  canvas#pad{width:100%; height:160px; background:#FbFdff; border:1px solid var(--line); border-radius:12px; touch-action:none; display:block;}
+  .padwrap{position:relative; margin:6px 0 6px;}
+  .padhint{position:absolute; left:50%; top:56%; transform:translate(-50%,-50%); color:#9aa6b2; font-size:13px; pointer-events:none;}
+  .padbar{display:flex; justify-content:space-between; align-items:center; margin:0 0 12px;}
+  .clearlink{font-size:12px; color:var(--tx3); background:none; border:none; cursor:pointer;} .clearlink:hover{color:var(--nar);}
+  .sum{font-size:13px; line-height:1.7; color:var(--tx2); margin-bottom:14px;}
+  .sum b{color:var(--tx);}
+  .sum .tag{display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:12px;}
+  .t-seg{background:rgba(37,194,110,.15); color:var(--verde);} .t-ins{background:rgba(255,59,48,.15); color:#FF6b62;}
+  .constancia{background:linear-gradient(180deg,rgba(0,212,255,.06),var(--panel2)); border:1px solid rgba(0,212,255,.28);
+       border-radius:12px; padding:14px; font-size:12px; line-height:1.6; margin-top:4px;}
+  .constancia .ch{display:flex; align-items:center; gap:8px; color:var(--verde); font-weight:800; font-size:13px; margin-bottom:9px;}
+  .constancia code{color:var(--cy); font-family:monospace; word-break:break-all;} .constancia .lref{color:var(--tx3); font-size:11px; margin-top:8px; display:block;}
+  .msg{font-size:12.5px; padding:11px 13px; border-radius:11px; margin-bottom:12px; display:none;}
+  .msg.err{display:block; background:rgba(255,59,48,.12); border:1px solid rgba(255,59,48,.3); color:#FF9a92;}
+  .big{font-size:40px; text-align:center;} .doneT{font-size:17px; font-weight:800; color:var(--verde); text-align:center; margin:6px 0 4px;}
+  .doneS{font-size:12.5px; color:var(--tx2); text-align:center; line-height:1.5;}
+  .hide{display:none;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .foot{display:flex; align-items:center; justify-content:center; gap:8px; margin:20px 0 8px;}
+  .foot .dlogo{width:22px; height:22px; border-radius:6px; background:var(--rojo); color:#fff;
+       display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px;
+       box-shadow:0 3px 12px rgba(255,59,48,.35);}
+  .foot span{font-size:12px; color:var(--tx2); letter-spacing:.2px;} .foot b{color:var(--rojo); font-weight:800;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brandmark">
+      <svg class="hexlogo" viewBox="0 0 40 40" fill="none">
+        <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
+        <polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/>
+        <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial, sans-serif">DI</text>
+      </svg>
+      <div class="logo-text"><span class="brand">DINAMHO</span><span class="sub">INTELLIGENCE</span></div>
+    </div>
+    <div><h1>KALU · Tarjeta de observación</h1><span>Actos y condiciones · no busca culpables, busca la mejora</span></div>
+    <button onclick="location.href='/app.html'" style="margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">Salir</button>
+  </div>
+
+  <div class="card" id="scId">
+    <h2><span class="dot">▸</span> Identificate</h2>
+    <div class="msg" id="idErr"></div>
+    <div class="fld">
+      <label>Número de documento (cédula)</label>
+      <input type="text" id="ced" inputmode="numeric" placeholder="Ej: 123456" autocomplete="off">
+      <div class="hint">Tu identidad se toma del registro de la empresa. No hace falta contraseña.</div>
+    </div>
+    <div id="empPick" class="fld hide">
+      <label>¿En qué empresa?</label>
+      <div class="chips" id="empChips"></div>
+    </div>
+    <button class="btn" id="btnId" onclick="identificar()">Continuar ▸</button>
+  </div>
+
+  <div class="card hide" id="scForm">
+    <h2><span class="dot">▸</span> ¿Qué observaste?</h2>
+    <div class="idlock" id="obsBox"></div>
+    <div class="msg" id="fErr"></div>
+
+    <div class="seg">
+      <div class="opt" id="optSeg" onclick="setClase('seguro')">Acto seguro<small>reconocer / reforzar</small></div>
+      <div class="opt" id="optIns" onclick="setClase('inseguro')">Acto/condición inseguro<small>corregir</small></div>
+    </div>
+
+    <div id="secIns">
+      <div class="grid2">
+        <div class="fld">
+          <label>Tipo</label>
+          <div class="chips" id="tipoChips">
+            <div class="chip" data-v="acto" onclick="pick('tipo',this)">Acto subestándar</div>
+            <div class="chip" data-v="condicion" onclick="pick('tipo',this)">Condición subestándar</div>
+          </div>
+        </div>
+        <div class="fld">
+          <label>Nivel de riesgo</label>
+          <div class="chips risk" id="riesgoChips">
+            <div class="chip" data-v="bajo" onclick="pick('riesgo',this)">Bajo</div>
+            <div class="chip" data-v="medio" onclick="pick('riesgo',this)">Medio</div>
+            <div class="chip" data-v="alto" onclick="pick('riesgo',this)">Alto</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fld">
+      <label>Categoría</label>
+      <div class="chips" id="catChips"></div>
+    </div>
+
+    <div class="fld">
+      <label>Lugar / área</label>
+      <input type="text" id="lugar" placeholder="Ej: Taller 2, zona de corte" autocomplete="off">
+    </div>
+
+    <div class="fld">
+      <label>¿Qué viste? (descripción)</label>
+      <textarea id="desc" placeholder="Describí la observación de forma objetiva, sin señalar personas."></textarea>
+    </div>
+
+    <div id="secIns2">
+      <div class="fld">
+        <label>¿Se detuvo la tarea?</label>
+        <div class="chips" id="detChips">
+          <div class="chip" data-v="si" onclick="pick('detuvo',this)">Sí</div>
+          <div class="chip" data-v="no" onclick="pick('detuvo',this)">No</div>
+        </div>
+      </div>
+      <div class="fld">
+        <label>Acción inmediata tomada</label>
+        <input type="text" id="accion" placeholder="Qué se hizo en el momento" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="fld">
+      <label>Compromiso de mejora <span style="color:var(--tx3)">(opcional)</span></label>
+      <input type="text" id="compromiso" placeholder="Acción para que no se repita" autocomplete="off">
+    </div>
+    <div class="fld">
+      <label>Responsable del compromiso <span style="color:var(--tx3)">(opcional)</span></label>
+      <input type="text" id="responsable" placeholder="Quién y para cuándo" autocomplete="off">
+    </div>
+    <div class="fld">
+      <label>Persona observada <span style="color:var(--tx3)">(opcional · en tono de mejora)</span></label>
+      <input type="text" id="observado" placeholder="Solo si aplica" autocomplete="off">
+    </div>
+
+    <div class="fld">
+      <label>Foto de evidencia <span style="color:var(--tx3)">(opcional)</span></label>
+      <div class="photo">
+        <label class="pbtn" for="foto">📷 Tomar / adjuntar foto</label>
+        <img id="fotoPrev">
+      </div>
+      <input type="file" id="foto" accept="image/*" capture="environment" class="hide" onchange="prevFoto()">
+    </div>
+
+    <button class="btn" onclick="irFirma()">Continuar a la firma ▸</button>
+  </div>
+
+  <div class="card hide" id="scFirma">
+    <h2><span class="dot">▸</span> Firmá tu observación</h2>
+    <div class="sum" id="resumen"></div>
+    <div class="padwrap"><canvas id="pad"></canvas><div class="padhint" id="padhint">Firmá con el dedo</div></div>
+    <div class="padbar"><span class="hint" id="firmaWho"></span><button class="clearlink" onclick="limpiarPad()">Limpiar</button></div>
+    <div class="msg" id="sErr"></div>
+    <button class="btn" id="btnFirmar" onclick="registrar()">Firmo y registro ✍</button>
+    <button class="btn btn2" style="margin-top:9px" onclick="volverForm()">◂ Volver</button>
+  </div>
+
+  <div class="card hide" id="scDone">
+    <div class="big">🔒</div>
+    <div class="doneT">Tarjeta registrada</div>
+    <div class="doneS" id="doneS"></div>
+    <div class="constancia" id="constancia" style="margin-top:14px"></div>
+    <button class="btn" style="margin-top:14px" onclick="descargarPDF()">⬇ Descargar PDF</button>
+    <button class="btn btn2" style="margin-top:9px" onclick="location.reload()">+ Nueva tarjeta</button>
+    <button class="btn btn2" style="margin-top:9px" onclick="location.href='/app.html'">← Salir a KALU</button>
+  </div>
+
+  <div class="foot"><span class="dlogo">D</span><span>Powered by <b>Dinamho Intelligence</b></span></div>
+</div>
+
+<script>
+const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
+const H={apikey:SB_ANON, Authorization:'Bearer '+SB_ANON};
+const CATS=['Uso de EPP','Posición de personas','Herramientas y equipos','Procedimientos','Orden y aseo','Reacción de las personas','Otro'];
+
+let obs=null, cands=[], clase='inseguro';
+const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
+let fotoFile=null, fotoDataUrl=null, last=null;
+
+function $(id){return document.getElementById(id);}
+function show(id){['scId','scForm','scFirma','scDone'].forEach(s=>$(s).classList.toggle('hide',s!==id)); window.scrollTo(0,0);}
+function err(box,m){const e=$(box); if(!m){e.classList.remove('err'); e.textContent=''; return;} e.textContent=m; e.classList.add('err');}
+
+async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); if(!r.ok) throw new Error('GET '+r.status); return r.json();}
+async function sbInsert(table,row){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(row)}); if(!r.ok) throw new Error('INSERT '+r.status+' '+await r.text());}
+async function sbUpload(path,blob,type){const r=await fetch(SB_URL+'/storage/v1/object/tarjetas/'+path,{method:'POST',headers:Object.assign({},H,{'Content-Type':type,'x-upsert':'true'}),body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
+
+async function identificar(){
+  err('idErr','');
+  const ced=$('ced').value.trim();
+  if(!ced){err('idErr','Escribí tu número de documento.'); return;}
+  $('btnId').disabled=true; $('btnId').textContent='Buscando…';
+  try{
+    if(!obs){
+      cands=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,empresas_maestro(razon_social)&cedula=eq.'+encodeURIComponent(ced));
+      if(!cands.length){err('idErr','No encontramos ese documento en el registro. Revisá el número o avisá a tu HSE.'); return;}
+      if(cands.length>1){ pintarEmp(); return; }
+      obs=norm(cands[0]);
+    }
+    entrarForm();
+  }catch(e){ err('idErr','No se pudo conectar. Revisá tu internet e intentá de nuevo.'); }
+  finally{ $('btnId').disabled=false; $('btnId').textContent='Continuar ▸'; }
+}
+function norm(r){return {id:r.id,nombre:r.nombre,cedula:r.cedula,empresa_id:r.empresa_id,empresa:(r.empresas_maestro&&r.empresas_maestro.razon_social)||'—'};}
+function pintarEmp(){
+  $('empPick').classList.remove('hide');
+  $('empChips').innerHTML=cands.map((c,i)=>'<div class="chip" onclick="pickEmp('+i+',this)">'+((c.empresas_maestro&&c.empresas_maestro.razon_social)||'—')+'</div>').join('');
+  err('idErr','Ese documento está en más de una empresa. Elegí cuál.');
+}
+function pickEmp(i,el){ [...$('empChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); obs=norm(cands[i]); err('idErr',''); }
+
+function entrarForm(){
+  $('obsBox').innerHTML='<div class="who">'+obs.nombre+'</div><small>C.C. '+obs.cedula+' · '+obs.empresa+'</small>'
+    +'<span class="src">Identidad tomada del <b>registro de la empresa</b> · no editable.</span>';
+  $('catChips').innerHTML=CATS.map(c=>'<div class="chip" data-v="'+c+'" onclick="pickCat(this)">'+c+'</div>').join('');
+  setClase('inseguro');
+  show('scForm');
+}
+
+function setClase(c){
+  clase=c;
+  $('optSeg').classList.toggle('on-seg',c==='seguro');
+  $('optIns').classList.toggle('on-ins',c==='inseguro');
+  const ins=(c==='inseguro');
+  $('secIns').classList.toggle('hide',!ins);
+  $('secIns2').classList.toggle('hide',!ins);
+}
+function pick(k,el){ const box=el.parentElement; [...box.children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal[k]=el.dataset.v; }
+function pickCat(el){ [...$('catChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal.categoria=el.dataset.v; }
+function prevFoto(){ const f=$('foto').files[0]; if(!f) return; fotoFile=f; const rd=new FileReader(); rd.onload=e=>{fotoDataUrl=e.target.result; const im=$('fotoPrev'); im.src=fotoDataUrl; im.style.display='block';}; rd.readAsDataURL(f); }
+
+function irFirma(){
+  err('fErr','');
+  if(!pickVal.categoria){err('fErr','Elegí una categoría.'); return;}
+  if(!$('desc').value.trim()){err('fErr','Contanos qué viste en la descripción.'); return;}
+  if(clase==='inseguro'){
+    if(!pickVal.tipo){err('fErr','Indicá si es acto o condición.'); return;}
+    if(!pickVal.riesgo){err('fErr','Elegí el nivel de riesgo.'); return;}
+  }
+  const tag=clase==='seguro'?'<span class="tag t-seg">Acto seguro</span>':'<span class="tag t-ins">Inseguro · '+pickVal.tipo+'</span>';
+  $('resumen').innerHTML=tag+'<br><br><b>'+obs.nombre+'</b> · '+obs.empresa+'<br>'
+    +'<b>Categoría:</b> '+pickVal.categoria+'<br>'
+    +(clase==='inseguro'?'<b>Riesgo:</b> '+pickVal.riesgo+'<br>':'')
+    +'<b>Lugar:</b> '+($('lugar').value.trim()||'—')+'<br>'
+    +'<b>Observación:</b> '+$('desc').value.trim();
+  $('firmaWho').textContent='Firma de '+obs.nombre;
+  show('scFirma'); setTimeout(initPad,60);
+}
+function volverForm(){ show('scForm'); }
+
+let cv,cx,drawing=false,hasInk=false;
+function initPad(){
+  cv=$('pad'); if(!cv) return; cx=cv.getContext('2d');
+  const r=cv.getBoundingClientRect();
+  cv.width=r.width*devicePixelRatio; cv.height=r.height*devicePixelRatio; cx.scale(devicePixelRatio,devicePixelRatio);
+  cx.lineWidth=2.4; cx.lineCap='round'; cx.lineJoin='round'; cx.strokeStyle='#12161C'; hasInk=false;
+  cv.onmousedown=start; cv.onmousemove=move; window.onmouseup=end;
+  cv.addEventListener('touchstart',start,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',end);
+}
+function pos(e){const r=cv.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top};}
+function start(e){drawing=true; const p=pos(e); cx.beginPath(); cx.moveTo(p.x,p.y); const h=$('padhint'); if(h)h.style.display='none'; e.preventDefault();}
+function move(e){if(!drawing)return; const p=pos(e); cx.lineTo(p.x,p.y); cx.stroke(); hasInk=true; e.preventDefault();}
+function end(){drawing=false;}
+function limpiarPad(){if(!cx)return; cx.clearRect(0,0,cv.width,cv.height); hasInk=false; const h=$('padhint'); if(h)h.style.display='block';}
+
+function hashStr(s){let h=0x811c9dc5; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i); h=(h*0x01000193)>>>0;} return h.toString(16).padStart(8,'0');}
+function ahora(){const d=new Date(); return d.toLocaleDateString('es-CO')+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});}
+function uuid(){ if(crypto&&crypto.randomUUID) return crypto.randomUUID(); return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
+function dataURLtoBlob(u){const a=u.split(','); const m=a[0].match(/:(.*?);/)[1]; const b=atob(a[1]); let n=b.length; const arr=new Uint8Array(n); while(n--)arr[n]=b.charCodeAt(n); return new Blob([arr],{type:m});}
+
+async function registrar(){
+  err('sErr','');
+  if(!hasInk){err('sErr','Falta tu firma en el recuadro.'); return;}
+  $('btnFirmar').disabled=true; $('btnFirmar').textContent='Registrando…';
+  const id=uuid(), ts=ahora();
+  const firmaDataUrl=cv.toDataURL('image/png');
+  const reg={
+    id:id, empresa_id:obs.empresa_id, observador_id:obs.id, observador_nombre:obs.nombre, observador_cedula:obs.cedula,
+    observado_nombre:$('observado').value.trim()||null, lugar:$('lugar').value.trim()||null,
+    clase:clase, tipo:(clase==='inseguro'?pickVal.tipo:null), categoria:pickVal.categoria,
+    descripcion:$('desc').value.trim(), riesgo:(clase==='inseguro'?pickVal.riesgo:null),
+    detuvo_tarea:(clase==='inseguro'?(pickVal.detuvo==='si'):null),
+    accion_inmediata:$('accion').value.trim()||null, compromiso:$('compromiso').value.trim()||null,
+    responsable:$('responsable').value.trim()||null, estado:'abierta'
+  };
+  reg.hash=hashStr(id+obs.cedula+reg.descripcion+clase+ts);
+  try{
+    let fotoPath=null;
+    if(fotoFile){ fotoPath=await sbUpload(id+'/foto.jpg', fotoFile, fotoFile.type||'image/jpeg'); }
+    const firmaPath=await sbUpload(id+'/firma.png', dataURLtoBlob(firmaDataUrl), 'image/png');
+    reg.foto_path=fotoPath; reg.firma_path=firmaPath;
+    await sbInsert('tarjetas', reg);
+    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa};
+    mostrarHecho();
+  }catch(e){
+    err('sErr','No se pudo registrar ('+e.message+'). Revisá tu internet e intentá otra vez.');
+    $('btnFirmar').disabled=false; $('btnFirmar').textContent='Firmo y registro ✍';
+  }
+}
+function mostrarHecho(){
+  const r=last.reg;
+  $('doneS').innerHTML=(r.clase==='seguro'?'Observación de acto seguro':'Observación '+r.tipo)+' registrada y firmada.<br>Queda en el sistema para seguimiento del HSE.';
+  $('constancia').innerHTML='<div class="ch">✓ '+r.observador_nombre+' firmó</div>'
+    +'Registrado electrónicamente por <b>'+r.observador_nombre+'</b>, C.C. '+r.observador_cedula+', el <b>'+last.ts+'</b>.<br>'
+    +'Método: firma en pantalla · Integridad por hash <code>'+r.hash+'</code>.'
+    +'<span class="lref">Conforme a la Ley 527 de 1999. Registro inalterable — cualquier cambio invalida el hash.</span>';
+  show('scDone');
+}
+
+function descargarPDF(){
+  const r=last.reg, ts=last.ts;
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=doc.internal.pageSize.getWidth(); let y=54;
+  doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(20,20,20);
+  doc.text('KALU · Tarjeta de observación', 40, y); y+=20;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+  doc.text('Actos y condiciones inseguras · '+r.id, 40, y); y+=22;
+  doc.setDrawColor(220,220,220); doc.line(40,y,W-40,y); y+=20;
+
+  const tag=r.clase==='seguro'?'ACTO SEGURO (refuerzo)':('INSEGURO · '+String(r.tipo||'').toUpperCase());
+  doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  if(r.clase==='seguro') doc.setTextColor(37,150,90); else doc.setTextColor(200,50,45);
+  doc.text(tag, 40, y); y+=20;
+  doc.setTextColor(30,30,30); doc.setFontSize(10.5);
+
+  const row=(k,v)=>{ if(!v && v!==false) return; doc.setFont('helvetica','bold'); doc.text(k, 40, y);
+    doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(String(v), W-190); doc.text(lines, 170, y); y+=Math.max(16, lines.length*14); };
+  row('Observador', r.observador_nombre+'  (C.C. '+r.observador_cedula+')');
+  row('Empresa', last.empresa||'');
+  row('Fecha', ts);
+  row('Categoría', r.categoria);
+  if(r.clase==='inseguro'){ row('Nivel de riesgo', String(r.riesgo||'').toUpperCase()); row('¿Se detuvo la tarea?', r.detuvo_tarea?'Sí':'No'); }
+  row('Lugar / área', r.lugar||'—');
+  row('Observación', r.descripcion);
+  if(r.accion_inmediata) row('Acción inmediata', r.accion_inmediata);
+  if(r.compromiso) row('Compromiso', r.compromiso+(r.responsable?('  ('+r.responsable+')'):''));
+  if(r.observado_nombre) row('Persona observada', r.observado_nombre);
+
+  y+=6;
+  if(last.fotoDataUrl){ try{ doc.setFont('helvetica','bold'); doc.text('Evidencia', 40, y); y+=8; doc.addImage(last.fotoDataUrl,'JPEG',40,y,130,98); y+=110; }catch(e){} }
+  doc.setFont('helvetica','bold'); doc.text('Firma del observador', 40, y); y+=6;
+  try{ doc.addImage(last.firmaDataUrl,'PNG',40,y,150,60); }catch(e){}
+  y+=74;
+  doc.setDrawColor(0,170,200); doc.setFillColor(240,251,253); doc.roundedRect(40,y,W-80,64,6,6,'FD');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(20,120,140);
+  doc.text('Constancia de firma electrónica', 52, y+18);
+  doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60); doc.setFontSize(8.5);
+  doc.text(doc.splitTextToSize('Registrado por '+r.observador_nombre+', C.C. '+r.observador_cedula+', el '+ts+'. Método: firma en pantalla. Integridad por hash '+r.hash+'. Conforme a la Ley 527 de 1999; cualquier cambio invalida el hash.', W-104), 52, y+32);
+  doc.save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
+}
+
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
+</script>
+</body>
+</html>

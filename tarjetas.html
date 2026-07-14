@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0A0C0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="KALU Tarjetas">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <title>KALU · Tarjeta de observación</title>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
@@ -97,6 +101,7 @@
       <div class="logo-text"><span class="brand">DINAMHO</span><span class="sub">INTELLIGENCE</span></div>
     </div>
     <div><h1>KALU · Tarjeta de observación</h1><span>Actos y condiciones · no busca culpables, busca la mejora</span></div>
+    <button onclick="location.href='/app.html'" style="margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">Salir</button>
   </div>
 
   <div class="card" id="scId">
@@ -215,6 +220,7 @@
     <div class="constancia" id="constancia" style="margin-top:14px"></div>
     <button class="btn" style="margin-top:14px" onclick="descargarPDF()">⬇ Descargar PDF</button>
     <button class="btn btn2" style="margin-top:9px" onclick="location.reload()">+ Nueva tarjeta</button>
+    <button class="btn btn2" style="margin-top:9px" onclick="location.href='/app.html'">← Salir a KALU</button>
   </div>
 
   <div class="foot"><span class="dlogo">D</span><span>Powered by <b>Dinamho Intelligence</b></span></div>

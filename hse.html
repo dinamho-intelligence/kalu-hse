@@ -230,7 +230,7 @@ async function cargar(){
   try{
     const [ats,inv,tar]=await Promise.all([
       sbGet('ats?select=responsable,tarea,cliente,zona,estado,modo,fecha,cuadrilla,historial'),
-      sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,descripcion'),
+      sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,rol_reporta,descripcion,testigos,historial'),
       sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha')
     ]);
     render(ats,inv,tar);
@@ -326,7 +326,7 @@ function render(ats,inv,tar){
     ats_por_estado:tally(ats.map(r=>norm(r.estado))),
     investigaciones_por_estado:tally(inv.map(r=>norm(r.estado))),
     tarjetas:{por_clase:tally(tar.map(r=>r.clase||'—')),por_categoria:tally(tar.map(r=>r.categoria)),por_riesgo:tally(tar.map(r=>r.riesgo))},
-    investigaciones_detalle:inv.slice(0,80).map(function(v){return {inv_id:v.inv_id,fecha:v.fecha_evento,reporta:v.reporta,cliente:v.cliente,estado:v.estado,que_paso:String(v.descripcion||'').slice(0,400)};}),
+    investigaciones_detalle:inv.slice(0,80).map(function(v){var d={inv_id:v.inv_id,fecha:v.fecha_evento,reporta:v.reporta,rol_reporta:v.rol_reporta,cliente:v.cliente,estado:v.estado,testigos:(Array.isArray(v.testigos)?v.testigos:[]),que_paso:String(v.descripcion||'').slice(0,900)};var inf=(typeof parseInforme==='function')?parseInforme(v.historial):null;if(inf){d.clasificacion=inf.clasificacion;d.afectado=(inf.datos_trabajador&&inf.datos_trabajador.nombre)||null;d.declarantes=(inf.declaraciones||[]).map(function(x){return {persona:x.persona,rol:x.rol};});d.causa_inmediata=inf.causa_inmediata;d.leccion_aprendida=inf.leccion_aprendida;d.acciones=(inf.acciones_correctivas||[]).map(function(a){return {accion:String(a.accion||'').slice(0,120),responsable:a.responsable,estado:a.estado};});}return d;}),
     ats_detalle:atsDetalle,
     tarjetas_detalle:tar.slice(0,60).map(function(t){return {observador:t.observador_nombre,clase:t.clase,tipo:t.tipo,categoria:t.categoria,riesgo:t.riesgo,lugar:t.lugar,que_vio:String(t.descripcion||'').slice(0,300),fecha:t.fecha};})
   };

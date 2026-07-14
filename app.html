@@ -1,8 +1,14 @@
+https://raw.githubusercontent.com/dinamho-intelligence/kalu-hse/main/app.html
+→ https://raw.githubusercontent.com/dinamho-intelligence/kalu-hse/main/app.html
+Content-Type: text/plain; charset=utf-8
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0C0F" />
+  <link rel="manifest" href="/manifest.json" />
   <script>
     // Acceso solo por getkalu.com: si abren la .vercel.app u otro host, rebota al dominio propio.
     (function(){try{var h=location.hostname||'';if(h.indexOf('vercel.app')!==-1){location.replace('https://getkalu.com'+location.pathname+location.search+location.hash);}}catch(e){}})();
@@ -422,6 +428,13 @@
       <div class="modulo-tag activo">● ACTIVO</div>
       <div class="modulo-nombre">KALU Investigador</div>
       <div class="modulo-desc">Investigación de incidentes en campo. Árbol de Causas, declaraciones, alerta inmediata y 4 documentos al supervisor HSE.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
+    <div class="modulo-card" onclick="location.href='tarjetas.html'">
+      <div class="modulo-icon">📋</div>
+      <div class="modulo-tag activo">● ACTIVO</div>
+      <div class="modulo-nombre">KALU Tarjetas</div>
+      <div class="modulo-desc">Tarjetas de actos y condiciones inseguras. Observás, adjuntás foto, firmás y queda registrado para el HSE.</div>
       <div class="modulo-flecha">→</div>
     </div>
     <div class="modulo-card proximamente">
@@ -1309,7 +1322,6 @@ async function iniciarSesion(){
   // Sesión en sessionStorage: sobrevive el refresh, pero se cierra al cerrar la pestaña/navegador (seguro para dispositivos compartidos)
   const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   window.kaluAuth = { token:null, perfil:null };
-
   async function cargarPerfil(){
     try{
       const { data:{ user } } = await sb.auth.getUser();
@@ -1319,7 +1331,6 @@ async function iniciarSesion(){
     }catch(e){ window.kaluAuth.perfil = window.kaluAuth.perfil || { rol:'trabajador' }; }
     return window.kaluAuth.perfil;
   }
-
   function mostrarLogin(mostrar){
     const el=document.getElementById('pantalla-login');
     const salir=document.getElementById('btn-logout');
@@ -1327,11 +1338,9 @@ async function iniciarSesion(){
     if(mostrar){ el.classList.remove('oculto'); el.style.display='flex'; if(salir)salir.style.display='none'; const em=document.getElementById('login-email'); const pw=document.getElementById('login-pass'); if(em)em.value=''; if(pw)pw.value=''; }
     else { el.classList.add('oculto'); if(salir)salir.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 400); }
   }
-
   function aplicarRol(){
     // Gating por rol: se completa en el paso siguiente. El rol ya queda en window.kaluAuth.perfil.rol
   }
-
   async function hacerLogin(){
     const email=(document.getElementById('login-email').value||'').trim();
     const pass=document.getElementById('login-pass').value||'';
@@ -1350,19 +1359,16 @@ async function iniciarSesion(){
       mostrarLogin(false);
     }catch(e){ err.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Ingresar'; }
   }
-
   async function hacerLogout(){
     try{ await sb.auth.signOut(); }catch(e){}
     window.kaluAuth={ token:null, perfil:null };
     location.href='/';   // Salir -> vuelve a la landing publica (getkalu.com), no al login pelado
   }
-
   // Enter para enviar
   ['login-email','login-pass'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); hacerLogin(); } });
   });
-
   // Al cargar: si ya hay sesión, saltear el login; si no, mostrarlo.
   (async ()=>{
     try{
@@ -1371,6 +1377,9 @@ async function iniciarSesion(){
       else { mostrarLogin(true); }
     }catch(e){ mostrarLogin(true); }
   })();
+</script>
+<script>
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }
 </script>
 </body>
 </html>

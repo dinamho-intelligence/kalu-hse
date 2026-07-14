@@ -347,6 +347,8 @@ Content-Type: text/plain; charset=utf-8
       .inv-grid-2{grid-template-columns:1fr;}
       .inv-panel{display:none;}
     }
+    #btn-instalar{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:400;display:none;align-items:center;gap:7px;background:var(--naranja);color:#141414;border:none;border-radius:22px;padding:9px 18px;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(242,140,0,.4);}
+    #btn-instalar.show{display:inline-flex;}
   </style>
 </head>
 <body>
@@ -386,6 +388,7 @@ Content-Type: text/plain; charset=utf-8
   <div class="status-pill online"><div class="status-dot"></div>EN LÍNEA</div>
   <button id="btn-logout" onclick="hacerLogout()" style="display:none;">Salir</button>
 </header>
+<button id="btn-instalar" onclick="instalarApp()">⬇ Instalar app</button>
 <!-- COUNTDOWN HSE -->
 <div id="countdown-overlay">
   <div class="countdown-check">✓</div>
@@ -1389,6 +1392,22 @@ async function iniciarSesion(){
       else { mostrarLogin(true); }
     }catch(e){ mostrarLogin(true); }
   })();
+</script>
+<script>
+  let deferredPrompt=null;
+  const esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  function mostrarBtnInstalar(){ if(esStandalone) return; const b=document.getElementById('btn-instalar'); if(b)b.classList.add('show'); }
+  function ocultarBtnInstalar(){ const b=document.getElementById('btn-instalar'); if(b)b.classList.remove('show'); }
+  window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferredPrompt=e; mostrarBtnInstalar(); });
+  window.addEventListener('appinstalled',function(){ ocultarBtnInstalar(); deferredPrompt=null; });
+  function instalarApp(){
+    if(deferredPrompt){ deferredPrompt.prompt(); if(deferredPrompt.userChoice){ deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; ocultarBtnInstalar(); }); } }
+    else if(esIOS){ alert('Para instalar KALU en el iPhone:\n\n1) Abrí este sitio en Safari.\n2) Tocá el botón Compartir (el cuadrado con la flecha hacia arriba).\n3) Elegí "Agregar a inicio" y confirmá.'); }
+    else { alert('Abrí este sitio en Chrome (Android) o Safari (iPhone) para instalarlo en tu teléfono.'); }
+  }
+  // iOS Safari no dispara beforeinstallprompt: mostramos el botón igual (con el instructivo).
+  if(esIOS && !esStandalone){ window.addEventListener('load',function(){ setTimeout(mostrarBtnInstalar,800); }); }
 </script>
 <script>
   if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }

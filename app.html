@@ -9,6 +9,10 @@ Content-Type: text/plain; charset=utf-8
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0A0C0F" />
   <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="KALU" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
   <script>
     // Acceso solo por getkalu.com: si abren la .vercel.app u otro host, rebota al dominio propio.
     (function(){try{var h=location.hostname||'';if(h.indexOf('vercel.app')!==-1){location.replace('https://getkalu.com'+location.pathname+location.search+location.hash);}}catch(e){}})();
@@ -334,6 +338,14 @@ Content-Type: text/plain; charset=utf-8
       .burbuja{max-width:90%;}
       .home-modulos{flex-direction:column;align-items:center;}
       .modulo-card{width:100%;max-width:320px;}
+      #pantalla-home{justify-content:flex-start;overflow-y:auto;padding-top:76px;padding-bottom:40px;}
+      .home-footer{position:static;margin-top:20px;}
+      #pantalla-investigador{flex-direction:column;}
+      .inv-avatar-col{width:100%;height:auto;border-right:none;border-bottom:1px solid rgba(255,59,48,0.15);padding:16px;flex-direction:row;gap:16px;justify-content:flex-start;}
+      .kalu-avatar-inv{width:90px;height:90px;margin-bottom:0;}
+      .inv-form-col{padding:20px;}
+      .inv-grid-2{grid-template-columns:1fr;}
+      .inv-panel{display:none;}
     }
   </style>
 </head>

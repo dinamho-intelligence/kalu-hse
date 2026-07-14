@@ -50,7 +50,7 @@
   .foot .d{width:20px;height:20px;border-radius:5px;background:var(--rojo);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;}
   .foot span{font-size:11px;color:var(--tx2);} .foot b{color:var(--rojo);}
   .note{font-size:11px;color:var(--tx3);text-align:center;margin-top:8px;}
-  .hide{display:none;}
+  .hide{display:none!important;}
   .loading{text-align:center;color:var(--tx2);padding:60px;font-family:monospace;}
   .tabs{display:flex;gap:8px;margin-bottom:16px;}
   .tab{background:var(--panel);border:1px solid var(--line);color:var(--tx2);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;}
@@ -76,6 +76,17 @@
   .test .cons code{color:var(--cy);font-family:monospace;word-break:break-all;}
   .dl{background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F;border:none;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:800;cursor:pointer;}
   .nofirma{font-size:12px;color:var(--amber);}
+  .detov{position:fixed;inset:0;z-index:120;background:rgba(6,8,11,.75);display:flex;align-items:center;justify-content:center;padding:20px;}
+  .detcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:720px;width:100%;max-height:80vh;display:flex;flex-direction:column;}
+  .dethd{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line);}
+  .dethd span{font-size:14px;font-weight:700;color:var(--nar);}
+  .dethd button{background:none;border:none;color:var(--tx2);font-size:16px;cursor:pointer;}
+  .detbody{overflow:auto;}
+  .detbody table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .detbody th{text-align:left;color:var(--tx3);font-weight:600;padding:9px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);}
+  .detbody td{padding:9px 18px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx);vertical-align:top;}
+  .detbody td.mono{font-family:monospace;color:var(--cy);}
+  .detempty{padding:26px;text-align:center;color:var(--tx3);}
 </style>
 </head>
 <body>
@@ -129,6 +140,9 @@
     </div>
   </div>
 
+  <div class="detov hide" id="detalle" onclick="if(event.target===this)cerrarDet()">
+    <div class="detcard"><div class="dethd"><span id="detTit"></span><button onclick="cerrarDet()">&#10005;</button></div><div class="detbody" id="detBody"></div></div>
+  </div>
   <div class="foot"><span class="d">D</span><span>Powered by <b>Dinamho Intelligence</b></span></div>
 </div>
 
@@ -191,14 +205,15 @@ function topN(m,n){return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n);}
 function norm(s){ if(s===undefined||s===null||s==='') return ''; let t=String(s).trim().replace(/_/g,' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); return t.charAt(0).toUpperCase()+t.slice(1); }
 
 function render(ats,inv,tar){
-  // ---- parse ATS JSON ----
-  const peligrosClase={}, riesgoRes={}, scores=[];
+  const peligrosClase={}, riesgoRes={}, scores=[], peligrosDetalle={}, riesgoDetalle={};
   ats.forEach(r=>{
     const j=parseATS(r);
     if(j&&Array.isArray(j.peligros)){
       j.peligros.forEach(p=>{
         const cl=norm(p.clasificacion)||'Sin clasificar'; peligrosClase[cl]=(peligrosClase[cl]||0)+1;
         const nr=(p.nivel_riesgo_residual||'—'); riesgoRes[nr]=(riesgoRes[nr]||0)+1;
+        (peligrosDetalle[cl]=peligrosDetalle[cl]||[]).push({responsable:r.responsable,tarea:r.tarea,descripcion:p.descripcion,riesgo:nr,clasificacion:cl});
+        (riesgoDetalle[nr]=riesgoDetalle[nr]||[]).push({responsable:r.responsable,tarea:r.tarea,descripcion:p.descripcion,clasificacion:cl});
       });
     }
     if(j&&j.scoring_validacion){ Object.values(j.scoring_validacion).forEach(v=>{ if(v&&typeof v.score==='number') scores.push(v.score); }); }
@@ -206,7 +221,6 @@ function render(ats,inv,tar){
   const pendientes=ats.filter(r=>String(r.estado||'').toLowerCase().indexOf('pend')!==-1).length;
   const scoreProm=scores.length?Math.round(scores.reduce((a,b)=>a+b,0)/scores.length):'—';
 
-  // ---- KPIs ----
   $('kpis').innerHTML=[
     ['ats',ats.length,'ATS generados',''],
     ['pend',pendientes,'Pendientes aprob.','am'],
@@ -217,52 +231,55 @@ function render(ats,inv,tar){
 
   $('loading').classList.add('hide'); $('dashContent').classList.remove('hide');
 
-  // ---- charts ----
   const gridColor='rgba(255,255,255,0.06)';
   Chart.defaults.color='#95A0AD'; Chart.defaults.font.family='Arial';
-  function bar(id,labels,data,color,horizontal){
+  function clickOpts(labels,onc){return {onClick:(e,el)=>{if(el.length&&onc)onc(labels[el[0].index]);},onHover:(e,el)=>{if(e.native)e.native.target.style.cursor=el.length?'pointer':'default';}};}
+  function bar(id,labels,data,color,horizontal,onc){
     charts.push(new Chart($(id),{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:6}]},
-      options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{color:gridColor}},y:{grid:{color:gridColor},beginAtZero:true,ticks:{precision:0}}}}}));
+      options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:gridColor}},y:{grid:{color:gridColor},beginAtZero:true,ticks:{precision:0}}}},clickOpts(labels,onc))}));
   }
-  function doughnut(id,labels,data,colors){
+  function doughnut(id,labels,data,colors,onc){
     charts.push(new Chart($(id),{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#12161C',borderWidth:2}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:12,font:{size:11}}}},cutout:'58%'}}));
+      options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:12,font:{size:11}}}},cutout:'58%'},clickOpts(labels,onc))}));
   }
-  function line(id,labels,data){
+  function line(id,labels,data,onc){
     charts.push(new Chart($(id),{type:'line',data:{labels,datasets:[{data,borderColor:NAR,backgroundColor:'rgba(242,140,0,0.15)',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:NAR}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gridColor}},y:{grid:{color:gridColor},beginAtZero:true,ticks:{precision:0}}}}}));
+      options:Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gridColor}},y:{grid:{color:gridColor},beginAtZero:true,ticks:{precision:0}}}},clickOpts(labels,onc))}));
   }
 
-  // ATS por responsable
   const resp=topN(tally(ats.map(r=>r.responsable)),8);
-  bar('cResp',resp.map(x=>x[0]),resp.map(x=>x[1]),NAR,true);
-  // Peligros por clasificación
+  bar('cResp',resp.map(x=>x[0]),resp.map(x=>x[1]),NAR,true,l=>showDetalle('ATS de '+l,ats.filter(r=>r.responsable===l),[{k:'tarea',t:'Tarea'},{k:'cliente',t:'Cliente'},{k:'fecha',t:'Fecha'},{k:'estado',t:'Estado'}]));
   const pel=topN(peligrosClase,10);
-  bar('cPel',pel.map(x=>x[0]),pel.map(x=>x[1]),CY,true);
-  // Riesgo residual
+  bar('cPel',pel.map(x=>x[0]),pel.map(x=>x[1]),CY,true,l=>showDetalle('Peligros: '+l,peligrosDetalle[l]||[],[{k:'descripcion',t:'Peligro'},{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'},{k:'riesgo',t:'Riesgo resid.'}]));
   const rrLab=['Alto','Medio','Bajo'].filter(k=>riesgoRes[k]);
   const rrExtra=Object.keys(riesgoRes).filter(k=>['Alto','Medio','Bajo'].indexOf(k)===-1);
   const rLabels=rrLab.concat(rrExtra);
-  doughnut('cRiesgo',rLabels,rLabels.map(k=>riesgoRes[k]),rLabels.map(k=>k==='Alto'?RO:k==='Medio'?AM:k==='Bajo'?VE:GR));
-  // ATS por estado
+  doughnut('cRiesgo',rLabels,rLabels.map(k=>riesgoRes[k]),rLabels.map(k=>k==='Alto'?RO:k==='Medio'?AM:k==='Bajo'?VE:GR),l=>showDetalle('Riesgo residual: '+l,riesgoDetalle[l]||[],[{k:'descripcion',t:'Peligro'},{k:'clasificacion',t:'Clasif.'},{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'}]));
   const est=Object.entries(tally(ats.map(r=>norm(r.estado))));
-  bar('cEstado',est.map(x=>x[0]),est.map(x=>x[1]),AM,false);
-  // Tendencia por fecha
+  bar('cEstado',est.map(x=>x[0]),est.map(x=>x[1]),AM,false,l=>showDetalle('ATS — estado: '+l,ats.filter(r=>norm(r.estado)===l),[{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'},{k:'fecha',t:'Fecha'}]));
   const porFecha=tally(ats.map(r=>r.fecha)); const fechas=Object.keys(porFecha).sort();
-  line('cTend',fechas,fechas.map(f=>porFecha[f]));
-  // Investigaciones por estado
+  line('cTend',fechas,fechas.map(f=>porFecha[f]),l=>showDetalle('ATS del '+l,ats.filter(r=>r.fecha===l),[{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'},{k:'estado',t:'Estado'}]));
   const ie=Object.entries(tally(inv.map(r=>norm(r.estado)||'Sin estado')));
-  bar('cInv',ie.map(x=>x[0]),ie.map(x=>x[1]),VE,false);
-  // Tarjetas seguras vs inseguras
+  bar('cInv',ie.map(x=>x[0]),ie.map(x=>x[1]),VE,false,l=>showDetalle('Investigaciones — '+l,inv.filter(v=>norm(v.estado)===l),[{k:'inv_id',t:'Serial',mono:true},{k:'reporta',t:'Reporta'},{k:'cliente',t:'Cliente'},{k:'fecha_evento',t:'Fecha'}]));
   const tc=tally(tar.map(r=>r.clase||'—'));
-  doughnut('cTseg',Object.keys(tc),Object.values(tc),Object.keys(tc).map(k=>k==='seguro'?VE:RO));
-  // Tarjetas por categoría
+  doughnut('cTseg',Object.keys(tc),Object.values(tc),Object.keys(tc).map(k=>k==='seguro'?VE:RO),l=>showDetalle('Tarjetas — '+l,tar.filter(r=>(r.clase||'—')===l),[{k:'categoria',t:'Categoría'},{k:'tipo',t:'Tipo'},{k:'riesgo',t:'Riesgo'}]));
   const tcat=Object.entries(tally(tar.map(r=>r.categoria)));
-  bar('cTcat',tcat.map(x=>x[0]),tcat.map(x=>x[1]),NAR,true);
+  bar('cTcat',tcat.map(x=>x[0]),tcat.map(x=>x[1]),NAR,true,l=>showDetalle('Tarjetas — '+l,tar.filter(r=>r.categoria===l),[{k:'clase',t:'Clase'},{k:'tipo',t:'Tipo'},{k:'riesgo',t:'Riesgo'}]));
 
-  $('note').textContent='Datos en vivo de Supabase · '+ats.length+' ATS, '+inv.length+' investigaciones, '+tar.length+' tarjetas. (Vista sin filtro por empresa — se agrega con el gating por rol.)';
+  $('note').textContent='Datos en vivo de Supabase · '+ats.length+' ATS, '+inv.length+' investigaciones, '+tar.length+' tarjetas. Tocá cualquier gráfico para ver el detalle. (Sin filtro por empresa aún.)';
 }
+function showDetalle(tit,rows,cols){
+  document.getElementById('detTit').textContent=tit+' ('+rows.length+')';
+  var html;
+  if(!rows.length){ html='<div class="detempty">Sin registros.</div>'; }
+  else{ html='<table><thead><tr>'+cols.map(function(c){return '<th>'+c.t+'</th>';}).join('')+'</tr></thead><tbody>'
+    +rows.map(function(r){return '<tr>'+cols.map(function(c){var v=r[c.k]; v=(v==null||v==='')?'—':v; return '<td'+(c.mono?' class="mono"':'')+'>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>'; }
+  document.getElementById('detBody').innerHTML=html;
+  document.getElementById('detalle').classList.remove('hide');
+}
+function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); }
+
 </script>
 <script>
 // ===== EXPEDIENTES (bloque 2 de la consola HSE) =====

@@ -230,8 +230,8 @@ async function cargar(){
   try{
     const [ats,inv,tar]=await Promise.all([
       sbGet('ats?select=responsable,tarea,cliente,zona,estado,modo,fecha,cuadrilla,historial'),
-      sbGet('investigaciones?select=estado,fase,cliente,fecha_evento,reporta'),
-      sbGet('tarjetas?select=clase,tipo,categoria,riesgo')
+      sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,descripcion'),
+      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha')
     ]);
     render(ats,inv,tar);
   }catch(e){ $('loading').textContent='No se pudieron cargar los datos ('+e.message+'). ¿Corriste el SQL de lectura?'; }
@@ -255,7 +255,7 @@ function topN(m,n){return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n);}
 function norm(s){ if(s===undefined||s===null||s==='') return ''; let t=String(s).trim().replace(/_/g,' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); return t.charAt(0).toUpperCase()+t.slice(1); }
 
 function render(ats,inv,tar){
-  const peligrosClase={}, riesgoRes={}, scores=[], peligrosDetalle={}, riesgoDetalle={};
+  const peligrosClase={}, riesgoRes={}, scores=[], peligrosDetalle={}, riesgoDetalle={}, atsDetalle=[];
   ats.forEach(r=>{
     const j=parseATS(r);
     if(j&&Array.isArray(j.peligros)){
@@ -267,6 +267,7 @@ function render(ats,inv,tar){
       });
     }
     if(j&&j.scoring_validacion){ Object.values(j.scoring_validacion).forEach(v=>{ if(v&&typeof v.score==='number') scores.push(v.score); }); }
+    atsDetalle.push({responsable:r.responsable,tarea:r.tarea,fecha:r.fecha,estado:r.estado,peligros:(j&&Array.isArray(j.peligros))?j.peligros.map(function(p){return norm(p.clasificacion);}):[]});
   });
   const pendientes=ats.filter(r=>String(r.estado||'').toLowerCase().indexOf('pend')!==-1).length;
   const scoreProm=scores.length?Math.round(scores.reduce((a,b)=>a+b,0)/scores.length):'—';
@@ -324,7 +325,10 @@ function render(ats,inv,tar){
     riesgo_residual:riesgoRes,
     ats_por_estado:tally(ats.map(r=>norm(r.estado))),
     investigaciones_por_estado:tally(inv.map(r=>norm(r.estado))),
-    tarjetas:{por_clase:tally(tar.map(r=>r.clase||'—')),por_categoria:tally(tar.map(r=>r.categoria)),por_riesgo:tally(tar.map(r=>r.riesgo))}
+    tarjetas:{por_clase:tally(tar.map(r=>r.clase||'—')),por_categoria:tally(tar.map(r=>r.categoria)),por_riesgo:tally(tar.map(r=>r.riesgo))},
+    investigaciones_detalle:inv.slice(0,80).map(function(v){return {inv_id:v.inv_id,fecha:v.fecha_evento,reporta:v.reporta,cliente:v.cliente,estado:v.estado,que_paso:String(v.descripcion||'').slice(0,400)};}),
+    ats_detalle:atsDetalle,
+    tarjetas_detalle:tar.slice(0,60).map(function(t){return {observador:t.observador_nombre,clase:t.clase,tipo:t.tipo,categoria:t.categoria,riesgo:t.riesgo,lugar:t.lugar,que_vio:String(t.descripcion||'').slice(0,300),fecha:t.fecha};})
   };
   $('note').textContent='Datos en vivo de Supabase · '+ats.length+' ATS, '+inv.length+' investigaciones, '+tar.length+' tarjetas. Tocá cualquier gráfico para ver el detalle. (Sin filtro por empresa aún.)';
 }

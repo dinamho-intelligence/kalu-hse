@@ -153,6 +153,7 @@ function parseATS(row){
 }
 function tally(arr){const m={};arr.forEach(k=>{if(k===undefined||k===null||k==='')return;m[k]=(m[k]||0)+1;});return m;}
 function topN(m,n){return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n);}
+function norm(s){ if(s===undefined||s===null||s==='') return ''; let t=String(s).trim().replace(/_/g,' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); return t.charAt(0).toUpperCase()+t.slice(1); }
 
 function render(ats,inv,tar){
   // ---- parse ATS JSON ----
@@ -161,7 +162,7 @@ function render(ats,inv,tar){
     const j=parseATS(r);
     if(j&&Array.isArray(j.peligros)){
       j.peligros.forEach(p=>{
-        const cl=(p.clasificacion||'Sin clasificar'); peligrosClase[cl]=(peligrosClase[cl]||0)+1;
+        const cl=norm(p.clasificacion)||'Sin clasificar'; peligrosClase[cl]=(peligrosClase[cl]||0)+1;
         const nr=(p.nivel_riesgo_residual||'—'); riesgoRes[nr]=(riesgoRes[nr]||0)+1;
       });
     }
@@ -210,13 +211,13 @@ function render(ats,inv,tar){
   const rLabels=rrLab.concat(rrExtra);
   doughnut('cRiesgo',rLabels,rLabels.map(k=>riesgoRes[k]),rLabels.map(k=>k==='Alto'?RO:k==='Medio'?AM:k==='Bajo'?VE:GR));
   // ATS por estado
-  const est=Object.entries(tally(ats.map(r=>r.estado)));
+  const est=Object.entries(tally(ats.map(r=>norm(r.estado))));
   bar('cEstado',est.map(x=>x[0]),est.map(x=>x[1]),AM,false);
   // Tendencia por fecha
   const porFecha=tally(ats.map(r=>r.fecha)); const fechas=Object.keys(porFecha).sort();
   line('cTend',fechas,fechas.map(f=>porFecha[f]));
   // Investigaciones por estado
-  const ie=Object.entries(tally(inv.map(r=>r.estado||'sin estado')));
+  const ie=Object.entries(tally(inv.map(r=>norm(r.estado)||'Sin estado')));
   bar('cInv',ie.map(x=>x[0]),ie.map(x=>x[1]),VE,false);
   // Tarjetas seguras vs inseguras
   const tc=tally(tar.map(r=>r.clase||'—'));

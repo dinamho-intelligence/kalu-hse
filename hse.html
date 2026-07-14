@@ -89,6 +89,41 @@
   .detempty{padding:26px;text-align:center;color:var(--tx3);}
   .brandlink{display:flex;align-items:center;gap:12px;text-decoration:none;cursor:pointer;}
   .brandlink:hover{opacity:.85;}
+  .expsub{font-size:13px;color:var(--tx2);margin:22px 0 10px;letter-spacing:.5px;text-transform:uppercase;}
+  .st{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--nar);margin:16px 0 7px;font-weight:700;}
+  .kv{display:flex;justify-content:space-between;gap:14px;font-size:12.5px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+  .kv span{color:var(--tx3);} .kv b{color:var(--tx);text-align:right;}
+  .txt{font-size:13px;line-height:1.65;color:var(--tx);}
+  .il{margin:4px 0 4px 18px;} .il li{font-size:12.5px;line-height:1.6;color:var(--tx);margin-bottom:4px;}
+  .mut{font-size:11px;color:var(--tx3);margin:8px 0 2px;}
+  .chips2{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;}
+  .ch2{font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);}
+  .grid2i{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:640px){.grid2i{grid-template-columns:1fr;}}
+  table.acc{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;}
+  table.acc th{text-align:left;color:var(--tx3);font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line);}
+  table.acc td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--tx);vertical-align:top;}
+  .alertcard{border-color:rgba(255,59,48,.4);} .alertcard .txt{color:#FF9a92;}
+  .leccard{border-color:rgba(37,194,110,.4);}
+  .confcard{border-color:rgba(232,147,12,.4);background:linear-gradient(180deg,rgba(232,147,12,.05),var(--panel));}
+  .chatmsgs{height:52vh;min-height:320px;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;}
+  .cbub{max-width:82%;display:flex;flex-direction:column;gap:3px;}
+  .cbub.vos{align-self:flex-end;align-items:flex-end;}
+  .cbub.kalu{align-self:flex-start;}
+  .cwho{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--tx3);}
+  .cbub.kalu .cwho{color:var(--nar);}
+  .ctxt{padding:11px 14px;border-radius:14px;font-size:13.5px;line-height:1.6;}
+  .cbub.kalu .ctxt{background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-bottom-left-radius:4px;}
+  .cbub.vos .ctxt{background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F;border-bottom-right-radius:4px;font-weight:500;}
+  .typ{color:var(--tx3);font-style:italic;}
+  .chatsug{display:flex;flex-wrap:wrap;gap:7px;padding:0 18px 12px;}
+  .sug{background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:16px;padding:7px 12px;font-size:12px;cursor:pointer;text-align:left;}
+  .sug:hover{border-color:var(--nar);color:var(--tx);}
+  .chatin{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);}
+  .chatin textarea{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--tx);font-size:14px;padding:11px 13px;font-family:inherit;resize:none;outline:none;max-height:100px;}
+  .chatin textarea:focus{border-color:var(--nar);}
+  .chatsend{width:44px;border:none;border-radius:12px;background:var(--nar);color:#0A0C0F;font-size:18px;font-weight:800;cursor:pointer;}
+  .chatsend:disabled{opacity:.5;}
 </style>
 </head>
 <body>
@@ -120,6 +155,7 @@
     <div class="tabs">
       <button class="tab on" id="tabTab" onclick="verVista('tablero')">📊 Tablero</button>
       <button class="tab" id="tabExp" onclick="verVista('exp')">📁 Expedientes</button>
+      <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
     </div>
     <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
@@ -141,6 +177,16 @@
     <div class="hide" id="viewExp">
       <div id="expList"><div class="loading" id="expLoading">Cargando expedientes…</div></div>
       <div class="hide" id="expDetail"></div>
+    </div>
+    <div class="hide" id="viewChat">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="chatMsgs" class="chatmsgs"></div>
+        <div id="chatSug" class="chatsug"></div>
+        <div class="chatin">
+          <textarea id="chatInput" rows="1" placeholder="Preguntale a KALU sobre tus datos…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarChat();}"></textarea>
+          <button id="chatSend" class="chatsend" onclick="enviarChat()">➤</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -271,6 +317,15 @@ function render(ats,inv,tar){
   const tcat=Object.entries(tally(tar.map(r=>r.categoria)));
   bar('cTcat',tcat.map(x=>x[0]),tcat.map(x=>x[1]),NAR,true,l=>showDetalle('Tarjetas — '+l,tar.filter(r=>r.categoria===l),[{k:'clase',t:'Clase'},{k:'tipo',t:'Tipo'},{k:'riesgo',t:'Riesgo'}]));
 
+  window.KDATA={
+    kpis:{ats:ats.length,pendientes_aprobacion:pendientes,investigaciones:inv.length,tarjetas:tar.length,score_promedio:scoreProm},
+    ats_por_responsable:topN(tally(ats.map(r=>r.responsable)),10).map(x=>({responsable:x[0],ats:x[1]})),
+    peligros_por_clasificacion:topN(peligrosClase,12).map(x=>({clasificacion:x[0],cantidad:x[1]})),
+    riesgo_residual:riesgoRes,
+    ats_por_estado:tally(ats.map(r=>norm(r.estado))),
+    investigaciones_por_estado:tally(inv.map(r=>norm(r.estado))),
+    tarjetas:{por_clase:tally(tar.map(r=>r.clase||'—')),por_categoria:tally(tar.map(r=>r.categoria)),por_riesgo:tally(tar.map(r=>r.riesgo))}
+  };
   $('note').textContent='Datos en vivo de Supabase · '+ats.length+' ATS, '+inv.length+' investigaciones, '+tar.length+' tarjetas. Tocá cualquier gráfico para ver el detalle. (Sin filtro por empresa aún.)';
 }
 function showDetalle(tit,rows,cols){
@@ -292,9 +347,12 @@ let EXP=null;
 function verVista(v){
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
+  document.getElementById('tabChat').classList.toggle('on',v==='chat');
   document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
   document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
+  document.getElementById('viewChat').classList.toggle('hide',v!=='chat');
   if(v==='exp' && !EXP) loadExpedientes();
+  if(v==='chat') initChat();
 }
 async function loadExpedientes(){
   try{
@@ -335,7 +393,10 @@ async function openExpediente(invId){
     +'<div class="card" style="margin-bottom:16px"><h2><span>▸</span> Expediente '+esc(invId)+'</h2>'
     +'<div style="font-size:13px;color:var(--tx2);line-height:1.7">'+esc(inv.descripcion||inv.titulo||'')+'<br>'
     +'<b>Reporta:</b> '+esc(inv.reporta||'—')+' · <b>Cliente:</b> '+esc(inv.cliente||'—')+' · <b>Estado:</b> '+esc(inv.estado||'—')+'</div></div>'
+    +'<div id="informeWrap"><div class="loading" style="padding:14px">Cargando informe…</div></div>'
+    +'<h3 class="expsub">Declaraciones firmadas</h3>'
     +'<div id="testWrap"></div>';
+  cargarInforme(invId);
   const wrap=document.getElementById('testWrap');
   if(!tests.length){ wrap.innerHTML='<div class="loading">Este expediente aún no tiene declaraciones firmadas.</div>'; return; }
   for(const t of tests){
@@ -390,6 +451,117 @@ function pdfTestimonio(invId,inv,t,fmt,firmaDataUrl){
   const c='Firmado electrónicamente por '+(fmt.nombre||'')+', C.C. '+(fmt.cedula||'')+', expediente '+invId+'. Integridad garantizada por hash '+(t.hash||'—')+'. Conforme a la Ley 527 de 1999. Documento inalterable — cualquier cambio invalida el hash.';
   doc.text(doc.splitTextToSize(c,W-M*2),M,y);
   doc.save('Testimonio_'+invId+'_'+String(fmt.cedula||'').replace(/\W/g,'')+'.pdf');
+}
+
+function parseInforme(hist){
+  try{
+    if(!Array.isArray(hist)) return null;
+    for(let i=hist.length-1;i>=0;i--){
+      const c=hist[i]&&hist[i].content;
+      if(c && c.indexOf('___INFORME___')!==-1){
+        let s=c.split('___INFORME___')[1].replace(/```json/gi,'').replace(/```/g,'').trim();
+        return JSON.parse(s);
+      }
+    }
+  }catch(e){}
+  return null;
+}
+async function cargarInforme(invId){
+  const w=document.getElementById('informeWrap'); if(!w) return;
+  w.innerHTML='<div class="card"><h2><span>▸</span> Informe de investigación</h2>'
+    +'<div class="txt" style="color:var(--tx2)">Acá se muestra el <b>informe oficial firmado</b> — el mismo documento que genera KALU y se envía por Telegram, con su hash de integridad. Se integra cuando n8n guarde ese informe en el expediente. <b>No se recrea aquí</b> para no generar versiones distintas del mismo documento.</div></div>';
+}
+function _kv(k,v){ if(v==null||v===''||/^No informad/.test(String(v))) v='—'; return '<div class="kv"><span>'+esc(k)+'</span><b>'+esc(v)+'</b></div>'; }
+function _ul(arr){ if(!arr||!arr.length) return '<div class="mut">—</div>'; return '<ul class="il">'+arr.map(function(x){return '<li>'+esc(typeof x==='string'?x:JSON.stringify(x))+'</li>';}).join('')+'</ul>'; }
+function renderInforme(invId,j){
+  const e=j.datos_evento||{},tr=j.datos_trabajador||{},em=j.datos_empresa||{},de=j.descripcion_evento||{},fa=(de.factores||{});
+  let h='<div class="card infcard"><h2><span>▸</span> Informe de investigación <button class="dl" style="float:right;margin-top:-4px" onclick="pdfInforme(\''+invId+'\')">⬇ Informe PDF</button></h2>';
+  h+='<div class="chips2">'+[['Tipo',j.tipo_evento],['Clasificación',j.clasificacion],['Metodología',j.metodologia],['Norma',j.norma],['Estado',j.estado_expediente]].map(function(x){return x[1]?'<span class="ch2">'+esc(x[0])+': '+esc(x[1])+'</span>':'';}).join('')+'</div>';
+  h+='<div class="grid2i"><div><div class="st">Empresa</div>'+_kv('Razón social',em.razon_social)+_kv('Sede',em.centro_trabajo||em.sede)+_kv('Zona',em.zona)+'</div>';
+  h+='<div><div class="st">Trabajador</div>'+_kv('Nombre',tr.nombre)+_kv('Identificación',tr.identificacion)+_kv('Ocupación',tr.ocupacion)+'</div></div>';
+  h+='<div class="st">Evento</div>'+_kv('Fecha / hora',((e.fecha||'')+' '+(e.hora||'')).trim())+_kv('Lugar',e.lugar)+_kv('Lesión',e.tipo_lesion)+_kv('Parte del cuerpo',e.parte_cuerpo)+_kv('Agente generador',e.agente_generador)+_kv('Mecanismo',e.mecanismo_accidente);
+  h+='<div class="st">Descripción del evento</div><div class="txt">'+esc(de.como||'—')+'</div>';
+  h+='<div class="st">Factores</div>'+_kv('Condición insegura',fa.condicion_insegura)+_kv('Acto inseguro',fa.acto_inseguro)+_kv('Factor organizacional',fa.factor_organizacional);
+  h+='<div class="st">Causa inmediata</div><div class="txt">'+esc(j.causa_inmediata||'—')+'</div>';
+  h+='<div class="st">Causas básicas</div>'+_ul(j.causas_basicas);
+  h+='<div class="st">Causas raíz</div>'+_ul(j.causas_raiz);
+  h+='<div class="st">Análisis 5 Por Qué</div><div class="txt">'+esc(j.analisis_por_que||'—')+'</div>';
+  if(j.codigos_ntc3701){ const ci=(j.codigos_ntc3701.causas_inmediatas||[]).map(function(c){return '<li><b>'+esc(c.codigo)+'</b> — '+esc(c.descripcion)+'</li>';}).join('');
+    const cb=(j.codigos_ntc3701.causas_basicas||[]).map(function(c){return '<li><b>'+esc(c.codigo)+'</b> — '+esc(c.descripcion)+'</li>';}).join('');
+    h+='<div class="st">Códigos NTC 3701</div><div class="mut">Inmediatas</div><ul class="il">'+ci+'</ul><div class="mut">Básicas</div><ul class="il">'+cb+'</ul>'; }
+  if(j.acciones_correctivas&&j.acciones_correctivas.length){
+    h+='<div class="st">Acciones correctivas</div><table class="acc"><thead><tr><th>Tipo</th><th>Acción</th><th>Responsable</th><th>Fecha</th><th>Prior.</th></tr></thead><tbody>'
+      +j.acciones_correctivas.map(function(a){return '<tr><td>'+esc(a.tipo)+'</td><td>'+esc(a.accion)+'</td><td>'+esc(a.responsable)+'</td><td>'+esc(a.fecha_limite)+'</td><td>'+esc(a.prioridad)+'</td></tr>';}).join('')+'</tbody></table>'; }
+  h+='</div>';
+  if(j.alerta_texto) h+='<div class="card alertcard"><h2><span style="color:var(--rojo)">▸</span> Alerta de seguridad</h2><div class="txt">'+esc(j.alerta_texto)+'</div></div>';
+  if(j.leccion_aprendida) h+='<div class="card leccard"><h2><span style="color:var(--verde)">▸</span> Lección aprendida</h2><div class="txt">'+esc(j.leccion_aprendida)+'</div></div>';
+  if(j.nota_investigador){ const n=j.nota_investigador;
+    h+='<div class="card confcard"><h2><span style="color:var(--amber)">▸</span> Nota confidencial del investigador · solo HSE</h2>';
+    h+='<div class="txt" style="font-style:italic;color:var(--tx3);margin-bottom:8px">'+esc(n.proposito||'')+'</div>';
+    if(n.coherencia_general){h+='<div class="st">Coherencia general</div><div class="txt">'+esc(n.coherencia_general)+'</div>';}
+    if(n.inconsistencias&&n.inconsistencias.length){h+='<div class="st">Inconsistencias</div>'+_ul(n.inconsistencias);}
+    if(n.secuencias_incompletas&&n.secuencias_incompletas.length){h+='<div class="st">Secuencias incompletas</div>'+_ul(n.secuencias_incompletas);}
+    if(n.vacios&&n.vacios.length){h+='<div class="st">Vacíos</div>'+_ul(n.vacios);}
+    h+='</div>'; }
+  return h;
+}
+function pdfInforme(invId){
+  const j=(window._informe||{})[invId]; if(!j){alert('Informe no cargado.');return;}
+  const jsPDF=window.jspdf&&window.jspdf.jsPDF; if(!jsPDF){alert('PDF no disponible.');return;}
+  const doc=new jsPDF({unit:'pt',format:'a4'}); const W=595,M=40,BOT=800; let y=54;
+  function nl(h){if(y+h>BOT){doc.addPage();y=54;}}
+  function tit(t){nl(26);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(200,90,0);doc.text(t,M,y);y+=15;}
+  function par(t){if(!t)return;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(40,40,40);const ls=doc.splitTextToSize(String(t),W-M*2);ls.forEach(function(l){nl(13);doc.text(l,M,y);y+=13;});y+=4;}
+  function items(arr){(arr||[]).forEach(function(x){par('• '+(typeof x==='string'?x:JSON.stringify(x)));});}
+  doc.setFillColor(242,140,0);doc.rect(0,0,W,8,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(20,20,20);doc.text('Informe de investigación — KALU',M,y);y+=18;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(120,120,120);doc.text('Expediente '+invId+' · '+(j.metodologia||'')+' · '+(j.norma||''),M,y);y+=16;
+  doc.setDrawColor(220,220,220);doc.line(M,y,W-M,y);y+=16;
+  const e=j.datos_evento||{},tr=j.datos_trabajador||{},em=j.datos_empresa||{},de=j.descripcion_evento||{};
+  tit('Datos'); par('Empresa: '+(em.razon_social||'—')+'    Trabajador: '+(tr.nombre||'—')+'    Ident.: '+(tr.identificacion||'—'));
+  par('Evento: '+(e.fecha||'')+' '+(e.hora||'')+'  ·  '+(e.lugar||''));
+  par('Lesión: '+(e.tipo_lesion||'—')+'  ·  Parte: '+(e.parte_cuerpo||'—'));
+  tit('Descripción del evento'); par(de.como);
+  tit('Causa inmediata'); par(j.causa_inmediata);
+  tit('Causas básicas'); items(j.causas_basicas);
+  tit('Causas raíz'); items(j.causas_raiz);
+  tit('Análisis 5 Por Qué'); par(j.analisis_por_que);
+  if(j.acciones_correctivas&&j.acciones_correctivas.length){ tit('Acciones correctivas'); j.acciones_correctivas.forEach(function(a){par('• ['+(a.tipo||'')+'] '+(a.accion||'')+' — '+(a.responsable||'')+' ('+(a.fecha_limite||'')+')');}); }
+  if(j.alerta_texto){ tit('Alerta de seguridad'); par(j.alerta_texto); }
+  if(j.leccion_aprendida){ tit('Lección aprendida'); par(j.leccion_aprendida); }
+  doc.save('Informe_'+invId+'.pdf');
+}
+
+const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-hse-chat';
+let chatHist=[];
+const SUGERENCIAS=['Dame un resumen del estado HSE de la empresa','¿Dónde debería enfocar la prevención?','¿Quién necesita refuerzo según el scoring?','¿Cómo vienen las tarjetas de actos inseguros?'];
+function initChat(){
+  const m=document.getElementById('chatMsgs'); if(!m||m.dataset.init) return; m.dataset.init='1';
+  chatBubble('kalu','Hola, soy KALU. Preguntame lo que quieras sobre tus expedientes, ATS, tarjetas, scoring o desempeño — te respondo con tus datos reales.');
+  const sug=document.getElementById('chatSug'); if(sug) sug.innerHTML=SUGERENCIAS.map(function(q){return '<button class="sug" onclick="usarSug(this)">'+esc(q)+'</button>';}).join('');
+}
+function usarSug(b){ document.getElementById('chatInput').value=b.textContent; enviarChat(); }
+function chatBubble(who,txt){
+  const m=document.getElementById('chatMsgs');
+  const d=document.createElement('div'); d.className='cbub '+who;
+  d.innerHTML='<div class="cwho">'+(who==='kalu'?'KALU':'Vos')+'</div><div class="ctxt">'+esc(txt).replace(/\n/g,'<br>')+'</div>';
+  m.appendChild(d); m.scrollTop=m.scrollHeight; return d;
+}
+async function enviarChat(){
+  const ta=document.getElementById('chatInput'); const q=(ta.value||'').trim(); if(!q) return;
+  if(!window.KDATA){ chatBubble('kalu','Todavía estoy cargando los datos. Abrí la pestaña Tablero un momento y volvé.'); return; }
+  chatBubble('vos',q); ta.value='';
+  const btn=document.getElementById('chatSend'); btn.disabled=true;
+  const bub=chatBubble('kalu',''); bub.querySelector('.ctxt').innerHTML='<span class="typ">KALU está pensando…</span>';
+  try{
+    const r=await fetch(CHAT_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pregunta:q,contexto:window.KDATA,historial:chatHist.slice(-6),token:TOKEN})});
+    if(!r.ok) throw new Error('http '+r.status);
+    const d=await r.json();
+    const resp=(d&&(d.respuesta||d.mensaje||d.text))||'No pude responder eso ahora.';
+    bub.querySelector('.ctxt').innerHTML=esc(resp).replace(/\n/g,'<br>');
+    chatHist.push({pregunta:q,respuesta:resp});
+  }catch(e){ bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">No me pude conectar al chat. Falta activar el flujo de n8n (kalu-hse-chat).</span>'; }
+  finally{ btn.disabled=false; ta.focus(); const m=document.getElementById('chatMsgs'); if(m)m.scrollTop=m.scrollHeight; }
 }
 
 </script>

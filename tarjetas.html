@@ -17,11 +17,11 @@
        font-family:Arial,"Segoe UI",system-ui,sans-serif; min-height:100vh; padding:18px;}
   .wrap{max-width:620px; margin:0 auto;}
   .top{display:flex; align-items:center; gap:12px; margin-bottom:16px;}
-  .logo{width:40px; height:40px; border-radius:11px; background:linear-gradient(135deg,var(--rojo),#B3130B);
-        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; color:#fff;
-        box-shadow:0 6px 20px rgba(255,59,48,.4);}
-  .brandmark{display:flex; flex-direction:column; align-items:center; gap:4px;}
-  .leg{font-size:9px; color:var(--tx3); letter-spacing:.3px; white-space:nowrap;}
+  .hexlogo{width:38px; height:38px; flex-shrink:0;}
+  .brandmark{display:flex; align-items:center; gap:9px;}
+  .logo-text{display:flex; flex-direction:column; line-height:1.05;}
+  .logo-text .brand{font-size:14px; font-weight:800; letter-spacing:1px; color:var(--tx);}
+  .logo-text .sub{font-size:9px; font-weight:700; letter-spacing:2px; color:var(--nar); margin-top:2px;}
   .top h1{font-size:16px; margin:0; letter-spacing:.4px;}
   .top span{color:var(--tx2); font-size:11.5px;}
   .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;}
@@ -88,11 +88,17 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="brandmark"><div class="logo">K</div><div class="leg">KALU HSE · Dinamho Intelligence</div></div>
+    <div class="brandmark">
+      <svg class="hexlogo" viewBox="0 0 40 40" fill="none">
+        <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
+        <polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/>
+        <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial, sans-serif">DI</text>
+      </svg>
+      <div class="logo-text"><span class="brand">DINAMHO</span><span class="sub">INTELLIGENCE</span></div>
+    </div>
     <div><h1>KALU · Tarjeta de observación</h1><span>Actos y condiciones · no busca culpables, busca la mejora</span></div>
   </div>
 
-  <!-- IDENTIFICACIÓN -->
   <div class="card" id="scId">
     <h2><span class="dot">▸</span> Identificate</h2>
     <div class="msg" id="idErr"></div>
@@ -108,7 +114,6 @@
     <button class="btn" id="btnId" onclick="identificar()">Continuar ▸</button>
   </div>
 
-  <!-- FORMULARIO -->
   <div class="card hide" id="scForm">
     <h2><span class="dot">▸</span> ¿Qué observaste?</h2>
     <div class="idlock" id="obsBox"></div>
@@ -193,7 +198,6 @@
     <button class="btn" onclick="irFirma()">Continuar a la firma ▸</button>
   </div>
 
-  <!-- FIRMA -->
   <div class="card hide" id="scFirma">
     <h2><span class="dot">▸</span> Firmá tu observación</h2>
     <div class="sum" id="resumen"></div>
@@ -204,7 +208,6 @@
     <button class="btn btn2" style="margin-top:9px" onclick="volverForm()">◂ Volver</button>
   </div>
 
-  <!-- HECHO -->
   <div class="card hide" id="scDone">
     <div class="big">🔒</div>
     <div class="doneT">Tarjeta registrada</div>
@@ -223,12 +226,9 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const H={apikey:SB_ANON, Authorization:'Bearer '+SB_ANON};
 const CATS=['Uso de EPP','Posición de personas','Herramientas y equipos','Procedimientos','Orden y aseo','Reacción de las personas','Otro'];
 
-let obs=null;          // observador {id,nombre,cedula,empresa_id,empresa}
-let cands=[];          // candidatos por cédula (multi-empresa)
-let clase='inseguro';
+let obs=null, cands=[], clase='inseguro';
 const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
-let fotoFile=null, fotoDataUrl=null;
-let last=null;         // registro para PDF
+let fotoFile=null, fotoDataUrl=null, last=null;
 
 function $(id){return document.getElementById(id);}
 function show(id){['scId','scForm','scFirma','scDone'].forEach(s=>$(s).classList.toggle('hide',s!==id)); window.scrollTo(0,0);}
@@ -238,7 +238,6 @@ async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:
 async function sbInsert(table,row){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(row)}); if(!r.ok) throw new Error('INSERT '+r.status+' '+await r.text());}
 async function sbUpload(path,blob,type){const r=await fetch(SB_URL+'/storage/v1/object/tarjetas/'+path,{method:'POST',headers:Object.assign({},H,{'Content-Type':type,'x-upsert':'true'}),body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
 
-// ---------- IDENTIFICACIÓN ----------
 async function identificar(){
   err('idErr','');
   const ced=$('ced').value.trim();
@@ -271,7 +270,6 @@ function entrarForm(){
   show('scForm');
 }
 
-// ---------- FORM ----------
 function setClase(c){
   clase=c;
   $('optSeg').classList.toggle('on-seg',c==='seguro');
@@ -303,7 +301,6 @@ function irFirma(){
 }
 function volverForm(){ show('scForm'); }
 
-// ---------- PAD ----------
 let cv,cx,drawing=false,hasInk=false;
 function initPad(){
   cv=$('pad'); if(!cv) return; cx=cv.getContext('2d');
@@ -324,7 +321,6 @@ function ahora(){const d=new Date(); return d.toLocaleDateString('es-CO')+' '+d.
 function uuid(){ if(crypto&&crypto.randomUUID) return crypto.randomUUID(); return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
 function dataURLtoBlob(u){const a=u.split(','); const m=a[0].match(/:(.*?);/)[1]; const b=atob(a[1]); let n=b.length; const arr=new Uint8Array(n); while(n--)arr[n]=b.charCodeAt(n); return new Blob([arr],{type:m});}
 
-// ---------- REGISTRAR ----------
 async function registrar(){
   err('sErr','');
   if(!hasInk){err('sErr','Falta tu firma en el recuadro.'); return;}
@@ -347,7 +343,7 @@ async function registrar(){
     const firmaPath=await sbUpload(id+'/firma.png', dataURLtoBlob(firmaDataUrl), 'image/png');
     reg.foto_path=fotoPath; reg.firma_path=firmaPath;
     await sbInsert('tarjetas', reg);
-    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl};
+    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa};
     mostrarHecho();
   }catch(e){
     err('sErr','No se pudo registrar ('+e.message+'). Revisá tu internet e intentá otra vez.');
@@ -364,7 +360,6 @@ function mostrarHecho(){
   show('scDone');
 }
 
-// ---------- PDF ----------
 function descargarPDF(){
   const r=last.reg, ts=last.ts;
   const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
@@ -385,7 +380,7 @@ function descargarPDF(){
   const row=(k,v)=>{ if(!v && v!==false) return; doc.setFont('helvetica','bold'); doc.text(k, 40, y);
     doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(String(v), W-190); doc.text(lines, 170, y); y+=Math.max(16, lines.length*14); };
   row('Observador', r.observador_nombre+'  (C.C. '+r.observador_cedula+')');
-  row('Empresa', last.reg._empresa||obs.empresa);
+  row('Empresa', last.empresa||'');
   row('Fecha', ts);
   row('Categoría', r.categoria);
   if(r.clase==='inseguro'){ row('Nivel de riesgo', String(r.riesgo||'').toUpperCase()); row('¿Se detuvo la tarea?', r.detuvo_tarea?'Sí':'No'); }
@@ -408,7 +403,6 @@ function descargarPDF(){
   doc.save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
 }
 
-// PWA
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
 </script>
 </body>

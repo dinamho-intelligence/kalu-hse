@@ -356,8 +356,8 @@
     </div>
     <div class="login-title">KALU</div>
     <div class="login-sub">// ACCESO SEGURO · DINAMHO INTELLIGENCE</div>
-    <label class="login-label" for="login-email">Correo</label>
-    <input class="login-input" id="login-email" type="email" autocomplete="off" placeholder="tu@empresa.com" />
+    <label class="login-label" for="login-email">Cédula o correo</label>
+    <input class="login-input" id="login-email" type="text" autocomplete="off" placeholder="Tu cédula" />
     <label class="login-label" for="login-pass">Contraseña</label>
     <input class="login-input" id="login-pass" type="password" autocomplete="off" placeholder="••••••••" />
     <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
@@ -1360,16 +1360,22 @@ async function iniciarSesion(){
     // Gating por rol: se completa en el paso siguiente. El rol ya queda en window.kaluAuth.perfil.rol
   }
   async function hacerLogin(){
-    const email=(document.getElementById('login-email').value||'').trim();
+    const ident=(document.getElementById('login-email').value||'').trim();
     const pass=document.getElementById('login-pass').value||'';
     const err=document.getElementById('login-error');
     const btn=document.getElementById('login-btn');
     err.textContent='';
-    if(!email||!pass){ err.textContent='Completá correo y contraseña.'; return; }
+    if(!ident||!pass){ err.textContent='Completá cédula/correo y contraseña.'; return; }
     btn.disabled=true; btn.textContent='Ingresando…';
     try{
+      let email=ident;
+      if(/^\d+$/.test(ident)){   // si son solo números, es cédula → resolver a correo
+        const { data:mail, error:e2 } = await sb.rpc('email_por_cedula', { ced: ident });
+        if(e2 || !mail){ err.textContent='Cédula no registrada.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+        email=mail;
+      }
       const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
-      if(error){ err.textContent='Correo o contraseña incorrectos.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+      if(error){ err.textContent='Datos incorrectos.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
       window.kaluAuth.token = data.session.access_token;
       await cargarPerfil(); aplicarRol();
       document.getElementById('login-pass').value='';

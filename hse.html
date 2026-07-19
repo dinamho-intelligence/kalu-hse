@@ -603,7 +603,7 @@ async function loadTarjetas(){
     renderTar();
   }catch(e){ document.getElementById('tarLoading').textContent='No se pudieron cargar las tarjetas ('+e.message+').'; }
 }
-function tarDate(t){ return (t.fecha||String(t.creado||'').slice(0,10)||''); }
+function tarDate(t){ return String(t.fecha||t.creado||'').slice(0,10); }
 function tarFiltered(){
   if(!TAR) return [];
   const fc=document.getElementById('fClase').value, fk=document.getElementById('fCat').value,

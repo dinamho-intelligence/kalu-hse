@@ -267,11 +267,12 @@ async function login(){
     let rolOk=false, estadoBloqueado=false;
     try{
       MYID=(d.user&&d.user.id)||null;
-      const pf=await sbGet('perfiles?select=rol,empresa_id,estado&id=eq.'+MYID);
-      const rol=(pf&&pf[0]&&pf[0].rol)||'';
-      const est=(pf&&pf[0]&&pf[0].estado)||'';
-      MYEMP=(pf&&pf[0]&&pf[0].empresa_id)||null;
-      rolOk=(rol==='hse'||rol==='supervisor');
+      const pf=await sbGet('perfiles?select=*&id=eq.'+MYID);
+      const p0=(pf&&pf[0])||{};
+      const rol=p0.rol||'';
+      const est=p0.estado||'';
+      MYEMP=p0.empresa_id||null;
+      rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true);
       estadoBloqueado=(est && est!=='activo'); // baja / pendiente / rechazado
     }catch(_){ rolOk=false; }
     if(estadoBloqueado){
@@ -454,7 +455,7 @@ async function loadUsuarios(){
   var L=document.getElementById('usersLoading'), C=document.getElementById('usersContent');
   L.classList.remove('hide'); L.textContent='Cargando usuarios…'; C.innerHTML='';
   try{
-    var rows=await sbGet('perfiles?select=id,nombre,email,rol,estado,empresa_id&order=estado.asc,nombre.asc');
+    var rows=await sbGet('perfiles?select=*&order=estado.asc,nombre.asc');
     USERS=rows||[];
     document.getElementById('usersCount').textContent='('+USERS.length+')';
     L.classList.add('hide');
@@ -464,10 +465,25 @@ async function loadUsuarios(){
 function renderUsers(){
   var C=document.getElementById('usersContent');
   if(!USERS.length){ C.innerHTML='<div class="detempty">No hay usuarios en tu empresa todavía.</div>'; return; }
-  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead><tbody>'
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Consola</th><th>Acción</th></tr></thead><tbody>'
     +USERS.map(function(u){
-      return '<tr><td>'+esc(u.nombre||'—')+'</td><td>'+esc(u.email||'—')+'</td><td>'+esc(u.rol||'—')+'</td><td>'+estadoBadge(u.estado)+'</td><td>'+accionesUsuario(u)+'</td></tr>';
+      return '<tr><td>'+esc(u.nombre||'—')+'</td><td>'+esc(u.email||'—')+'</td><td>'+esc(u.rol||'—')+'</td><td>'+estadoBadge(u.estado)+'</td><td>'+consolaCell(u)+'</td><td>'+accionesUsuario(u)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
+}
+function consolaCell(u){
+  var r=u.rol||'';
+  if(r==='hse'||r==='supervisor') return '<span class="umute">Sí · por rol</span>';
+  if(u.acceso_consola===true) return '<span class="badge seg">Sí</span> <button class="ubtn no" onclick="cambiarConsola(\''+u.id+'\',false)">Quitar</button>';
+  return '<span class="badge rech">No</span> <button class="ubtn ok" onclick="cambiarConsola(\''+u.id+'\',true)">Dar acceso</button>';
+}
+async function cambiarConsola(id,val){
+  var q = val ? 'darle acceso a la consola a esta persona' : 'quitarle el acceso a la consola';
+  if(!confirm('¿Seguro que querés '+q+'?')) return;
+  try{
+    await sbPatch('perfiles?id=eq.'+id,{acceso_consola:val});
+    var u=USERS.find(function(x){return x.id===id;}); if(u) u.acceso_consola=val;
+    renderUsers();
+  }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403 o falta la columna, corré el SQL KALU_05_acceso_consola.sql en Supabase.'); }
 }
 async function cambiarEstadoUsuario(id,nuevo){
   var q = nuevo==='baja' ? 'dar de baja a este usuario' : nuevo==='rechazado' ? 'rechazar a este usuario' : 'activar a este usuario';

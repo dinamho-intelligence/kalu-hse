@@ -785,7 +785,7 @@ async function iniciarInvestigacion(){
   const btn=document.getElementById('btn-inv-iniciar');btn.disabled=true;btn.textContent='⏳ Iniciando investigación...';
   const participantes=[reporta,...testigos.filter(t=>t!==reporta)];
   testigoActivo=reporta;invSessionId='INV-'+Date.now();
-  window.invFirma={reporta,rol,cedula,inv_id:invSessionId,transcript:[]};
+  window.invFirma={reporta,rol,cedula,inv_id:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,transcript:[]};
   try{
     const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null})});
     const data=await res.json();
@@ -808,7 +808,7 @@ async function continuarInvestigacion(){
   if(!nombre)return;
   const cedInv=(prompt('Cédula de quien declara (para la firma):')||'').trim();
   invSessionId=id;testigoActivo=nombre;testigos=[];
-  window.invFirma={reporta:nombre,rol:'declarante',cedula:cedInv,inv_id:id,transcript:[]};
+  window.invFirma={reporta:nombre,rol:'declarante',cedula:cedInv,inv_id:id,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,transcript:[]};
   document.getElementById('header-modulo').textContent='KALU Investigador';
   const inv=document.getElementById('pantalla-investigador');inv.classList.remove('visible');inv.style.opacity='';inv.style.transform='';
   document.getElementById('pantalla-inv-chat').classList.add('visible');
@@ -933,18 +933,16 @@ async function firmarInvDecl(data){
   try{
     const ts=new Date().toISOString();const seqTxt=window._invSeqTxt||'';
     const hash=_invHash(seqTxt+(f.cedula||'')+ts);const firmaPng=cv.toDataURL('image/png');
-    let firmanteId=null;
-    if(f.cedula){const up=await sb.from('firmantes').upsert({nombre:f.reporta,cedula:f.cedula},{onConflict:'cedula'}).select('id').single();if(up.error)throw new Error('firmante: '+up.error.message);if(up.data)firmanteId=up.data.id;}
-    const tIns=await sb.from('testimonios').insert({inv_id:f.inv_id,firmante_id:firmanteId,rol:(f.rol||'declarante'),transcripcion:seqTxt,feedback:'',estado:'firmado',hash:hash,datos_evento:{}}).select('id').single();
-    if(tIns.error)throw new Error('testimonio: '+tIns.error.message);
-    const testId=tIns.data?tIns.data.id:null;
-    if(testId){
-      const blob=await (await fetch(firmaPng)).blob();const firmaPath=testId+'/'+Date.now()+'.png';
-      const upF=await sb.storage.from('firmas').upload(firmaPath,blob,{contentType:'image/png'});if(upF.error)throw new Error('firma-storage: '+upF.error.message);
-      const fIns=await sb.from('firmas').insert({doc_tipo:'testimonio',doc_id:testId,firmante_id:firmanteId,rol:(f.rol||'declarante'),metodo:'dibujada',firma_path:firmaPath,hash_doc:hash,dispositivo:navigator.userAgent.slice(0,120)});if(fIns.error)throw new Error('firma: '+fIns.error.message);
-    }
-    _pdfTestimonio(f,(f.transcript||[]),firmaPng,hash,ts);
-    msg.style.color='#25C26E';msg.innerHTML='&#10003; Firmado y guardado. PDF descargado.';
+    // Genera el PDF firmado (lo descarga local) y lo sube al ARCHIVO de documentos del expediente.
+    const pdfBlob=_pdfTestimonio(f,(f.transcript||[]),firmaPng,hash,ts);
+    if(!pdfBlob) throw new Error('no se pudo generar el PDF de la declaración.');
+    const nombreArch='testimonio-'+(String(f.cedula||'sc').replace(/[^a-zA-Z0-9]/g,''))+'-'+Date.now()+'.pdf';
+    const rutaArch='investigaciones/'+(f.inv_id||'SININV')+'/'+nombreArch;
+    const upDoc=await sb.storage.from('documentos').upload(rutaArch,pdfBlob,{contentType:'application/pdf',upsert:true});
+    if(upDoc.error) throw new Error('subir al depósito: '+upDoc.error.message);
+    const docIns=await sb.from('documentos').insert({empresa_id:(f.empresa_id||null),tipo:'testimonio',origen:'investigacion',nombre:'Declaración firmada — '+(f.reporta||'declarante')+' · '+(f.inv_id||''),storage_path:rutaArch});
+    if(docIns.error) throw new Error('registrar en el depósito: '+docIns.error.message);
+    msg.style.color='#25C26E';msg.innerHTML='&#10003; Firmado. Guardado en el expediente y descargado.';
     btn.textContent='Continuar →';btn.disabled=false;
     btn.onclick=()=>{const o=document.getElementById('inv-firma-overlay');if(o)o.remove();iniciarCierreInv(data&&data.cerrar);};
   }catch(e){msg.style.color='#FF3B30';msg.textContent='Error: '+((e&&e.message)||e);btn.disabled=false;}
@@ -977,7 +975,8 @@ function _pdfTestimonio(f,seqArr,firmaPng,hash,ts){
     const c='Firmado electrónicamente por '+(f.reporta||'')+', C.C. '+(f.cedula||'')+', el '+new Date(ts).toLocaleString('es-CO')+'. Método: firma en pantalla. Integridad garantizada por hash '+hash+'. Conforme a la Ley 527 de 1999. Documento inalterable — cualquier cambio invalida el hash.';
     const cl=doc.splitTextToSize(c,W-M*2);doc.text(cl,M,y);
     doc.save('Testimonio_'+(f.inv_id||'KALU')+'.pdf');
-  }catch(e){console.error('PDF',e);}
+    return doc.output('blob');
+  }catch(e){console.error('PDF',e);return null;}
 }
 function agregarMensajeInv(texto,reproducir=false,onFinalizado=null){
   const cont=document.getElementById('inv-mensajes');

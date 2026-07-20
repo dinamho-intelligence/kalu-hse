@@ -252,16 +252,17 @@ async function identificar(){
   $('btnId').disabled=true; $('btnId').textContent='Buscando…';
   try{
     if(!obs){
-      cands=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,empresas_maestro(razon_social)&cedula=eq.'+encodeURIComponent(ced));
+      cands=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,vigente,empresas_maestro(razon_social)&cedula=eq.'+encodeURIComponent(ced));
       if(!cands.length){err('idErr','No encontramos ese documento en el registro. Revisá el número o avisá a tu HSE.'); return;}
       if(cands.length>1){ pintarEmp(); return; }
       obs=norm(cands[0]);
     }
+    if(obs && obs.vigente===false){ err('idErr','Tu registro fue dado de baja por tu empresa. No podés registrar tarjetas. Hablá con tu HSE.'); return; }
     entrarForm();
   }catch(e){ err('idErr','No se pudo conectar. Revisá tu internet e intentá de nuevo.'); }
   finally{ $('btnId').disabled=false; $('btnId').textContent='Continuar ▸'; }
 }
-function norm(r){return {id:r.id,nombre:r.nombre,cedula:r.cedula,empresa_id:r.empresa_id,empresa:(r.empresas_maestro&&r.empresas_maestro.razon_social)||'—'};}
+function norm(r){return {id:r.id,nombre:r.nombre,cedula:r.cedula,empresa_id:r.empresa_id,vigente:(r.vigente!==false),empresa:(r.empresas_maestro&&r.empresas_maestro.razon_social)||'—'};}
 function pintarEmp(){
   $('empPick').classList.remove('hide');
   $('empChips').innerHTML=cands.map((c,i)=>'<div class="chip" onclick="pickEmp('+i+',this)">'+((c.empresas_maestro&&c.empresas_maestro.razon_social)||'—')+'</div>').join('');

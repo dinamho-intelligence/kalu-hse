@@ -1347,8 +1347,8 @@ async function iniciarSesion(){
     try{
       const { data:{ user } } = await sb.auth.getUser();
       if(!user) return null;
-      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado').eq('id', user.id).single();
-      window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null, estado:'activo' };
+      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado,acceso_consola').eq('id', user.id).single();
+      window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null, estado:'activo', acceso_consola:false };
     }catch(e){ window.kaluAuth.perfil = window.kaluAuth.perfil || { rol:'trabajador', estado:'activo' }; }
     return window.kaluAuth.perfil;
   }
@@ -1376,10 +1376,11 @@ async function iniciarSesion(){
     const p=(window.kaluAuth&&window.kaluAuth.perfil)||{};
     const rol=p.rol||'trabajador';
     const esManager=(rol==='hse'||rol==='supervisor');
-    // 1) Al trabajador se le esconde la Consola HSE
+    const puedeConsola=esManager || (p.acceso_consola===true);
+    // 1) La tarjeta de Consola HSE se muestra a managers o a quien tenga acceso a consola
     document.querySelectorAll('.modulo-card').forEach(function(c){
       const oc=c.getAttribute('onclick')||'';
-      if(oc.indexOf('hse.html')!==-1){ c.style.display=esManager?'':'none'; }
+      if(oc.indexOf('hse.html')!==-1){ c.style.display=puedeConsola?'':'none'; }
     });
     // 2) Mostrar "Nombre · Empresa" arriba a la derecha
     let empresa='';

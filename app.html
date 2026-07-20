@@ -355,14 +355,33 @@
       <svg viewBox="0 0 40 40" fill="none" width="40" height="40"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="14" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text></svg>
     </div>
     <div class="login-title">KALU</div>
-    <div class="login-sub">// ACCESO SEGURO · v2 · DINAMHO INTELLIGENCE</div>
+    <div class="login-sub">// ACCESO SEGURO · v3 · DINAMHO INTELLIGENCE</div>
     <label class="login-label" for="login-email">Cédula o correo</label>
     <input class="login-input" id="login-email" type="text" autocomplete="off" placeholder="Tu cédula" />
     <label class="login-label" for="login-pass">Contraseña</label>
     <input class="login-input" id="login-pass" type="password" autocomplete="off" placeholder="••••••••" />
     <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
     <div class="login-error" id="login-error"></div>
-    <div class="login-foot">Acceso exclusivo para empresas registradas.</div>
+    <div class="login-foot">Acceso exclusivo para empresas registradas.<br><a href="#" onclick="verRegistro();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">Crear cuenta nueva</a></div>
+  </div>
+</div>
+<!-- REGISTRO -->
+<div id="pantalla-registro" style="position:fixed;inset:0;z-index:100;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);padding:24px;">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 40 40" fill="none" width="40" height="40"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="14" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text></svg>
+    </div>
+    <div class="login-title">Crear cuenta</div>
+    <div class="login-sub">// SOLO PERSONAL REGISTRADO POR LA EMPRESA</div>
+    <label class="login-label" for="reg-cedula">Cédula</label>
+    <input class="login-input" id="reg-cedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Tu cédula (solo números)" />
+    <label class="login-label" for="reg-email">Correo (para confirmar y recuperar tu clave)</label>
+    <input class="login-input" id="reg-email" type="email" autocomplete="off" placeholder="tu@correo.com" />
+    <label class="login-label" for="reg-pass">Contraseña</label>
+    <input class="login-input" id="reg-pass" type="password" autocomplete="off" placeholder="Elegí una contraseña (mín. 6)" />
+    <button class="login-btn" id="reg-btn" onclick="registrarse()">Registrarme</button>
+    <div class="login-error" id="reg-msg"></div>
+    <div class="login-foot"><a href="#" onclick="verLogin();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">← Ya tengo cuenta, ingresar</a></div>
   </div>
 </div>
 <header>
@@ -1367,6 +1386,35 @@ async function iniciarSesion(){
     el.innerHTML='<span style="font-size:13px;font-weight:700;color:#F0F0F0;">'+escn+'</span>'
       +(empresa?('<span style="font-size:10px;color:#F28C00;font-family:monospace;letter-spacing:.5px;">'+esce+'</span>'):'');
   }
+  function verRegistro(){ var l=document.getElementById('pantalla-login'); var r=document.getElementById('pantalla-registro'); if(l)l.style.display='none'; if(r)r.style.display='flex'; }
+  function verLogin(){ var l=document.getElementById('pantalla-login'); var r=document.getElementById('pantalla-registro'); if(r)r.style.display='none'; if(l){ l.classList.remove('oculto'); l.style.display='flex'; } }
+  async function registrarse(){
+    const cedula=((document.getElementById('reg-cedula').value||'').replace(/\D/g,''));
+    const email=(document.getElementById('reg-email').value||'').trim();
+    const pass=document.getElementById('reg-pass').value||'';
+    const msg=document.getElementById('reg-msg'); msg.style.color='#FF5A4E'; msg.textContent='';
+    if(!cedula||!email||!pass){ msg.textContent='Completá cédula, correo y contraseña.'; return; }
+    if(pass.length<6){ msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
+    const btn=document.getElementById('reg-btn'); btn.disabled=true; btn.textContent='Creando cuenta…';
+    try{
+      // 1) La cédula debe estar en el listado de empleados de la empresa
+      const { data:trab } = await sb.from('trabajadores_maestro').select('nombre').eq('cedula',cedula).limit(1);
+      if(!trab || !trab.length){
+        msg.textContent='Tu cédula no está registrada por tu empresa. Hablá con tu HSE.';
+        btn.disabled=false; btn.textContent='Registrarme'; return;
+      }
+      const { data, error } = await sb.auth.signUp({ email, password:pass, options:{ data:{ cedula } } });
+      if(error){
+        const m=(error.message||'').toLowerCase();
+        if(m.indexOf('already')!==-1){ msg.textContent='Ese correo ya tiene una cuenta. Probá ingresar.'; }
+        else { msg.textContent='No se pudo registrar: '+error.message; }
+        btn.disabled=false; btn.textContent='Registrarme'; return;
+      }
+      msg.style.color='#25C26E';
+      msg.innerHTML='¡Listo! Te enviamos un correo a <b>'+email.replace(/</g,'&lt;')+'</b>. Confirmá el link y despues ingresa con tu <b>cedula</b>.';
+      btn.disabled=false; btn.textContent='Registrarme';
+    }catch(e){ msg.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Registrarme'; }
+  }
   async function hacerLogin(){
     const ident=(document.getElementById('login-email').value||'').trim();
     const pass=document.getElementById('login-pass').value||'';
@@ -1377,7 +1425,7 @@ async function iniciarSesion(){
     btn.disabled=true; btn.textContent='Ingresando…';
     try{
       let email=ident;
-      if(/^\d+$/.test(ident)){   // si son solo números, es cédula → resolver a correo
+      if(/^\d+$/.test(ident)){
         const { data:mail, error:e2 } = await sb.rpc('email_por_cedula', { ced: ident });
         if(e2 || !mail){ err.textContent='Cédula no registrada.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
         email=mail;

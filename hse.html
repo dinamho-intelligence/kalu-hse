@@ -248,7 +248,7 @@
         <div class="umsg">Archivo de PDF oficiales de tu empresa: informes, testimonios, ATS, alertas y lecciones. Descargá cualquiera.</div>
         <div class="tarbar">
           <select id="fDocTipo" onchange="renderDocs()"><option value="">Todos los tipos</option><option value="informe">Informes</option><option value="testimonio">Testimonios</option><option value="ats">ATS</option><option value="alerta">Alertas</option><option value="leccion">Lecciones</option><option value="otro">Otros</option></select>
-          <input id="fDocBusca" oninput="renderDocs()" placeholder="Buscar por título…">
+          <input id="fDocBusca" oninput="renderDocs()" placeholder="Buscar por nombre…">
         </div>
         <div class="loading" id="docsLoading">Cargando documentos…</div>
         <div id="docsContent"></div>
@@ -525,7 +525,7 @@ function docsFiltrados(){
   var q=((document.getElementById('fDocBusca')||{}).value||'').toLowerCase().trim();
   return (DOCS||[]).filter(function(d){
     if(t && (d.tipo||'')!==t) return false;
-    if(q && String(d.titulo||d.origen_id||'').toLowerCase().indexOf(q)===-1) return false;
+    if(q && String(d.nombre||'').toLowerCase().indexOf(q)===-1) return false;
     return true;
   });
 }
@@ -534,11 +534,11 @@ function renderDocs(){
   if(!DOCS){ return; }
   var rows=docsFiltrados();
   if(!rows.length){ C.innerHTML='<div class="detempty">No hay documentos con estos filtros. (Se van cargando a medida que KALU los genera.)</div>'; return; }
-  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Origen</th><th>Descargar</th></tr></thead><tbody>'
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>Nombre</th><th>Origen</th><th>Descargar</th></tr></thead><tbody>'
     +rows.map(function(d){
-      var nombre=String(d.titulo||d.origen_id||'documento').replace(/[^a-zA-Z0-9 _.-]/g,'').trim()||'documento';
-      return '<tr><td>'+docFecha(d)+'</td><td>'+tipoBadgeDoc(d.tipo)+'</td><td>'+esc(d.titulo||'—')+'</td><td>'+esc(d.origen_id||d.origen||'—')+'</td>'
-        +'<td><button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(d.storage_path||'')+'\',\''+nombre+'\')">⬇ PDF</button></td></tr>';
+      var nom=String(d.nombre||'documento').replace(/[^a-zA-Z0-9 _.-]/g,'').trim()||'documento';
+      return '<tr><td>'+docFecha(d)+'</td><td>'+tipoBadgeDoc(d.tipo)+'</td><td>'+esc(d.nombre||'—')+'</td><td>'+esc(d.origen||'—')+'</td>'
+        +'<td><button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(d.storage_path||'')+'\',\''+nom+'\')">⬇ PDF</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 async function bajarDoc(btn, pathEnc, nombre){

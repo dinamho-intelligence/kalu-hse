@@ -934,13 +934,14 @@ async function firmarInvDecl(data){
     const ts=new Date().toISOString();const seqTxt=window._invSeqTxt||'';
     const hash=_invHash(seqTxt+(f.cedula||'')+ts);const firmaPng=cv.toDataURL('image/png');
     let firmanteId=null;
-    if(f.cedula){const up=await sb.from('firmantes').upsert({nombre:f.reporta,cedula:f.cedula},{onConflict:'cedula'}).select('id').single();if(up.data)firmanteId=up.data.id;}
+    if(f.cedula){const up=await sb.from('firmantes').upsert({nombre:f.reporta,cedula:f.cedula},{onConflict:'cedula'}).select('id').single();if(up.error)throw new Error('firmante: '+up.error.message);if(up.data)firmanteId=up.data.id;}
     const tIns=await sb.from('testimonios').insert({inv_id:f.inv_id,firmante_id:firmanteId,rol:(f.rol||'declarante'),transcripcion:seqTxt,feedback:'',estado:'firmado',hash:hash,datos_evento:{}}).select('id').single();
+    if(tIns.error)throw new Error('testimonio: '+tIns.error.message);
     const testId=tIns.data?tIns.data.id:null;
     if(testId){
       const blob=await (await fetch(firmaPng)).blob();const firmaPath=testId+'/'+Date.now()+'.png';
-      await sb.storage.from('firmas').upload(firmaPath,blob,{contentType:'image/png'});
-      await sb.from('firmas').insert({doc_tipo:'testimonio',doc_id:testId,firmante_id:firmanteId,rol:(f.rol||'declarante'),metodo:'dibujada',firma_path:firmaPath,hash_doc:hash,dispositivo:navigator.userAgent.slice(0,120)});
+      const upF=await sb.storage.from('firmas').upload(firmaPath,blob,{contentType:'image/png'});if(upF.error)throw new Error('firma-storage: '+upF.error.message);
+      const fIns=await sb.from('firmas').insert({doc_tipo:'testimonio',doc_id:testId,firmante_id:firmanteId,rol:(f.rol||'declarante'),metodo:'dibujada',firma_path:firmaPath,hash_doc:hash,dispositivo:navigator.userAgent.slice(0,120)});if(fIns.error)throw new Error('firma: '+fIns.error.message);
     }
     _pdfTestimonio(f,(f.transcript||[]),firmaPng,hash,ts);
     msg.style.color='#25C26E';msg.innerHTML='&#10003; Firmado y guardado. PDF descargado.';

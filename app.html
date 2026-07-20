@@ -938,7 +938,7 @@ async function firmarInvDecl(data){
     if(!pdfBlob) throw new Error('no se pudo generar el PDF de la declaración.');
     const nombreArch='testimonio-'+(String(f.cedula||'sc').replace(/[^a-zA-Z0-9]/g,''))+'-'+Date.now()+'.pdf';
     const rutaArch='investigaciones/'+(f.inv_id||'SININV')+'/'+nombreArch;
-    const upDoc=await sb.storage.from('documentos').upload(rutaArch,pdfBlob,{contentType:'application/pdf',upsert:true});
+    const upDoc=await sb.storage.from('documentos').upload(rutaArch,pdfBlob,{contentType:'application/pdf'});
     if(upDoc.error) throw new Error('subir al depósito: '+upDoc.error.message);
     const docIns=await sb.from('documentos').insert({empresa_id:(f.empresa_id||null),tipo:'testimonio',origen:'investigacion',nombre:'Declaración firmada — '+(f.reporta||'declarante')+' · '+(f.inv_id||''),storage_path:rutaArch});
     if(docIns.error) throw new Error('registrar en el depósito: '+docIns.error.message);

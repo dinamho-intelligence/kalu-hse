@@ -569,7 +569,7 @@ async function loadRoster(){
   var L=document.getElementById('rosterLoading'), C=document.getElementById('rosterContent');
   L.classList.remove('hide'); L.textContent='Cargando personal…'; C.innerHTML='';
   try{
-    var rows=await sbGet('trabajadores_maestro?select=id,nombre,cedula,vigente,empresa_id&order=vigente.asc,nombre.asc');
+    var rows=await sbGet('trabajadores_maestro?select=*&order=vigente.asc,nombre.asc');
     ROSTER=rows||[];
     document.getElementById('rosterCount').textContent='('+ROSTER.length+')';
     L.classList.add('hide');
@@ -583,9 +583,10 @@ function renderRoster(){
     +ROSTER.map(function(t){
       var vig=(t.vigente!==false);
       var badge=vig?'<span class="badge seg">vigente</span>':'<span class="badge ins">de baja</span>';
-      var acc=vig
+      var acc='<button class="ubtn" style="background:rgba(0,212,255,.12);color:var(--cy);border:1px solid rgba(0,212,255,.35)" onclick="editarTrabajador(\''+t.id+'\')">✎ Datos</button>'
+        +(vig
         ?'<button class="ubtn no" onclick="cambiarVigente(\''+t.id+'\',false)">Dar de baja</button>'
-        :'<button class="ubtn ok" onclick="cambiarVigente(\''+t.id+'\',true)">Reactivar</button>';
+        :'<button class="ubtn ok" onclick="cambiarVigente(\''+t.id+'\',true)">Reactivar</button>');
       return '<tr><td>'+esc(t.nombre||'—')+'</td><td>'+esc(t.cedula||'—')+'</td><td>'+badge+'</td><td>'+acc+'</td></tr>';
     }).join('')+'</tbody></table></div>';
 }
@@ -597,6 +598,32 @@ async function cambiarVigente(id,vig){
     var t=ROSTER.find(function(x){return x.id===id;}); if(t) t.vigente=vig;
     renderRoster();
   }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403, falta correr las políticas de seguridad (RLS) en Supabase.'); }
+}
+// ----- Editar datos del trabajador (para el autollenado del informe) -----
+var CAMPOS_TRAB=[['cargo','Cargo / ocupación','text'],['tipo_vinculacion','Tipo de vinculación','text'],['sexo','Sexo','text'],['fecha_nacimiento','Fecha de nacimiento','date'],['direccion','Dirección','text'],['lugar_residencia','Lugar de residencia','text'],['eps','EPS','text'],['afp','AFP','text'],['arl','ARL','text'],['salario','Salario','text'],['jornada','Jornada','text']];
+function editarTrabajador(id){
+  var t=(ROSTER||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var campos=CAMPOS_TRAB.map(function(c){
+    var val=(t[c[0]]==null?'':String(t[c[0]])).replace(/"/g,'&quot;');
+    return '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:4px;letter-spacing:.3px">'+esc(c[1])+'</label>'
+      +'<input id="ed-'+c[0]+'" type="'+c[2]+'" value="'+val+'" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px;font-family:inherit;outline:none"></div>';
+  }).join('');
+  document.getElementById('detTit').textContent='Editar datos · '+(t.nombre||'')+' · C.C. '+(t.cedula||'');
+  document.getElementById('detBody').innerHTML='<div class="umsg" style="margin-bottom:12px">Datos que usa KALU para autocompletar el informe de investigación. Actualizalos cuando cambien (aumento, cambio de EPS, etc.).</div>'
+    +campos
+    +'<button class="dl" style="width:100%;margin-top:6px" onclick="guardarTrabajador(\''+id+'\')">Guardar cambios</button>'
+    +'<div id="ed-msg" style="font-size:12px;margin-top:8px;min-height:16px"></div>';
+  document.getElementById('detalle').classList.remove('hide');
+}
+async function guardarTrabajador(id){
+  var body={}; CAMPOS_TRAB.forEach(function(c){ var el=document.getElementById('ed-'+c[0]); if(el){ var v=el.value.trim(); body[c[0]]=(v===''?null:v); } });
+  var m=document.getElementById('ed-msg'); m.style.color='var(--tx2)'; m.textContent='Guardando…';
+  try{
+    await sbPatch('trabajadores_maestro?id=eq.'+id, body);
+    var t=(ROSTER||[]).find(function(x){return x.id===id;}); if(t){ Object.keys(body).forEach(function(k){ t[k]=body[k]; }); }
+    m.style.color='var(--verde)'; m.textContent='✓ Guardado.';
+    setTimeout(function(){ cerrarDet(); }, 800);
+  }catch(e){ m.style.color='var(--rojo)'; m.textContent='No se pudo guardar ('+e.message+').'; }
 }
 async function loadExpedientes(){
   try{

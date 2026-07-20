@@ -135,6 +135,13 @@
   .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
   .badge.seg{background:rgba(37,194,110,.15);color:var(--verde);}
   .badge.ins{background:rgba(255,59,48,.15);color:var(--rojo);}
+  .badge.pend{background:rgba(232,147,12,.18);color:var(--amber);}
+  .badge.rech{background:rgba(94,104,115,.22);color:var(--tx2);}
+  .umsg{font-size:12px;color:var(--tx2);margin-bottom:14px;line-height:1.5;}
+  .ubtn{border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;margin-right:6px;}
+  .ubtn.ok{background:rgba(37,194,110,.15);color:var(--verde);border:1px solid rgba(37,194,110,.4);}
+  .ubtn.no{background:rgba(255,59,48,.13);color:var(--rojo);border:1px solid rgba(255,59,48,.4);}
+  .umute{color:var(--tx3);font-size:12px;}
 </style>
 </head>
 <body>
@@ -166,6 +173,7 @@
       <button class="tab" id="tabExp" onclick="verVista('exp')">📁 Expedientes</button>
       <button class="tab" id="tabTar" onclick="verVista('tar')">📋 Tarjetas</button>
       <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
+      <button class="tab" id="tabUsers" onclick="verVista('usuarios')">👤 Usuarios</button>
     </div>
     <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
@@ -218,6 +226,14 @@
         </div>
       </div>
     </div>
+    <div class="hide" id="viewUsers">
+      <div class="card">
+        <h2><span>▸</span> Usuarios de tu empresa <span id="usersCount" style="color:var(--nar)"></span></h2>
+        <div class="umsg">Aprobá a los que se registran, dá de baja a quien ya no trabaja, o reactivá. Solo ves la gente de tu empresa.</div>
+        <div class="loading" id="usersLoading">Cargando usuarios…</div>
+        <div id="usersContent"></div>
+      </div>
+    </div>
   </div>
   <div class="detov hide" id="detalle" onclick="if(event.target===this)cerrarDet()">
     <div class="detcard"><div class="dethd"><span id="detTit"></span><button onclick="cerrarDet()">&#10005;</button></div><div class="detbody" id="detBody"></div></div>
@@ -229,7 +245,7 @@ const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
 const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6873';
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
-let TOKEN=null, charts=[];
+let TOKEN=null, charts=[], MYID=null, MYEMP=null;
 function $(id){return document.getElementById(id);}
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value;
@@ -244,8 +260,10 @@ async function login(){
     // Candado por rol: la consola es SOLO para HSE y supervisores. Falla cerrado (si no confirma, no entra).
     let rolOk=false;
     try{
-      const pf=await sbGet('perfiles?select=rol&id=eq.'+(d.user&&d.user.id));
+      MYID=(d.user&&d.user.id)||null;
+      const pf=await sbGet('perfiles?select=rol,empresa_id&id=eq.'+MYID);
       const rol=(pf&&pf[0]&&pf[0].rol)||'';
+      MYEMP=(pf&&pf[0]&&pf[0].empresa_id)||null;
       rolOk=(rol==='hse'||rol==='supervisor');
     }catch(_){ rolOk=false; }
     if(!rolOk){
@@ -260,6 +278,11 @@ async function login(){
 function salir(){ TOKEN=null; location.reload(); }
 async function sbGet(path){
   const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
+  if(!r.ok) throw new Error(path+' '+r.status);
+  return r.json();
+}
+async function sbPatch(path, body){
+  const r=await fetch(SB_URL+'/rest/v1/'+path,{method:'PATCH',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(body)});
   if(!r.ok) throw new Error(path+' '+r.status);
   return r.json();
 }
@@ -376,19 +399,72 @@ function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); 
 <script>
 // ===== EXPEDIENTES (bloque 2 de la consola HSE) =====
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-let EXP=null;
+let EXP=null, USERS=null;
 function verVista(v){
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
   document.getElementById('tabTar').classList.toggle('on',v==='tar');
   document.getElementById('tabChat').classList.toggle('on',v==='chat');
+  document.getElementById('tabUsers').classList.toggle('on',v==='usuarios');
   document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
   document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
   document.getElementById('viewTar').classList.toggle('hide',v!=='tar');
   document.getElementById('viewChat').classList.toggle('hide',v!=='chat');
+  document.getElementById('viewUsers').classList.toggle('hide',v!=='usuarios');
   if(v==='exp' && !EXP) loadExpedientes();
   if(v==='tar' && !TAR) loadTarjetas();
   if(v==='chat') initChat();
+  if(v==='usuarios' && !USERS) loadUsuarios();
+}
+// ===== USUARIOS (panel de administración del HSE) =====
+function estadoBadge(s){
+  s=s||'';
+  if(s==='activo') return '<span class="badge seg">activo</span>';
+  if(s==='pendiente') return '<span class="badge pend">pendiente</span>';
+  if(s==='baja') return '<span class="badge ins">baja</span>';
+  if(s==='rechazado') return '<span class="badge rech">rechazado</span>';
+  return '<span class="badge">'+esc(s)+'</span>';
+}
+function accionesUsuario(u){
+  var e=u.estado||'', a='';
+  if(e==='pendiente'){
+    a+='<button class="ubtn ok" onclick="cambiarEstadoUsuario(\''+u.id+'\',\'activo\')">Aprobar</button>';
+    a+='<button class="ubtn no" onclick="cambiarEstadoUsuario(\''+u.id+'\',\'rechazado\')">Rechazar</button>';
+  } else if(e==='activo'){
+    if(u.id!==MYID) a+='<button class="ubtn no" onclick="cambiarEstadoUsuario(\''+u.id+'\',\'baja\')">Dar de baja</button>';
+    else a+='<span class="umute">— vos —</span>';
+  } else {
+    a+='<button class="ubtn ok" onclick="cambiarEstadoUsuario(\''+u.id+'\',\'activo\')">Reactivar</button>';
+  }
+  return a;
+}
+async function loadUsuarios(){
+  var L=document.getElementById('usersLoading'), C=document.getElementById('usersContent');
+  L.classList.remove('hide'); L.textContent='Cargando usuarios…'; C.innerHTML='';
+  try{
+    var rows=await sbGet('perfiles?select=id,nombre,email,rol,estado,empresa_id&order=estado.asc,nombre.asc');
+    USERS=rows||[];
+    document.getElementById('usersCount').textContent='('+USERS.length+')';
+    L.classList.add('hide');
+    renderUsers();
+  }catch(e){ L.textContent='No se pudieron cargar los usuarios ('+e.message+'). Si dice 401/403, faltan las políticas de seguridad en Supabase.'; }
+}
+function renderUsers(){
+  var C=document.getElementById('usersContent');
+  if(!USERS.length){ C.innerHTML='<div class="detempty">No hay usuarios en tu empresa todavía.</div>'; return; }
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead><tbody>'
+    +USERS.map(function(u){
+      return '<tr><td>'+esc(u.nombre||'—')+'</td><td>'+esc(u.email||'—')+'</td><td>'+esc(u.rol||'—')+'</td><td>'+estadoBadge(u.estado)+'</td><td>'+accionesUsuario(u)+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+async function cambiarEstadoUsuario(id,nuevo){
+  var q = nuevo==='baja' ? 'dar de baja a este usuario' : nuevo==='rechazado' ? 'rechazar a este usuario' : 'activar a este usuario';
+  if(!confirm('¿Seguro que querés '+q+'?')) return;
+  try{
+    await sbPatch('perfiles?id=eq.'+id,{estado:nuevo});
+    var u=USERS.find(function(x){return x.id===id;}); if(u) u.estado=nuevo;
+    renderUsers();
+  }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403, falta correr las políticas de seguridad (RLS) en Supabase.'); }
 }
 async function loadExpedientes(){
   try{

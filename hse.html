@@ -711,8 +711,25 @@ function parseInforme(hist){
 }
 async function cargarInforme(invId){
   const w=document.getElementById('informeWrap'); if(!w) return;
-  w.innerHTML='<div class="card"><h2><span>▸</span> Informe de investigación</h2>'
-    +'<div class="txt" style="color:var(--tx2)">Acá se muestra el <b>informe oficial firmado</b> — el mismo documento que genera KALU y se envía por Telegram, con su hash de integridad. Se integra cuando n8n guarde ese informe en el expediente. <b>No se recrea aquí</b> para no generar versiones distintas del mismo documento.</div></div>';
+  w.innerHTML='<div class="card"><h2><span>▸</span> Documentos del expediente</h2><div class="loading" style="padding:8px 0">Cargando documentos…</div></div>';
+  try{
+    const docs=await sbGet('documentos?select=*&order=created_at.asc&storage_path=like.investigaciones/'+encodeURIComponent(invId)+'/*');
+    let inner='<div class="card"><h2><span>▸</span> Documentos del expediente <span style="color:var(--nar)">('+docs.length+')</span></h2>';
+    if(!docs.length){
+      inner+='<div class="txt" style="color:var(--tx2)">Todavía no hay documentos guardados para este expediente. Aparecen acá cuando KALU cierra la investigación y n8n los archiva (informe, transcripción, alerta, lección).</div>';
+    } else {
+      inner+='<div class="twrap"><table class="ttbl"><thead><tr><th>Tipo</th><th>Nombre</th><th>Descargar</th></tr></thead><tbody>'
+        +docs.map(function(d){
+          var nom=String(d.nombre||'documento').replace(/[^a-zA-Z0-9 _.-]/g,'').trim()||'documento';
+          return '<tr><td>'+tipoBadgeDoc(d.tipo)+'</td><td>'+esc(d.nombre||'—')+'</td>'
+            +'<td><button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(d.storage_path||'')+'\',\''+nom+'\')">⬇ PDF</button></td></tr>';
+        }).join('')+'</tbody></table></div>';
+    }
+    inner+='</div>';
+    w.innerHTML=inner;
+  }catch(e){
+    w.innerHTML='<div class="card"><h2><span>▸</span> Documentos del expediente</h2><div class="txt" style="color:var(--tx2)">No se pudieron cargar los documentos ('+esc(e.message)+').</div></div>';
+  }
 }
 function _kv(k,v){ if(v==null||v===''||/^No informad/.test(String(v))) v='—'; return '<div class="kv"><span>'+esc(k)+'</span><b>'+esc(v)+'</b></div>'; }
 function _ul(arr){ if(!arr||!arr.length) return '<div class="mut">—</div>'; return '<ul class="il">'+arr.map(function(x){return '<li>'+esc(typeof x==='string'?x:JSON.stringify(x))+'</li>';}).join('')+'</ul>'; }

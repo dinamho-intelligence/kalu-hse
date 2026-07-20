@@ -137,6 +137,7 @@
   .badge.ins{background:rgba(255,59,48,.15);color:var(--rojo);}
   .badge.pend{background:rgba(232,147,12,.18);color:var(--amber);}
   .badge.rech{background:rgba(94,104,115,.22);color:var(--tx2);}
+  .badge.doc{background:rgba(0,212,255,.14);color:var(--cy);}
   .umsg{font-size:12px;color:var(--tx2);margin-bottom:14px;line-height:1.5;}
   .ubtn{border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;margin-right:6px;}
   .ubtn.ok{background:rgba(37,194,110,.15);color:var(--verde);border:1px solid rgba(37,194,110,.4);}
@@ -174,6 +175,7 @@
       <button class="tab" id="tabTar" onclick="verVista('tar')">📋 Tarjetas</button>
       <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
       <button class="tab" id="tabUsers" onclick="verVista('usuarios')">👤 Usuarios</button>
+      <button class="tab" id="tabDocs" onclick="verVista('docs')">📎 Documentos</button>
     </div>
     <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
@@ -238,6 +240,18 @@
         <div class="umsg">Registro de trabajadores por cédula. Dar de baja acá impide que la persona registre <b>tarjetas</b> (que no piden contraseña, solo cédula).</div>
         <div class="loading" id="rosterLoading">Cargando personal…</div>
         <div id="rosterContent"></div>
+      </div>
+    </div>
+    <div class="hide" id="viewDocs">
+      <div class="card">
+        <h2><span>▸</span> Documentos oficiales <span id="docsCount" style="color:var(--nar)"></span></h2>
+        <div class="umsg">Archivo de PDF oficiales de tu empresa: informes, testimonios, ATS, alertas y lecciones. Descargá cualquiera.</div>
+        <div class="tarbar">
+          <select id="fDocTipo" onchange="renderDocs()"><option value="">Todos los tipos</option><option value="informe">Informes</option><option value="testimonio">Testimonios</option><option value="ats">ATS</option><option value="alerta">Alertas</option><option value="leccion">Lecciones</option><option value="otro">Otros</option></select>
+          <input id="fDocBusca" oninput="renderDocs()" placeholder="Buscar por título…">
+        </div>
+        <div class="loading" id="docsLoading">Cargando documentos…</div>
+        <div id="docsContent"></div>
       </div>
     </div>
   </div>
@@ -412,22 +426,25 @@ function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); 
 <script>
 // ===== EXPEDIENTES (bloque 2 de la consola HSE) =====
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-let EXP=null, USERS=null, ROSTER=null;
+let EXP=null, USERS=null, ROSTER=null, DOCS=null;
 function verVista(v){
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
   document.getElementById('tabTar').classList.toggle('on',v==='tar');
   document.getElementById('tabChat').classList.toggle('on',v==='chat');
   document.getElementById('tabUsers').classList.toggle('on',v==='usuarios');
+  document.getElementById('tabDocs').classList.toggle('on',v==='docs');
   document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
   document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
   document.getElementById('viewTar').classList.toggle('hide',v!=='tar');
   document.getElementById('viewChat').classList.toggle('hide',v!=='chat');
   document.getElementById('viewUsers').classList.toggle('hide',v!=='usuarios');
+  document.getElementById('viewDocs').classList.toggle('hide',v!=='docs');
   if(v==='exp' && !EXP) loadExpedientes();
   if(v==='tar' && !TAR) loadTarjetas();
   if(v==='chat') initChat();
   if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
+  if(v==='docs' && !DOCS) loadDocs();
 }
 // ===== USUARIOS (panel de administración del HSE) =====
 function estadoBadge(s){
@@ -484,6 +501,59 @@ async function cambiarConsola(id,val){
     var u=USERS.find(function(x){return x.id===id;}); if(u) u.acceso_consola=val;
     renderUsers();
   }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403 o falta la columna, corré el SQL KALU_05_acceso_consola.sql en Supabase.'); }
+}
+// ----- Documentos oficiales (archivo central) -----
+function tipoBadgeDoc(t){
+  t=t||'otro';
+  var map={informe:'Informe',testimonio:'Testimonio',ats:'ATS',alerta:'Alerta',leccion:'Lección',otro:'Otro'};
+  return '<span class="badge doc">'+esc(map[t]||t)+'</span>';
+}
+function docFecha(d){ try{ return new Date(d.created_at).toLocaleDateString('es-CO'); }catch(e){ return '—'; } }
+async function loadDocs(){
+  var L=document.getElementById('docsLoading'), C=document.getElementById('docsContent');
+  L.classList.remove('hide'); L.textContent='Cargando documentos…'; C.innerHTML='';
+  try{
+    var rows=await sbGet('documentos?select=*&order=created_at.desc');
+    DOCS=rows||[];
+    document.getElementById('docsCount').textContent='('+DOCS.length+')';
+    L.classList.add('hide');
+    renderDocs();
+  }catch(e){ L.textContent='No se pudieron cargar los documentos ('+e.message+'). Si dice 401/403, faltan las políticas de seguridad en Supabase.'; }
+}
+function docsFiltrados(){
+  var t=(document.getElementById('fDocTipo')||{}).value||'';
+  var q=((document.getElementById('fDocBusca')||{}).value||'').toLowerCase().trim();
+  return (DOCS||[]).filter(function(d){
+    if(t && (d.tipo||'')!==t) return false;
+    if(q && String(d.titulo||d.origen_id||'').toLowerCase().indexOf(q)===-1) return false;
+    return true;
+  });
+}
+function renderDocs(){
+  var C=document.getElementById('docsContent');
+  if(!DOCS){ return; }
+  var rows=docsFiltrados();
+  if(!rows.length){ C.innerHTML='<div class="detempty">No hay documentos con estos filtros. (Se van cargando a medida que KALU los genera.)</div>'; return; }
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>Título</th><th>Origen</th><th>Descargar</th></tr></thead><tbody>'
+    +rows.map(function(d){
+      var nombre=String(d.titulo||d.origen_id||'documento').replace(/[^a-zA-Z0-9 _.-]/g,'').trim()||'documento';
+      return '<tr><td>'+docFecha(d)+'</td><td>'+tipoBadgeDoc(d.tipo)+'</td><td>'+esc(d.titulo||'—')+'</td><td>'+esc(d.origen_id||d.origen||'—')+'</td>'
+        +'<td><button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(d.storage_path||'')+'\',\''+nombre+'\')">⬇ PDF</button></td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+async function bajarDoc(btn, pathEnc, nombre){
+  var path=decodeURIComponent(pathEnc||'');
+  if(!path){ alert('Este documento no tiene archivo asociado.'); return; }
+  var old=btn.textContent; btn.disabled=true; btn.textContent='Bajando…';
+  try{
+    var r=await fetch(SB_URL+'/storage/v1/object/authenticated/documentos/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
+    if(!r.ok) throw new Error('descarga '+r.status);
+    var blob=await r.blob();
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url; a.download=(nombre||'documento')+'.pdf'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }catch(e){ alert('No se pudo descargar ('+e.message+').'); }
+  finally{ btn.disabled=false; btn.textContent=old; }
 }
 async function cambiarEstadoUsuario(id,nuevo){
   var q = nuevo==='baja' ? 'dar de baja a este usuario' : nuevo==='rechazado' ? 'rechazar a este usuario' : 'activar a este usuario';

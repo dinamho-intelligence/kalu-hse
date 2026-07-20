@@ -228,10 +228,16 @@
     </div>
     <div class="hide" id="viewUsers">
       <div class="card">
-        <h2><span>▸</span> Usuarios de tu empresa <span id="usersCount" style="color:var(--nar)"></span></h2>
-        <div class="umsg">Aprobá a los que se registran, dá de baja a quien ya no trabaja, o reactivá. Solo ves la gente de tu empresa.</div>
+        <h2><span>▸</span> Cuentas · acceso a la app y consola <span id="usersCount" style="color:var(--nar)"></span></h2>
+        <div class="umsg">Cuentas con contraseña (app del trabajador + esta consola). Aprobá a los que se registran, dá de baja o reactivá. Solo ves la gente de tu empresa.</div>
         <div class="loading" id="usersLoading">Cargando usuarios…</div>
         <div id="usersContent"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2><span>▸</span> Personal de terreno · tarjetas <span id="rosterCount" style="color:var(--nar)"></span></h2>
+        <div class="umsg">Registro de trabajadores por cédula. Dar de baja acá impide que la persona registre <b>tarjetas</b> (que no piden contraseña, solo cédula).</div>
+        <div class="loading" id="rosterLoading">Cargando personal…</div>
+        <div id="rosterContent"></div>
       </div>
     </div>
   </div>
@@ -405,7 +411,7 @@ function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); 
 <script>
 // ===== EXPEDIENTES (bloque 2 de la consola HSE) =====
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-let EXP=null, USERS=null;
+let EXP=null, USERS=null, ROSTER=null;
 function verVista(v){
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
@@ -420,7 +426,7 @@ function verVista(v){
   if(v==='exp' && !EXP) loadExpedientes();
   if(v==='tar' && !TAR) loadTarjetas();
   if(v==='chat') initChat();
-  if(v==='usuarios' && !USERS) loadUsuarios();
+  if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
 }
 // ===== USUARIOS (panel de administración del HSE) =====
 function estadoBadge(s){
@@ -470,6 +476,40 @@ async function cambiarEstadoUsuario(id,nuevo){
     await sbPatch('perfiles?id=eq.'+id,{estado:nuevo});
     var u=USERS.find(function(x){return x.id===id;}); if(u) u.estado=nuevo;
     renderUsers();
+  }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403, falta correr las políticas de seguridad (RLS) en Supabase.'); }
+}
+// ----- Personal de terreno (trabajadores_maestro · vigencia para tarjetas) -----
+async function loadRoster(){
+  var L=document.getElementById('rosterLoading'), C=document.getElementById('rosterContent');
+  L.classList.remove('hide'); L.textContent='Cargando personal…'; C.innerHTML='';
+  try{
+    var rows=await sbGet('trabajadores_maestro?select=id,nombre,cedula,vigente,empresa_id&order=vigente.asc,nombre.asc');
+    ROSTER=rows||[];
+    document.getElementById('rosterCount').textContent='('+ROSTER.length+')';
+    L.classList.add('hide');
+    renderRoster();
+  }catch(e){ L.textContent='No se pudo cargar el personal ('+e.message+'). Si dice 401/403, faltan las políticas de seguridad en Supabase.'; }
+}
+function renderRoster(){
+  var C=document.getElementById('rosterContent');
+  if(!ROSTER.length){ C.innerHTML='<div class="detempty">No hay personal cargado en tu empresa.</div>'; return; }
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Nombre</th><th>Cédula</th><th>Terreno</th><th>Acción</th></tr></thead><tbody>'
+    +ROSTER.map(function(t){
+      var vig=(t.vigente!==false);
+      var badge=vig?'<span class="badge seg">vigente</span>':'<span class="badge ins">de baja</span>';
+      var acc=vig
+        ?'<button class="ubtn no" onclick="cambiarVigente(\''+t.id+'\',false)">Dar de baja</button>'
+        :'<button class="ubtn ok" onclick="cambiarVigente(\''+t.id+'\',true)">Reactivar</button>';
+      return '<tr><td>'+esc(t.nombre||'—')+'</td><td>'+esc(t.cedula||'—')+'</td><td>'+badge+'</td><td>'+acc+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+async function cambiarVigente(id,vig){
+  var q = vig ? 'reactivar a esta persona en terreno' : 'dar de baja a esta persona (no podrá registrar tarjetas)';
+  if(!confirm('¿Seguro que querés '+q+'?')) return;
+  try{
+    await sbPatch('trabajadores_maestro?id=eq.'+id,{vigente:vig});
+    var t=ROSTER.find(function(x){return x.id===id;}); if(t) t.vigente=vig;
+    renderRoster();
   }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403, falta correr las políticas de seguridad (RLS) en Supabase.'); }
 }
 async function loadExpedientes(){

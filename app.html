@@ -363,6 +363,7 @@
     <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
     <div class="login-error" id="login-error"></div>
     <div class="login-foot">Acceso exclusivo para empresas registradas.<br><a href="#" onclick="verRegistro();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">Crear cuenta nueva</a></div>
+    <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
   </div>
 </div>
 <!-- REGISTRO -->
@@ -382,6 +383,7 @@
     <button class="login-btn" id="reg-btn" onclick="registrarse()">Registrarme</button>
     <div class="login-error" id="reg-msg"></div>
     <div class="login-foot"><a href="#" onclick="verLogin();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">← Ya tengo cuenta, ingresar</a></div>
+    <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
   </div>
 </div>
 <header>
@@ -1403,7 +1405,8 @@ async function iniciarSesion(){
         msg.textContent='Tu cédula no está registrada por tu empresa. Hablá con tu HSE.';
         btn.disabled=false; btn.textContent='Registrarme'; return;
       }
-      const { data, error } = await sb.auth.signUp({ email, password:pass, options:{ data:{ cedula } } });
+      // 2) Crear la cuenta. El nombre y la empresa salen de la cédula (trigger). Llega correo de confirmación.
+      const { data, error } = await sb.auth.signUp({ email, password:pass, options:{ data:{ cedula }, emailRedirectTo:'https://getkalu.com/app.html' } });
       if(error){
         const m=(error.message||'').toLowerCase();
         if(m.indexOf('already')!==-1){ msg.textContent='Ese correo ya tiene una cuenta. Probá ingresar.'; }
@@ -1426,6 +1429,78 @@ async function iniciarSesion(){
     try{
       let email=ident;
       if(/^\d+$/.test(ident)){
+        const { data:mail, error:e2 } = await sb.rpc('email_por_cedula', { ced: ident });
+        if(e2 || !mail){ err.textContent='Cédula no registrada.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+        email=mail;
+      }
+      const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
+      if(error){ err.textContent='Datos incorrectos.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+      window.kaluAuth.token = data.session.access_token;
+      await cargarPerfil(); aplicarRol();
+      document.getElementById('login-pass').value='';
+      btn.disabled=false; btn.textContent='Ingresar';
+      mostrarLogin(false);
+    }catch(e){ err.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Ingresar'; }
+  }
+  async function hacerLogout(){
+    try{ await sb.auth.signOut(); }catch(e){}
+    window.kaluAuth={ token:null, perfil:null };
+    location.href='/';
+  }
+  ['login-email','login-pass'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); hacerLogin(); } });
+  });
+  (async ()=>{
+    try{
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session){ window.kaluAuth.token=session.access_token; await cargarPerfil(); aplicarRol(); mostrarLogin(false); }
+      else { mostrarLogin(true); }
+    }catch(e){ mostrarLogin(true); }
+  })();
+</script>
+<script>
+  let deferredPrompt=null;
+  const esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  function mostrarBtnInstalar(){ if(esStandalone) return; const b=document.getElementById('btn-instalar'); if(b)b.classList.add('show'); }
+  function ocultarBtnInstalar(){ const b=document.getElementById('btn-instalar'); if(b)b.classList.remove('show'); }
+  window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferredPrompt=e; mostrarBtnInstalar(); });
+  window.addEventListener('appinstalled',function(){ ocultarBtnInstalar(); deferredPrompt=null; });
+  function instalarApp(){
+    if(deferredPrompt){ deferredPrompt.prompt(); if(deferredPrompt.userChoice){ deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; ocultarBtnInstalar(); }); } }
+    else if(esIOS){ alert('Para instalar KALU en el iPhone:\n\n1) Abrí este sitio en Safari.\n2) Tocá el botón Compartir (el cuadrado con la flecha hacia arriba).\n3) Elegí "Agregar a inicio" y confirmá.'); }
+    else { alert('Abrí este sitio en Chrome (Android) o Safari (iPhone) para instalarlo en tu teléfono.'); }
+  }
+  if(esIOS && !esStandalone){ window.addEventListener('load',function(){ setTimeout(mostrarBtnInstalar,800); }); }
+</script>
+<script>
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }
+</script>
+</body>
+</html>auth.signUp({ email, password:pass, options:{ data:{ cedula }, emailRedirectTo:'https://getkalu.com/app.html' } });
+      if(error){
+        const m=(error.message||'').toLowerCase();
+        if(m.indexOf('already')!==-1){ msg.textContent='Ese correo ya tiene una cuenta. Probá ingresar.'; }
+        else { msg.textContent='No se pudo registrar: '+error.message; }
+        btn.disabled=false; btn.textContent='Registrarme'; return;
+      }
+      msg.style.color='#25C26E';
+      msg.innerHTML='¡Listo! Te enviamos un correo a <b>'+email.replace(/</g,'&lt;')+'</b>. Confirmá el link y después ingresá con tu <b>cédula</b>.';
+      btn.disabled=false; btn.textContent='Registrarme';
+    }catch(e){ msg.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Registrarme'; }
+  }
+  async function hacerLogin(){
+    const ident=(document.getElementById('login-email').value||'').trim();
+    const pass=document.getElementById('login-pass').value||'';
+    const err=document.getElementById('login-error');
+    const btn=document.getElementById('login-btn');
+    err.textContent='';
+    if(!ident||!pass){ err.textContent='Completá cédula/correo y contraseña.'; return; }
+    btn.disabled=true; btn.textContent='Ingresando…';
+    try{
+      let email=ident;
+      if(/^\d+$/.test(ident)){   // si son solo números, es cédula → resolver a correo
         const { data:mail, error:e2 } = await sb.rpc('email_por_cedula', { ced: ident });
         if(e2 || !mail){ err.textContent='Cédula no registrada.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
         email=mail;

@@ -1001,13 +1001,7 @@ async function enviarMensajeInv(){
     if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
     if(data.fase)setFaseActiva(`fase-${data.fase}`);
     // ── CIERRE SOLO EN INFORME FINAL ──
-    // data.cerrar = true solo cuando el expediente cerró (estado_expediente:"final").
-    // En preliminar (informeDetectado true pero cerrar false) NO cierra: queda abierto.
-    // El cierre espera a que terminen typewriter + audio y arranca con 1.5s de gracia.
     if(data.informeDetectado){
-      // Toda declaracion cerrada limpia la pantalla (confidencialidad).
-      // esFinal (data.cerrar) solo cambia el texto del overlay; el expediente
-      // sigue abierto en el backend hasta que no queden pendientes.
       agregarMensajeInv(data.mensaje||'Sin respuesta',true,()=>{
         setTimeout(()=>mostrarFirmaInv(data),1200);
       });
@@ -1049,10 +1043,7 @@ async function transcribirAudioInv(blob,mime){
     else{document.getElementById('inv-error-msg').textContent='No se entendió. Intentá de nuevo.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
   }catch(e){ind.classList.remove('visible');document.getElementById('inv-error-msg').textContent='Error al procesar audio.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
 }
-// Parte el texto en trozos hablables (oraciones), agrupando fragmentos muy cortos
-// para que OpenAI TTS reciba pedazos chicos y la primera voz suene enseguida.
 function partirEnOraciones(texto){
-  // Menos costuras = voz mas pareja. Mandamos la 1a frase (arranque rapido) y el RESTO en un solo bloque.
   const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
   const frases=bruto.map(f=>f.trim()).filter(Boolean);
   if(frases.length<=1) return frases.length?frases:[(texto||'').trim()].filter(Boolean);
@@ -1064,13 +1055,11 @@ async function ttsBlob(texto){
   if(!res.ok)throw new Error('tts');
   return await res.blob();
 }
-// Corta la reproducción encadenada (usada al cerrar el expediente).
 function cancelarVozInv(){
   if(invVozCancel){const c=invVozCancel;invVozCancel=null;c();}
   if(invAbortChunk){const a=invAbortChunk;invAbortChunk=null;a();}
   if(invAudioActual){try{invAudioActual.pause();invAudioActual.currentTime=0;}catch(e){}invAudioActual=null;}
 }
-// Agrupa oraciones en tramos: el 1o corto (arranque rapido), el resto largos (menos costuras/enredos y sin silencios largos).
 function armarTramos(texto){
   const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
   const chunks=[]; const bounds=[]; let acc=0, buf='';
@@ -1085,7 +1074,6 @@ function armarTramos(texto){
   if(bounds.length) bounds[bounds.length-1]=(texto||'').length;
   return {chunks,bounds};
 }
-// Revela texto[from..to] de forma pareja a lo largo de durMs (sincronizado con el audio).
 function revelarSync(el,texto,from,to,durMs,scrollId){
   return new Promise(res=>{
     from=Math.max(0,Math.min(texto.length,from));
@@ -1108,7 +1096,6 @@ async function reproducirVozAutoInv(texto,onEnded=null,contentEl=null){
   let cancelado=false;
   invVozCancel=()=>{cancelado=true;};
   try{
-    // Pedimos la 1ª oración y, mientras suena cada una, prefetcheamos la siguiente.
     let sigProm=ttsBlob(chunks[0]).catch(()=>null);
     let prevBound=0;
     for(let i=0;i<chunks.length&&!cancelado;i++){
@@ -1134,7 +1121,6 @@ async function reproducirVozAutoInv(texto,onEnded=null,contentEl=null){
   invVozCancel=null;invAbortChunk=null;
   done();
 }
-// Cue visual mientras KALU "piensa" (antes de que llegue la respuesta).
 function setPensandoInv(on){
   const a=document.querySelector('.kalu-avatar-inv');if(a)a.classList.toggle('pensando',on);
   if(on){const s=document.getElementById('inv-subtitulos');if(s)s.textContent='Analizando la declaración…';}
@@ -1161,7 +1147,6 @@ function agregarMensajeKALU(texto,reproducir=false){
   div.innerHTML='<div class="remitente">KALU IA</div>';div.appendChild(contenido);div.appendChild(audioWrap);
   cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
   if(reproducir){
-    // Texto SINCRONIZADO con la voz (cada oracion aparece mientras KALU la dice).
     reproducirVozAuto(texto,contenido).then(()=>{contenido.classList.remove('typewriter-cursor');});
   } else {
     typewriterEffect(contenido,texto,()=>{contenido.classList.remove('typewriter-cursor');if(estadoAvatar==='hablando'&&!lipSyncSource)setTimeout(()=>setEstadoAvatar('idle'),600);});
@@ -1238,7 +1223,6 @@ async function transcribirAudio(blob,mime){
   }catch(e){ind.classList.remove('visible');mostrarError('Error al procesar audio.');setEstadoAvatar('idle');}
 }
 async function reproducirVozAuto(texto,contentEl=null){
-  // Mismo criterio que la investigacion: tramos agrupados + texto revelado al ritmo de la voz.
   const {chunks,bounds}=armarTramos(texto);
   if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); setEstadoAvatar('idle'); return; }
   try{
@@ -1296,7 +1280,6 @@ function renderChipsEquipos(){document.getElementById('chips-equipos').innerHTML
 function quitarEquipo(i){const nombre=equipos[i];equipos.splice(i,1);renderChipsEquipos();document.querySelectorAll('.btn-equipo-sug').forEach(btn=>{if(btn.getAttribute('onclick').includes(`'${nombre}'`))btn.classList.remove('seleccionado');});}
 function renderSelectorEmp(){document.getElementById('selector-emp').innerHTML=empleados.map(e=>`<button class="btn-emp ${e===empleadoActivo?'activo':''}" onclick="selecEmp('${e}')">${e}</button>`).join('');}
 function selecEmp(nombre){empleadoActivo=nombre;renderSelectorEmp();}
-// Mensajes calidos que rotan mientras KALU genera el ATS (rompe el hielo, humaniza la espera).
 const MSGS_GENERANDO=[
   '<span>KALU</span> está preparando todo con calma…<br>Dame un momentito.',
   'Mientras armo el análisis…<br>¿cómodo por acá? Es más fácil de lo que parece.',
@@ -1337,7 +1320,6 @@ async function iniciarSesion(){
   // ===== AUTENTICACIÓN KALU (Supabase) =====
   const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
-  // Sesión en sessionStorage: sobrevive el refresh, pero se cierra al cerrar la pestaña/navegador (seguro para dispositivos compartidos)
   const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   window.kaluAuth = { token:null, perfil:null };
   async function cargarPerfil(){
@@ -1356,8 +1338,34 @@ async function iniciarSesion(){
     if(mostrar){ el.classList.remove('oculto'); el.style.display='flex'; if(salir)salir.style.display='none'; const em=document.getElementById('login-email'); const pw=document.getElementById('login-pass'); if(em)em.value=''; if(pw)pw.value=''; }
     else { el.classList.add('oculto'); if(salir)salir.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 400); }
   }
-  function aplicarRol(){
-    // Gating por rol: se completa en el paso siguiente. El rol ya queda en window.kaluAuth.perfil.rol
+  async function aplicarRol(){
+    const p=(window.kaluAuth&&window.kaluAuth.perfil)||{};
+    const rol=p.rol||'trabajador';
+    const esManager=(rol==='hse'||rol==='supervisor');
+    // 1) Al trabajador se le esconde la Consola HSE
+    document.querySelectorAll('.modulo-card').forEach(function(c){
+      const oc=c.getAttribute('onclick')||'';
+      if(oc.indexOf('hse.html')!==-1){ c.style.display=esManager?'':'none'; }
+    });
+    // 2) Mostrar "Nombre · Empresa" arriba a la derecha
+    let empresa='';
+    try{
+      if(p.empresa_id){
+        const { data } = await sb.from('empresas_maestro').select('razon_social').eq('id',p.empresa_id).single();
+        empresa=(data&&data.razon_social)||'';
+      }
+    }catch(_){}
+    let el=document.getElementById('kalu-usuario');
+    if(!el){
+      el=document.createElement('div'); el.id='kalu-usuario';
+      el.style.cssText="display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;margin-right:4px;";
+      const hdr=document.querySelector('header'); const salir=document.getElementById('btn-logout');
+      if(hdr && salir){ hdr.insertBefore(el,salir); } else if(hdr){ hdr.appendChild(el); }
+    }
+    const nombre=((p.nombre||'').trim())||'Usuario';
+    const escn=nombre.replace(/</g,'&lt;'); const esce=empresa.replace(/</g,'&lt;');
+    el.innerHTML='<span style="font-size:13px;font-weight:700;color:#F0F0F0;">'+escn+'</span>'
+      +(empresa?('<span style="font-size:10px;color:#F28C00;font-family:monospace;letter-spacing:.5px;">'+esce+'</span>'):'');
   }
   async function hacerLogin(){
     const ident=(document.getElementById('login-email').value||'').trim();
@@ -1386,14 +1394,12 @@ async function iniciarSesion(){
   async function hacerLogout(){
     try{ await sb.auth.signOut(); }catch(e){}
     window.kaluAuth={ token:null, perfil:null };
-    location.href='/';   // Salir -> vuelve a la landing publica (getkalu.com), no al login pelado
+    location.href='/';
   }
-  // Enter para enviar
   ['login-email','login-pass'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); hacerLogin(); } });
   });
-  // Al cargar: si ya hay sesión, saltear el login; si no, mostrarlo.
   (async ()=>{
     try{
       const { data:{ session } } = await sb.auth.getSession();
@@ -1415,7 +1421,6 @@ async function iniciarSesion(){
     else if(esIOS){ alert('Para instalar KALU en el iPhone:\n\n1) Abrí este sitio en Safari.\n2) Tocá el botón Compartir (el cuadrado con la flecha hacia arriba).\n3) Elegí "Agregar a inicio" y confirmá.'); }
     else { alert('Abrí este sitio en Chrome (Android) o Safari (iPhone) para instalarlo en tu teléfono.'); }
   }
-  // iOS Safari no dispara beforeinstallprompt: mostramos el botón igual (con el instructivo).
   if(esIOS && !esStandalone){ window.addEventListener('load',function(){ setTimeout(mostrarBtnInstalar,800); }); }
 </script>
 <script>

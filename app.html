@@ -739,13 +739,27 @@ function detenerLipSync(){
   setBocaInicio('cerrada');setBocaChat('cerrada');
 }
 // ── NAVEGACIÓN ──
+function autollenarIdentidad(){
+  // La identidad del reporte/declaración es SIEMPRE la del usuario logueado (docs firmados).
+  var p=(window.kaluAuth&&window.kaluAuth.perfil)||{};
+  var nom=p.nombre||''; var ced=p.cedula||''; var emp=(window.kaluAuth&&window.kaluAuth.empresaNombre)||'';
+  // Investigador
+  var ir=document.getElementById('inv-reporta'); if(ir){ ir.value=nom; }
+  var ic=document.getElementById('inv-cedula'); if(ic){ ic.value=ced; if(ced){ ic.readOnly=true; ic.style.opacity='.65'; ic.style.cursor='not-allowed'; ic.title='Tu cédula (de la sesión). No editable.'; } else { ic.readOnly=false; } }
+  var ie=document.getElementById('inv-empresa'); if(ie){ ie.value=emp; }
+  // ATS
+  var ar=document.getElementById('input-responsable'); if(ar&&!ar.value){ ar.value=nom; }
+  var ae=document.getElementById('input-empresa'); if(ae&&!ae.value){ ae.value=emp; }
+}
 function abrirModuloHSE(){
   document.getElementById('header-modulo').textContent='KALU HSE';
+  autollenarIdentidad();
   const home=document.getElementById('pantalla-home');home.classList.add('saliendo');
   setTimeout(()=>{home.style.display='none';const inicio=document.getElementById('pantalla-inicio');inicio.style.opacity='0';inicio.style.transform='translateY(20px)';inicio.classList.add('visible');setTimeout(()=>{inicio.style.transition='opacity 0.4s ease,transform 0.4s ease';inicio.style.opacity='1';inicio.style.transform='translateY(0)';},30);},400);
 }
 function abrirModuloInvestigador(){
   document.getElementById('header-modulo').textContent='KALU Investigador';
+  autollenarIdentidad();
   const home=document.getElementById('pantalla-home');home.classList.add('saliendo');
   const ahora=new Date();
   document.getElementById('inv-fecha').value=ahora.toISOString().split('T')[0];
@@ -1347,8 +1361,8 @@ async function iniciarSesion(){
     try{
       const { data:{ user } } = await sb.auth.getUser();
       if(!user) return null;
-      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado,acceso_consola').eq('id', user.id).single();
-      window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null, estado:'activo', acceso_consola:false };
+      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado,acceso_consola,cedula').eq('id', user.id).single();
+      window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null, estado:'activo', acceso_consola:false, cedula:null };
     }catch(e){ window.kaluAuth.perfil = window.kaluAuth.perfil || { rol:'trabajador', estado:'activo' }; }
     return window.kaluAuth.perfil;
   }
@@ -1390,6 +1404,7 @@ async function iniciarSesion(){
         empresa=(data&&data.razon_social)||'';
       }
     }catch(_){}
+    window.kaluAuth.empresaNombre=empresa;
     let el=document.getElementById('kalu-usuario');
     if(!el){
       el=document.createElement('div'); el.id='kalu-usuario';

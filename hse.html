@@ -257,15 +257,21 @@ async function login(){
     const d=await r.json();
     if(!r.ok||!d.access_token){e.textContent='Correo o contraseña incorrectos.';b.disabled=false;b.textContent='Ingresar';return;}
     TOKEN=d.access_token;
-    // Candado por rol: la consola es SOLO para HSE y supervisores. Falla cerrado (si no confirma, no entra).
-    let rolOk=false;
+    // Candado por rol Y estado: la consola es SOLO para HSE/supervisores activos. Falla cerrado.
+    let rolOk=false, estadoBloqueado=false;
     try{
       MYID=(d.user&&d.user.id)||null;
-      const pf=await sbGet('perfiles?select=rol,empresa_id&id=eq.'+MYID);
+      const pf=await sbGet('perfiles?select=rol,empresa_id,estado&id=eq.'+MYID);
       const rol=(pf&&pf[0]&&pf[0].rol)||'';
+      const est=(pf&&pf[0]&&pf[0].estado)||'';
       MYEMP=(pf&&pf[0]&&pf[0].empresa_id)||null;
       rolOk=(rol==='hse'||rol==='supervisor');
+      estadoBloqueado=(est && est!=='activo'); // baja / pendiente / rechazado
     }catch(_){ rolOk=false; }
+    if(estadoBloqueado){
+      e.textContent='Tu cuenta está inactiva. Contactá a tu administrador.';
+      TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return;
+    }
     if(!rolOk){
       e.textContent='Acceso solo para HSE y supervisores.';
       TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return;

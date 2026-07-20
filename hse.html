@@ -600,13 +600,28 @@ async function cambiarVigente(id,vig){
   }catch(e){ alert('No se pudo actualizar ('+e.message+').\n\nSi dice 401/403, falta correr las políticas de seguridad (RLS) en Supabase.'); }
 }
 // ----- Editar datos del trabajador (para el autollenado del informe) -----
-var CAMPOS_TRAB=[['cargo','Cargo / ocupación','text'],['tipo_vinculacion','Tipo de vinculación','text'],['sexo','Sexo','text'],['fecha_nacimiento','Fecha de nacimiento','date'],['direccion','Dirección','text'],['lugar_residencia','Lugar de residencia','text'],['eps','EPS','text'],['afp','AFP','text'],['arl','ARL','text'],['salario','Salario','text'],['jornada','Jornada','text']];
+var EPS_LISTA=['Nueva EPS','EPS Sura','Sanitas','Compensar','Salud Total','Famisanar','Coosalud','Mutual Ser','Aliansalud','SOS (Servicio Occidental de Salud)','Cajacopi','Asmet Salud','Emssanar','Otra'];
+var AFP_LISTA=['Porvenir','Protección','Colfondos','Skandia','Colpensiones','Otra'];
+var ARL_LISTA=['ARL Sura','Positiva','Colmena Seguros','Seguros Bolívar','AXA Colpatria','La Equidad','Mapfre','Otra'];
+var VINC_LISTA=['Término indefinido','Término fijo','Obra o labor','Prestación de servicios','Aprendiz SENA','Temporal (EST)','Cooperado'];
+var SEXO_LISTA=['Masculino','Femenino','Otro'];
+var JORNADA_LISTA=['Diurna','Nocturna','Mixta','Turnos rotativos'];
+var CAMPOS_TRAB=[['cargo','Cargo / ocupación','text'],['tipo_vinculacion','Tipo de vinculación','select',VINC_LISTA],['sexo','Sexo','select',SEXO_LISTA],['fecha_nacimiento','Fecha de nacimiento','date'],['direccion','Dirección','text'],['lugar_residencia','Lugar de residencia','text'],['eps','EPS','select',EPS_LISTA],['afp','AFP (pensión)','select',AFP_LISTA],['arl','ARL','select',ARL_LISTA],['salario','Salario','text'],['jornada','Jornada','select',JORNADA_LISTA]];
 function editarTrabajador(id){
   var t=(ROSTER||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var estilo='width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px;font-family:inherit;outline:none';
   var campos=CAMPOS_TRAB.map(function(c){
-    var val=(t[c[0]]==null?'':String(t[c[0]])).replace(/"/g,'&quot;');
-    return '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:4px;letter-spacing:.3px">'+esc(c[1])+'</label>'
-      +'<input id="ed-'+c[0]+'" type="'+c[2]+'" value="'+val+'" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px;font-family:inherit;outline:none"></div>';
+    var key=c[0], val=(t[key]==null?'':String(t[key]));
+    var field;
+    if(c[2]==='select'){
+      var ops=c[3].slice();
+      if(val && ops.indexOf(val)===-1) ops.unshift(val);
+      var optsHtml='<option value="">— sin especificar —</option>'+ops.map(function(o){ return '<option'+(o===val?' selected':'')+'>'+esc(o)+'</option>'; }).join('');
+      field='<select id="ed-'+key+'" style="'+estilo+'">'+optsHtml+'</select>';
+    } else {
+      field='<input id="ed-'+key+'" type="'+c[2]+'" value="'+esc(val).replace(/"/g,'&quot;')+'" style="'+estilo+'">';
+    }
+    return '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:4px;letter-spacing:.3px">'+esc(c[1])+'</label>'+field+'</div>';
   }).join('');
   document.getElementById('detTit').textContent='Editar datos · '+(t.nombre||'')+' · C.C. '+(t.cedula||'');
   document.getElementById('detBody').innerHTML='<div class="umsg" style="margin-bottom:12px">Datos que usa KALU para autocompletar el informe de investigación. Actualizalos cuando cambien (aumento, cambio de EPS, etc.).</div>'

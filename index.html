@@ -436,10 +436,10 @@
     }
     resize(); window.addEventListener('resize',resize); draw();
     setInterval(startSequence, CYCLE_MINUTES*60*1000);
-    // MODO PRUEBA: si la dirección termina en #homenaje, muestra las 4 palabras en loop rápido
-    if((location.hash||'').toLowerCase().indexOf('homenaje')>=0){ runSeq(true); setInterval(function(){runSeq(true);}, (FAST_GAP*4+3)*1000); }
-    window.kaluClave=function(){ proof=true; canvas.style.zIndex='99'; };   // modo PRUEBA (para demostrar)
-    if((location.hash||'').toLowerCase().indexOf('clave')>=0){ proof=true; canvas.style.zIndex='99'; }
+    // SIN disparadores por URL: nadie puede revelarlo escribiendo en la dirección.
+    // El homenaje queda para siempre, solo en su ciclo real (cada 1982 min).
+    // En privado, desde la consola (F12): kaluHomenaje() = ver la secuencia · kaluClave() = la prueba.
+    window.kaluClave=function(){ proof=true; canvas.style.zIndex='99'; };
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 })();

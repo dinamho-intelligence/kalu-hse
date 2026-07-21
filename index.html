@@ -339,28 +339,19 @@
     var hero=document.querySelector('header.hero')||document.querySelector('.hero')||document.body;
     if(getComputedStyle(hero).position==='static') hero.style.position='relative';
     var canvas=document.createElement('canvas');
-    canvas.id='rainHomenaje';
+    canvas.id='fx0';
     canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;'
       +'-webkit-mask-image:linear-gradient(180deg,#000 80%,transparent);mask-image:linear-gradient(180deg,#000 80%,transparent)';
     hero.insertBefore(canvas,hero.firstChild);
     var ctx=canvas.getContext('2d');
     var KATA="ウアウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリレロン";
-    /* -------- AJUSTES -------- */
-    var RAIN_OPACITY=0.17;   // intensidad de la lluvia
-    var BIN_PROB=0.80;       // % de 1s y 0s en la lluvia (resto katakana)
-    var RAIN_DIM=0.34;       // cuánto se atenúa la lluvia cuando aparece la palabra
-    var RAIN_SPEED=0.16;
-    var FONT=18;
-    var T_RESOLVE=560, T_HOLD=1500, T_DISSOLVE=680;  // decodifica / sostiene / desvanece (ms)
-    var FLASH_MS=T_RESOLVE+T_HOLD+T_DISSOLVE;
-    var CYCLE_MINUTES=1982;
-    var SEQUENCE=[{w:"LAS",s:0},{w:"MALVINAS",s:649},{w:"SON",s:74},{w:"ARGENTINAS",s:19}];
-    var POOL=[0.05,0.11,0.50,0.56,0.88,0.95];  // columnas candidatas (nunca repite en la misma seguidas)
-    var FAST_GAP=2.9;             // separación en modo prueba (#homenaje), en segundos
-    var FALL_RPS=12;              // filas por segundo que cae el mensaje (mismo ritmo que la lluvia)
-    var MSG_OPACITY=0.30;         // brillo del mensaje: bajo = secreto, se mezcla con la lluvia
-    /* ------------------------- */
-    var cols,drops,W,H,flashes=[],proof=false;
+    var RAIN_OPACITY=0.17, BIN_PROB=0.80, RAIN_SPEED=0.16, FONT=18, FALL_RPS=12, MSG_OPACITY=0.30, CYCLE_MINUTES=1982;
+    var POOL=[0.05,0.11,0.50,0.56,0.88,0.95];
+    var GAP=2.9;
+    var Q=[[102,107,121],[103,107,102,124,99,100,107,121],[121,101,100],[107,120,109,111,100,126,99,100,107,121]];
+    var G=[0,649,74,19];
+    function toBits(a){var o=[];for(var i=0;i<a.length;i++){var c=a[i]^42,b=c.toString(2);while(b.length<8)b='0'+b;for(var j=0;j<8;j++)o.push(b[j]);}return o;}
+    var cols,drops,W,H,flashes=[];
     function newDrop(){return {y:Math.random()*-40,speed:RAIN_SPEED+Math.random()*0.12};}
     function resize(){
       W=hero.clientWidth||window.innerWidth; H=hero.clientHeight||600;
@@ -380,31 +371,14 @@
       lastCols.push(choice); if(lastCols.length>3) lastCols.shift();
       return choice;
     }
-    function flashWord(word){
-      var bits=[]; for(var i=0;i<word.length;i++){ var b=word.charCodeAt(i).toString(2); while(b.length<8) b='0'+b; for(var j=0;j<8;j++) bits.push(b[j]); }
-      flashes.push({bits:bits,col:pickCol(),t0:performance.now()});   // cada palabra en una columna libre distinta
-    }
-    function runSeq(fast){ var acc=fast?0.3:0; SEQUENCE.forEach(function(st){ acc+=fast?FAST_GAP:st.s; setTimeout(function(){flashWord(st.w);}, acc*1000); }); }
-    function startSequence(){ runSeq(false); }   // ciclo real (tiempos con significado)
-    window.kaluHomenaje=function(){ runSeq(true); };   // para verlo ya (rápido)
-    function drawProof(){   // MODO PRUEBA: las 4 palabras y su binario, a pantalla completa, para demostrar
-      ctx.fillStyle='#050608'; ctx.fillRect(0,0,W,H); ctx.textAlign='left';
-      var xs=[0.10,0.37,0.62,0.86];
-      for(var w=0;w<SEQUENCE.length;w++){
-        var word=SEQUENCE[w].w, bits=[];
-        for(var i=0;i<word.length;i++){ var b=word.charCodeAt(i).toString(2); while(b.length<8) b='0'+b; for(var k=0;k<8;k++) bits.push(b[k]); }
-        var step=Math.min(FONT,(H-52)/bits.length), fs=Math.max(9,Math.floor(step)), cxp=Math.round(xs[w]*W);
-        ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.font='bold 13px sans-serif'; ctx.fillText(word, cxp-2, 20);
-        ctx.fillStyle='rgba(245,155,20,0.95)'; ctx.font='bold '+fs+'px monospace';
-        for(var bi=0;bi<bits.length;bi++) ctx.fillText(bits[bi], cxp, 34+bi*step);
-      }
-    }
+    function emit(a){ flashes.push({bits:toBits(a),col:pickCol(),t0:performance.now()}); }
+    function run(fast){ var acc=fast?0.3:0; for(var i=0;i<Q.length;i++){ acc+=fast?GAP:G[i]; (function(w,t){ setTimeout(function(){emit(w);}, t*1000); })(Q[i],acc); } }
+    function tick(){ run(false); }
+    window.__v=function(){ run(true); };
     function draw(){
-      if(proof){ drawProof(); requestAnimationFrame(draw); return; }
       ctx.fillStyle='rgba(8,10,13,0.07)'; ctx.fillRect(0,0,W,H);
       var screenRows=Math.ceil(H/FONT), now=performance.now();
-      var busy={}; for(var f=0;f<flashes.length;f++) busy[flashes[f].col]=1;   // columnas del mensaje
-      // ---- lluvia (mayormente 1 y 0) ----
+      var busy={}; for(var f=0;f<flashes.length;f++) busy[flashes[f].col]=1;
       ctx.font=FONT+'px monospace'; ctx.textAlign='left';
       for(var i=0;i<cols;i++){
         var d=drops[i], x=i*FONT, yPix=d.y*FONT;
@@ -414,9 +388,6 @@
         }
         d.y+=d.speed; if(yPix>H&&Math.random()>0.985) drops[i]=newDrop();
       }
-      // ---- el mensaje en BINARIO: SECRETO pero DESCIFRABLE en una captura ----
-      // Mismo color/brillo que la lluvia, sin glow ni haz: no llama la atención.
-      // Pero cae como una columna LIMPIA y continua de 0/1 -> un screenshot deja leer los bits.
       ctx.font=FONT+'px monospace';
       for(var f2=flashes.length-1;f2>=0;f2--){
         var fl=flashes[f2], len=fl.bits.length;
@@ -435,11 +406,7 @@
       requestAnimationFrame(draw);
     }
     resize(); window.addEventListener('resize',resize); draw();
-    setInterval(startSequence, CYCLE_MINUTES*60*1000);
-    // SIN disparadores por URL: nadie puede revelarlo escribiendo en la dirección.
-    // El homenaje queda para siempre, solo en su ciclo real (cada 1982 min).
-    // En privado, desde la consola (F12): kaluHomenaje() = ver la secuencia · kaluClave() = la prueba.
-    window.kaluClave=function(){ proof=true; canvas.style.zIndex='99'; };
+    setInterval(tick, CYCLE_MINUTES*60*1000);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 })();

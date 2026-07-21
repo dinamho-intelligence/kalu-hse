@@ -355,7 +355,7 @@
     var FLASH_MS=T_RESOLVE+T_HOLD+T_DISSOLVE;
     var CYCLE_MINUTES=1982;
     var SEQUENCE=[{w:"LAS",s:0},{w:"MALVINAS",s:649},{w:"SON",s:74},{w:"ARGENTINAS",s:19}];
-    var ZONES=[0.05,0.52,0.83];   // bandas vacías donde caen (izq, hueco antes del avatar, derecha)
+    var POOL=[0.05,0.11,0.50,0.56,0.88,0.95];  // columnas candidatas (nunca repite en la misma seguidas)
     var FAST_GAP=2.9;             // separación en modo prueba (#homenaje), en segundos
     var FALL_RPS=12;              // filas por segundo que cae el mensaje (mismo ritmo que la lluvia)
     /* ------------------------- */
@@ -368,13 +368,22 @@
       cols=Math.max(1,Math.floor(W/FONT)); drops=new Array(cols).fill(0).map(newDrop);
     }
     var easeOut=function(t){return 1-Math.pow(1-t,3);}, easeIn=function(t){return t*t*t;};
-    function flashWord(word,zoneFrac){
-      var bits=[]; for(var i=0;i<word.length;i++){ var b=word.charCodeAt(i).toString(2); while(b.length<8) b='0'+b; for(var j=0;j<8;j++) bits.push(b[j]); }
-      var frac=(zoneFrac==null)?(0.42+Math.random()*0.16):zoneFrac;
-      var col=Math.max(0,Math.min(cols-1,Math.round(frac*cols)));   // cae en la banda elegida
-      flashes.push({bits:bits,col:col,t0:performance.now()});       // paquete de binario que CAE
+    var lastCols=[];
+    function pickCol(){
+      var active={}; for(var f=0;f<flashes.length;f++) active[flashes[f].col]=1;   // columnas ocupadas ahora
+      var cands=POOL.map(function(fr){return Math.max(0,Math.min(cols-1,Math.round(fr*cols)));});
+      var free=cands.filter(function(c){return !active[c] && lastCols.indexOf(c)<0;});   // libre y no reciente
+      var pool2=free.length?free:cands.filter(function(c){return !active[c];});
+      if(!pool2.length) pool2=cands;
+      var choice=pool2[Math.floor(Math.random()*pool2.length)];
+      lastCols.push(choice); if(lastCols.length>3) lastCols.shift();
+      return choice;
     }
-    function runSeq(fast){ var acc=fast?0.3:0; SEQUENCE.forEach(function(st,ix){ acc+=fast?FAST_GAP:st.s; setTimeout(function(){flashWord(st.w,ZONES[ix%ZONES.length]);}, acc*1000); }); }
+    function flashWord(word){
+      var bits=[]; for(var i=0;i<word.length;i++){ var b=word.charCodeAt(i).toString(2); while(b.length<8) b='0'+b; for(var j=0;j<8;j++) bits.push(b[j]); }
+      flashes.push({bits:bits,col:pickCol(),t0:performance.now()});   // cada palabra en una columna libre distinta
+    }
+    function runSeq(fast){ var acc=fast?0.3:0; SEQUENCE.forEach(function(st){ acc+=fast?FAST_GAP:st.s; setTimeout(function(){flashWord(st.w);}, acc*1000); }); }
     function startSequence(){ runSeq(false); }   // ciclo real (tiempos con significado)
     window.kaluHomenaje=function(){ runSeq(true); };   // para verlo ya (rápido)
     function draw(){

@@ -101,9 +101,11 @@
       </svg>
       <div class="logo-text"><span class="brand">DINAMHO</span><span class="sub">INTELLIGENCE</span></div>
     </div>
-    <div><h1>KALU · Tarjeta de observación</h1><span>Actos y condiciones · no busca culpables, busca la mejora</span></div>
+    <div><h1>KALU · Tarjeta de observación</h1><span>Actos y condiciones · no busca culpables, busca la mejora</span> <span id="offPill" style="display:none;font-size:10px;font-weight:800;letter-spacing:.5px;color:var(--amber);background:rgba(232,147,12,.14);border:1px solid rgba(232,147,12,.4);border-radius:20px;padding:2px 8px;vertical-align:middle;">● SIN SEÑAL</span></div>
     <button onclick="salirTarjetas()" style="margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">Salir</button>
   </div>
+
+  <div id="pendBar" onclick="syncCola()" style="display:none;align-items:center;gap:8px;justify-content:center;cursor:pointer;background:rgba(232,147,12,.12);border:1px solid rgba(232,147,12,.35);color:var(--amber);border-radius:11px;padding:10px 12px;font-size:12.5px;font-weight:700;margin-bottom:14px;">⇅ <span id="pendN">0</span> tarjeta(s) sin subir · tocá para sincronizar</div>
 
   <div class="card" id="scId">
     <h2><span class="dot">▸</span> Identificate</h2>
@@ -245,6 +247,49 @@ async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:
 async function sbInsert(table,row){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(row)}); if(!r.ok) throw new Error('INSERT '+r.status+' '+await r.text());}
 async function sbUpload(path,blob,type){const r=await fetch(SB_URL+'/storage/v1/object/tarjetas/'+path,{method:'POST',headers:Object.assign({},H,{'Content-Type':type,'x-upsert':'true'}),body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
 
+// ============ OFFLINE: almacenamiento local (IndexedDB) + cola + sincronización ============
+const DB_NAME='kalu_tarjetas', DB_VER=1; let _db=null;
+function idb(){ return new Promise((res,rej)=>{ if(_db)return res(_db);
+  const rq=indexedDB.open(DB_NAME,DB_VER);
+  rq.onupgradeneeded=e=>{const db=e.target.result;
+    if(!db.objectStoreNames.contains('roster')) db.createObjectStore('roster',{keyPath:'cedula'});
+    if(!db.objectStoreNames.contains('cola'))   db.createObjectStore('cola',{keyPath:'id'}); };
+  rq.onsuccess=e=>{_db=e.target.result; res(_db);}; rq.onerror=()=>rej(rq.error); }); }
+function idbPut(s,v){ return idb().then(db=>new Promise((res,rej)=>{const tx=db.transaction(s,'readwrite'); tx.objectStore(s).put(v); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);})); }
+function idbGet(s,k){ return idb().then(db=>new Promise((res,rej)=>{const r=db.transaction(s,'readonly').objectStore(s).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);})); }
+function idbAll(s){ return idb().then(db=>new Promise((res,rej)=>{const r=db.transaction(s,'readonly').objectStore(s).getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);})); }
+function idbDel(s,k){ return idb().then(db=>new Promise((res,rej)=>{const tx=db.transaction(s,'readwrite'); tx.objectStore(s).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);})); }
+
+// -- roster local (para identificar SIN señal) --
+function cacheCands(ced,arr){ if(!arr||!arr.length)return; idbPut('roster',{cedula:ced,cands:arr,at:Date.now()}).catch(()=>{}); }
+async function localCands(ced){ try{ const r=await idbGet('roster',ced); return (r&&r.cands)||[]; }catch(e){ return []; } }
+async function cacheRoster(empId){ if(!empId||!navigator.onLine)return;
+  try{ const rows=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,vigente,empresas_maestro(razon_social)&empresa_id=eq.'+encodeURIComponent(empId)+'&vigente=eq.true');
+    const byCed={}; rows.forEach(r=>{ (byCed[r.cedula]=byCed[r.cedula]||[]).push(r); });
+    for(const ced in byCed){ const prev=await localCands(ced);
+      const merged=prev.filter(p=>String(p.empresa_id)!==String(empId)).concat(byCed[ced]); // conservar otras empresas
+      await idbPut('roster',{cedula:ced,cands:merged,at:Date.now()}); }
+  }catch(e){ /* silencioso: si falla, seguimos */ } }
+
+// -- cola de tarjetas sin subir --
+function encolar(reg,fotoBlob,fotoType,firmaBlob,ts,empresa){
+  return idbPut('cola',{id:reg.id,reg:reg,fotoBlob:fotoBlob||null,fotoType:fotoType||null,firmaBlob:firmaBlob,ts:ts,empresa:empresa,reintentos:0,at:Date.now()}); }
+let _syncing=false;
+async function syncCola(){ if(_syncing||!navigator.onLine)return; _syncing=true;
+  try{ const items=await idbAll('cola');
+    for(const it of items){ try{ const reg=it.reg;
+        if(it.fotoBlob){ reg.foto_path=await sbUpload(reg.id+'/foto.jpg', it.fotoBlob, it.fotoType||'image/jpeg'); }
+        reg.firma_path=await sbUpload(reg.id+'/firma.png', it.firmaBlob, 'image/png');
+        await sbInsert('tarjetas', reg);
+        await idbDel('cola', it.id);
+      }catch(e){ if(!navigator.onLine || /Failed to fetch|NetworkError/i.test(e.message||'')){ break; } // sin señal: cortar y reintentar luego
+        it.reintentos=(it.reintentos||0)+1; await idbPut('cola',it); } } // error de servidor: contar y seguir con la próxima
+  } finally{ _syncing=false; actualizarPendientes(); } }
+async function actualizarPendientes(){ let n=0; try{ n=(await idbAll('cola')).length; }catch(e){}
+  const bar=$('pendBar'); if(!bar)return; if(n>0){ $('pendN').textContent=n; bar.style.display='flex'; } else bar.style.display='none'; }
+function pintarConexion(){ const p=$('offPill'); if(p) p.style.display=navigator.onLine?'none':'inline-block'; }
+// ==========================================================================================
+
 async function identificar(){
   err('idErr','');
   const ced=$('ced').value.trim();
@@ -252,14 +297,24 @@ async function identificar(){
   $('btnId').disabled=true; $('btnId').textContent='Buscando…';
   try{
     if(!obs){
-      cands=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,vigente,empresas_maestro(razon_social)&cedula=eq.'+encodeURIComponent(ced));
-      if(!cands.length){err('idErr','No encontramos ese documento en el registro. Revisá el número o avisá a tu HSE.'); return;}
+      let got=null;
+      if(navigator.onLine){
+        try{ got=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,vigente,empresas_maestro(razon_social)&cedula=eq.'+encodeURIComponent(ced)); }
+        catch(e){ got=null; } // se cayó la red en el intento -> caemos a la copia local
+        if(got){ if(got.length){ cands=got; cacheCands(ced,got); }
+          else { err('idErr','No encontramos ese documento en el registro. Revisá el número o avisá a tu HSE.'); return; } }
+      }
+      if(!got){ // offline o sin respuesta -> copia local del equipo
+        cands=await localCands(ced);
+        if(!cands.length){ err('idErr','Sin señal y ese documento no está en la copia local del equipo. Conectá el celular a internet una vez para descargar el registro de tu empresa.'); return; }
+      }
       if(cands.length>1){ pintarEmp(); return; }
       obs=norm(cands[0]);
     }
     if(obs && obs.vigente===false){ err('idErr','Tu registro fue dado de baja por tu empresa. No podés registrar tarjetas. Hablá con tu HSE.'); return; }
+    if(navigator.onLine) cacheRoster(obs.empresa_id); // guardar el roster para poder identificar sin señal después
     entrarForm();
-  }catch(e){ err('idErr','No se pudo conectar. Revisá tu internet e intentá de nuevo.'); }
+  }catch(e){ err('idErr','No se pudo continuar. Intentá de nuevo.'); }
   finally{ $('btnId').disabled=false; $('btnId').textContent='Continuar ▸'; }
 }
 function norm(r){return {id:r.id,nombre:r.nombre,cedula:r.cedula,empresa_id:r.empresa_id,vigente:(r.vigente!==false),empresa:(r.empresas_maestro&&r.empresas_maestro.razon_social)||'—'};}
@@ -345,24 +400,42 @@ async function registrar(){
     responsable:$('responsable').value.trim()||null, estado:'abierta'
   };
   reg.hash=hashStr(id+obs.cedula+reg.descripcion+clase+ts);
+  const firmaBlob=dataURLtoBlob(firmaDataUrl);
   try{
+    if(!navigator.onLine) throw new Error('offline');
     let fotoPath=null;
     if(fotoFile){ fotoPath=await sbUpload(id+'/foto.jpg', fotoFile, fotoFile.type||'image/jpeg'); }
-    const firmaPath=await sbUpload(id+'/firma.png', dataURLtoBlob(firmaDataUrl), 'image/png');
+    const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
     reg.foto_path=fotoPath; reg.firma_path=firmaPath;
     await sbInsert('tarjetas', reg);
-    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa};
-    mostrarHecho();
+    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa, pendiente:false};
+    mostrarHecho(false);
   }catch(e){
-    err('sErr','No se pudo registrar ('+e.message+'). Revisá tu internet e intentá otra vez.');
-    $('btnFirmar').disabled=false; $('btnFirmar').textContent='Firmo y registro ✍';
+    const netFail = !navigator.onLine || e.message==='offline' || (e instanceof TypeError) || /Failed to fetch|NetworkError/i.test(e.message||'');
+    if(netFail){ // sin señal (o se cayó): guardar en el equipo y subir después
+      try{
+        await encolar(reg, fotoFile, (fotoFile&&fotoFile.type)||null, firmaBlob, ts, obs.empresa);
+        last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa, pendiente:true};
+        mostrarHecho(true); actualizarPendientes();
+        if(navigator.onLine) syncCola();
+      }catch(e2){
+        err('sErr','No se pudo guardar en el equipo ('+e2.message+'). Intentá de nuevo.');
+        $('btnFirmar').disabled=false; $('btnFirmar').textContent='Firmo y registro ✍';
+      }
+    } else { // error real del servidor: mostrarlo, no encolar
+      err('sErr','No se pudo registrar ('+e.message+'). Intentá otra vez.');
+      $('btnFirmar').disabled=false; $('btnFirmar').textContent='Firmo y registro ✍';
+    }
   }
 }
-function mostrarHecho(){
-  const r=last.reg;
-  $('doneS').innerHTML=(r.clase==='seguro'?'Observación de acto seguro':'Observación '+r.tipo)+' registrada y firmada.<br>Queda en el sistema para seguimiento del HSE.';
+function mostrarHecho(pendiente){
+  const r=last.reg, sc=$('scDone'), big=sc.querySelector('.big'), tit=sc.querySelector('.doneT');
+  if(pendiente){ if(big)big.textContent='📥'; if(tit){tit.textContent='Tarjeta guardada sin señal'; tit.style.color='var(--amber)';}
+    $('doneS').innerHTML='Quedó firmada y guardada en este equipo.<br><b>Se subirá sola</b> apenas el celular tenga internet.'; }
+  else{ if(big)big.textContent='🔒'; if(tit){tit.textContent='Tarjeta registrada'; tit.style.color='var(--verde)';}
+    $('doneS').innerHTML=(r.clase==='seguro'?'Observación de acto seguro':'Observación '+r.tipo)+' registrada y firmada.<br>Queda en el sistema para seguimiento del HSE.'; }
   $('constancia').innerHTML='<div class="ch">✓ '+r.observador_nombre+' firmó</div>'
-    +'Registrado electrónicamente por <b>'+r.observador_nombre+'</b>, C.C. '+r.observador_cedula+', el <b>'+last.ts+'</b>.<br>'
+    +'Registrado electrónicamente por <b>'+r.observador_nombre+'</b>, C.C. '+r.observador_cedula+', el <b>'+last.ts+'</b>.'+(pendiente?' <b style="color:var(--amber)">(pendiente de subir)</b>':'')+'<br>'
     +'Método: firma en pantalla · Integridad por hash <code>'+r.hash+'</code>.'
     +'<span class="lref">Conforme a la Ley 527 de 1999. Registro inalterable — cualquier cambio invalida el hash.</span>';
   show('scDone');
@@ -412,7 +485,17 @@ function descargarPDF(){
 }
 
 function salirTarjetas(){ var st=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true; if(st){ location.reload(); } else { location.href='/app.html'; } }
-if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  // Cuando entra una versión nueva del SW, refrescar solo (sin desinstalar) — una sola vez.
+  let _swReloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_swReloaded)return; _swReloaded=true; location.reload(); });
+}
+
+// -- arranque + reacción a la conexión --
+pintarConexion(); actualizarPendientes(); if(navigator.onLine) syncCola();
+window.addEventListener('online', ()=>{ pintarConexion(); syncCola(); });
+window.addEventListener('offline', pintarConexion);
 </script>
 </body>
 </html>

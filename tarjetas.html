@@ -245,7 +245,20 @@ function err(box,m){const e=$(box); if(!m){e.classList.remove('err'); e.textCont
 
 async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); if(!r.ok) throw new Error('GET '+r.status); return r.json();}
 async function sbInsert(table,row){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(row)}); if(!r.ok) throw new Error('INSERT '+r.status+' '+await r.text());}
-async function sbUpload(path,blob,type){const r=await fetch(SB_URL+'/storage/v1/object/tarjetas/'+path,{method:'POST',headers:Object.assign({},H,{'Content-Type':type,'x-upsert':'true'}),body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
+async function sbUp(bucket,path,blob,type){const r=await fetch(SB_URL+'/storage/v1/object/'+bucket+'/'+path,{method:'POST',headers:Object.assign({},H,{'Content-Type':type,'x-upsert':'true'}),body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
+async function sbUpload(path,blob,type){ return sbUp('tarjetas',path,blob,type); }
+// -- PDF de la tarjeta al archivo de Documentos (para la consola HSE) --
+function docDeTarjeta(reg,ts){
+  var ced=String(reg.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'');
+  var path='tarjetas/'+reg.empresa_id+'/'+ced+'/'+reg.id+'.pdf';
+  var row={empresa_id:reg.empresa_id,tipo:'tarjeta',origen:'tarjeta',origen_id:reg.id,nombre:'Tarjeta · '+(reg.observador_nombre||'')+' · '+ts,storage_path:path};
+  return {path:path,row:row};
+}
+async function guardarPdfTarjeta(reg,ts,pdfBlob){
+  var d=docDeTarjeta(reg,ts);
+  await sbUp('documentos',d.path,pdfBlob,'application/pdf');
+  await sbInsert('documentos',d.row);
+}
 
 // ============ OFFLINE: almacenamiento local (IndexedDB) + cola + sincronización ============
 const DB_NAME='kalu_tarjetas', DB_VER=1; let _db=null;
@@ -272,8 +285,8 @@ async function cacheRoster(empId){ if(!empId||!navigator.onLine)return;
   }catch(e){ /* silencioso: si falla, seguimos */ } }
 
 // -- cola de tarjetas sin subir --
-function encolar(reg,fotoBlob,fotoType,firmaBlob,ts,empresa){
-  return idbPut('cola',{id:reg.id,reg:reg,fotoBlob:fotoBlob||null,fotoType:fotoType||null,firmaBlob:firmaBlob,ts:ts,empresa:empresa,reintentos:0,at:Date.now()}); }
+function encolar(reg,fotoBlob,fotoType,firmaBlob,ts,empresa,pdfBlob){
+  return idbPut('cola',{id:reg.id,reg:reg,fotoBlob:fotoBlob||null,fotoType:fotoType||null,firmaBlob:firmaBlob,pdfBlob:pdfBlob||null,ts:ts,empresa:empresa,reintentos:0,at:Date.now()}); }
 let _syncing=false;
 async function syncCola(){ if(_syncing||!navigator.onLine)return; _syncing=true;
   try{ const items=await idbAll('cola');
@@ -281,6 +294,7 @@ async function syncCola(){ if(_syncing||!navigator.onLine)return; _syncing=true;
         if(it.fotoBlob){ reg.foto_path=await sbUpload(reg.id+'/foto.jpg', it.fotoBlob, it.fotoType||'image/jpeg'); }
         reg.firma_path=await sbUpload(reg.id+'/firma.png', it.firmaBlob, 'image/png');
         await sbInsert('tarjetas', reg);
+        if(it.pdfBlob){ await guardarPdfTarjeta(reg, it.ts, it.pdfBlob); }
         await idbDel('cola', it.id);
       }catch(e){ if(!navigator.onLine || /Failed to fetch|NetworkError/i.test(e.message||'')){ break; } // sin señal: cortar y reintentar luego
         it.reintentos=(it.reintentos||0)+1; await idbPut('cola',it); } } // error de servidor: contar y seguir con la próxima
@@ -401,6 +415,7 @@ async function registrar(){
   };
   reg.hash=hashStr(id+obs.cedula+reg.descripcion+clase+ts);
   const firmaBlob=dataURLtoBlob(firmaDataUrl);
+  const pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoDataUrl).output('blob');
   try{
     if(!navigator.onLine) throw new Error('offline');
     let fotoPath=null;
@@ -408,13 +423,14 @@ async function registrar(){
     const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
     reg.foto_path=fotoPath; reg.firma_path=firmaPath;
     await sbInsert('tarjetas', reg);
+    await guardarPdfTarjeta(reg, ts, pdfBlob);
     last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa, pendiente:false};
     mostrarHecho(false);
   }catch(e){
     const netFail = !navigator.onLine || e.message==='offline' || (e instanceof TypeError) || /Failed to fetch|NetworkError/i.test(e.message||'');
     if(netFail){ // sin señal (o se cayó): guardar en el equipo y subir después
       try{
-        await encolar(reg, fotoFile, (fotoFile&&fotoFile.type)||null, firmaBlob, ts, obs.empresa);
+        await encolar(reg, fotoFile, (fotoFile&&fotoFile.type)||null, firmaBlob, ts, obs.empresa, pdfBlob);
         last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa, pendiente:true};
         mostrarHecho(true); actualizarPendientes();
         if(navigator.onLine) syncCola();
@@ -441,8 +457,7 @@ function mostrarHecho(pendiente){
   show('scDone');
 }
 
-function descargarPDF(){
-  const r=last.reg, ts=last.ts;
+function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrl){
   const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
   const W=doc.internal.pageSize.getWidth(); let y=54;
   doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
@@ -461,7 +476,7 @@ function descargarPDF(){
   const row=(k,v)=>{ if(!v && v!==false) return; doc.setFont('helvetica','bold'); doc.text(k, 40, y);
     doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(String(v), W-190); doc.text(lines, 170, y); y+=Math.max(16, lines.length*14); };
   row('Observador', r.observador_nombre+'  (C.C. '+r.observador_cedula+')');
-  row('Empresa', last.empresa||'');
+  row('Empresa', empresa||'');
   row('Fecha', ts);
   row('Categoría', r.categoria);
   if(r.clase==='inseguro'){ row('Nivel de riesgo', String(r.riesgo||'').toUpperCase()); row('¿Se detuvo la tarea?', r.detuvo_tarea?'Sí':'No'); }
@@ -472,16 +487,20 @@ function descargarPDF(){
   if(r.observado_nombre) row('Persona observada', r.observado_nombre);
 
   y+=6;
-  if(last.fotoDataUrl){ try{ doc.setFont('helvetica','bold'); doc.text('Evidencia', 40, y); y+=8; doc.addImage(last.fotoDataUrl,'JPEG',40,y,130,98); y+=110; }catch(e){} }
+  if(fotoDataUrl){ try{ doc.setFont('helvetica','bold'); doc.text('Evidencia', 40, y); y+=8; doc.addImage(fotoDataUrl,'JPEG',40,y,130,98); y+=110; }catch(e){} }
   doc.setFont('helvetica','bold'); doc.text('Firma del observador', 40, y); y+=6;
-  try{ doc.addImage(last.firmaDataUrl,'PNG',40,y,150,60); }catch(e){}
+  try{ doc.addImage(firmaDataUrl,'PNG',40,y,150,60); }catch(e){}
   y+=74;
   doc.setDrawColor(0,170,200); doc.setFillColor(240,251,253); doc.roundedRect(40,y,W-80,64,6,6,'FD');
   doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(20,120,140);
   doc.text('Constancia de firma electrónica', 52, y+18);
   doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60); doc.setFontSize(8.5);
   doc.text(doc.splitTextToSize('Registrado por '+r.observador_nombre+', C.C. '+r.observador_cedula+', el '+ts+'. Método: firma en pantalla. Integridad por hash '+r.hash+'. Conforme a la Ley 527 de 1999; cualquier cambio invalida el hash.', W-104), 52, y+32);
-  doc.save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
+  return doc;
+}
+function descargarPDF(){
+  const r=last.reg;
+  buildTarjetaPdf(r, last.ts, last.empresa, last.firmaDataUrl, last.fotoDataUrl).save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
 }
 
 function salirTarjetas(){ var st=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true; if(st){ location.reload(); } else { location.href='/app.html'; } }

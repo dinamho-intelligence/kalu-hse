@@ -245,7 +245,7 @@ function err(box,m){const e=$(box); if(!m){e.classList.remove('err'); e.textCont
 
 async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); if(!r.ok) throw new Error('GET '+r.status); return r.json();}
 async function sbInsert(table,row){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(row)}); if(!r.ok) throw new Error('INSERT '+r.status+' '+await r.text());}
-async function sbUp(bucket,path,blob,type){const r=await fetch(SB_URL+'/storage/v1/object/'+bucket+'/'+path,{method:'POST',headers:Object.assign({},H,{'Content-Type':type,'x-upsert':'true'}),body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
+async function sbUp(bucket,path,blob,type,upsert){var hdr=Object.assign({},H,{'Content-Type':type}); if(upsert!==false) hdr['x-upsert']='true'; const r=await fetch(SB_URL+'/storage/v1/object/'+bucket+'/'+path,{method:'POST',headers:hdr,body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
 async function sbUpload(path,blob,type){ return sbUp('tarjetas',path,blob,type); }
 // -- PDF de la tarjeta al archivo de Documentos (para la consola HSE) --
 function docDeTarjeta(reg,ts){
@@ -256,7 +256,8 @@ function docDeTarjeta(reg,ts){
 }
 async function guardarPdfTarjeta(reg,ts,pdfBlob){
   var d=docDeTarjeta(reg,ts);
-  await sbUp('documentos',d.path,pdfBlob,'application/pdf');
+  try{ await sbUp('documentos',d.path,pdfBlob,'application/pdf',false); }  // sin upsert: el bucket documentos no da SELECT a anon
+  catch(e){ if(!/already exists|Duplicate|resource already|409/i.test(e.message||'')) throw e; } // si ya estaba subido (reintento), seguir
   await sbInsert('documentos',d.row);
 }
 

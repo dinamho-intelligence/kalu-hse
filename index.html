@@ -336,44 +336,48 @@
 <script>
 (function(){
   function boot(){
-    var hero = document.querySelector('header.hero') || document.querySelector('.hero') || document.body;
-    if(getComputedStyle(hero).position === 'static') hero.style.position='relative';
-
+    var hero=document.querySelector('header.hero')||document.querySelector('.hero')||document.body;
+    if(getComputedStyle(hero).position==='static') hero.style.position='relative';
     var canvas=document.createElement('canvas');
     canvas.id='rainHomenaje';
     canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;'
-      +'-webkit-mask-image:linear-gradient(180deg,#000 78%,transparent);mask-image:linear-gradient(180deg,#000 78%,transparent)';
-    hero.insertBefore(canvas, hero.firstChild);
-
+      +'-webkit-mask-image:linear-gradient(180deg,#000 80%,transparent);mask-image:linear-gradient(180deg,#000 80%,transparent)';
+    hero.insertBefore(canvas,hero.firstChild);
     var ctx=canvas.getContext('2d');
     var KATA="ウアウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリレロン";
-    var BIN="01";
-    /* ---- AJUSTES ---- */
-    var RAIN_OPACITY=0.16, RAIN_DIM=0.30, RAIN_SPEED=0.16;
-    var PER_ROW=6, BYTE_FONT=13, FONT=18, ROW_STEP=34;
-    var T_RESOLVE=420, T_HOLD=1150, T_DISSOLVE=560, FLASH_MS=T_RESOLVE+T_HOLD+T_DISSOLVE;
+    /* -------- AJUSTES -------- */
+    var RAIN_OPACITY=0.17;   // intensidad de la lluvia
+    var BIN_PROB=0.80;       // % de 1s y 0s en la lluvia (resto katakana)
+    var RAIN_DIM=0.34;       // cuánto se atenúa la lluvia cuando aparece la palabra
+    var RAIN_SPEED=0.16;
+    var FONT=18;
+    var T_RESOLVE=560, T_HOLD=1500, T_DISSOLVE=680;  // decodifica / sostiene / desvanece (ms)
+    var FLASH_MS=T_RESOLVE+T_HOLD+T_DISSOLVE;
     var CYCLE_MINUTES=1982;
     var SEQUENCE=[{w:"LAS",s:0},{w:"MALVINAS",s:649},{w:"SON",s:74},{w:"ARGENTINAS",s:19}];
-    /* ---------------- */
-    var cols,drops,W,H,ROW_Y_TOP,flash=null;
+    var ZONES=[0.05,0.52,0.83];   // bandas vacías donde caen (izq, hueco antes del avatar, derecha)
+    var FAST_GAP=2.9;             // separación en modo prueba (#homenaje), en segundos
+    /* ------------------------- */
+    var cols,drops,W,H,flash=null;
     function newDrop(){return {y:Math.random()*-40,speed:RAIN_SPEED+Math.random()*0.12};}
     function resize(){
       W=hero.clientWidth||window.innerWidth; H=hero.clientHeight||600;
       canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio;
       ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
       cols=Math.max(1,Math.floor(W/FONT)); drops=new Array(cols).fill(0).map(newDrop);
-      ROW_Y_TOP=Math.round(H*0.36);
     }
     var easeOut=function(t){return 1-Math.pow(1-t,3);}, easeIn=function(t){return t*t*t;};
-    function pad8(n){var s=n.toString(2);while(s.length<8)s='0'+s;return s;}
-    function flashWord(word){
-      var bytes=word.split('').map(function(c){return pad8(c.charCodeAt(0));});
-      var rows=[]; for(var i=0;i<bytes.length;i+=PER_ROW) rows.push(bytes.slice(i,i+PER_ROW));
-      var lockAt=rows.map(function(row){return row.map(function(b){return b.split('').map(function(){return Math.random();});});});
-      flash={rows:rows,lockAt:lockAt,t0:performance.now()};
+    function flashWord(word,zoneFrac){
+      var chars=word.split('');
+      var frac=(zoneFrac==null)?(0.42+Math.random()*0.16):zoneFrac;
+      var col=Math.max(0,Math.min(cols-1,Math.round(frac*cols)));   // cae en la banda elegida
+      var startRow=Math.max(1,Math.floor((H*0.16)/FONT));           // arranca en el tercio superior
+      var lockAt=chars.map(function(){return Math.random();});      // cada letra se "traba" en su momento
+      flash={chars:chars,col:col,startRow:startRow,lockAt:lockAt,t0:performance.now()};
     }
-    function startSequence(){ var acc=0; SEQUENCE.forEach(function(st){ acc+=st.s; setTimeout(function(){flashWord(st.w);}, acc*1000); }); }
-    window.kaluHomenaje=startSequence;
+    function runSeq(fast){ var acc=fast?0.3:0; SEQUENCE.forEach(function(st,ix){ acc+=fast?FAST_GAP:st.s; setTimeout(function(){flashWord(st.w,ZONES[ix%ZONES.length]);}, acc*1000); }); }
+    function startSequence(){ runSeq(false); }   // ciclo real (tiempos con significado)
+    window.kaluHomenaje=function(){ runSeq(true); };   // para verlo ya (rápido)
     function draw(){
       ctx.fillStyle='rgba(8,10,13,0.07)'; ctx.fillRect(0,0,W,H);
       var fa=0, phase='';
@@ -383,36 +387,40 @@
         else if(e<T_RESOLVE+T_HOLD){phase='hold'; fa=1;}
         else {phase='dissolve'; fa=1-easeIn((e-T_RESOLVE-T_HOLD)/T_DISSOLVE);}
       }
-      ctx.font=FONT+'px monospace';
+      // ---- lluvia (mayormente 1 y 0) ----
+      ctx.font=FONT+'px monospace'; ctx.textAlign='left';
       var rainMul=flash?(RAIN_DIM+(1-RAIN_DIM)*(1-fa)):1;
-      for(var i=0;i<cols;i++){ var d=drops[i], x=i*FONT, yPix=d.y*FONT;
-        var ch=Math.random()<0.45?BIN[Math.floor(Math.random()*2)]:KATA[Math.floor(Math.random()*KATA.length)];
-        ctx.fillStyle='rgba(242,140,0,'+(RAIN_OPACITY*rainMul)+')'; ctx.fillText(ch,x,yPix);
+      for(var i=0;i<cols;i++){
+        var d=drops[i], x=i*FONT, yPix=d.y*FONT;
+        if(!(flash && i===flash.col)){   // la columna portadora se dibuja aparte, limpia
+          var ch=Math.random()<BIN_PROB?(Math.random()<0.5?'0':'1'):KATA[Math.floor(Math.random()*KATA.length)];
+          ctx.fillStyle='rgba(242,140,0,'+(RAIN_OPACITY*rainMul)+')'; ctx.fillText(ch,x,yPix);
+        }
         d.y+=d.speed; if(yPix>H&&Math.random()>0.985) drops[i]=newDrop();
       }
-      if(flash){ var e2=performance.now()-flash.t0;
-        ctx.font=BYTE_FONT+'px "SF Mono",Menlo,Consolas,monospace';
-        var byteW=ctx.measureText("00000000").width, gap=9;
-        var nRows=flash.rows.length, bandTop=ROW_Y_TOP-24, bandH=nRows*ROW_STEP+18;
-        var g=ctx.createLinearGradient(0,bandTop,0,bandTop+bandH);
-        g.addColorStop(0,'rgba(8,10,13,0)'); g.addColorStop(0.5,'rgba(4,6,9,'+(0.6*fa)+')'); g.addColorStop(1,'rgba(8,10,13,0)');
-        ctx.fillStyle=g; ctx.fillRect(0,bandTop,W,bandH);
-        var breath=(phase==='hold')?1-0.05*(0.5+0.5*Math.sin(e2/140)):1;
-        flash.rows.forEach(function(row,r){
-          var rowW=row.length*byteW+(row.length-1)*gap, x0=(W-rowW)/2, y=ROW_Y_TOP+r*ROW_STEP;
-          var jx=(phase==='resolve')?(1-fa)*(Math.random()*3-1.5):(phase==='dissolve')?(1-fa)*(Math.random()*2-1):0;
-          row.forEach(function(b,c){ var bx=x0+c*(byteW+gap)+jx, out='';
-            for(var k=0;k<b.length;k++){ if(phase==='resolve'){ out += (fa>flash.lockAt[r][c][k]*0.9)?b[k]:BIN[Math.floor(Math.random()*2)]; } else out+=b[k]; }
-            var a=Math.min(1,fa*breath);
-            ctx.shadowColor='rgba(255,196,110,'+(0.55*a)+')'; ctx.shadowBlur=13*a;
-            ctx.fillStyle='rgba(255,214,150,'+(0.96*a)+')'; ctx.fillText(out,bx,y); ctx.shadowBlur=0;
-          });
-        });
+      // ---- la palabra, VERTICAL, decodificándose en su columna ----
+      if(flash){
+        var e2=performance.now()-flash.t0;
+        var x=flash.col*FONT;
+        var breath=(phase==='hold')?1-0.05*(0.5+0.5*Math.sin(e2/150)):1;
+        ctx.font=FONT+'px "SF Mono",Menlo,Consolas,monospace';
+        for(var k=0;k<flash.chars.length;k++){
+          var y=(flash.startRow+k)*FONT;
+          var locked=(phase!=='resolve')||(fa>flash.lockAt[k]*0.85);
+          var glyph=locked?flash.chars[k]:(Math.random()<0.5?'0':'1');   // 0/1 -> letra
+          var jy=(phase==='resolve')?(1-fa)*(Math.random()*4-2):0;
+          var a=Math.min(1,fa*breath);
+          ctx.shadowColor='rgba(255,196,110,'+(0.6*a)+')'; ctx.shadowBlur=14*a;
+          ctx.fillStyle='rgba(255,216,150,'+(0.97*a)+')'; ctx.fillText(glyph,x,y+jy);
+          ctx.shadowBlur=0;
+        }
       }
       requestAnimationFrame(draw);
     }
     resize(); window.addEventListener('resize',resize); draw();
     setInterval(startSequence, CYCLE_MINUTES*60*1000);
+    // MODO PRUEBA: si la dirección termina en #homenaje, muestra las 4 palabras en loop rápido
+    if((location.hash||'').toLowerCase().indexOf('homenaje')>=0){ runSeq(true); setInterval(function(){runSeq(true);}, (FAST_GAP*4+3)*1000); }
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 })();

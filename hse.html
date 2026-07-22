@@ -349,9 +349,9 @@ async function sbInsert(table, body){
 async function cargar(){
   try{
     const [ats,inv,tar]=await Promise.all([
-      sbGet('ats?select=responsable,tarea,cliente,zona,estado,modo,fecha,cuadrilla,historial'),
-      sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,rol_reporta,descripcion,testigos,historial'),
-      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha')
+      sbGet('ats?select=responsable,tarea,cliente,zona,estado,modo,fecha,cuadrilla,historial&eliminada=eq.false'),
+      sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,rol_reporta,descripcion,testigos,historial&eliminada=eq.false'),
+      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha&eliminada=eq.false')
     ]);
     render(ats,inv,tar);
   }catch(e){ $('loading').textContent='No se pudieron cargar los datos ('+e.message+'). ¿Corriste el SQL de lectura?'; }
@@ -746,7 +746,7 @@ async function eliminarExp(invId){
   try{
     var ts=new Date().toISOString();
     await sbPatch('investigaciones?inv_id=eq.'+encodeURIComponent(invId),{eliminada:true,eliminada_por:MYNAME,eliminada_motivo:motivo,eliminada_at:ts});
-    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'investigaciones',registro_id:invId,accion:'eliminar',motivo:motivo,actor:MYNAME});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'investigaciones',registro_id:invId,accion:'eliminar',motivo:motivo,actor:MYNAME,detalle:'Expediente '+invId});
     v.eliminada=true; v.eliminada_por=MYNAME; v.eliminada_motivo=motivo; v.eliminada_at=ts;
     renderExpList();
   }catch(e){ alert('No se pudo eliminar ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría (KALU_13).'); }
@@ -757,7 +757,7 @@ async function restaurarExp(invId){
   if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir una explicación.'); return; }
   try{
     await sbPatch('investigaciones?inv_id=eq.'+encodeURIComponent(invId),{eliminada:false,eliminada_por:null,eliminada_motivo:null,eliminada_at:null});
-    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'investigaciones',registro_id:invId,accion:'restaurar',motivo:motivo,actor:MYNAME});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'investigaciones',registro_id:invId,accion:'restaurar',motivo:motivo,actor:MYNAME,detalle:'Expediente '+invId});
     v.eliminada=false; v.eliminada_por=null; v.eliminada_motivo=null; v.eliminada_at=null;
     renderExpList();
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
@@ -1044,7 +1044,7 @@ async function eliminarTarjeta(id){
   try{
     var ts=new Date().toISOString();
     await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{eliminada:true,eliminada_por:MYNAME,eliminada_motivo:motivo,eliminada_at:ts});
-    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'eliminar',motivo:motivo,actor:MYNAME});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'eliminar',motivo:motivo,actor:MYNAME,detalle:'Tarjeta · '+(t.observador_nombre||'')});
     t.eliminada=true; t.eliminada_por=MYNAME; t.eliminada_motivo=motivo; t.eliminada_at=ts;
     renderTar();
   }catch(e){ alert('No se pudo eliminar ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría.'); }
@@ -1056,7 +1056,7 @@ async function restaurarTarjeta(id){
   motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir una explicación.'); return; }
   try{
     await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{eliminada:false,eliminada_por:null,eliminada_motivo:null,eliminada_at:null});
-    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'restaurar',motivo:motivo,actor:MYNAME});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'restaurar',motivo:motivo,actor:MYNAME,detalle:'Tarjeta · '+(t.observador_nombre||'')});
     t.eliminada=false; t.eliminada_por=null; t.eliminada_motivo=null; t.eliminada_at=null;
     renderTar();
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
@@ -1083,11 +1083,11 @@ function renderAudit(){
     return true;
   });
   if(!rows.length){ C.innerHTML='<div class="detempty">No hay movimientos con estos filtros.</div>'; return; }
-  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Cuándo</th><th>Acción</th><th>Tipo</th><th>Quién</th><th>Motivo</th></tr></thead><tbody>'
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Cuándo</th><th>Acción</th><th>Tipo</th><th>Detalle</th><th>Quién</th><th>Motivo</th></tr></thead><tbody>'
     +rows.map(function(r){
       var cuando=String(r.created_at||'').slice(0,16).replace('T',' ');
       var acc=(r.accion==='eliminar')?'<span class="badge ins">eliminó</span>':(r.accion==='restaurar')?'<span class="badge seg">restauró</span>':esc(r.accion||'—');
-      return '<tr><td>'+esc(cuando)+'</td><td>'+acc+'</td><td>'+esc(r.tabla||'—')+'</td><td>'+esc(r.actor||'—')+'</td><td>'+esc(r.motivo||'—')+'</td></tr>';
+      return '<tr><td>'+esc(cuando)+'</td><td>'+acc+'</td><td>'+esc(r.tabla||'—')+'</td><td>'+esc(r.detalle||r.registro_id||'—')+'</td><td>'+esc(r.actor||'—')+'</td><td>'+esc(r.motivo||'—')+'</td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 async function loadAts(){
@@ -1134,7 +1134,7 @@ async function eliminarAts(i){
   try{
     var ts=new Date().toISOString();
     await sbPatch('ats?id=eq.'+encodeURIComponent(r.id),{eliminada:true,eliminada_por:MYNAME,eliminada_motivo:motivo,eliminada_at:ts});
-    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'ats',registro_id:String(r.id),accion:'eliminar',motivo:motivo,actor:MYNAME});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'ats',registro_id:String(r.id),accion:'eliminar',motivo:motivo,actor:MYNAME,detalle:'ATS · '+(r.tarea||'')});
     r.eliminada=true; r.eliminada_por=MYNAME; r.eliminada_motivo=motivo; r.eliminada_at=ts;
     renderAtsList();
   }catch(e){ alert('No se pudo eliminar ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría (KALU_13).'); }
@@ -1145,7 +1145,7 @@ async function restaurarAts(i){
   if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir una explicación.'); return; }
   try{
     await sbPatch('ats?id=eq.'+encodeURIComponent(r.id),{eliminada:false,eliminada_por:null,eliminada_motivo:null,eliminada_at:null});
-    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'ats',registro_id:String(r.id),accion:'restaurar',motivo:motivo,actor:MYNAME});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'ats',registro_id:String(r.id),accion:'restaurar',motivo:motivo,actor:MYNAME,detalle:'ATS · '+(r.tarea||'')});
     r.eliminada=false; r.eliminada_por=null; r.eliminada_motivo=null; r.eliminada_at=null;
     renderAtsList();
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }

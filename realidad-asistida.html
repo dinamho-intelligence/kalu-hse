@@ -97,7 +97,7 @@
     <span id="net" class="pill on">● En línea</span>
   </div>
 
-  <div id="screen"><!-- una sola pantalla a la vez --></div>
+  <div id="screen"><div style="margin:auto;color:#9fb0c9;font-size:15px">Cargando…</div></div>
 
   <div class="help">
     <span class="mic">🎤 Decí</span>
@@ -107,6 +107,8 @@
 <script>
 const WM = "hf_show_text|hf_make_clickable";           // WearML: muestra comando + numerito y lo hace clickeable
 const $ = s => document.querySelector(s);
+// id sin depender de crypto.randomUUID (no existe en navegadores viejos como el de RealWear)
+function genId(){ return "r-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e9).toString(36); }
 
 /* ---------- Flujo (misma forma que Supabase) ---------- */
 const PASOS = [
@@ -124,7 +126,7 @@ const idxDe = id => PASOS.findIndex(p=>p.id===id);
 /* ---------- Estado ---------- */
 let ejec=null, i=0, stream=null, cedBuf="";
 function nuevaEjecucion(){
-  ejec={ id:crypto.randomUUID(), flujo:"Inspección pre-uso de equipo", version:1,
+  ejec={ id:genId(), flujo:"Inspección pre-uso de equipo", version:1,
     operador_cedula:"", equipo_id:"", inicio:new Date().toISOString(), fin:null,
     resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
   i=0; cedBuf="";
@@ -274,22 +276,50 @@ function capturar(campo){
   siguiente();
 }
 
-/* ---------- Offline (IndexedDB) ---------- */
+/* ---------- Offline (IndexedDB) · todo opcional y sin romper la app ---------- */
 let db=null;
-function abrirDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open("realwear_ra",1);
-  q.onupgradeneeded=e=>{ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
-  q.onsuccess=e=>{ db=e.target.result; res(db); }; q.onerror=rej; }); }
-function guardarLocal(o){ return new Promise((res,rej)=>{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").put(o); tx.oncomplete=res; tx.onerror=rej; }); }
-function contarPend(){ return new Promise(res=>{ const tx=db.transaction("pendientes","readonly"); const q=tx.objectStore("pendientes").count(); q.onsuccess=()=>res(q.result); }); }
-async function refrescarPend(){ const n=await contarPend(); const el=$("#pend"); if(n>0){ el.style.display="inline-block"; el.textContent="⏳ "+n; } else el.style.display="none"; }
-async function finalizar(){ await guardarLocal(ejec); await refrescarPend(); nuevaEjecucion(); showInicio(); }
+function abrirDB(){ return new Promise(function(res){
+  try{
+    const q=indexedDB.open("realwear_ra",1);
+    q.onupgradeneeded=function(e){ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
+    q.onsuccess=function(e){ db=e.target.result; res(true); };
+    q.onerror=function(){ res(false); };
+  }catch(e){ res(false); }
+}); }
+function guardarLocal(o){ return new Promise(function(res){
+  if(!db){ res(); return; }
+  try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").put(o); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }
+  catch(e){ res(); }
+}); }
+function refrescarPend(){ return new Promise(function(res){
+  const el=$("#pend"); if(!el){ res(); return; }
+  if(!db){ el.style.display="none"; res(); return; }
+  try{ const q=db.transaction("pendientes","readonly").objectStore("pendientes").count();
+    q.onsuccess=function(){ const n=q.result; if(n>0){ el.style.display="inline-block"; el.textContent="⏳ "+n; } else el.style.display="none"; res(); };
+    q.onerror=function(){ res(); };
+  }catch(e){ res(); }
+}); }
+function finalizar(){
+  try{ guardarLocal(ejec).then(refrescarPend).catch(function(){}); }catch(e){}
+  nuevaEjecucion(); showInicio();
+}
 
 /* ---------- Conexión ---------- */
-function pintarNet(){ const el=$("#net"); if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
+function pintarNet(){ const el=$("#net"); if(!el) return; if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
 addEventListener("online",pintarNet); addEventListener("offline",pintarNet);
 
-/* ---------- Init ---------- */
-(async function(){ await abrirDB(); await refrescarPend(); pintarNet(); nuevaEjecucion(); showInicio(); })();
+/* ---------- Init · dibuja PRIMERO, la base va después y es opcional ---------- */
+function boot(){
+  try{
+    nuevaEjecucion();
+    showInicio();
+  }catch(e){
+    $("#screen").innerHTML='<div style="margin:auto;text-align:center;color:#f2a6a3;padding:20px;font-size:15px">No se pudo iniciar la app.<br><small style="color:#9fb0c9">'+((e&&e.message)||e)+'</small><br><br><button class="opt primary" style="max-width:240px" onclick="location.reload()">Reintentar</button></div>';
+  }
+  try{ pintarNet(); }catch(e){}
+  try{ abrirDB().then(refrescarPend).catch(function(){}); }catch(e){}
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
 </script>
 </body>
 </html>

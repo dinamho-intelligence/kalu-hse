@@ -176,6 +176,7 @@
       <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
       <button class="tab" id="tabUsers" onclick="verVista('usuarios')">👤 Usuarios</button>
       <button class="tab" id="tabDocs" onclick="verVista('docs')">📎 Documentos</button>
+      <button class="tab" id="tabAudit" onclick="verVista('audit')">🕵 Auditoría</button>
     </div>
     <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
@@ -255,6 +256,19 @@
         <div id="docsContent"></div>
       </div>
     </div>
+    <div class="hide" id="viewAudit">
+      <div class="card">
+        <h2><span>▸</span> Auditoría · eliminaciones y restauraciones <span id="auditCount" style="color:var(--nar)"></span></h2>
+        <div class="umsg">Registro permanente de cada baja y restauración: qué registro, quién lo hizo, cuándo y por qué. No se borra nunca.</div>
+        <div class="tarbar">
+          <select id="fAudAccion" onchange="renderAudit()"><option value="">Toda acción</option><option value="eliminar">Eliminó</option><option value="restaurar">Restauró</option></select>
+          <select id="fAudTabla" onchange="renderAudit()"><option value="">Todo tipo</option><option value="tarjetas">Tarjetas</option><option value="investigaciones">Investigaciones</option><option value="ats">ATS</option><option value="documentos">Documentos</option></select>
+          <input id="fAudPers" oninput="renderAudit()" placeholder="Buscar por persona o motivo…">
+        </div>
+        <div class="loading" id="auditLoading">Cargando auditoría…</div>
+        <div id="auditContent"></div>
+      </div>
+    </div>
   </div>
   <div class="detov hide" id="detalle" onclick="if(event.target===this)cerrarDet()">
     <div class="detcard"><div class="dethd"><span id="detTit"></span><button onclick="cerrarDet()">&#10005;</button></div><div class="detbody" id="detBody"></div></div>
@@ -266,7 +280,7 @@ const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
 const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6873';
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
-let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false;
+let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null;
 function $(id){return document.getElementById(id);}
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value;
@@ -440,17 +454,20 @@ function verVista(v){
   document.getElementById('tabChat').classList.toggle('on',v==='chat');
   document.getElementById('tabUsers').classList.toggle('on',v==='usuarios');
   document.getElementById('tabDocs').classList.toggle('on',v==='docs');
+  document.getElementById('tabAudit').classList.toggle('on',v==='audit');
   document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
   document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
   document.getElementById('viewTar').classList.toggle('hide',v!=='tar');
   document.getElementById('viewChat').classList.toggle('hide',v!=='chat');
   document.getElementById('viewUsers').classList.toggle('hide',v!=='usuarios');
   document.getElementById('viewDocs').classList.toggle('hide',v!=='docs');
+  document.getElementById('viewAudit').classList.toggle('hide',v!=='audit');
   if(v==='exp' && !EXP) loadExpedientes();
   if(v==='tar' && !TAR) loadTarjetas();
   if(v==='chat') initChat();
   if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
   if(v==='docs' && !DOCS) loadDocs();
+  if(v==='audit' && !AUDIT) loadAudit();
 }
 // ===== USUARIOS (panel de administración del HSE) =====
 function estadoBadge(s){
@@ -996,6 +1013,35 @@ async function restaurarTarjeta(id){
     t.eliminada=false; t.eliminada_por=null; t.eliminada_motivo=null; t.eliminada_at=null;
     renderTar();
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
+}
+async function loadAudit(){
+  var L=document.getElementById('auditLoading'), C=document.getElementById('auditContent');
+  L.classList.remove('hide'); L.textContent='Cargando auditoría…'; C.innerHTML='';
+  try{
+    AUDIT=(await sbGet('eliminaciones?select=*&order=created_at.desc'))||[];
+    document.getElementById('auditCount').textContent='('+AUDIT.length+')';
+    L.classList.add('hide');
+    renderAudit();
+  }catch(e){ L.textContent='No se pudo cargar la auditoría ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría (KALU_13).'; }
+}
+function renderAudit(){
+  var C=document.getElementById('auditContent'); if(!AUDIT) return;
+  var fa=(document.getElementById('fAudAccion')||{}).value||'';
+  var ft=(document.getElementById('fAudTabla')||{}).value||'';
+  var fp=((document.getElementById('fAudPers')||{}).value||'').toLowerCase().trim();
+  var rows=AUDIT.filter(function(r){
+    if(fa && (r.accion||'')!==fa) return false;
+    if(ft && (r.tabla||'')!==ft) return false;
+    if(fp){ var hay=((r.actor||'')+' '+(r.motivo||'')).toLowerCase(); if(hay.indexOf(fp)===-1) return false; }
+    return true;
+  });
+  if(!rows.length){ C.innerHTML='<div class="detempty">No hay movimientos con estos filtros.</div>'; return; }
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Cuándo</th><th>Acción</th><th>Tipo</th><th>Quién</th><th>Motivo</th></tr></thead><tbody>'
+    +rows.map(function(r){
+      var cuando=String(r.created_at||'').slice(0,16).replace('T',' ');
+      var acc=(r.accion==='eliminar')?'<span class="badge ins">eliminó</span>':(r.accion==='restaurar')?'<span class="badge seg">restauró</span>':esc(r.accion||'—');
+      return '<tr><td>'+esc(cuando)+'</td><td>'+acc+'</td><td>'+esc(r.tabla||'—')+'</td><td>'+esc(r.actor||'—')+'</td><td>'+esc(r.motivo||'—')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
 }
 function tarPDF(){
   const rows=tarFiltered();

@@ -263,6 +263,7 @@
         <div class="umsg">Todos los ATS generados por KALU, de tu empresa. Abrí uno para ver el análisis completo (peligros, controles, scoring) y descargar el PDF.</div>
         <div class="tarbar">
           <input id="fAtsBusca" oninput="renderAtsList()" placeholder="Buscar por responsable, tarea, cliente o zona…">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="fVerElimAts" onchange="verElimAts=this.checked;renderAtsList()" style="width:auto"> Ver eliminados</label>
         </div>
         <div class="loading" id="atsLoading">Cargando ATS…</div>
         <div id="atsContent"></div>
@@ -292,7 +293,7 @@ const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
 const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6873';
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
-let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null, ATSDATA=null;
+let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null, ATSDATA=null, verElimAts=false;
 function $(id){return document.getElementById(id);}
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value;
@@ -458,7 +459,7 @@ function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); 
 <script>
 // ===== EXPEDIENTES (bloque 2 de la consola HSE) =====
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-let EXP=null, USERS=null, ROSTER=null, DOCS=null;
+let EXP=null, USERS=null, ROSTER=null, DOCS=null, verElimExp=false;
 function verVista(v){
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
@@ -705,7 +706,7 @@ async function guardarTrabajador(id){
 async function loadExpedientes(){
   try{
     const [inv,test,firm]=await Promise.all([
-      sbGet('investigaciones?select=inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at&order=created_at.desc'),
+      sbGet('investigaciones?select=inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at,eliminada,eliminada_por,eliminada_motivo,eliminada_at&order=created_at.desc'),
       sbGet('testimonios?select=id,inv_id,rol,transcripcion,hash,estado,creado,firmantes(nombre,cedula)&order=creado.asc'),
       sbGet('firmas?select=doc_id,firma_path,hash_doc,metodo,firmado_en,rol&doc_tipo=eq.testimonio')
     ]);
@@ -717,18 +718,49 @@ async function loadExpedientes(){
 }
 function renderExpList(){
   const {inv,testByInv}=EXP;
-  const rows=inv.filter(v=>v.inv_id).map(v=>{
+  var lista=inv.filter(function(v){ return v.inv_id && (verElimExp ? v.eliminada : !v.eliminada); });
+  const rows=lista.map(v=>{
     const n=(testByInv[v.inv_id]||[]).length;
     const ti=(v.titulo||v.descripcion||'Investigación').slice(0,90);
     const fecha=(v.fecha_evento||(v.created_at||'').slice(0,10)||'');
-    return '<div class="exprow" onclick="openExpediente(\''+v.inv_id+'\')">'
-      +'<div class="info"><div class="id">'+esc(v.inv_id)+'</div><div class="ti">'+esc(ti)+'</div>'
-      +'<div class="me">'+esc(v.reporta||'')+' · '+esc(v.cliente||'')+' · '+fecha+' · '+esc(v.estado||'')+'</div></div>'
-      +'<div class="cnt '+(n?'':'zero')+'">'+n+' firmada'+(n===1?'':'s')+'</div></div>';
+    var btn = verElimExp
+      ? '<button style="background:rgba(37,194,110,.12);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer" onclick="event.stopPropagation();restaurarExp(\''+v.inv_id+'\')">↩ Restaurar</button>'
+      : '<button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer" onclick="event.stopPropagation();eliminarExp(\''+v.inv_id+'\')">🗑 Eliminar</button>';
+    var meta = verElimExp
+      ? '<div class="me">Eliminado por '+esc(v.eliminada_por||'—')+' · '+esc(v.eliminada_motivo||'')+'</div>'
+      : '<div class="me">'+esc(v.reporta||'')+' · '+esc(v.cliente||'')+' · '+fecha+' · '+esc(v.estado||'')+'</div>';
+    return '<div class="exprow"'+(verElimExp?' style="opacity:.7"':'')+' onclick="openExpediente(\''+v.inv_id+'\')">'
+      +'<div class="info"><div class="id">'+esc(v.inv_id)+'</div><div class="ti">'+esc(ti)+'</div>'+meta+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px"><div class="cnt '+(n?'':'zero')+'">'+n+' firmada'+(n===1?'':'s')+'</div>'+btn+'</div></div>';
   }).join('');
-  document.getElementById('expList').innerHTML=rows||'<div class="loading">No hay investigaciones con expediente.</div>';
+  var toggle='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);cursor:pointer;margin:0 0 12px"><input type="checkbox" onchange="verElimExp=this.checked;renderExpList()" '+(verElimExp?'checked':'')+' style="width:auto"> Ver eliminados</label>';
+  document.getElementById('expList').innerHTML=toggle+(rows||'<div class="loading">'+(verElimExp?'No hay expedientes eliminados.':'No hay investigaciones con expediente.')+'</div>');
   document.getElementById('expList').classList.remove('hide');
   document.getElementById('expDetail').classList.add('hide');
+}
+async function eliminarExp(invId){
+  var v=((EXP&&EXP.inv)||[]).find(function(x){return x.inv_id===invId;}); if(!v) return;
+  var motivo=prompt('¿Por qué eliminás este expediente ('+invId+')? (queda registrado en la bitácora)');
+  if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir un motivo.'); return; }
+  if(!confirm('Vas a eliminar el expediente '+invId+'.\nNo se pierde: queda registrado como eliminado, con tu nombre y el motivo. ¿Confirmás?')) return;
+  try{
+    var ts=new Date().toISOString();
+    await sbPatch('investigaciones?inv_id=eq.'+encodeURIComponent(invId),{eliminada:true,eliminada_por:MYNAME,eliminada_motivo:motivo,eliminada_at:ts});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'investigaciones',registro_id:invId,accion:'eliminar',motivo:motivo,actor:MYNAME});
+    v.eliminada=true; v.eliminada_por=MYNAME; v.eliminada_motivo=motivo; v.eliminada_at=ts;
+    renderExpList();
+  }catch(e){ alert('No se pudo eliminar ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría (KALU_13).'); }
+}
+async function restaurarExp(invId){
+  var v=((EXP&&EXP.inv)||[]).find(function(x){return x.inv_id===invId;}); if(!v) return;
+  var motivo=prompt('¿Por qué restaurás este expediente ('+invId+')? (queda registrado)');
+  if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir una explicación.'); return; }
+  try{
+    await sbPatch('investigaciones?inv_id=eq.'+encodeURIComponent(invId),{eliminada:false,eliminada_por:null,eliminada_motivo:null,eliminada_at:null});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'investigaciones',registro_id:invId,accion:'restaurar',motivo:motivo,actor:MYNAME});
+    v.eliminada=false; v.eliminada_por=null; v.eliminada_motivo=null; v.eliminada_at=null;
+    renderExpList();
+  }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
 }
 function volverLista(){ document.getElementById('expDetail').classList.add('hide'); document.getElementById('expList').classList.remove('hide'); }
 async function openExpediente(invId){
@@ -1074,16 +1106,49 @@ function renderAtsList(){
   var C=document.getElementById('atsContent'); if(!ATSDATA) return;
   var q=((document.getElementById('fAtsBusca')||{}).value||'').toLowerCase().trim();
   var rows=ATSDATA.map(function(r,i){return {r:r,i:i};}).filter(function(o){
+    if(verElimAts){ if(!o.r.eliminada) return false; } else { if(o.r.eliminada) return false; }
     if(!q) return true;
     var hay=((o.r.responsable||'')+' '+(o.r.tarea||'')+' '+(o.r.cliente||'')+' '+(o.r.zona||'')).toLowerCase();
     return hay.indexOf(q)!==-1;
   });
-  if(!rows.length){ C.innerHTML='<div class="detempty">Sin ATS con ese filtro.</div>'; return; }
+  if(!rows.length){ C.innerHTML='<div class="detempty">'+(verElimAts?'No hay ATS eliminados.':'Sin ATS con ese filtro.')+'</div>'; return; }
+  if(verElimAts){
+    C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Eliminado por</th><th>Motivo</th><th></th></tr></thead><tbody>'
+      +rows.map(function(o){ var r=o.r;
+        return '<tr style="opacity:.7"><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.eliminada_por||'—')+'</td><td>'+esc(r.eliminada_motivo||'—')+'</td>'
+          +'<td><button class="dl" onclick="verAts('+o.i+')">Ver</button> <button style="background:rgba(37,194,110,.12);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="restaurarAts('+o.i+')">↩ Restaurar</button></td></tr>';
+      }).join('')+'</tbody></table></div>';
+    return;
+  }
   C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th></th></tr></thead><tbody>'
     +rows.map(function(o){ var r=o.r;
       return '<tr><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td><td>'+esc(r.estado||'—')+'</td>'
-        +'<td><button class="dl" onclick="verAts('+o.i+')">Ver</button></td></tr>';
+        +'<td><button class="dl" onclick="verAts('+o.i+')">Ver</button> <button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="eliminarAts('+o.i+')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
+}
+async function eliminarAts(i){
+  var r=ATSDATA[i]; if(!r) return;
+  var motivo=prompt('¿Por qué eliminás este ATS? (queda registrado en la bitácora)');
+  if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir un motivo.'); return; }
+  if(!confirm('Vas a eliminar el ATS de «'+(r.tarea||'')+'».\nNo se pierde: queda registrado como eliminado, con tu nombre y el motivo. ¿Confirmás?')) return;
+  try{
+    var ts=new Date().toISOString();
+    await sbPatch('ats?id=eq.'+encodeURIComponent(r.id),{eliminada:true,eliminada_por:MYNAME,eliminada_motivo:motivo,eliminada_at:ts});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'ats',registro_id:String(r.id),accion:'eliminar',motivo:motivo,actor:MYNAME});
+    r.eliminada=true; r.eliminada_por=MYNAME; r.eliminada_motivo=motivo; r.eliminada_at=ts;
+    renderAtsList();
+  }catch(e){ alert('No se pudo eliminar ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría (KALU_13).'); }
+}
+async function restaurarAts(i){
+  var r=ATSDATA[i]; if(!r) return;
+  var motivo=prompt('¿Por qué restaurás este ATS? (queda registrado)');
+  if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir una explicación.'); return; }
+  try{
+    await sbPatch('ats?id=eq.'+encodeURIComponent(r.id),{eliminada:false,eliminada_por:null,eliminada_motivo:null,eliminada_at:null});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'ats',registro_id:String(r.id),accion:'restaurar',motivo:motivo,actor:MYNAME});
+    r.eliminada=false; r.eliminada_por=null; r.eliminada_motivo=null; r.eliminada_at=null;
+    renderAtsList();
+  }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
 }
 function _atsControles(p){ var c=p.controles||p.medidas_control||p.control||p.medidas||''; if(Array.isArray(c)) c=c.join(' · '); return c; }
 function atsDetalleHTML(r,j){
@@ -1093,16 +1158,18 @@ function atsDetalleHTML(r,j){
     +_kv('Cuadrilla',Array.isArray(r.cuadrilla)?r.cuadrilla.join(', '):r.cuadrilla)+'</div>';
   if(!j){ return h+'<div class="detempty">No se pudo leer el contenido del ATS de este registro.</div>'; }
   if(Array.isArray(j.peligros)&&j.peligros.length){
-    h+='<h2 style="font-size:13px;margin:12px 0 8px"><span>▸</span> Peligros y controles</h2>';
-    h+='<div class="twrap"><table class="ttbl"><thead><tr><th>Peligro</th><th>Clasificación</th><th>Riesgo residual</th><th>Controles</th></tr></thead><tbody>';
+    h+='<h2 style="font-size:13px;margin:12px 0 8px"><span>▸</span> Peligros ('+j.peligros.length+')</h2>';
+    h+='<div class="twrap"><table class="ttbl"><thead><tr><th>Peligro</th><th>Clasificación</th><th>Riesgo residual</th></tr></thead><tbody>';
     h+=j.peligros.map(function(p){
-      return '<tr><td>'+esc(p.descripcion||p.peligro||'—')+'</td><td>'+esc(p.clasificacion||'—')+'</td><td>'+esc(p.nivel_riesgo_residual||p.riesgo||'—')+'</td><td>'+esc(_atsControles(p)||'—')+'</td></tr>';
+      return '<tr><td>'+esc(p.descripcion||p.peligro||'—')+'</td><td>'+esc(p.clasificacion||'—')+'</td><td>'+esc(p.nivel_riesgo_residual||p.riesgo||'—')+'</td></tr>';
     }).join('')+'</tbody></table></div>';
+    h+='<div style="font-size:11.5px;color:var(--tx3);margin:6px 0 0">El detalle completo (controles, barrera, contingencia, EPP, recomendación) está en el <b>ATS oficial (PDF)</b>.</div>';
   }
-  if(j.scoring_validacion && typeof j.scoring_validacion==='object'){
-    h+='<h2 style="font-size:13px;margin:14px 0 8px"><span>▸</span> Scoring de validación</h2><div style="font-size:13px">';
-    Object.keys(j.scoring_validacion).forEach(function(k){ var v=j.scoring_validacion[k]; var sc=(v&&typeof v==='object')?(v.score!=null?v.score:JSON.stringify(v)):v; h+=_kv(norm(k),sc); });
-    h+='</div>';
+  if(j.scoring_validacion && typeof j.scoring_validacion==='object' && Object.keys(j.scoring_validacion).length){
+    h+='<h2 style="font-size:13px;margin:14px 0 8px"><span>▸</span> Scoring de validación</h2>';
+    h+='<div class="twrap"><table class="ttbl"><thead><tr><th>Persona</th><th>Score</th></tr></thead><tbody>'
+      +Object.keys(j.scoring_validacion).map(function(k){ var v=j.scoring_validacion[k]; var sc=(v&&typeof v==='object')?(v.score!=null?v.score:'—'):v; return '<tr><td>'+esc(k)+'</td><td>'+esc(String(sc))+'</td></tr>'; }).join('')
+      +'</tbody></table></div>';
   }
   ['resumen','conclusion','conclusiones','observaciones','recomendaciones'].forEach(function(k){
     if(j[k]){ h+='<h2 style="font-size:13px;margin:14px 0 6px"><span>▸</span> '+esc(norm(k))+'</h2><div style="font-size:13px;color:var(--tx2);line-height:1.6">'+esc(String(j[k]))+'</div>'; }
@@ -1137,16 +1204,16 @@ function atsHTML(r,j){
       +'<td class="nivel-'+String(p.nivel_riesgo_residual||'').toLowerCase()+'">'+_atsCell(p.nivel_riesgo_residual)+'</td></tr>';
   }).join('');
   var emps=_atsEmpleados(r,j).filter(function(e){return e && e!==responsable;});
-  var firmasEmp = emps.length ? emps.map(function(e){return '<div class="firma-box"><div style="height:30px"></div><p><strong>'+esc(e)+'</strong></p><p>Firma</p></div>';}).join('') : '<div class="firma-box"><div style="height:30px"></div><p>Inspector / Técnico</p><p>Firma</p></div>';
+  var firmasEmp = emps.length ? emps.map(function(e){return '<div class="firma-box"><div class="firma-linea"><p><strong>'+esc(e)+'</strong></p><p>Firma</p></div></div>';}).join('') : '<div class="firma-box"><div class="firma-linea"><p>Inspector / Técnico</p><p>Firma</p></div></div>';
   return '<html><head><meta charset="UTF-8"><title>ATS - '+esc(actividad)+'</title><style>'
-    +'@page { size: A3 landscape; margin: 10mm; } body { font-family:Arial,sans-serif; font-size:9px; margin:10px; color:#000; }'
+    +'@page { size: A3 landscape; margin: 10mm; } * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; } body { font-family:Arial,sans-serif; font-size:9px; margin:10px; color:#000; }'
     +'h1 { color:#8B0000; font-size:14px; text-align:center; margin:0 0 4px 0; } .subtitulo { text-align:center; font-size:11px; color:#555; margin-bottom:10px; }'
     +'.header-box { border:2px solid #8B0000; padding:8px; margin-bottom:10px; border-radius:4px; } .header-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; }'
     +'.header-item label { font-weight:bold; color:#8B0000; display:block; font-size:8px; }'
     +'table { width:100%; border-collapse:collapse; margin-bottom:10px; } th { background:#8B0000; color:#fff; padding:4px 3px; text-align:left; font-size:8px; }'
     +'td { border:1px solid #ccc; padding:3px; vertical-align:top; font-size:8px; line-height:1.3; } tr:nth-child(even){ background:#fafafa; }'
     +'.nivel-alto{ background:#ffcccc; font-weight:bold; color:#8B0000; text-align:center; } .nivel-medio{ background:#fff3cc; font-weight:bold; color:#856404; text-align:center; } .nivel-bajo{ background:#d4edda; font-weight:bold; color:#155724; text-align:center; }'
-    +'.firmas{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:20px; margin-top:20px; } .firma-box{ border-top:1px solid #333; padding-top:6px; text-align:center; } .firma-box p{ margin:2px 0; font-size:8px; }'
+    +'.firmas{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:20px; margin-top:30px; } .firma-box{ text-align:center; } .firma-linea{ border-top:1px solid #333; padding-top:4px; margin-top:38px; } .firma-box p{ margin:2px 0; font-size:8px; }'
     +'.generado{ text-align:center; font-size:7px; color:#888; margin-top:10px; border-top:1px solid #eee; padding-top:5px; } .leyenda{ font-size:8px; margin:8px 0; padding:6px; background:#f8f8f8; border:1px solid #ddd; border-radius:3px; }'
     +'</style></head><body>'
     +'<h1>'+esc(empresa||'DINAMHO T&T SAS')+'</h1><div class="subtitulo">ANÁLISIS DE TRABAJO SEGURO (ATS)</div>'
@@ -1162,7 +1229,7 @@ function atsHTML(r,j){
     +'<h2 style="color:#8B0000;font-size:11px;margin:8px 0 4px 0">Identificación de Peligros y Controles</h2>'
     +'<table><tr><th>#</th><th>Peligro</th><th>Clasificación</th><th>Efecto</th><th>Controles Administrativos</th><th>Controles de Ingeniería</th><th>Riesgo Inherente</th><th>Barrera</th><th>Contingencia</th><th>EPP</th><th>Recomendación KALU</th><th>Riesgo Residual</th></tr>'+filas+'</table>'
     +'<div class="leyenda"><strong>Calificación GTC-45:</strong> NR = NP × NC &nbsp;|&nbsp; <span style="color:#8B0000;font-weight:bold">ALTO (600-4000)</span>: Riesgo significativo, controles estrictos requeridos &nbsp;|&nbsp; <span style="color:#856404;font-weight:bold">MEDIO (150-500)</span>: Aceptable con controles vigentes &nbsp;|&nbsp; <span style="color:#155724;font-weight:bold">BAJO (20-120)</span>: Aceptable, verificar controles</div>'
-    +'<div class="firmas"><div class="firma-box"><div style="height:30px"></div><p><strong>'+esc(responsable)+'</strong></p><p>Responsable de la actividad</p></div>'+firmasEmp+'<div class="firma-box"><div style="height:30px"></div><p>Supervisor HSE</p><p>Firma</p></div></div>'
+    +'<div class="firmas"><div class="firma-box"><div class="firma-linea"><p><strong>'+esc(responsable)+'</strong></p><p>Responsable de la actividad</p></div></div>'+firmasEmp+'<div class="firma-box"><div class="firma-linea"><p>Supervisor HSE</p><p>Firma</p></div></div></div>'
     +'<div class="generado">Generado por KALU IA — Dinamho Intelligence v3 | '+esc(fecha||new Date().toISOString().slice(0,10))+'</div></body></html>';
 }
 function atsPDF(i){

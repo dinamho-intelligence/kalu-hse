@@ -959,7 +959,7 @@ function tarTableHTML(rows){
       +rows.map(function(t){
         return '<tr style="opacity:.7"><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,90))+'</td>'
           +'<td>'+esc(t.eliminada_por||'—')+'</td><td>'+esc(t.eliminada_motivo||'—')+'</td><td>'+esc(String(t.eliminada_at||'').slice(0,16).replace('T',' '))+'</td>'
-          +'<td><button class="dl" onclick="restaurarTarjeta(\''+t.id+'\')">↩ Restaurar</button></td></tr>';
+          +'<td><button style="background:rgba(37,194,110,.12);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="restaurarTarjeta(\''+t.id+'\')">↩ Restaurar</button></td></tr>';
       }).join('')+'</tbody></table></div>';
   }
   return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th><th></th></tr></thead><tbody>'
@@ -968,7 +968,7 @@ function tarTableHTML(rows){
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
       return '<tr><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
-        +'<td><button class="dl" style="border-color:rgba(255,59,48,.4);color:#FF6b62" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
+        +'<td><button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 async function eliminarTarjeta(id){

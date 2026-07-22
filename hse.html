@@ -173,6 +173,7 @@
       <button class="tab on" id="tabTab" onclick="verVista('tablero')">📊 Tablero</button>
       <button class="tab" id="tabExp" onclick="verVista('exp')">📁 Expedientes</button>
       <button class="tab" id="tabTar" onclick="verVista('tar')">📋 Tarjetas</button>
+      <button class="tab" id="tabAts" onclick="verVista('ats')">🦺 ATS</button>
       <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
       <button class="tab" id="tabUsers" onclick="verVista('usuarios')">👤 Usuarios</button>
       <button class="tab" id="tabDocs" onclick="verVista('docs')">📎 Documentos</button>
@@ -256,6 +257,17 @@
         <div id="docsContent"></div>
       </div>
     </div>
+    <div class="hide" id="viewAts">
+      <div class="card">
+        <h2><span>▸</span> ATS · Análisis de Trabajo Seguro <span id="atsCount" style="color:var(--nar)"></span></h2>
+        <div class="umsg">Todos los ATS generados por KALU, de tu empresa. Abrí uno para ver el análisis completo (peligros, controles, scoring) y descargar el PDF.</div>
+        <div class="tarbar">
+          <input id="fAtsBusca" oninput="renderAtsList()" placeholder="Buscar por responsable, tarea, cliente o zona…">
+        </div>
+        <div class="loading" id="atsLoading">Cargando ATS…</div>
+        <div id="atsContent"></div>
+      </div>
+    </div>
     <div class="hide" id="viewAudit">
       <div class="card">
         <h2><span>▸</span> Auditoría · eliminaciones y restauraciones <span id="auditCount" style="color:var(--nar)"></span></h2>
@@ -280,7 +292,7 @@ const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
 const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6873';
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
-let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null;
+let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null, ATSDATA=null;
 function $(id){return document.getElementById(id);}
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value;
@@ -451,6 +463,7 @@ function verVista(v){
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
   document.getElementById('tabTar').classList.toggle('on',v==='tar');
+  document.getElementById('tabAts').classList.toggle('on',v==='ats');
   document.getElementById('tabChat').classList.toggle('on',v==='chat');
   document.getElementById('tabUsers').classList.toggle('on',v==='usuarios');
   document.getElementById('tabDocs').classList.toggle('on',v==='docs');
@@ -458,12 +471,14 @@ function verVista(v){
   document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
   document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
   document.getElementById('viewTar').classList.toggle('hide',v!=='tar');
+  document.getElementById('viewAts').classList.toggle('hide',v!=='ats');
   document.getElementById('viewChat').classList.toggle('hide',v!=='chat');
   document.getElementById('viewUsers').classList.toggle('hide',v!=='usuarios');
   document.getElementById('viewDocs').classList.toggle('hide',v!=='docs');
   document.getElementById('viewAudit').classList.toggle('hide',v!=='audit');
   if(v==='exp' && !EXP) loadExpedientes();
   if(v==='tar' && !TAR) loadTarjetas();
+  if(v==='ats' && !ATSDATA) loadAts();
   if(v==='chat') initChat();
   if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
   if(v==='docs' && !DOCS) loadDocs();
@@ -1042,6 +1057,88 @@ function renderAudit(){
       var acc=(r.accion==='eliminar')?'<span class="badge ins">eliminó</span>':(r.accion==='restaurar')?'<span class="badge seg">restauró</span>':esc(r.accion||'—');
       return '<tr><td>'+esc(cuando)+'</td><td>'+acc+'</td><td>'+esc(r.tabla||'—')+'</td><td>'+esc(r.actor||'—')+'</td><td>'+esc(r.motivo||'—')+'</td></tr>';
     }).join('')+'</tbody></table></div>';
+}
+async function loadAts(){
+  var L=document.getElementById('atsLoading'), C=document.getElementById('atsContent');
+  L.classList.remove('hide'); L.textContent='Cargando ATS…'; C.innerHTML='';
+  try{
+    var rows=(await sbGet('ats?select=*'))||[];
+    rows.sort(function(a,b){ return String(b.fecha||b.creado||'').localeCompare(String(a.fecha||a.creado||'')); });
+    ATSDATA=rows;
+    document.getElementById('atsCount').textContent='('+ATSDATA.length+')';
+    L.classList.add('hide');
+    renderAtsList();
+  }catch(e){ L.textContent='No se pudieron cargar los ATS ('+e.message+').'; }
+}
+function renderAtsList(){
+  var C=document.getElementById('atsContent'); if(!ATSDATA) return;
+  var q=((document.getElementById('fAtsBusca')||{}).value||'').toLowerCase().trim();
+  var rows=ATSDATA.map(function(r,i){return {r:r,i:i};}).filter(function(o){
+    if(!q) return true;
+    var hay=((o.r.responsable||'')+' '+(o.r.tarea||'')+' '+(o.r.cliente||'')+' '+(o.r.zona||'')).toLowerCase();
+    return hay.indexOf(q)!==-1;
+  });
+  if(!rows.length){ C.innerHTML='<div class="detempty">Sin ATS con ese filtro.</div>'; return; }
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th></th></tr></thead><tbody>'
+    +rows.map(function(o){ var r=o.r;
+      return '<tr><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td><td>'+esc(r.estado||'—')+'</td>'
+        +'<td><button class="dl" onclick="verAts('+o.i+')">Ver</button></td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+function _atsControles(p){ var c=p.controles||p.medidas_control||p.control||p.medidas||''; if(Array.isArray(c)) c=c.join(' · '); return c; }
+function atsDetalleHTML(r,j){
+  var h='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;margin-bottom:14px;font-size:13px">'
+    +_kv('Responsable',r.responsable)+_kv('Tarea',r.tarea)+_kv('Cliente',r.cliente)+_kv('Zona',r.zona)
+    +_kv('Fecha',String(r.fecha||'').slice(0,10))+_kv('Estado',r.estado)
+    +_kv('Cuadrilla',Array.isArray(r.cuadrilla)?r.cuadrilla.join(', '):r.cuadrilla)+'</div>';
+  if(!j){ return h+'<div class="detempty">No se pudo leer el contenido del ATS de este registro.</div>'; }
+  if(Array.isArray(j.peligros)&&j.peligros.length){
+    h+='<h2 style="font-size:13px;margin:12px 0 8px"><span>▸</span> Peligros y controles</h2>';
+    h+='<div class="twrap"><table class="ttbl"><thead><tr><th>Peligro</th><th>Clasificación</th><th>Riesgo residual</th><th>Controles</th></tr></thead><tbody>';
+    h+=j.peligros.map(function(p){
+      return '<tr><td>'+esc(p.descripcion||p.peligro||'—')+'</td><td>'+esc(p.clasificacion||'—')+'</td><td>'+esc(p.nivel_riesgo_residual||p.riesgo||'—')+'</td><td>'+esc(_atsControles(p)||'—')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+  }
+  if(j.scoring_validacion && typeof j.scoring_validacion==='object'){
+    h+='<h2 style="font-size:13px;margin:14px 0 8px"><span>▸</span> Scoring de validación</h2><div style="font-size:13px">';
+    Object.keys(j.scoring_validacion).forEach(function(k){ var v=j.scoring_validacion[k]; var sc=(v&&typeof v==='object')?(v.score!=null?v.score:JSON.stringify(v)):v; h+=_kv(norm(k),sc); });
+    h+='</div>';
+  }
+  ['resumen','conclusion','conclusiones','observaciones','recomendaciones'].forEach(function(k){
+    if(j[k]){ h+='<h2 style="font-size:13px;margin:14px 0 6px"><span>▸</span> '+esc(norm(k))+'</h2><div style="font-size:13px;color:var(--tx2);line-height:1.6">'+esc(String(j[k]))+'</div>'; }
+  });
+  return h;
+}
+function verAts(i){
+  var r=ATSDATA[i]; if(!r) return; var j=parseATS(r);
+  document.getElementById('detTit').textContent='ATS · '+(r.tarea||'')+' · '+(r.responsable||'');
+  document.getElementById('detBody').innerHTML='<div style="text-align:right;margin-bottom:8px"><button class="dl" onclick="atsPDF('+i+')">⬇ Descargar PDF</button></div>'+atsDetalleHTML(r,j);
+  document.getElementById('detalle').classList.remove('hide');
+}
+function atsPDF(i){
+  var r=ATSDATA[i]; if(!r) return; var j=parseATS(r);
+  var jsPDF=window.jspdf&&window.jspdf.jsPDF; if(!jsPDF){alert('PDF no disponible.');return;}
+  var doc=new jsPDF({unit:'pt',format:'a4'}); var W=595,M=40,BOT=800; var y=54;
+  function nl(h){ if(y+h>BOT){ doc.addPage(); y=54; } }
+  doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(20,20,20); doc.text('KALU · Análisis de Trabajo Seguro (ATS)', M, y); y+=20;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(120,120,120);
+  doc.text(doc.splitTextToSize(String(r.tarea||''), W-2*M), M, y); y+=16;
+  doc.setDrawColor(220,220,220); doc.line(M,y,W-M,y); y+=16;
+  doc.setTextColor(30,30,30); doc.setFontSize(10);
+  function row(k,v){ if(v==null||v==='') return; nl(16); doc.setFont('helvetica','bold'); doc.text(k,M,y); doc.setFont('helvetica','normal'); var ln=doc.splitTextToSize(String(v),W-M-130); doc.text(ln,M+120,y); y+=Math.max(15,ln.length*13); }
+  row('Responsable',r.responsable); row('Cliente',r.cliente); row('Zona',r.zona); row('Fecha',String(r.fecha||'').slice(0,10)); row('Estado',r.estado); row('Cuadrilla',Array.isArray(r.cuadrilla)?r.cuadrilla.join(', '):r.cuadrilla);
+  if(j&&Array.isArray(j.peligros)&&j.peligros.length){
+    y+=8; nl(22); doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(200,90,0); doc.text('Peligros y controles',M,y); y+=16; doc.setTextColor(30,30,30); doc.setFontSize(9.5);
+    j.peligros.forEach(function(p,idx){
+      nl(46); doc.setFont('helvetica','bold'); var t1=doc.splitTextToSize((idx+1)+'. '+(p.descripcion||p.peligro||''),W-2*M); doc.text(t1,M,y); y+=t1.length*13;
+      doc.setFont('helvetica','normal'); doc.setTextColor(90,90,90);
+      var t2=doc.splitTextToSize('Clasificación: '+(p.clasificacion||'—')+'   ·   Riesgo residual: '+(p.nivel_riesgo_residual||p.riesgo||'—'),W-2*M); doc.text(t2,M,y); y+=t2.length*12;
+      var ctr=_atsControles(p); if(ctr){ var t3=doc.splitTextToSize('Controles: '+ctr,W-2*M); doc.text(t3,M,y); y+=t3.length*12; }
+      doc.setTextColor(30,30,30); y+=5;
+    });
+  }
+  doc.save('ATS_'+String(r.responsable||'').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(r.fecha||'').slice(0,10)+'.pdf');
 }
 function tarPDF(){
   const rows=tarFiltered();

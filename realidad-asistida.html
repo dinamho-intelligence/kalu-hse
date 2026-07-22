@@ -3,447 +3,293 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Ejecutor de Flujos · RealWear</title>
+<title>KALU · Realidad Asistida</title>
 <!--
-  PROTOTIPO · Ejecutor manos libres (Fase 0)
-  Objetivo: validar la experiencia por VOZ en las gafas RealWear.
-  - Cada control es un <button> con texto CORTO y UNICO: en RealWear,
-    WearHF genera el comando de voz automaticamente a partir de ese texto
-    (el operador dice la etiqueta y se activa). Tambien podes decir el
-    numero que aparece en cada opcion.
-  - Comandos globales de RealWear siempre disponibles: "Navigate Back",
-    "My Controls" (lista los comandos de la pantalla).
-  - Flujo pre-uso EMBEBIDO abajo (const FLUJO). Mantiene la MISMA forma
-    que las tablas de Supabase (pasos con tipo_paso/config/rama), asi
-    cablear a la base despues = solo cambiar la fuente de datos.
+  EJECUTOR v2 · optimizado para RealWear (pantalla apaisada ~854x480)
+  Cambios sobre v1 (feedback de campo):
+   - SIN position:fixed ni capas superpuestas: una sola pantalla a la vez en #screen.
+   - Todo entra sin scroll; #screen igual es scrolleable como respaldo ("bajar página").
+   - Marcado WearML en cada control: title="hf_show_text|hf_make_clickable" -> WearHF
+     muestra el comando y el numerito, y lo hace clickeable por voz.
+   - Cédula por TECLADO NUMÉRICO (el dictado de texto falla en el equipo).
+   - Todo a un solo clic.
 -->
 <style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   :root{
-    --bg:#0b1220; --bg2:#111c2e; --card:#16233a; --line:#26364f;
-    --tx:#eaf1fb; --mut:#93a4bf; --pri:#2e75b6; --pri2:#4d97e0;
-    --ok:#2fa36b; --no:#d9534f; --warn:#e0a44a; --acc:#1f4e79;
-    --amber:#f5a623; --amber2:#ffb845; --ink:#070707;
+    --bg:#0b1220; --bg2:#101c2e; --card:#16233a; --line:#2b3c56;
+    --tx:#eef4fc; --mut:#9fb0c9; --acc:#1f4e79; --pri:#2e75b6; --pri2:#4d97e0;
+    --ok:#2fa36b; --no:#d9534f; --warn:#e0a44a; --amber:#f5a623;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%}
-  body{
-    background:radial-gradient(1200px 600px at 50% -10%,var(--bg2),var(--bg));
-    color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    display:flex;flex-direction:column;min-height:100%;
-  }
-  /* Barra superior: estado */
-  .top{
-    display:flex;align-items:center;gap:10px;padding:12px 16px;
-    background:var(--acc);border-bottom:2px solid var(--pri);position:sticky;top:0;z-index:5;
-  }
-  .top h1{font-size:16px;margin:0;font-weight:800;letter-spacing:.3px;flex:1}
-  .pill{font-size:12px;font-weight:800;padding:5px 10px;border-radius:999px;white-space:nowrap}
+  html,body{height:100%;overflow:hidden}
+  body{background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    display:flex;flex-direction:column}
+  /* Barra superior compacta */
+  .bar{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--acc);border-bottom:2px solid var(--pri);flex-shrink:0}
+  .bar .hex{flex-shrink:0}
+  .bar h1{font-size:14px;font-weight:800;flex:1;letter-spacing:.3px}
+  .pill{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
   .pill.on{background:#123d29;color:#7ee2ab;border:1px solid #2fa36b}
   .pill.off{background:#3d1414;color:#f2a6a3;border:1px solid #d9534f}
-  .pend{font-size:12px;font-weight:800;padding:5px 10px;border-radius:999px;background:#3a2f12;color:#f0cf8f;border:1px solid #e0a44a}
-  /* Progreso */
-  .prog{height:6px;background:var(--line)}
-  .prog > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pri),var(--pri2));transition:width .3s}
-  /* Contenido */
-  .wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:22px 18px 8px;max-width:820px;width:100%;margin:0 auto}
-  .kicker{color:var(--mut);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-  .title{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 8px}
-  .instr{font-size:18px;color:var(--mut);margin:0 0 20px;line-height:1.4}
-  .equipo{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:20px;font-weight:800;margin-bottom:16px}
+  .pend{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;background:#3a2f12;color:#f0cf8f;border:1px solid #e0a44a}
+  /* Área de pantalla (una sola capa, scrolleable como respaldo) */
+  #screen{flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;justify-content:center}
+  .kick{color:var(--mut);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+  .title{font-size:23px;line-height:1.12;font-weight:800;margin:0 0 4px}
+  .instr{font-size:14px;color:var(--mut);margin:0 0 12px;line-height:1.35}
+  .equipo{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:16px;font-weight:800;margin-bottom:10px}
   /* Botones = comandos de voz */
-  .opts{display:flex;flex-direction:column;gap:14px}
-  .opts.row{flex-direction:row;flex-wrap:wrap}
-  button.opt{
-    display:flex;align-items:center;gap:14px;cursor:pointer;
-    background:var(--card);color:var(--tx);border:2px solid var(--line);
-    border-radius:16px;padding:20px 22px;font-size:22px;font-weight:800;text-align:left;
-    transition:transform .05s,border-color .15s,background .15s;flex:1;min-width:180px;
-  }
+  .opts{display:flex;gap:12px}
+  .opts.col{flex-direction:column}
+  button.opt{display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;
+    background:var(--card);color:var(--tx);border:2px solid var(--line);border-radius:13px;
+    padding:14px 18px;font-size:19px;font-weight:800;flex:1;transition:transform .05s,border-color .15s}
   button.opt:active{transform:scale(.98)}
-  button.opt:hover{border-color:var(--pri2)}
-  button.opt .num{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;border-radius:9px;background:var(--acc);color:#cfe4fb;font-size:16px;font-weight:900;border:1px solid var(--pri)}
-  button.opt.ok{border-color:#2b6b4b}button.opt.ok:hover{border-color:var(--ok)}
-  button.opt.no{border-color:#6b2f2d}button.opt.no:hover{border-color:var(--no)}
+  button.opt.ok{border-color:#2b6b4b}
+  button.opt.no{border-color:#6b2f2d}
   button.opt.primary{background:var(--pri);border-color:var(--pri2)}
-  button.big{justify-content:center;font-size:24px;padding:24px}
-  /* Camara */
-  .cam{position:relative;background:#000;border-radius:16px;overflow:hidden;border:1px solid var(--line);margin-bottom:16px}
-  .cam video,.cam img{width:100%;display:block;max-height:46vh;object-fit:cover;background:#000}
-  .cam .tag{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-weight:800;padding:5px 9px;border-radius:8px}
-  /* Nota / input */
-  textarea,input[type=text]{
-    width:100%;background:var(--card);border:2px solid var(--line);border-radius:14px;
-    color:var(--tx);font-size:20px;padding:16px;margin-bottom:16px;font-family:inherit;
-  }
-  textarea{min-height:96px;resize:vertical}
-  /* Barra inferior de ayuda de voz */
-  .help{
-    border-top:1px solid var(--line);background:var(--bg2);
-    padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;
-    position:sticky;bottom:0;
-  }
-  .help .mic{font-size:12px;color:var(--mut);font-weight:800;letter-spacing:.5px}
-  .chip{font-size:13px;font-weight:800;background:var(--card);border:1px solid var(--line);color:#cfe0f5;padding:6px 12px;border-radius:999px}
-  .chip b{color:#fff}
+  button.opt.amber{background:linear-gradient(180deg,#ffb845,var(--amber));color:#1a1200;border:none}
+  button.opt.sm{font-size:15px;padding:10px 12px;flex:0 0 auto}
+  /* Cámara */
+  .cam{position:relative;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px}
+  .cam video,.cam img{width:100%;display:block;max-height:210px;object-fit:cover;background:#000}
+  .cam .tag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);font-size:11px;font-weight:800;padding:4px 8px;border-radius:7px}
+  /* Teclado numérico */
+  .idwrap{display:flex;gap:18px;align-items:center}
+  .iddisplay{flex:1;min-width:0}
+  .idbox{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:12px 16px;font-size:30px;font-weight:800;letter-spacing:3px;min-height:56px;text-align:center;color:#fff}
+  .idbox.empty{color:#54637d}
+  .keys{display:grid;grid-template-columns:repeat(3,64px);grid-auto-rows:52px;gap:8px}
+  button.key{font-size:22px;font-weight:800;background:var(--card);border:2px solid var(--line);border-radius:11px;color:#fff;cursor:pointer}
+  button.key:active{transform:scale(.96)}
+  button.key.act{border-color:var(--no);color:#f2a6a3}
+  button.key.go{border-color:#2b6b4b;color:#7ee2ab}
   /* Resumen */
-  .sum{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
-  .sum .row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:16px}
+  .sum{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px}
+  .sum .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
   .sum .row:last-child{border-bottom:none}
   .sum .row span:first-child{color:var(--mut)}
-  .sum .row span:last-child{font-weight:800;text-align:right}
-  .badge{display:inline-block;padding:8px 18px;border-radius:999px;font-size:22px;font-weight:900}
+  .sum .row span:last-child{font-weight:800}
+  .badge{display:inline-block;padding:5px 14px;border-radius:999px;font-size:17px;font-weight:900}
   .badge.apto{background:#123d29;color:#7ee2ab;border:1px solid #2fa36b}
   .badge.noapto{background:#3d1414;color:#f2a6a3;border:1px solid #d9534f}
-  .note{color:var(--mut);font-size:13px;text-align:center;margin:6px 0 0}
-
-  /* ===== Pantalla de entrada · Realidad Asistida (marca KALU) ===== */
-  #home{position:fixed;inset:0;z-index:20;background:var(--ink);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow:hidden}
-  #matrix{position:absolute;inset:0;width:100%;height:100%;opacity:.30}
-  #home .inner{position:relative;z-index:2;width:100%;max-width:640px;text-align:center}
-  .brand{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:22px}
-  .brand .txt{text-align:left;line-height:1}
-  .brand .txt b{display:block;color:#fff;font-size:22px;font-weight:900;letter-spacing:2px}
-  .brand .txt span{display:block;color:var(--amber);font-size:10px;font-weight:800;letter-spacing:3px;margin-top:3px}
-  .home-kicker{color:var(--amber);font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-  .home-title{font-size:40px;line-height:1.05;font-weight:900;color:#fff;margin:0 0 12px}
-  .home-sub{color:#b9b9b9;font-size:17px;margin:0 auto 22px;max-width:520px;line-height:1.4}
-  .flujo-pill{display:inline-block;background:#171512;border:1px solid #3a3020;color:var(--amber2);
-    font-size:14px;font-weight:800;padding:9px 16px;border-radius:999px;margin-bottom:22px}
-  .idlabel{display:block;text-align:left;color:#cfcfcf;font-size:14px;font-weight:800;letter-spacing:.5px;margin:0 0 8px}
-  #home input[type=text]{background:#141414;border:2px solid #33291a;color:#fff;text-align:center;font-size:22px;margin-bottom:18px}
-  #home input[type=text]:focus{outline:none;border-color:var(--amber)}
-  button.entrar{width:100%;justify-content:center;font-size:26px;font-weight:900;padding:22px;
-    background:linear-gradient(180deg,var(--amber2),var(--amber));color:#1a1200;border:none;border-radius:16px;cursor:pointer;
-    box-shadow:0 8px 26px rgba(245,166,35,.28)}
-  button.entrar:active{transform:scale(.98)}
-  .home-foot{margin-top:24px;color:#8a8a8a;font-size:12px;font-weight:700;letter-spacing:.5px}
-  .home-foot .dot{color:#3fae6b}
+  .note{color:var(--mut);font-size:12px;margin:6px 0 0}
+  /* Ayuda de voz */
+  .help{border-top:1px solid var(--line);background:var(--bg2);padding:7px 14px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:center;flex-shrink:0}
+  .help .mic{font-size:11px;color:var(--mut);font-weight:800}
+  .chip{font-size:12px;font-weight:800;background:var(--card);border:1px solid var(--line);color:#cfe0f5;padding:4px 10px;border-radius:999px}
+  .chip b{color:#fff}
+  /* Home compacto */
+  .home{align-items:center;text-align:center}
+  .home .brandbig{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:8px}
+  .home .brandbig b{font-size:20px;font-weight:900;letter-spacing:1px}
+  .home .brandbig span{display:block;color:var(--amber);font-size:9px;font-weight:800;letter-spacing:2px}
+  .home h2{font-size:28px;font-weight:900;margin:2px 0 6px}
+  .home .amber{color:var(--amber)}
 </style>
 </head>
 <body>
 
-  <!-- ===== PANTALLA DE ENTRADA · Realidad Asistida ===== -->
-  <div id="home">
-    <canvas id="matrix"></canvas>
-    <div class="inner">
-      <div class="brand">
-        <svg width="46" height="50" viewBox="0 0 46 50" fill="none" aria-hidden="true">
-          <polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="2.5"/>
-          <text x="23" y="30" text-anchor="middle" fill="#f5a623" font-family="system-ui,sans-serif" font-size="15" font-weight="900">DI</text>
-        </svg>
-        <div class="txt"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div>
-      </div>
-      <div class="home-kicker">RealWear · Manos libres</div>
-      <h1 class="home-title">Realidad Asistida</h1>
-      <p class="home-sub">Inspección HSE en terreno, con las manos libres. Los registros quedan firmados y trazables.</p>
-      <div class="flujo-pill">🔧 Flujo: Inspección pre-uso de equipo</div>
-      <label class="idlabel" for="ced">Tu cédula (o decila por voz)</label>
-      <input type="text" id="ced" inputmode="numeric" placeholder="Ej. 1.020.304.050" />
-      <button class="entrar opt" onclick="entrar()">Entrar</button>
-      <div class="home-foot"><span class="dot">●</span> En operación en campo · Res. 1401 / ISO 45001</div>
-    </div>
-  </div>
-
-  <div class="top">
+  <div class="bar">
+    <svg class="hex" width="26" height="28" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
     <h1>KALU · Realidad Asistida</h1>
-    <span id="pend" class="pend" style="display:none">⏳ 0</span>
+    <span id="pend" class="pend" style="display:none"></span>
     <span id="net" class="pill on">● En línea</span>
   </div>
-  <div class="prog"><i id="progbar"></i></div>
 
-  <div class="wrap" id="screen"><!-- render dinámico --></div>
+  <div id="screen"><!-- una sola pantalla a la vez --></div>
 
   <div class="help">
     <span class="mic">🎤 Decí</span>
-    <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"></div>
+    <div id="chips" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center"></div>
   </div>
 
 <script>
-/* =====================================================================
-   FLUJO EMBEBIDO (misma forma que las tablas de Supabase)
-   tipo_paso: inicio | escaneo | confirmacion | foto | nota | resultado | fin
-   ===================================================================== */
-const FLUJO = {
-  nombre:"Inspección pre-uso de equipo",
-  tipo:"preuso_equipo",
-  version:1,
-  pasos:[
-    { orden:1, tipo:"escaneo", titulo:"Identificá el equipo",
-      instruccion:"Escaneá el código QR del equipo o decí «Escanear»." },
-    { orden:2, tipo:"confirmacion", titulo:"¿Nivel de aceite OK?",
-      instruccion:"Verificá la varilla de aceite.", campo:"aceite" },
-    { orden:3, tipo:"confirmacion", titulo:"¿Hay fugas visibles?",
-      instruccion:"Revisá el piso y las mangueras.", campo:"fugas",
-      // rama: si hay fuga (Sí) → paso 4 (foto+nota). Si no → salta al paso 5.
-      rama:[{ cuando:"no", ir_a_orden:5 }] },
-    { orden:4, tipo:"foto", titulo:"Foto de la fuga", instruccion:"Encuadrá la fuga y decí «Capturar».", campo:"foto_fuga", con_nota:true, nota_campo:"nota_fuga" },
-    { orden:5, tipo:"foto", titulo:"Foto del estado general", instruccion:"Encuadrá el equipo y decí «Capturar».", campo:"foto_general" },
-    { orden:6, tipo:"resultado", titulo:"Resultado de la inspección",
-      instruccion:"Confirmá el estado del equipo.", campo:"resultado" },
-    { orden:7, tipo:"fin", titulo:"Inspección completada", instruccion:"" }
-  ]
-};
-
-/* ===================== ESTADO DE LA EJECUCIÓN ===================== */
-let ejec = null;      // objeto ejecucion en curso
-let idx = 0;          // índice del paso actual
-let stream = null;    // stream de cámara activo
-
-function nuevaEjecucion(){
-  ejec = {
-    id: crypto.randomUUID(),
-    flujo: FLUJO.nombre, flujo_version: FLUJO.version, tipo: FLUJO.tipo,
-    operador_cedula: "", operador_nombre: "",
-    equipo_id: "", inicio: new Date().toISOString(), fin:null,
-    resultado:"pendiente", respuestas:{}, dispositivo:"RealWear-demo"
-  };
-  idx = 0;
-}
-
-/* ============================ MOTOR ============================== */
+const WM = "hf_show_text|hf_make_clickable";           // WearML: muestra comando + numerito y lo hace clickeable
 const $ = s => document.querySelector(s);
-function setProg(){ const p = FLUJO.pasos.length; $("#progbar").style.width = Math.round((idx/(p-1))*100)+"%"; }
 
-function irAOrden(orden){ const i = FLUJO.pasos.findIndex(p=>p.orden===orden); if(i>=0) idx=i; render(); }
-function siguiente(){
-  // ¿el paso actual define rama?
-  const paso = FLUJO.pasos[idx];
-  if(paso.rama){
-    const val = ejec.respuestas[paso.campo];
-    const r = paso.rama.find(r=>r.cuando===val);
-    if(r){ irAOrden(r.ir_a_orden); return; }
-  }
-  if(idx < FLUJO.pasos.length-1){ idx++; render(); }
+/* ---------- Flujo (misma forma que Supabase) ---------- */
+const PASOS = [
+  { id:"escaneo",      tipo:"escaneo",      titulo:"Identificá el equipo",   instr:"Decí «Escanear» para leer el equipo." },
+  { id:"aceite",       tipo:"confirmacion", campo:"aceite", titulo:"¿Nivel de aceite OK?", instr:"Revisá la varilla." },
+  { id:"fugas",        tipo:"confirmacion", campo:"fugas",  titulo:"¿Hay fugas visibles?", instr:"Mirá el piso y las mangueras.",
+      rama:[{ cuando:"no", irA:"foto_general" }] },
+  { id:"foto_fuga",    tipo:"foto", campo:"foto_fuga", titulo:"Foto de la fuga",          instr:"Encuadrá y decí «Capturar»." },
+  { id:"foto_general", tipo:"foto", campo:"foto_general", titulo:"Foto del estado general", instr:"Encuadrá y decí «Capturar»." },
+  { id:"resultado",    tipo:"resultado", titulo:"Resultado", instr:"Confirmá el estado del equipo." },
+  { id:"fin",          tipo:"fin", titulo:"Inspección completada" },
+];
+const idxDe = id => PASOS.findIndex(p=>p.id===id);
+
+/* ---------- Estado ---------- */
+let ejec=null, i=0, stream=null, cedBuf="";
+function nuevaEjecucion(){
+  ejec={ id:crypto.randomUUID(), flujo:"Inspección pre-uso de equipo", version:1,
+    operador_cedula:"", equipo_id:"", inicio:new Date().toISOString(), fin:null,
+    resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
+  i=0; cedBuf="";
 }
-function atras(){ if(idx>0){ idx--; render(); } }
 
-/* Chips de ayuda de voz (comandos disponibles en la pantalla) */
-function chips(list){
-  $("#chips").innerHTML = list.map(c=>`<span class="chip">${c}</span>`).join("") +
-    `<span class="chip">“<b>Atrás</b>”</span>`;
+/* ---------- Helpers de render ---------- */
+function chips(list){ $("#chips").innerHTML = list.filter(Boolean).map(c=>`<span class="chip">${c}</span>`).join(""); }
+function btn(cls,txt,onclick){ return `<button class="opt ${cls}" title="${WM}" onclick="${onclick}">${txt}</button>`; }
+
+/* ---------- Pantallas ---------- */
+function showInicio(){
+  stopCam();
+  $("#screen").className=""; $("#screen").classList.add("home");
+  $("#screen").innerHTML = `
+    <div class="brandbig">
+      <svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
+      <div style="text-align:left"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div>
+    </div>
+    <h2>Realidad <span class="amber">Asistida</span></h2>
+    <p class="instr" style="max-width:520px">Inspección pre-uso de equipo, manos libres. Decí «Entrar» para comenzar.</p>
+    <div class="opts" style="max-width:340px;width:100%">
+      ${btn("amber","Entrar","irIdent()")}
+    </div>`;
+  chips(["“<b>Entrar</b>”"]);
 }
 
-/* ============================ RENDER ============================= */
+function irIdent(){ i=-1; showIdent(); }
+function showIdent(){
+  stopCam();
+  $("#screen").className="";
+  $("#screen").innerHTML = `
+    <div class="kick">Operador</div>
+    <div class="title">Tu cédula</div>
+    <p class="instr">Tocá los números o decí el número de cada tecla. Después «Listo».</p>
+    <div class="idwrap">
+      <div class="iddisplay">
+        <div class="idbox ${cedBuf?"":"empty"}" id="idbox">${cedBuf||"— — — —"}</div>
+      </div>
+      <div class="keys" id="keys"></div>
+    </div>`;
+  const keys=$("#keys"); let html="";
+  ["1","2","3","4","5","6","7","8","9"].forEach(n=> html+=`<button class="key" title="${WM}" onclick="ced('${n}')">${n}</button>`);
+  html+=`<button class="key act" title="${WM}" onclick="cedDel()">←</button>`;
+  html+=`<button class="key" title="${WM}" onclick="ced('0')">0</button>`;
+  html+=`<button class="key go" title="${WM}" onclick="irFlujo()">✓</button>`;
+  keys.innerHTML=html;
+  chips(["números","“<b>Borrar</b>”","“<b>Listo</b>”"]);
+}
+function ced(n){ if(cedBuf.length<12){ cedBuf+=n; pintCed(); } }
+function cedDel(){ cedBuf=cedBuf.slice(0,-1); pintCed(); }
+function pintCed(){ const b=$("#idbox"); if(!b)return; b.textContent=cedBuf||"— — — —"; b.classList.toggle("empty",!cedBuf); }
+function irFlujo(){ ejec.operador_cedula=cedBuf; i=0; render(); }
+
 function render(){
   stopCam();
-  setProg();
-  const paso = FLUJO.pasos[idx];
-  const s = $("#screen");
+  $("#screen").className="";
+  const p=PASOS[i];
 
-  // Pantalla 0 especial: identificación (antes del primer paso real)
-  if(idx===0 && !ejec.operador_cedula && paso.tipo!=="inicio"){ /* no usado */ }
-
-  if(paso.tipo==="escaneo"){
-    s.innerHTML = `
-      <div class="kicker">Paso ${paso.orden} · Escaneo</div>
-      <h2 class="title">${paso.titulo}</h2>
-      <p class="instr">${paso.instruccion}</p>
+  if(p.tipo==="escaneo"){
+    $("#screen").innerHTML = `
+      <div class="kick">Paso ${i+1} · Escaneo</div>
+      <div class="title">${p.titulo}</div>
+      <p class="instr">${p.instr}</p>
       ${ejec.equipo_id?`<div class="equipo">🔧 ${ejec.equipo_id}</div>`:""}
       <div class="opts">
-        <button class="opt primary big" onclick="escanear()"><span class="num">1</span> Escanear</button>
-        ${ejec.equipo_id?`<button class="opt big" onclick="siguiente()"><span class="num">2</span> Siguiente</button>`:""}
+        ${btn("primary","Escanear","escanear()")}
+        ${ejec.equipo_id?btn("","Siguiente","siguiente()"):""}
       </div>`;
-    chips(["“<b>Escanear</b>”", ejec.equipo_id?"“<b>Siguiente</b>”":""].filter(Boolean));
+    chips(["“<b>Escanear</b>”", ejec.equipo_id?"“<b>Siguiente</b>”":""]);
   }
-
-  else if(paso.tipo==="confirmacion"){
-    s.innerHTML = `
-      <div class="kicker">Paso ${paso.orden} · Verificación</div>
-      <h2 class="title">${paso.titulo}</h2>
-      <p class="instr">${paso.instruccion}</p>
-      <div class="opts row">
-        <button class="opt ok big" onclick="responder('${paso.campo}','si')"><span class="num">1</span> Sí</button>
-        <button class="opt no big" onclick="responder('${paso.campo}','no')"><span class="num">2</span> No</button>
+  else if(p.tipo==="confirmacion"){
+    $("#screen").innerHTML = `
+      <div class="kick">Paso ${i+1} · Verificación</div>
+      <div class="title">${p.titulo}</div>
+      <p class="instr">${p.instr}</p>
+      <div class="opts">
+        ${btn("ok","Sí",`responder('${p.campo}','si')`)}
+        ${btn("no","No",`responder('${p.campo}','no')`)}
       </div>`;
     chips(["“<b>Sí</b>”","“<b>No</b>”"]);
   }
-
-  else if(paso.tipo==="foto"){
-    s.innerHTML = `
-      <div class="kicker">Paso ${paso.orden} · Evidencia</div>
-      <h2 class="title">${paso.titulo}</h2>
-      <p class="instr">${paso.instruccion}</p>
+  else if(p.tipo==="foto"){
+    $("#screen").innerHTML = `
+      <div class="kick">Paso ${i+1} · Evidencia</div>
+      <div class="title">${p.titulo}</div>
       <div class="cam" id="cam"><span class="tag">CÁMARA</span><video id="video" autoplay playsinline muted></video></div>
-      ${paso.con_nota?`<textarea id="nota" placeholder="Nota (opcional): describí la observación…"></textarea>`:""}
-      <div class="opts row">
-        <button class="opt primary big" onclick="capturar('${paso.campo}',${!!paso.con_nota},'${paso.nota_campo||""}')"><span class="num">1</span> Capturar</button>
-        <button class="opt big" onclick="siguiente()"><span class="num">2</span> Omitir</button>
+      <div class="opts">
+        ${btn("primary","Capturar",`capturar('${p.campo}')`)}
+        ${btn("","Omitir","siguiente()")}
       </div>`;
     chips(["“<b>Capturar</b>”","“<b>Omitir</b>”"]);
     startCam();
   }
-
-  else if(paso.tipo==="resultado"){
-    // sugerencia automática: si algún "no" o hubo fuga → No apto
-    const r = ejec.respuestas;
-    const sugNoApto = r.aceite==="no" || r.fugas==="si";
-    s.innerHTML = `
-      <div class="kicker">Paso ${paso.orden} · Cierre</div>
-      <h2 class="title">${paso.titulo}</h2>
-      <p class="instr">${paso.instruccion} ${sugNoApto?'<b style="color:var(--warn)">Sugerido: No apto</b>':'<b style="color:var(--ok)">Sugerido: Apto</b>'}</p>
-      <div class="opts row">
-        <button class="opt ok big" onclick="resultado('apto')"><span class="num">1</span> Apto</button>
-        <button class="opt no big" onclick="resultado('no_apto')"><span class="num">2</span> No apto</button>
+  else if(p.tipo==="resultado"){
+    const r=ejec.respuestas, sug=(r.aceite==="no"||r.fugas==="si");
+    $("#screen").innerHTML = `
+      <div class="kick">Paso ${i+1} · Cierre</div>
+      <div class="title">${p.titulo}</div>
+      <p class="instr">${p.instr} ${sug?'<b style="color:var(--warn)">Sugerido: No apto</b>':'<b style="color:var(--ok)">Sugerido: Apto</b>'}</p>
+      <div class="opts">
+        ${btn("ok","Apto","resultado('apto')")}
+        ${btn("no","No apto","resultado('no_apto')")}
       </div>`;
     chips(["“<b>Apto</b>”","“<b>No apto</b>”"]);
   }
-
-  else if(paso.tipo==="fin"){
-    ejec.fin = new Date().toISOString();
-    const r = ejec.respuestas;
-    const apto = ejec.resultado==="apto";
-    s.innerHTML = `
-      <div class="kicker">✔ Registro guardado</div>
-      <h2 class="title" style="font-size:26px">${paso.titulo}</h2>
+  else if(p.tipo==="fin"){
+    ejec.fin=new Date().toISOString();
+    const r=ejec.respuestas, apto=ejec.resultado==="apto";
+    const fotos=Object.keys(r).filter(k=>k.startsWith("foto_")).length;
+    $("#screen").innerHTML = `
+      <div class="kick">✔ Registro guardado</div>
+      <div class="title" style="font-size:20px">${p.titulo}</div>
       <div class="sum">
         <div class="row"><span>Equipo</span><span>${ejec.equipo_id||"—"}</span></div>
-        <div class="row"><span>Nivel de aceite</span><span>${fmt(r.aceite)}</span></div>
-        <div class="row"><span>Fugas visibles</span><span>${fmt(r.fugas)}</span></div>
-        <div class="row"><span>Evidencia</span><span>${contarFotos()} foto(s)</span></div>
+        <div class="row"><span>Operador (cédula)</span><span>${ejec.operador_cedula||"—"}</span></div>
+        <div class="row"><span>Aceite / Fugas</span><span>${fmt(r.aceite)} / ${fmt(r.fugas)}</span></div>
+        <div class="row"><span>Evidencia</span><span>${fotos} foto(s)</span></div>
         <div class="row"><span>Resultado</span><span><span class="badge ${apto?'apto':'noapto'}">${apto?'APTO':'NO APTO'}</span></span></div>
       </div>
-      <div class="opts">
-        <button class="opt primary big" onclick="finalizar()"><span class="num">1</span> Guardar y nueva inspección</button>
-      </div>
-      <p class="note">El PDF firmado (con hash e integridad) se genera en la próxima etapa. Por ahora la ejecución queda en cola local.</p>`;
-    chips(["“<b>Guardar</b>”"]);
+      <div class="opts">${btn("amber","Nueva inspección","finalizar()")}</div>
+      <p class="note">El PDF firmado se genera en la próxima etapa. Por ahora la ejecución queda en cola local.</p>`;
+    chips(["“<b>Nueva inspección</b>”"]);
   }
 }
 
-/* ========================= ACCIONES ============================= */
-function fmt(v){ return v==="si"?"Sí ✔":v==="no"?"No ✖":"—"; }
-function contarFotos(){ return Object.keys(ejec.respuestas).filter(k=>k.startsWith("foto_")).length; }
-
-function escanear(){
-  // Simulación de escaneo QR (en producción: cámara + lector). Genera un código demo.
-  const n = 100 + Math.floor(Math.abs(Math.sin(Date.now())) * 899);
-  ejec.equipo_id = "EQ-" + n;
-  render();
+/* ---------- Navegación ---------- */
+function siguiente(){
+  const p=PASOS[i];
+  if(p.rama){ const val=ejec.respuestas[p.campo]; const r=p.rama.find(x=>x.cuando===val); if(r){ i=idxDe(r.irA); render(); return; } }
+  if(i<PASOS.length-1){ i++; render(); }
 }
-function responder(campo,val){ ejec.respuestas[campo]=val; siguiente(); }
-function resultado(val){ ejec.resultado=val; siguiente(); }
+function responder(c,v){ ejec.respuestas[c]=v; siguiente(); }
+function resultado(v){ ejec.resultado=v; siguiente(); }
+function escanear(){ ejec.equipo_id="EQ-"+(100+Math.floor(Math.abs(Math.sin(Date.now()))*899)); render(); }
+function fmt(v){ return v==="si"?"Sí":v==="no"?"No":"—"; }
 
-/* --------- Cámara --------- */
+/* ---------- Cámara ---------- */
 async function startCam(){
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
-    const v = $("#video"); if(v){ v.srcObject = stream; }
-  }catch(e){
-    const cam = $("#cam");
-    if(cam) cam.innerHTML = `<span class="tag">SIN CÁMARA</span><img src="data:image/svg+xml;utf8,`+
-      encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='600' height='300'><rect width='100%' height='100%' fill='#0b1220'/><text x='50%' y='50%' fill='#93a4bf' font-family='sans-serif' font-size='20' text-anchor='middle' dominant-baseline='middle'>Cámara no disponible en este dispositivo</text></svg>`)+`" />`;
-  }
+  try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}); const v=$("#video"); if(v) v.srcObject=stream; }
+  catch(e){ const c=$("#cam"); if(c) c.innerHTML=`<span class="tag">SIN CÁMARA</span><div style="height:150px;display:flex;align-items:center;justify-content:center;color:#54637d;font-size:13px">Cámara no disponible</div>`; }
 }
 function stopCam(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
-function capturar(campo,conNota,notaCampo){
-  const v = $("#video");
-  if(v && stream){
-    const c = document.createElement("canvas");
-    c.width = v.videoWidth||640; c.height = v.videoHeight||480;
-    c.getContext("2d").drawImage(v,0,0,c.width,c.height);
-    ejec.respuestas[campo] = c.toDataURL("image/jpeg",0.7); // en producción → blob a Storage
-  } else {
-    ejec.respuestas[campo] = "sin_camara";
-  }
-  if(conNota){ const n = $("#nota"); if(n && n.value.trim()) ejec.respuestas[notaCampo]=n.value.trim(); }
+function capturar(campo){
+  const v=$("#video");
+  if(v&&stream){ const c=document.createElement("canvas"); c.width=v.videoWidth||640; c.height=v.videoHeight||480; c.getContext("2d").drawImage(v,0,0,c.width,c.height); ejec.respuestas[campo]=c.toDataURL("image/jpeg",0.6); }
+  else ejec.respuestas[campo]="sin_camara";
   siguiente();
 }
 
-/* ===================== OFFLINE (IndexedDB) ====================== */
+/* ---------- Offline (IndexedDB) ---------- */
 let db=null;
-function abrirDB(){
-  return new Promise((res,rej)=>{
-    const req = indexedDB.open("realwear_ejecutor",1);
-    req.onupgradeneeded = e=>{ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
-    req.onsuccess = e=>{ db=e.target.result; res(db); };
-    req.onerror = e=>rej(e);
-  });
-}
-async function guardarLocal(obj){
-  if(!db) await abrirDB();
-  return new Promise((res,rej)=>{
-    const tx = db.transaction("pendientes","readwrite");
-    tx.objectStore("pendientes").put(obj);
-    tx.oncomplete = res; tx.onerror = rej;
-  });
-}
-async function contarPendientes(){
-  if(!db) await abrirDB();
-  return new Promise(res=>{
-    const tx = db.transaction("pendientes","readonly");
-    const rq = tx.objectStore("pendientes").count();
-    rq.onsuccess = ()=>res(rq.result);
-  });
-}
-async function refrescarPend(){
-  const n = await contarPendientes();
-  const el = $("#pend");
-  if(n>0){ el.style.display="inline-block"; el.textContent = "⏳ "+n+" por sincronizar"; }
-  else el.style.display="none";
-}
+function abrirDB(){ return new Promise((res,rej)=>{ const q=indexedDB.open("realwear_ra",1);
+  q.onupgradeneeded=e=>{ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
+  q.onsuccess=e=>{ db=e.target.result; res(db); }; q.onerror=rej; }); }
+function guardarLocal(o){ return new Promise((res,rej)=>{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").put(o); tx.oncomplete=res; tx.onerror=rej; }); }
+function contarPend(){ return new Promise(res=>{ const tx=db.transaction("pendientes","readonly"); const q=tx.objectStore("pendientes").count(); q.onsuccess=()=>res(q.result); }); }
+async function refrescarPend(){ const n=await contarPend(); const el=$("#pend"); if(n>0){ el.style.display="inline-block"; el.textContent="⏳ "+n; } else el.style.display="none"; }
+async function finalizar(){ await guardarLocal(ejec); await refrescarPend(); nuevaEjecucion(); showInicio(); }
 
-async function finalizar(){
-  await guardarLocal(ejec);      // queda en cola local (offline-first)
-  await refrescarPend();
-  // En la próxima pieza: si hay red → subir a Supabase (ejecuciones + respuestas + evidencia + PDF) y borrar de la cola.
-  showHome();                    // vuelve a la entrada para el próximo operador
-}
+/* ---------- Conexión ---------- */
+function pintarNet(){ const el=$("#net"); if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
+addEventListener("online",pintarNet); addEventListener("offline",pintarNet);
 
-/* ===================== ESTADO DE CONEXIÓN ====================== */
-function pintarNet(){
-  const el = $("#net");
-  if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; }
-  else { el.className="pill off"; el.textContent="● Sin conexión"; }
-}
-window.addEventListener("online",pintarNet);
-window.addEventListener("offline",pintarNet);
-
-/* ============== ENTRADA (Realidad Asistida) + efecto MATRIX ============== */
-let matrixTimer=null;
-function startMatrix(){
-  const c=$("#matrix"); if(!c) return; const ctx=c.getContext("2d");
-  const size=()=>{ c.width=c.clientWidth; c.height=c.clientHeight; };
-  size(); window.addEventListener("resize",size);
-  const chars="カサタナKALU0123456789HSE·DINAMHO".split("");
-  const font=16; let drops=[];
-  clearInterval(matrixTimer);
-  matrixTimer=setInterval(()=>{
-    ctx.fillStyle="rgba(7,7,7,0.10)"; ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle="#f5a623"; ctx.font=font+"px monospace";
-    const cols=Math.floor(c.width/font);
-    for(let i=0;i<cols;i++){
-      if(drops[i]===undefined) drops[i]=Math.random()*40;
-      ctx.fillText(chars[Math.floor(Math.random()*chars.length)], i*font, drops[i]*font);
-      if(drops[i]*font>c.height && Math.random()>0.975) drops[i]=0;
-      drops[i]++;
-    }
-  },60);
-}
-function stopMatrix(){ if(matrixTimer){ clearInterval(matrixTimer); matrixTimer=null; } }
-
-function showHome(){
-  nuevaEjecucion();
-  const ced=$("#ced"); if(ced) ced.value="";
-  $("#home").style.display="flex";
-  startMatrix();
-}
-function entrar(){
-  const ced=$("#ced");
-  ejec.operador_cedula = (ced && ced.value.trim()) || "";
-  $("#home").style.display="none";
-  stopMatrix();
-  render();
-}
-
-/* ============================ INIT ============================== */
-(async function(){
-  await abrirDB();
-  await refrescarPend();
-  pintarNet();
-  nuevaEjecucion();
-  startMatrix();          // la pantalla de entrada está visible por defecto
-})();
+/* ---------- Init ---------- */
+(async function(){ await abrirDB(); await refrescarPend(); pintarNet(); nuevaEjecucion(); showInicio(); })();
 </script>
 </body>
 </html>

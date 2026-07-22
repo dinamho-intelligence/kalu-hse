@@ -891,11 +891,12 @@ async function enviarChat(){
 </script>
 <script>
 // ===== TARJETAS (bloque 3 de la consola HSE) =====
-let TAR=null;
+let TAR=null, TARPDF={};
 async function loadTarjetas(){
   try{
     const rows=await sbGet('tarjetas?select=*&order=creado.desc');
     TAR=rows||[];
+    try{ const dp=await sbGet('documentos?select=origen_id,storage_path&tipo=eq.tarjeta'); TARPDF={}; (dp||[]).forEach(function(d){ if(d.origen_id) TARPDF[d.origen_id]=d.storage_path; }); }catch(e){ TARPDF={}; }
     const cats=Array.from(new Set(TAR.map(function(t){return t.categoria;}).filter(Boolean))).sort();
     const lugs=Array.from(new Set(TAR.map(function(t){return t.lugar;}).filter(Boolean))).sort();
     document.getElementById('fCat').innerHTML='<option value="">Toda categoría</option>'+cats.map(function(c){return '<option>'+esc(c)+'</option>';}).join('');
@@ -946,10 +947,12 @@ function tarPplTable(pairs){
 }
 function tarTableHTML(rows){
   if(!rows.length) return '<div class="detempty">Sin tarjetas con estos filtros.</div>';
-  return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th></tr></thead><tbody>'
+  return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th></tr></thead><tbody>'
     +rows.map(function(t){
       const cl=(t.clase||'')==='seguro'?'<span class="badge seg">seguro</span>':(t.clase||'')==='inseguro'?'<span class="badge ins">inseguro</span>':esc(t.clase||'—');
-      return '<tr><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td></tr>';
+      var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
+      var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
+      return '<tr><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 function tarPDF(){

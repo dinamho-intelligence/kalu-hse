@@ -245,9 +245,9 @@
     <div class="hide" id="viewDocs">
       <div class="card">
         <h2><span>▸</span> Documentos oficiales <span id="docsCount" style="color:var(--nar)"></span></h2>
-        <div class="umsg">Archivo de PDF oficiales de tu empresa: informes, testimonios, ATS, alertas y lecciones. Descargá cualquiera.</div>
+        <div class="umsg">Archivo de PDF oficiales de tu empresa: informes, testimonios, tarjetas, ATS, alertas y lecciones. Descargá cualquiera. Elegí «Tarjetas (por persona)» para ver el expediente de cada trabajador.</div>
         <div class="tarbar">
-          <select id="fDocTipo" onchange="renderDocs()"><option value="">Todos los tipos</option><option value="informe">Informes</option><option value="testimonio">Testimonios</option><option value="ats">ATS</option><option value="alerta">Alertas</option><option value="leccion">Lecciones</option><option value="otro">Otros</option></select>
+          <select id="fDocTipo" onchange="renderDocs()"><option value="">Todos los tipos</option><option value="tarjeta">Tarjetas (por persona)</option><option value="informe">Informes</option><option value="testimonio">Testimonios</option><option value="ats">ATS</option><option value="alerta">Alertas</option><option value="leccion">Lecciones</option><option value="otro">Otros</option></select>
           <input id="fDocBusca" oninput="renderDocs()" placeholder="Buscar por nombre…">
         </div>
         <div class="loading" id="docsLoading">Cargando documentos…</div>
@@ -505,7 +505,7 @@ async function cambiarConsola(id,val){
 // ----- Documentos oficiales (archivo central) -----
 function tipoBadgeDoc(t){
   t=t||'otro';
-  var map={informe:'Informe',testimonio:'Testimonio',ats:'ATS',alerta:'Alerta',leccion:'Lección',otro:'Otro'};
+  var map={informe:'Informe',testimonio:'Testimonio',tarjeta:'Tarjeta',ats:'ATS',alerta:'Alerta',leccion:'Lección',otro:'Otro'};
   return '<span class="badge doc">'+esc(map[t]||t)+'</span>';
 }
 function docFecha(d){ try{ return new Date(d.created_at).toLocaleDateString('es-CO'); }catch(e){ return '—'; } }
@@ -532,14 +532,38 @@ function docsFiltrados(){
 function renderDocs(){
   var C=document.getElementById('docsContent');
   if(!DOCS){ return; }
+  var t=(document.getElementById('fDocTipo')||{}).value||'';
   var rows=docsFiltrados();
   if(!rows.length){ C.innerHTML='<div class="detempty">No hay documentos con estos filtros. (Se van cargando a medida que KALU los genera.)</div>'; return; }
+  if(t==='tarjeta'){ C.innerHTML=renderTarjetasPorPersona(rows); return; }
   C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Tipo</th><th>Nombre</th><th>Origen</th><th>Descargar</th></tr></thead><tbody>'
     +rows.map(function(d){
       var nom=String(d.nombre||'documento').replace(/[^a-zA-Z0-9 _.-]/g,'').trim()||'documento';
       return '<tr><td>'+docFecha(d)+'</td><td>'+tipoBadgeDoc(d.tipo)+'</td><td>'+esc(d.nombre||'—')+'</td><td>'+esc(d.origen||'—')+'</td>'
         +'<td><button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(d.storage_path||'')+'\',\''+nom+'\')">⬇ PDF</button></td></tr>';
     }).join('')+'</tbody></table></div>';
+}
+function renderTarjetasPorPersona(rows){
+  var groups={};
+  rows.forEach(function(d){
+    var parts=String(d.storage_path||'').split('/');
+    var ced=parts[2]||'sc';
+    var nom=(String(d.nombre||'').split(' · ')[1])||'Trabajador';
+    if(!groups[ced]) groups[ced]={ced:ced,nom:nom,docs:[]};
+    groups[ced].docs.push(d);
+  });
+  var keys=Object.keys(groups).sort(function(a,b){ return groups[b].docs.length-groups[a].docs.length; });
+  return keys.map(function(k){
+    var g=groups[k];
+    var items=g.docs.map(function(d){
+      var nom=String(d.nombre||'tarjeta').replace(/[^a-zA-Z0-9 _.-]/g,'').trim()||'tarjeta';
+      return '<tr><td>'+docFecha(d)+'</td><td><button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(d.storage_path||'')+'\',\''+nom+'\')">⬇ PDF</button></td></tr>';
+    }).join('');
+    return '<div style="margin-bottom:18px"><div style="font-weight:700;font-size:14px;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)">'
+      +esc(g.nom)+' <span style="color:var(--tx3);font-weight:400;font-size:12px">· C.C. '+esc(g.ced)+'</span> '
+      +'<span style="color:var(--nar);font-size:12px">('+g.docs.length+' tarjeta'+(g.docs.length>1?'s':'')+')</span></div>'
+      +'<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Descargar</th></tr></thead><tbody>'+items+'</tbody></table></div></div>';
+  }).join('');
 }
 async function bajarDoc(btn, pathEnc, nombre){
   var path=decodeURIComponent(pathEnc||'');

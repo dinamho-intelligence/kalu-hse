@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>KALU · Realidad Asistida</title>
 <!--
-  EJECUTOR v2 · optimizado para RealWear (pantalla apaisada ~854x480)
-  Cambios sobre v1 (feedback de campo):
-   - SIN position:fixed ni capas superpuestas: una sola pantalla a la vez en #screen.
-   - Todo entra sin scroll; #screen igual es scrolleable como respaldo ("bajar página").
-   - Marcado WearML en cada control: title="hf_show_text|hf_make_clickable" -> WearHF
-     muestra el comando y el numerito, y lo hace clickeable por voz.
-   - Cédula por TECLADO NUMÉRICO (el dictado de texto falla en el equipo).
-   - Todo a un solo clic.
+  EJECUTOR v2.2 · RealWear (pantalla apaisada ~854x480)
+  Ajustes por feedback de campo (Carla):
+   #1 Teclado: ✓ -> "Entrar", ← -> "Borrar" (palabras, no símbolos).
+   #2 Comandos WearHF pegados: se RECREA la pantalla entera en cada paso
+      (mutación fuerte del DOM) + comando WearML explícito por botón, para
+      forzar el re-scan de WearHF. [validar en equipo]
+   #3 Solo cuenta la foto si realmente se tomó.
+   #4 Cámara por INPUT CAPTURE (cámara nativa del RealWear), no getUserMedia.
+   + Arranque a prueba de navegador viejo (sin crypto.randomUUID, DB opcional).
 -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -22,49 +23,39 @@
     --ok:#2fa36b; --no:#d9534f; --warn:#e0a44a; --amber:#f5a623;
   }
   html,body{height:100%;overflow:hidden}
-  body{background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    display:flex;flex-direction:column}
-  /* Barra superior compacta */
+  body{background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;flex-direction:column}
   .bar{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--acc);border-bottom:2px solid var(--pri);flex-shrink:0}
-  .bar .hex{flex-shrink:0}
   .bar h1{font-size:14px;font-weight:800;flex:1;letter-spacing:.3px}
   .pill{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
   .pill.on{background:#123d29;color:#7ee2ab;border:1px solid #2fa36b}
   .pill.off{background:#3d1414;color:#f2a6a3;border:1px solid #d9534f}
   .pend{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;background:#3a2f12;color:#f0cf8f;border:1px solid #e0a44a}
-  /* Área de pantalla (una sola capa, scrolleable como respaldo) */
   #screen{flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;justify-content:center}
   .kick{color:var(--mut);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
   .title{font-size:23px;line-height:1.12;font-weight:800;margin:0 0 4px}
   .instr{font-size:14px;color:var(--mut);margin:0 0 12px;line-height:1.35}
   .equipo{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:16px;font-weight:800;margin-bottom:10px}
-  /* Botones = comandos de voz */
   .opts{display:flex;gap:12px}
-  .opts.col{flex-direction:column}
-  button.opt{display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;
-    background:var(--card);color:var(--tx);border:2px solid var(--line);border-radius:13px;
-    padding:14px 18px;font-size:19px;font-weight:800;flex:1;transition:transform .05s,border-color .15s}
+  button.opt{display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;background:var(--card);color:var(--tx);border:2px solid var(--line);border-radius:13px;padding:14px 18px;font-size:19px;font-weight:800;flex:1;transition:transform .05s,border-color .15s}
   button.opt:active{transform:scale(.98)}
   button.opt.ok{border-color:#2b6b4b}
   button.opt.no{border-color:#6b2f2d}
   button.opt.primary{background:var(--pri);border-color:var(--pri2)}
   button.opt.amber{background:linear-gradient(180deg,#ffb845,var(--amber));color:#1a1200;border:none}
-  button.opt.sm{font-size:15px;padding:10px 12px;flex:0 0 auto}
-  /* Cámara */
-  .cam{position:relative;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px}
-  .cam video,.cam img{width:100%;display:block;max-height:210px;object-fit:cover;background:#000}
+  .cam{position:relative;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px;min-height:150px;display:flex;align-items:center;justify-content:center}
+  .cam img{width:100%;display:block;max-height:200px;object-fit:contain;background:#000}
+  .cam .ph{color:#54637d;font-size:14px;padding:20px;text-align:center}
   .cam .tag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);font-size:11px;font-weight:800;padding:4px 8px;border-radius:7px}
-  /* Teclado numérico */
   .idwrap{display:flex;gap:18px;align-items:center}
   .iddisplay{flex:1;min-width:0}
   .idbox{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:12px 16px;font-size:30px;font-weight:800;letter-spacing:3px;min-height:56px;text-align:center;color:#fff}
   .idbox.empty{color:#54637d}
-  .keys{display:grid;grid-template-columns:repeat(3,64px);grid-auto-rows:52px;gap:8px}
-  button.key{font-size:22px;font-weight:800;background:var(--card);border:2px solid var(--line);border-radius:11px;color:#fff;cursor:pointer}
+  .keys{display:grid;grid-template-columns:repeat(3,64px);grid-auto-rows:50px;gap:8px}
+  button.key{font-size:20px;font-weight:800;background:var(--card);border:2px solid var(--line);border-radius:11px;color:#fff;cursor:pointer}
   button.key:active{transform:scale(.96)}
+  button.key.wide{font-size:15px}
   button.key.act{border-color:var(--no);color:#f2a6a3}
   button.key.go{border-color:#2b6b4b;color:#7ee2ab}
-  /* Resumen */
   .sum{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px}
   .sum .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
   .sum .row:last-child{border-bottom:none}
@@ -74,12 +65,10 @@
   .badge.apto{background:#123d29;color:#7ee2ab;border:1px solid #2fa36b}
   .badge.noapto{background:#3d1414;color:#f2a6a3;border:1px solid #d9534f}
   .note{color:var(--mut);font-size:12px;margin:6px 0 0}
-  /* Ayuda de voz */
   .help{border-top:1px solid var(--line);background:var(--bg2);padding:7px 14px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:center;flex-shrink:0}
   .help .mic{font-size:11px;color:var(--mut);font-weight:800}
   .chip{font-size:12px;font-weight:800;background:var(--card);border:1px solid var(--line);color:#cfe0f5;padding:4px 10px;border-radius:999px}
   .chip b{color:#fff}
-  /* Home compacto */
   .home{align-items:center;text-align:center}
   .home .brandbig{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:8px}
   .home .brandbig b{font-size:20px;font-weight:900;letter-spacing:1px}
@@ -91,7 +80,7 @@
 <body>
 
   <div class="bar">
-    <svg class="hex" width="26" height="28" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
+    <svg width="26" height="28" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
     <h1>KALU · Realidad Asistida</h1>
     <span id="pend" class="pend" style="display:none"></span>
     <span id="net" class="pill on">● En línea</span>
@@ -105,10 +94,22 @@
   </div>
 
 <script>
-const WM = "hf_show_text|hf_make_clickable";           // WearML: muestra comando + numerito y lo hace clickeable
 const $ = s => document.querySelector(s);
-// id sin depender de crypto.randomUUID (no existe en navegadores viejos como el de RealWear)
 function genId(){ return "r-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e9).toString(36); }
+
+/* WearML: comando explícito por control -> title="COMANDO|hf_make_clickable|hf_show_text" */
+function wm(cmd){ return (cmd?cmd.toUpperCase().replace(/"/g,"")+"|":"")+"hf_make_clickable|hf_show_text"; }
+function btn(cls,label,onclick){ return '<button class="opt '+cls+'" title="'+wm(label)+'" onclick="'+onclick+'">'+label+'</button>'; }
+
+/* Recrea la pantalla ENTERA (mutación fuerte) para forzar el re-scan de WearHF */
+function setScreen(cls, html){
+  const old=$("#screen");
+  const neo=document.createElement("div");
+  neo.id="screen"; neo.className=cls||""; neo.innerHTML=html;
+  old.parentNode.replaceChild(neo, old);
+  try{ window.dispatchEvent(new Event("resize")); }catch(e){}   // empujón para que WearHF re-lea
+}
+function chips(list){ $("#chips").innerHTML = list.filter(Boolean).map(function(c){return '<span class="chip">'+c+'</span>';}).join(""); }
 
 /* ---------- Flujo (misma forma que Supabase) ---------- */
 const PASOS = [
@@ -116,138 +117,111 @@ const PASOS = [
   { id:"aceite",       tipo:"confirmacion", campo:"aceite", titulo:"¿Nivel de aceite OK?", instr:"Revisá la varilla." },
   { id:"fugas",        tipo:"confirmacion", campo:"fugas",  titulo:"¿Hay fugas visibles?", instr:"Mirá el piso y las mangueras.",
       rama:[{ cuando:"no", irA:"foto_general" }] },
-  { id:"foto_fuga",    tipo:"foto", campo:"foto_fuga", titulo:"Foto de la fuga",          instr:"Encuadrá y decí «Capturar»." },
-  { id:"foto_general", tipo:"foto", campo:"foto_general", titulo:"Foto del estado general", instr:"Encuadrá y decí «Capturar»." },
+  { id:"foto_fuga",    tipo:"foto", campo:"foto_fuga", titulo:"Foto de la fuga",          instr:"Decí «Tomar foto» y usá la cámara." },
+  { id:"foto_general", tipo:"foto", campo:"foto_general", titulo:"Foto del estado general", instr:"Decí «Tomar foto» y usá la cámara." },
   { id:"resultado",    tipo:"resultado", titulo:"Resultado", instr:"Confirmá el estado del equipo." },
   { id:"fin",          tipo:"fin", titulo:"Inspección completada" },
 ];
 const idxDe = id => PASOS.findIndex(p=>p.id===id);
 
 /* ---------- Estado ---------- */
-let ejec=null, i=0, stream=null, cedBuf="";
+let ejec=null, i=0, cedBuf="";
 function nuevaEjecucion(){
-  ejec={ id:genId(), flujo:"Inspección pre-uso de equipo", version:1,
-    operador_cedula:"", equipo_id:"", inicio:new Date().toISOString(), fin:null,
-    resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
+  ejec={ id:genId(), flujo:"Inspección pre-uso de equipo", version:1, operador_cedula:"",
+    equipo_id:"", inicio:new Date().toISOString(), fin:null, resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
   i=0; cedBuf="";
 }
 
-/* ---------- Helpers de render ---------- */
-function chips(list){ $("#chips").innerHTML = list.filter(Boolean).map(c=>`<span class="chip">${c}</span>`).join(""); }
-function btn(cls,txt,onclick){ return `<button class="opt ${cls}" title="${WM}" onclick="${onclick}">${txt}</button>`; }
-
 /* ---------- Pantallas ---------- */
 function showInicio(){
-  stopCam();
-  $("#screen").className=""; $("#screen").classList.add("home");
-  $("#screen").innerHTML = `
-    <div class="brandbig">
-      <svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
-      <div style="text-align:left"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div>
-    </div>
-    <h2>Realidad <span class="amber">Asistida</span></h2>
-    <p class="instr" style="max-width:520px">Inspección pre-uso de equipo, manos libres. Decí «Entrar» para comenzar.</p>
-    <div class="opts" style="max-width:340px;width:100%">
-      ${btn("amber","Entrar","irIdent()")}
-    </div>`;
+  setScreen("home",
+    '<div class="brandbig">'+
+      '<svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>'+
+      '<div style="text-align:left"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div></div>'+
+    '<h2>Realidad <span class="amber">Asistida</span></h2>'+
+    '<p class="instr" style="max-width:520px">Inspección pre-uso de equipo, manos libres. Decí «Entrar» para comenzar.</p>'+
+    '<div class="opts" style="max-width:340px;width:100%">'+btn("amber","Entrar","irIdent()")+'</div>');
   chips(["“<b>Entrar</b>”"]);
 }
 
-function irIdent(){ i=-1; showIdent(); }
+function irIdent(){ showIdent(); }
 function showIdent(){
-  stopCam();
-  $("#screen").className="";
-  $("#screen").innerHTML = `
-    <div class="kick">Operador</div>
-    <div class="title">Tu cédula</div>
-    <p class="instr">Tocá los números o decí el número de cada tecla. Después «Listo».</p>
-    <div class="idwrap">
-      <div class="iddisplay">
-        <div class="idbox ${cedBuf?"":"empty"}" id="idbox">${cedBuf||"— — — —"}</div>
-      </div>
-      <div class="keys" id="keys"></div>
-    </div>`;
-  const keys=$("#keys"); let html="";
-  ["1","2","3","4","5","6","7","8","9"].forEach(n=> html+=`<button class="key" title="${WM}" onclick="ced('${n}')">${n}</button>`);
-  html+=`<button class="key act" title="${WM}" onclick="cedDel()">←</button>`;
-  html+=`<button class="key" title="${WM}" onclick="ced('0')">0</button>`;
-  html+=`<button class="key go" title="${WM}" onclick="irFlujo()">✓</button>`;
-  keys.innerHTML=html;
-  chips(["números","“<b>Borrar</b>”","“<b>Listo</b>”"]);
+  let keys="";
+  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="ced(\''+n+'\')">'+n+'</button>'; });
+  keys+='<button class="key wide act" title="'+wm("Borrar")+'" onclick="cedDel()">Borrar</button>';
+  keys+='<button class="key" title="'+wm("")+'" onclick="ced(\'0\')">0</button>';
+  keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="irFlujo()">Entrar</button>';
+  setScreen("",
+    '<div class="kick">Operador</div>'+
+    '<div class="title">Tu cédula</div>'+
+    '<p class="instr">Tocá los números o decí el número de cada tecla. Después «Entrar».</p>'+
+    '<div class="idwrap">'+
+      '<div class="iddisplay"><div class="idbox '+(cedBuf?"":"empty")+'" id="idbox">'+(cedBuf||"— — — —")+'</div></div>'+
+      '<div class="keys">'+keys+'</div>'+
+    '</div>');
+  chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
 }
 function ced(n){ if(cedBuf.length<12){ cedBuf+=n; pintCed(); } }
 function cedDel(){ cedBuf=cedBuf.slice(0,-1); pintCed(); }
-function pintCed(){ const b=$("#idbox"); if(!b)return; b.textContent=cedBuf||"— — — —"; b.classList.toggle("empty",!cedBuf); }
+function pintCed(){ const b=$("#idbox"); if(!b)return; b.textContent=cedBuf||"— — — —"; if(cedBuf) b.classList.remove("empty"); else b.classList.add("empty"); }
 function irFlujo(){ ejec.operador_cedula=cedBuf; i=0; render(); }
 
 function render(){
-  stopCam();
-  $("#screen").className="";
   const p=PASOS[i];
 
   if(p.tipo==="escaneo"){
-    $("#screen").innerHTML = `
-      <div class="kick">Paso ${i+1} · Escaneo</div>
-      <div class="title">${p.titulo}</div>
-      <p class="instr">${p.instr}</p>
-      ${ejec.equipo_id?`<div class="equipo">🔧 ${ejec.equipo_id}</div>`:""}
-      <div class="opts">
-        ${btn("primary","Escanear","escanear()")}
-        ${ejec.equipo_id?btn("","Siguiente","siguiente()"):""}
-      </div>`;
+    setScreen("",
+      '<div class="kick">Paso '+(i+1)+' · Escaneo</div><div class="title">'+p.titulo+'</div>'+
+      '<p class="instr">'+p.instr+'</p>'+
+      (ejec.equipo_id?'<div class="equipo">🔧 '+ejec.equipo_id+'</div>':'')+
+      '<div class="opts">'+btn("primary","Escanear","escanear()")+(ejec.equipo_id?btn("","Siguiente","siguiente()"):'')+'</div>');
     chips(["“<b>Escanear</b>”", ejec.equipo_id?"“<b>Siguiente</b>”":""]);
   }
   else if(p.tipo==="confirmacion"){
-    $("#screen").innerHTML = `
-      <div class="kick">Paso ${i+1} · Verificación</div>
-      <div class="title">${p.titulo}</div>
-      <p class="instr">${p.instr}</p>
-      <div class="opts">
-        ${btn("ok","Sí",`responder('${p.campo}','si')`)}
-        ${btn("no","No",`responder('${p.campo}','no')`)}
-      </div>`;
+    setScreen("",
+      '<div class="kick">Paso '+(i+1)+' · Verificación</div><div class="title">'+p.titulo+'</div>'+
+      '<p class="instr">'+p.instr+'</p>'+
+      '<div class="opts">'+btn("ok","Sí","responder('"+p.campo+"','si')")+btn("no","No","responder('"+p.campo+"','no')")+'</div>');
     chips(["“<b>Sí</b>”","“<b>No</b>”"]);
   }
   else if(p.tipo==="foto"){
-    $("#screen").innerHTML = `
-      <div class="kick">Paso ${i+1} · Evidencia</div>
-      <div class="title">${p.titulo}</div>
-      <div class="cam" id="cam"><span class="tag">CÁMARA</span><video id="video" autoplay playsinline muted></video></div>
-      <div class="opts">
-        ${btn("primary","Capturar",`capturar('${p.campo}')`)}
-        ${btn("","Omitir","siguiente()")}
-      </div>`;
-    chips(["“<b>Capturar</b>”","“<b>Omitir</b>”"]);
-    startCam();
+    const tiene=!!ejec.respuestas[p.campo];
+    setScreen("",
+      '<div class="kick">Paso '+(i+1)+' · Evidencia</div><div class="title">'+p.titulo+'</div>'+
+      (tiene
+        ? '<div class="cam"><span class="tag">FOTO TOMADA</span><img src="'+ejec.respuestas[p.campo]+'" /></div>'
+        : '<div class="cam"><span class="tag">CÁMARA</span><div class="ph">'+p.instr+'</div></div>')+
+      '<input type="file" id="cap" accept="image/*" capture="environment" style="display:none" onchange="onFoto(\''+p.campo+'\')" />'+
+      '<div class="opts">'+
+        (tiene
+          ? btn("ok","Siguiente","siguiente()")+btn("","Repetir","repetir('"+p.campo+"')")
+          : btn("primary","Tomar foto","tomarFoto()")+btn("","Omitir","siguiente()"))+
+      '</div>');
+    chips(tiene?["“<b>Siguiente</b>”","“<b>Repetir</b>”"]:["“<b>Tomar foto</b>”","“<b>Omitir</b>”"]);
   }
   else if(p.tipo==="resultado"){
     const r=ejec.respuestas, sug=(r.aceite==="no"||r.fugas==="si");
-    $("#screen").innerHTML = `
-      <div class="kick">Paso ${i+1} · Cierre</div>
-      <div class="title">${p.titulo}</div>
-      <p class="instr">${p.instr} ${sug?'<b style="color:var(--warn)">Sugerido: No apto</b>':'<b style="color:var(--ok)">Sugerido: Apto</b>'}</p>
-      <div class="opts">
-        ${btn("ok","Apto","resultado('apto')")}
-        ${btn("no","No apto","resultado('no_apto')")}
-      </div>`;
+    setScreen("",
+      '<div class="kick">Paso '+(i+1)+' · Cierre</div><div class="title">'+p.titulo+'</div>'+
+      '<p class="instr">'+p.instr+' '+(sug?'<b style="color:var(--warn)">Sugerido: No apto</b>':'<b style="color:var(--ok)">Sugerido: Apto</b>')+'</p>'+
+      '<div class="opts">'+btn("ok","Apto","resultado('apto')")+btn("no","No apto","resultado('no_apto')")+'</div>');
     chips(["“<b>Apto</b>”","“<b>No apto</b>”"]);
   }
   else if(p.tipo==="fin"){
     ejec.fin=new Date().toISOString();
     const r=ejec.respuestas, apto=ejec.resultado==="apto";
-    const fotos=Object.keys(r).filter(k=>k.startsWith("foto_")).length;
-    $("#screen").innerHTML = `
-      <div class="kick">✔ Registro guardado</div>
-      <div class="title" style="font-size:20px">${p.titulo}</div>
-      <div class="sum">
-        <div class="row"><span>Equipo</span><span>${ejec.equipo_id||"—"}</span></div>
-        <div class="row"><span>Operador (cédula)</span><span>${ejec.operador_cedula||"—"}</span></div>
-        <div class="row"><span>Aceite / Fugas</span><span>${fmt(r.aceite)} / ${fmt(r.fugas)}</span></div>
-        <div class="row"><span>Evidencia</span><span>${fotos} foto(s)</span></div>
-        <div class="row"><span>Resultado</span><span><span class="badge ${apto?'apto':'noapto'}">${apto?'APTO':'NO APTO'}</span></span></div>
-      </div>
-      <div class="opts">${btn("amber","Nueva inspección","finalizar()")}</div>
-      <p class="note">El PDF firmado se genera en la próxima etapa. Por ahora la ejecución queda en cola local.</p>`;
+    let fotos=0; for(const k in r){ if(k.indexOf("foto_")===0 && r[k]) fotos++; }
+    setScreen("",
+      '<div class="kick">✔ Registro guardado</div><div class="title" style="font-size:20px">'+p.titulo+'</div>'+
+      '<div class="sum">'+
+        '<div class="row"><span>Equipo</span><span>'+(ejec.equipo_id||"—")+'</span></div>'+
+        '<div class="row"><span>Operador (cédula)</span><span>'+(ejec.operador_cedula||"—")+'</span></div>'+
+        '<div class="row"><span>Aceite / Fugas</span><span>'+fmt(r.aceite)+' / '+fmt(r.fugas)+'</span></div>'+
+        '<div class="row"><span>Evidencia</span><span>'+fotos+' foto(s)</span></div>'+
+        '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+
+      '</div>'+
+      '<div class="opts">'+btn("amber","Nueva inspección","finalizar()")+'</div>'+
+      '<p class="note">El PDF firmado se genera en la próxima etapa. Por ahora la ejecución queda en cola local.</p>');
     chips(["“<b>Nueva inspección</b>”"]);
   }
 }
@@ -255,7 +229,7 @@ function render(){
 /* ---------- Navegación ---------- */
 function siguiente(){
   const p=PASOS[i];
-  if(p.rama){ const val=ejec.respuestas[p.campo]; const r=p.rama.find(x=>x.cuando===val); if(r){ i=idxDe(r.irA); render(); return; } }
+  if(p.rama){ const val=ejec.respuestas[p.campo]; const r=p.rama.find(function(x){return x.cuando===val;}); if(r){ i=idxDe(r.irA); render(); return; } }
   if(i<PASOS.length-1){ i++; render(); }
 }
 function responder(c,v){ ejec.respuestas[c]=v; siguiente(); }
@@ -263,59 +237,41 @@ function resultado(v){ ejec.resultado=v; siguiente(); }
 function escanear(){ ejec.equipo_id="EQ-"+(100+Math.floor(Math.abs(Math.sin(Date.now()))*899)); render(); }
 function fmt(v){ return v==="si"?"Sí":v==="no"?"No":"—"; }
 
-/* ---------- Cámara ---------- */
-async function startCam(){
-  try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}); const v=$("#video"); if(v) v.srcObject=stream; }
-  catch(e){ const c=$("#cam"); if(c) c.innerHTML=`<span class="tag">SIN CÁMARA</span><div style="height:150px;display:flex;align-items:center;justify-content:center;color:#54637d;font-size:13px">Cámara no disponible</div>`; }
-}
-function stopCam(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
-function capturar(campo){
-  const v=$("#video");
-  if(v&&stream){ const c=document.createElement("canvas"); c.width=v.videoWidth||640; c.height=v.videoHeight||480; c.getContext("2d").drawImage(v,0,0,c.width,c.height); ejec.respuestas[campo]=c.toDataURL("image/jpeg",0.6); }
-  else ejec.respuestas[campo]="sin_camara";
-  siguiente();
+/* ---------- Foto: cámara NATIVA del RealWear (input capture) ---------- */
+function tomarFoto(){ const c=$("#cap"); if(c) c.click(); }
+function repetir(campo){ delete ejec.respuestas[campo]; render(); tomarFoto(); }
+function onFoto(campo){
+  const inp=$("#cap"); const f=inp && inp.files && inp.files[0];
+  if(!f){ return; }
+  const rd=new FileReader();
+  rd.onload=function(){ ejec.respuestas[campo]=rd.result; render(); };   // guarda y muestra la foto
+  rd.onerror=function(){ render(); };
+  rd.readAsDataURL(f);
 }
 
-/* ---------- Offline (IndexedDB) · todo opcional y sin romper la app ---------- */
+/* ---------- Offline (IndexedDB) · opcional, no rompe la app ---------- */
 let db=null;
-function abrirDB(){ return new Promise(function(res){
-  try{
-    const q=indexedDB.open("realwear_ra",1);
-    q.onupgradeneeded=function(e){ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
-    q.onsuccess=function(e){ db=e.target.result; res(true); };
-    q.onerror=function(){ res(false); };
-  }catch(e){ res(false); }
-}); }
-function guardarLocal(o){ return new Promise(function(res){
-  if(!db){ res(); return; }
-  try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").put(o); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }
-  catch(e){ res(); }
-}); }
-function refrescarPend(){ return new Promise(function(res){
-  const el=$("#pend"); if(!el){ res(); return; }
-  if(!db){ el.style.display="none"; res(); return; }
+function abrirDB(){ return new Promise(function(res){ try{
+  const q=indexedDB.open("realwear_ra",1);
+  q.onupgradeneeded=function(e){ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
+  q.onsuccess=function(e){ db=e.target.result; res(true); };
+  q.onerror=function(){ res(false); };
+}catch(e){ res(false); } }); }
+function guardarLocal(o){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").put(o); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
+function refrescarPend(){ return new Promise(function(res){ const el=$("#pend"); if(!el){res();return;} if(!db){ el.style.display="none"; res(); return; }
   try{ const q=db.transaction("pendientes","readonly").objectStore("pendientes").count();
     q.onsuccess=function(){ const n=q.result; if(n>0){ el.style.display="inline-block"; el.textContent="⏳ "+n; } else el.style.display="none"; res(); };
-    q.onerror=function(){ res(); };
-  }catch(e){ res(); }
-}); }
-function finalizar(){
-  try{ guardarLocal(ejec).then(refrescarPend).catch(function(){}); }catch(e){}
-  nuevaEjecucion(); showInicio();
-}
+    q.onerror=function(){ res(); }; }catch(e){ res(); } }); }
+function finalizar(){ try{ guardarLocal(ejec).then(refrescarPend).catch(function(){}); }catch(e){} nuevaEjecucion(); showInicio(); }
 
 /* ---------- Conexión ---------- */
-function pintarNet(){ const el=$("#net"); if(!el) return; if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
+function pintarNet(){ const el=$("#net"); if(!el)return; if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
 addEventListener("online",pintarNet); addEventListener("offline",pintarNet);
 
-/* ---------- Init · dibuja PRIMERO, la base va después y es opcional ---------- */
+/* ---------- Init · dibuja PRIMERO ---------- */
 function boot(){
-  try{
-    nuevaEjecucion();
-    showInicio();
-  }catch(e){
-    $("#screen").innerHTML='<div style="margin:auto;text-align:center;color:#f2a6a3;padding:20px;font-size:15px">No se pudo iniciar la app.<br><small style="color:#9fb0c9">'+((e&&e.message)||e)+'</small><br><br><button class="opt primary" style="max-width:240px" onclick="location.reload()">Reintentar</button></div>';
-  }
+  try{ nuevaEjecucion(); showInicio(); }
+  catch(e){ $("#screen").innerHTML='<div style="margin:auto;text-align:center;color:#f2a6a3;padding:20px;font-size:15px">No se pudo iniciar.<br><small style="color:#9fb0c9">'+((e&&e.message)||e)+'</small><br><br><button class="opt primary" style="max-width:240px" onclick="location.reload()">Reintentar</button></div>'; }
   try{ pintarNet(); }catch(e){}
   try{ abrirDB().then(refrescarPend).catch(function(){}); }catch(e){}
 }

@@ -207,6 +207,7 @@
           <select id="fCat" onchange="renderTar()"><option value="">Toda categoría</option></select>
           <select id="fLugar" onchange="renderTar()"><option value="">Todo lugar</option></select>
           <input id="fPers" oninput="renderTar()" placeholder="Buscar persona…">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="fVerElim" onchange="verElim=this.checked;renderTar()" style="width:auto"> Ver eliminadas</label>
           <span style="flex:1"></span>
           <button class="dl" onclick="tarPDF()">⬇ PDF resumen</button>
           <button class="dl" onclick="tarXLSX()">⬇ Excel</button>
@@ -265,7 +266,7 @@ const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
 const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6873';
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
-let TOKEN=null, charts=[], MYID=null, MYEMP=null;
+let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false;
 function $(id){return document.getElementById(id);}
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value;
@@ -286,6 +287,7 @@ async function login(){
       const rol=p0.rol||'';
       const est=p0.estado||'';
       MYEMP=p0.empresa_id||null;
+      MYNAME=(p0.nombre||email);
       rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true);
       estadoBloqueado=(est && est!=='activo'); // baja / pendiente / rechazado
     }catch(_){ rolOk=false; }
@@ -312,6 +314,10 @@ async function sbPatch(path, body){
   const r=await fetch(SB_URL+'/rest/v1/'+path,{method:'PATCH',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(body)});
   if(!r.ok) throw new Error(path+' '+r.status);
   return r.json();
+}
+async function sbInsert(table, body){
+  const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(table+' '+r.status);
 }
 async function cargar(){
   try{
@@ -912,6 +918,7 @@ function tarFiltered(){
   const fc=document.getElementById('fClase').value, fk=document.getElementById('fCat').value,
         fl=document.getElementById('fLugar').value, fp=(document.getElementById('fPers').value||'').toLowerCase().trim();
   return TAR.filter(function(t){
+    if(verElim){ if(!t.eliminada) return false; } else { if(t.eliminada) return false; }
     if(fc && (t.clase||'')!==fc) return false;
     if(fk && (t.categoria||'')!==fk) return false;
     if(fl && (t.lugar||'')!==fl) return false;
@@ -946,14 +953,49 @@ function tarPplTable(pairs){
   return '<table class="ppl">'+pairs.map(function(p){return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td></tr>';}).join('')+'</table>';
 }
 function tarTableHTML(rows){
-  if(!rows.length) return '<div class="detempty">Sin tarjetas con estos filtros.</div>';
-  return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th></tr></thead><tbody>'
+  if(!rows.length) return '<div class="detempty">'+(verElim?'No hay tarjetas eliminadas.':'Sin tarjetas con estos filtros.')+'</div>';
+  if(verElim){
+    return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Descripción</th><th>Eliminada por</th><th>Motivo</th><th>Cuándo</th><th></th></tr></thead><tbody>'
+      +rows.map(function(t){
+        return '<tr style="opacity:.7"><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,90))+'</td>'
+          +'<td>'+esc(t.eliminada_por||'—')+'</td><td>'+esc(t.eliminada_motivo||'—')+'</td><td>'+esc(String(t.eliminada_at||'').slice(0,16).replace('T',' '))+'</td>'
+          +'<td><button class="dl" onclick="restaurarTarjeta(\''+t.id+'\')">↩ Restaurar</button></td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th><th></th></tr></thead><tbody>'
     +rows.map(function(t){
       const cl=(t.clase||'')==='seguro'?'<span class="badge seg">seguro</span>':(t.clase||'')==='inseguro'?'<span class="badge ins">inseguro</span>':esc(t.clase||'—');
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
-      return '<tr><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td></tr>';
+      return '<tr><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
+        +'<td><button class="dl" style="border-color:rgba(255,59,48,.4);color:#FF6b62" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
+}
+async function eliminarTarjeta(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var motivo=prompt('¿Por qué eliminás esta tarjeta? (queda registrado en la bitácora)');
+  if(motivo===null) return;
+  motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir un motivo.'); return; }
+  if(!confirm('Vas a eliminar la tarjeta de '+(t.observador_nombre||'')+'.\nNo se pierde: queda registrada como eliminada, con tu nombre y el motivo. ¿Confirmás?')) return;
+  try{
+    var ts=new Date().toISOString();
+    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{eliminada:true,eliminada_por:MYNAME,eliminada_motivo:motivo,eliminada_at:ts});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'eliminar',motivo:motivo,actor:MYNAME});
+    t.eliminada=true; t.eliminada_por=MYNAME; t.eliminada_motivo=motivo; t.eliminada_at=ts;
+    renderTar();
+  }catch(e){ alert('No se pudo eliminar ('+e.message+'). Si dice 401/403, revisá que corriste el SQL de auditoría.'); }
+}
+async function restaurarTarjeta(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var motivo=prompt('¿Por qué restaurás esta tarjeta? (queda registrado)');
+  if(motivo===null) return;
+  motivo=String(motivo).trim(); if(!motivo){ alert('Necesitás escribir una explicación.'); return; }
+  try{
+    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{eliminada:false,eliminada_por:null,eliminada_motivo:null,eliminada_at:null});
+    await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'restaurar',motivo:motivo,actor:MYNAME});
+    t.eliminada=false; t.eliminada_por=null; t.eliminada_motivo=null; t.eliminada_at=null;
+    renderTar();
+  }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
 }
 function tarPDF(){
   const rows=tarFiltered();

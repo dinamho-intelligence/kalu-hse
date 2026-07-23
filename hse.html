@@ -1120,10 +1120,11 @@ function renderAtsList(){
       }).join('')+'</tbody></table></div>';
     return;
   }
-  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th></th></tr></thead><tbody>'
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'
     +rows.map(function(o){ var r=o.r;
+      var dec = /pendiente/i.test(r.estado||'') ? ' <button style="background:rgba(37,194,110,.14);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="decidirAts('+o.i+',\'APROBAR\')">✅ Aprobar</button> <button style="background:rgba(232,147,12,.14);border:1px solid #E8930C;color:#F0B04A;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="decidirAts('+o.i+',\'DEVOLVER\')">↩ Devolver</button>' : '';
       return '<tr><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td><td>'+esc(r.estado||'—')+'</td>'
-        +'<td><button class="dl" onclick="verAts('+o.i+')">Ver</button> <button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="eliminarAts('+o.i+')">🗑 Eliminar</button></td></tr>';
+        +'<td style="white-space:nowrap"><button class="dl" onclick="verAts('+o.i+')">Ver</button>'+dec+' <button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="eliminarAts('+o.i+')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 async function eliminarAts(i){
@@ -1149,6 +1150,20 @@ async function restaurarAts(i){
     r.eliminada=false; r.eliminada_por=null; r.eliminada_motivo=null; r.eliminada_at=null;
     renderAtsList();
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
+}
+const WEBHOOK_APROBAR='https://dnmintell.app.n8n.cloud/webhook/kalu-v3-aprobar-v2';
+async function decidirAts(i, accion){
+  var r=ATSDATA[i]; if(!r) return;
+  var esApro=(accion==='APROBAR');
+  if(!confirm((esApro?'¿Aprobar':'¿Devolver')+' el ATS de «'+(r.tarea||'')+'»?\n'+(esApro?'Queda oficializado y se genera el PDF validado.':'Vuelve para revisión.')+'\nSe registra tu decisión.')) return;
+  try{
+    var res=await fetch(WEBHOOK_APROBAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:accion,atsItemId:(r.id!=null?String(r.id):''),aprobador:(MYNAME||'HSE')})});
+    if(!res.ok) throw new Error('http '+res.status);
+    var d={}; try{ d=await res.json(); }catch(e){}
+    r.estado=(d&&d.estado)||(esApro?'Oficial':'Devuelto'); r.aprobador=MYNAME;
+    renderAtsList();
+    alert(esApro?'✅ ATS aprobado y oficializado.':'↩ ATS devuelto para revisión.');
+  }catch(e){ alert('No se pudo '+(esApro?'aprobar':'devolver')+' ('+e.message+'). Revisá que el flujo de n8n esté activo.'); }
 }
 function _atsControles(p){ var c=p.controles||p.medidas_control||p.control||p.medidas||''; if(Array.isArray(c)) c=c.join(' · '); return c; }
 function atsDetalleHTML(r,j){

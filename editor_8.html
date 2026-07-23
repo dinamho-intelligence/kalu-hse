@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KALU · Editor de Flujos</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#0f1218; --amber:#F28C00; --amber2:#FF9F1C;
+    --bg:#eef0f4; --panel:#ffffff; --line:#e2e5ec; --line2:#d7dbe4;
+    --tx:#1c2230; --mut:#6b7385; --pri:#2e75b6;
+    --ok:#2fa36b; --no:#d9534f;
+  }
+  html,body{height:100%}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  /* Header */
+  header{background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:11px 20px;flex-shrink:0}
+  header .txt b{display:block;font-size:16px;font-weight:800;letter-spacing:.4px;line-height:1}
+  header .txt span{display:block;color:var(--amber);font-size:9px;font-weight:800;letter-spacing:2px;margin-top:3px}
+  header .sp{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-size:13px;font-weight:700;padding:9px 15px;border-radius:9px;cursor:pointer;border:1px solid transparent;transition:all .15s}
+  .btn-amber{background:linear-gradient(180deg,var(--amber2),var(--amber));color:#1a1200}
+  .btn-amber:hover{filter:brightness(1.06)}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.25);color:#fff}
+  .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+  /* Meta bar */
+  .meta{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;flex-shrink:0}
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld label{font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+  .fld input,.fld select,.fld textarea{font-family:inherit;font-size:14px;color:var(--tx);background:#fff;border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;outline:none;transition:border-color .15s}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--amber)}
+  .fld.grow{flex:1;min-width:220px}
+  .fld.grow input{width:100%}
+  /* Add row */
+  .addrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .addrow .lbl{font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-right:2px}
+  .chipbtn{font-size:13px;font-weight:700;background:#fff;border:1.5px dashed var(--line2);color:var(--tx);border-radius:20px;padding:7px 13px;cursor:pointer;transition:all .15s}
+  .chipbtn:hover{border-color:var(--amber);color:var(--amber);border-style:solid}
+  /* Body */
+  .body{flex:1;display:grid;grid-template-columns:340px 1fr;gap:0;overflow:hidden}
+  .col{overflow-y:auto;padding:16px}
+  .col.left{border-right:1px solid var(--line);background:#f7f8fb}
+  .col h3{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+  /* Paso cards */
+  .pcard{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:9px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
+  .pcard:hover{border-color:var(--line2)}
+  .pcard.sel{border-color:var(--amber);box-shadow:0 0 0 3px rgba(242,140,0,.12)}
+  .pcard .top{display:flex;align-items:center;gap:9px}
+  .pcard .ord{width:24px;height:24px;border-radius:7px;background:var(--ink);color:var(--amber);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .pcard .ic{font-size:16px}
+  .pcard .ti{font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pcard .ty{font-size:10px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;margin-left:33px}
+  .pcard .acts{display:flex;gap:3px;position:absolute;top:8px;right:8px;opacity:0;transition:opacity .15s}
+  .pcard:hover .acts,.pcard.sel .acts{opacity:1}
+  .pcard .acts button{width:24px;height:24px;border:none;background:#eef0f4;border-radius:6px;cursor:pointer;font-size:12px;color:var(--mut);display:flex;align-items:center;justify-content:center}
+  .pcard .acts button:hover{background:#e2e5ec;color:var(--tx)}
+  .pcard .branch{margin-top:8px;margin-left:33px;font-size:11px;font-weight:600;color:var(--pri);background:#eaf2fb;border-radius:6px;padding:3px 8px;display:inline-block}
+  .empty{color:var(--mut);font-size:13px;text-align:center;padding:30px 10px;border:2px dashed var(--line2);border-radius:12px}
+  /* Inspector */
+  .insp{max-width:640px}
+  .insp .htag{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .insp h2{font-size:20px;font-weight:800;margin-bottom:16px}
+  .insp .fld{margin-bottom:14px}
+  .insp .fld label{margin-bottom:6px}
+  .insp .fld input,.insp .fld textarea,.insp .fld select{width:100%}
+  .insp textarea{min-height:70px;resize:vertical;line-height:1.4}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .hint{font-size:12px;color:var(--mut);margin-top:-8px;margin-bottom:14px}
+  .branchbox{background:#f7f8fb;border:1.5px solid var(--line);border-radius:11px;padding:14px;margin-top:4px}
+  .branchbox .bh{font-size:12px;font-weight:800;color:var(--tx);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+  .branch-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+  /* Preview modal (lente) */
+  .modal{position:fixed;inset:0;background:rgba(15,18,24,.62);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal.show{display:flex}
+  .mbox{background:#fff;border-radius:16px;overflow:hidden;max-width:720px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+  .mbox .mh{background:var(--ink);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px}
+  .mbox .mh b{flex:1;font-size:14px}
+  .mbox .mh .x{cursor:pointer;font-size:20px;color:#9aa3b2;background:none;border:none}
+  .mbody{padding:20px}
+  /* lente preview */
+  .lente{width:100%;aspect-ratio:854/480;background:#0b1220;border-radius:12px;border:1px solid #26364f;overflow:hidden;display:flex;flex-direction:column;color:#eef4fc;font-family:system-ui,sans-serif}
+  .lente .lbar{background:#1f4e79;padding:6px 12px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:8px;border-bottom:2px solid #2e75b6}
+  .lente .lscr{flex:1;padding:14px 18px;display:flex;flex-direction:column;justify-content:center}
+  .lente .lk{color:#9fb0c9;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+  .lente .lt{font-size:20px;font-weight:800;margin-bottom:3px}
+  .lente .li{font-size:12px;color:#9fb0c9;margin-bottom:12px}
+  .lente .lopts{display:flex;gap:10px}
+  .lente .lb{flex:1;text-align:center;background:#16233a;border:2px solid #2b3c56;border-radius:11px;padding:12px;font-size:16px;font-weight:800}
+  .lente .lb.ok{border-color:#2b6b4b}.lente .lb.no{border-color:#6b2f2d}.lente .lb.pri{background:#2e75b6;border-color:#4d97e0}
+  .lente .lhelp{border-top:1px solid #2b3c56;background:#101c2e;padding:6px;text-align:center;font-size:11px;color:#cfe0f5;font-weight:700}
+  textarea#json{width:100%;min-height:340px;font-family:ui-monospace,Menlo,monospace;font-size:12px;border:1.5px solid var(--line2);border-radius:10px;padding:12px;color:#1c2230;resize:vertical}
+  /* Tabs */
+  .tabs{display:flex;gap:2px;background:var(--ink);padding:0 20px;flex-shrink:0}
+  .tab{background:transparent;border:none;color:#9aa3b2;font-family:inherit;font-size:13px;font-weight:700;padding:11px 18px;cursor:pointer;border-bottom:3px solid transparent;display:flex;align-items:center;gap:7px}
+  .tab.active{color:#fff;border-bottom-color:var(--amber)}
+  #tabFlujo{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  #tabInforme{flex:1;display:grid;grid-template-columns:390px 1fr;overflow:hidden}
+  .rep-ctrl{overflow-y:auto;padding:18px;border-right:1px solid var(--line);background:#f7f8fb}
+  .rep-ctrl h3{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px}
+  .rep-ctrl h3:first-child{margin-top:0}
+  .rep-ctrl .fld{margin-bottom:13px}
+  .rep-ctrl .fld label{margin-bottom:5px}
+  .rep-ctrl .fld input:not([type=color]),.rep-ctrl .fld textarea{width:100%}
+  .rep-prev{overflow-y:auto;padding:26px;display:flex;justify-content:center;background:#e7e9ee}
+  .chkline{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;padding:6px 0;cursor:pointer}
+  .logo-drop{border:1.5px dashed var(--line2);border-radius:10px;padding:16px;text-align:center;font-size:12px;color:var(--mut);cursor:pointer;background:#fff;display:block}
+  .logo-drop img{max-height:52px;margin-bottom:6px;display:block;margin-left:auto;margin-right:auto}
+  /* Documento (preview informe) */
+  .doc{background:#fff;width:100%;max-width:580px;height:fit-content;box-shadow:0 8px 28px rgba(0,0,0,.14);border-radius:4px;overflow:hidden;font-size:12px;color:#242424}
+  .doc .dhead{padding:18px 22px 24px;color:#fff;display:flex;align-items:center;gap:14px;position:relative}
+  .doc .dpower{position:absolute;right:22px;bottom:7px;font-size:8.5px;font-weight:700;letter-spacing:.6px;opacity:.85}
+  .doc .dhead img{height:46px;width:auto;max-width:120px;object-fit:contain;background:rgba(255,255,255,.92);border-radius:6px;padding:4px}
+  .doc .dhead .dt b{display:block;font-size:18px;font-weight:800;line-height:1.15}
+  .doc .dhead .dt span{font-size:11px;opacity:.92}
+  .doc .dbody{padding:16px 22px}
+  .doc h5{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#999;border-bottom:1px solid #eee;padding-bottom:5px;margin:15px 0 8px;font-weight:800}
+  .doc h5:first-child{margin-top:0}
+  .doc .drow{display:flex;justify-content:space-between;padding:3px 0;font-size:12.5px}
+  .doc .drow span:first-child{color:#666}
+  .doc .drow span:last-child{font-weight:700}
+  .doc .dthumbs{display:flex;gap:8px;margin-top:2px}
+  .doc .dthumb{width:74px;height:54px;background:#f0f0f0;border:1px solid #e0e0e0;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:20px}
+  .doc .dbadge{display:inline-block;padding:4px 13px;border-radius:20px;font-weight:800;font-size:13px;background:#fde8e6;color:#c0392b}
+  .doc .dsign{margin-top:18px;display:flex;gap:28px}
+  .doc .dsign .sl{flex:1;border-top:1px solid #999;padding-top:5px;font-size:10px;color:#777;text-align:center}
+  .doc .dhash{margin-top:10px;font-family:ui-monospace,monospace;font-size:9px;color:#aaa}
+  .doc .dfoot{border-top:1px solid #eee;padding:11px 22px;font-size:10px;color:#999;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#F28C00" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Inter">DI</text></svg>
+  <div class="txt"><b style="font-size:18px">Realidad Asistida</b></div>
+  <div class="sp"></div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="preview()">👁 Vista previa</button>
+      <button class="btn btn-ghost" onclick="exportar()">⭳ Exportar</button>
+      <button class="btn btn-amber" onclick="publicar()">☁ Publicar</button>
+    </div>
+    <span style="font-size:9px;color:#8a93a3;font-weight:700;letter-spacing:.5px">POWERED BY <span style="color:#F28C00">DINAMHO INTELLIGENCE</span></span>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" id="tabBtnFlujo" onclick="switchTab('flujo')">🧩 Flujo</button>
+  <button class="tab" id="tabBtnInforme" onclick="switchTab('informe')">📄 Informe</button>
+</div>
+
+<div id="tabFlujo">
+<div class="meta">
+  <div class="fld grow"><label>Nombre del flujo</label><input id="f_nombre" oninput="setMeta('nombre',this.value)" placeholder="Ej: Inspección pre-uso de equipo" /></div>
+  <div class="fld"><label>Tipo</label><input id="f_tipo" oninput="setMeta('tipo',this.value)" placeholder="preuso_equipo" style="width:170px" /></div>
+  <div class="fld grow"><label>Descripción (opcional)</label><input id="f_desc" oninput="setMeta('descripcion',this.value)" placeholder="Breve descripción" /></div>
+</div>
+
+<div class="meta" style="border-bottom:1px solid var(--line);padding-top:10px;padding-bottom:10px">
+  <div class="addrow">
+    <span class="lbl">Agregar paso</span>
+    <button class="chipbtn" onclick="addPaso('instruccion')">📄 Instrucción</button>
+    <button class="chipbtn" onclick="addPaso('confirmacion')">✔️ Confirmación</button>
+    <button class="chipbtn" onclick="addPaso('foto')">📷 Foto</button>
+    <button class="chipbtn" onclick="addPaso('dato')">🔢 Dato</button>
+    <button class="chipbtn" onclick="addPaso('escaneo')">📇 Escaneo</button>
+  </div>
+</div>
+
+<div class="body">
+  <div class="col left">
+    <h3>Pasos del flujo</h3>
+    <div id="lista"></div>
+  </div>
+  <div class="col">
+    <div class="insp" id="insp"></div>
+  </div>
+</div>
+</div><!-- /tabFlujo -->
+
+<div id="tabInforme" style="display:none">
+  <div class="rep-ctrl">
+    <h3>Diseño del informe</h3>
+    <div class="fld"><label>Logo</label>
+      <label class="logo-drop" id="logoDrop"><span id="logoTxt">⭱ Subir logo (PNG/JPG)</span><input type="file" accept="image/*" style="display:none" onchange="onLogo(this)" /></label>
+      <button class="btn btn-ghost" style="border-color:var(--line2);color:var(--tx);margin-top:7px;padding:6px 12px;font-size:12px" onclick="quitarLogo()">Quitar logo</button>
+    </div>
+    <div class="fld"><label>Título del informe</label><input id="i_titulo" oninput="setInf('titulo',this.value)" /></div>
+    <div class="fld"><label>Empresa</label><input id="i_emp" oninput="setInf('empresa',this.value)" /></div>
+    <div class="fld"><label>Color del encabezado</label><input type="color" id="i_color" oninput="setInf('color',this.value)" style="width:60px;height:38px;padding:2px;border:1.5px solid var(--line2);border-radius:9px;cursor:pointer" /></div>
+    <div class="fld"><label>Pie de página</label><input id="i_pie" oninput="setInf('pie',this.value)" /></div>
+    <h3>Secciones a incluir</h3>
+    <label class="chkline"><input type="checkbox" id="s_datos" onchange="setSec('datos',this.checked)" /> Datos del equipo y operador</label>
+    <label class="chkline"><input type="checkbox" id="s_checklist" onchange="setSec('checklist',this.checked)" /> Checklist / respuestas</label>
+    <label class="chkline"><input type="checkbox" id="s_evidencia" onchange="setSec('evidencia',this.checked)" /> Evidencia (fotos)</label>
+    <label class="chkline"><input type="checkbox" id="s_resultado" onchange="setSec('resultado',this.checked)" /> Resultado (Apto / No apto)</label>
+    <label class="chkline"><input type="checkbox" id="s_firma" onchange="setSec('firma',this.checked)" /> Firma y constancia legal</label>
+    <label class="chkline"><input type="checkbox" id="s_hash" onchange="setInf('mostrar_hash',this.checked)" /> Hash de integridad</label>
+  </div>
+  <div class="rep-prev"><div class="doc" id="doc"></div></div>
+</div>
+
+<!-- Modal preview -->
+<div class="modal" id="mPrev">
+  <div class="mbox">
+    <div class="mh"><b>Vista previa en el lente</b><button class="x" onclick="closeM('mPrev')">×</button></div>
+    <div class="mbody"><div id="lenteWrap"></div></div>
+  </div>
+</div>
+<!-- Modal login -->
+<div class="modal" id="mLogin">
+  <div class="mbox" style="max-width:400px">
+    <div class="mh"><b>Ingresar a la consola</b><button class="x" onclick="closeM('mLogin')">×</button></div>
+    <div class="mbody">
+      <div class="fld" style="margin-bottom:12px"><label>Email</label><input id="lg_email" type="email" placeholder="tu@empresa.com" /></div>
+      <div class="fld" style="margin-bottom:12px"><label>Contraseña</label><input id="lg_pass" type="password" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+      <div id="lg_err" style="color:#d9534f;font-size:13px;margin-bottom:10px;display:none"></div>
+      <button class="btn btn-amber" id="lg_btn" onclick="doLogin()">Ingresar</button>
+    </div>
+  </div>
+</div>
+<!-- Modal export -->
+<div class="modal" id="mExp">
+  <div class="mbox">
+    <div class="mh"><b>Flujo exportado (forma de la base)</b><button class="x" onclick="closeM('mExp')">×</button></div>
+    <div class="mbody">
+      <p class="hint" style="margin-bottom:10px">Este es el JSON del flujo, listo para guardar en Supabase (tablas <b>flujos</b> + <b>flujo_pasos</b>). Cuando conectemos la base, este mismo objeto se publica.</p>
+      <textarea id="json" readonly></textarea>
+      <div style="margin-top:12px;display:flex;gap:10px">
+        <button class="btn btn-amber" onclick="copyJson()">Copiar JSON</button>
+        <button class="btn btn-ghost" style="border-color:var(--line2);color:var(--tx)" onclick="descargarJson()">Descargar .json</button>
+        <span id="copied" style="align-self:center;color:var(--ok);font-size:13px;font-weight:700;display:none">¡Copiado!</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let uid = 1;
+function nid(){ return "p"+(uid++); }
+
+/* =====================================================================
+   SUPABASE · COMPLETÁ con los datos de tu proyecto RealWear
+   (la anon key es pública, va en el cliente — como en Kalu)
+   ===================================================================== */
+const SB_URL  = "https://jwqgvlcktzhyddrofqqg.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
+let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, pendingPublish=false;
+function sbReady(){ return SB_URL.indexOf("TU-PROYECTO")<0 && SB_ANON.indexOf("TU-ANON")<0; }
+async function sbFetch(path, opts){
+  opts=opts||{}; opts.headers=Object.assign({ "apikey":SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
+  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
+  const res=await fetch(SB_URL+path, opts);
+  const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
+  if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
+  return data;
+}
+async function sbLogin(email,password){
+  const d=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:email,password:password})});
+  SB_TOKEN=d.access_token; SB_EMAIL=email;
+  const u=await sbFetch("/auth/v1/user",{});
+  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,tiene_consola");
+  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil/empresa asignada.");
+  if(!perf[0].tiene_consola) throw new Error("Tu usuario no tiene acceso a consola (tiene_consola=false).");
+  SB_EMPRESA=perf[0].empresa_id;
+}
+async function sbPublicar(){
+  if(!SB_EMPRESA) throw new Error("Sesión sin empresa.");
+  const exp=buildExport();
+  const pl=await sbFetch("/rest/v1/plantillas_informe",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({empresa_id:SB_EMPRESA, nombre:exp.plantilla_informe.nombre, config:exp.plantilla_informe.config})});
+  const plId=pl[0].id;
+  const fl=await sbFetch("/rest/v1/flujos",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({empresa_id:SB_EMPRESA, nombre:exp.flujo.nombre, tipo:exp.flujo.tipo, descripcion:exp.flujo.descripcion, version:1, estado:"publicado", plantilla_id:plId, config:{}})});
+  const flId=fl[0].id;
+  const pasos=exp.flujo_pasos.map(function(p){ return { flujo_id:flId, orden:p.orden, tipo_paso:p.tipo_paso, titulo:p.titulo, instruccion:p.instruccion, config:p.config, rama:p.rama||null }; });
+  await sbFetch("/rest/v1/flujo_pasos",{method:"POST",body:JSON.stringify(pasos)});
+  return flId;
+}
+function publicar(){
+  if(!sbReady()){ alert("Falta configurar Supabase: completá SB_URL y SB_ANON en el código con los datos de tu proyecto RealWear."); return; }
+  if(!flow.pasos.length){ alert("El flujo no tiene pasos."); return; }
+  if(!SB_TOKEN){ pendingPublish=true; $("#lg_err").style.display="none"; $("#mLogin").classList.add("show"); setTimeout(function(){var e=$("#lg_email"); if(e)e.focus();},60); return; }
+  realPublicar();
+}
+async function realPublicar(){
+  const btn=$("#lg_btn");
+  try{ const id=await sbPublicar(); alert("✅ Flujo publicado en la nube (id "+id+"), bajo tu empresa."); }
+  catch(e){ alert("Error al publicar: "+((e&&e.message)||e)); }
+}
+async function doLogin(){
+  const email=$("#lg_email").value.trim(), pass=$("#lg_pass").value;
+  const err=$("#lg_err"), btn=$("#lg_btn");
+  if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
+  btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
+  try{
+    await sbLogin(email,pass);
+    closeM("mLogin");
+    if(pendingPublish){ pendingPublish=false; await realPublicar(); }
+  }catch(e){ err.textContent=(e&&e.message)||("Error de login"); err.style.display="block"; }
+  finally{ btn.disabled=false; btn.textContent="Ingresar"; }
+}
+
+/* ---------- Tipos de paso ---------- */
+const TIPOS = {
+  instruccion:{ ic:"📄", nombre:"Instrucción" },
+  confirmacion:{ ic:"✔️", nombre:"Confirmación (Sí/No)" },
+  foto:{ ic:"📷", nombre:"Foto (evidencia)" },
+  dato:{ ic:"🔢", nombre:"Dato / medición" },
+  escaneo:{ ic:"📇", nombre:"Escaneo (QR/código)" },
+};
+
+/* ---------- Modelo (seed: pre-uso, con un BUCLE de corrección de ejemplo) ---------- */
+let flow = { nombre:"Inspección pre-uso de equipo", tipo:"preuso_equipo", descripcion:"", pasos:[] };
+(function(){
+  const pEsc ={ id:nid(), tipo:"escaneo",     titulo:"Identificá el equipo", instruccion:"Escaneá el código del equipo.", campo:"equipo", r:"" };
+  const pAce ={ id:nid(), tipo:"confirmacion", titulo:"Nivel de aceite", instruccion:"Revisá la varilla.", campo:"aceite", opciones:[] };
+  const pFug ={ id:nid(), tipo:"confirmacion", titulo:"¿Hay fugas visibles?", instruccion:"Mirá el piso y las mangueras.", campo:"fugas", opciones:[{label:"Sí",ruta:""},{label:"No",ruta:""}] };
+  const pFot ={ id:nid(), tipo:"foto",         titulo:"Foto del estado general", instruccion:"Encuadrá el equipo y capturá.", campo:"foto_general", r:"" };
+  const pRel ={ id:nid(), tipo:"instruccion",  titulo:"Rellená el aceite hasta el máximo", instruccion:"Llená y después volvé a chequear el nivel.", r:"" };
+  pAce.opciones = [{label:"Bajo",ruta:pRel.id},{label:"Normal",ruta:""},{label:"Lleno",ruta:""}];  // "Bajo" -> rellenar
+  pRel.r   = pAce.id;   // al terminar de rellenar -> VOLVER a medir el aceite (bucle)
+  pFot.r   = "fin";     // la foto es el último paso normal -> Terminar (no cae en "rellenar")
+  flow.pasos = [pEsc, pAce, pFug, pFot, pRel];
+})();
+let selId = flow.pasos[0].id;
+
+/* ---------- Meta ---------- */
+function setMeta(k,v){ flow[k]=v; }
+function fillMeta(){ $("#f_nombre").value=flow.nombre||""; $("#f_tipo").value=flow.tipo||""; $("#f_desc").value=flow.descripcion||""; }
+
+/* ---------- Lista de pasos ---------- */
+function renderLista(){
+  const c=$("#lista");
+  if(!flow.pasos.length){ c.innerHTML='<div class="empty">Todavía no hay pasos.<br>Agregá el primero arriba ☝️</div>'; return; }
+  c.innerHTML = flow.pasos.map(function(p,idx){
+    const t=TIPOS[p.tipo]||{ic:"•",nombre:p.tipo};
+    let branch="";
+    if(p.tipo==="confirmacion"){
+      (p.opciones||[]).forEach(function(o){ const rt=routeText(o.ruta,idx); if(rt) branch+='<div class="branch">«'+esc(o.label)+'» '+rt+'</div>'; });
+    } else { const r=routeText(p.r,idx); if(r) branch+='<div class="branch">'+r+'</div>'; }
+    let ex=""; if(p.imagen) ex+="🖼 "; if(p.pedirDato&&p.pedirDato.campo) ex+="🔢"+esc(p.pedirDato.campo)+" "; if(p.pedirFoto&&p.pedirFoto.campo) ex+="📷";
+    return '<div class="pcard '+(p.id===selId?"sel":"")+'" onclick="sel(\''+p.id+'\')">'+
+      '<div class="top"><div class="ord">'+(idx+1)+'</div><span class="ic">'+t.ic+'</span><span class="ti">'+(p.titulo||"(sin título)")+'</span></div>'+
+      '<div class="ty">'+t.nombre+(ex?' · <span style="color:#8a6d1f">'+ex+'</span>':'')+'</div>'+ branch +
+      '<div class="acts">'+
+        '<button title="Subir" onclick="event.stopPropagation();mover(\''+p.id+'\',-1)">↑</button>'+
+        '<button title="Bajar" onclick="event.stopPropagation();mover(\''+p.id+'\',1)">↓</button>'+
+        '<button title="Duplicar" onclick="event.stopPropagation();dup(\''+p.id+'\')">⧉</button>'+
+        '<button title="Eliminar" onclick="event.stopPropagation();del(\''+p.id+'\')">🗑</button>'+
+      '</div></div>';
+  }).join("");
+}
+
+/* ---------- Inspector ---------- */
+function pasoSel(){ return flow.pasos.find(function(p){return p.id===selId;}); }
+function renderInsp(){
+  const p=pasoSel(); const c=$("#insp");
+  if(!p){ c.innerHTML='<div class="empty" style="margin-top:20px">Seleccioná un paso de la izquierda para editarlo, o agregá uno nuevo.</div>'; return; }
+  const t=TIPOS[p.tipo]||{ic:"•",nombre:p.tipo};
+  let html='<div class="htag">'+t.ic+' '+t.nombre+'</div><h2>Editar paso</h2>';
+  html+='<div class="fld"><label>Título (lo que ve el operador)</label><input value="'+esc(p.titulo)+'" oninput="upd(\'titulo\',this.value)" placeholder="Ej: ¿Nivel de aceite OK?" /></div>';
+  html+='<div class="fld"><label>Instrucción</label><textarea oninput="upd(\'instruccion\',this.value)" placeholder="Indicación breve para el operador">'+esc(p.instruccion)+'</textarea></div>';
+
+  if(p.tipo==="confirmacion"||p.tipo==="foto"||p.tipo==="dato"||p.tipo==="escaneo"){
+    html+='<div class="fld"><label>Campo (nombre interno del dato)</label><input value="'+esc(p.campo||"")+'" oninput="upd(\'campo\',this.value)" placeholder="ej: aceite" /><div class="hint" style="margin-top:6px">Con este nombre se guarda la respuesta en el informe.</div></div>';
+  }
+  if(p.tipo==="dato"){
+    html+='<div class="fld"><label>Formato del dato</label><select onchange="upd(\'formato\',this.value)">'+
+      opt(["numero","texto","medicion","fecha"], p.formato||"numero")+'</select></div>';
+  }
+  html+=extrasUI(p);
+  const SS='style="padding:7px 10px;border-radius:8px;border:1.5px solid var(--line2);font-family:inherit;font-size:13px;max-width:100%;background:#fff"';
+  if(p.tipo==="confirmacion"){
+    const II='style="padding:7px 10px;border:1.5px solid var(--line2);border-radius:8px;font-family:inherit;font-size:13px;width:150px"';
+    let ops='';
+    (p.opciones||[]).forEach(function(o,oi){
+      ops+='<div class="branch-line" style="margin-bottom:8px"><input value="'+esc(o.label)+'" oninput="setOpcLabel('+oi+',this.value)" placeholder="Opción" '+II+' /> → <select '+SS+' onchange="setOpcRuta('+oi+',this.value)">'+destOptions(p.id,o.ruta||"")+'</select>'+((p.opciones.length>1)?' <button onclick="delOpc('+oi+')" title="Quitar" style="border:none;background:#f0e2e2;color:#c0392b;border-radius:6px;width:28px;height:28px;cursor:pointer;font-weight:800">✕</button>':'')+'</div>';
+    });
+    html+='<div class="branchbox"><div class="bh">🔀 Opciones y ruteo (editables)</div>'+ops+
+      '<button class="chipbtn" style="margin-top:2px" onclick="addOpc()">+ Agregar opción</button>'+
+      '<div class="hint" style="margin-top:10px">Poné las opciones que quieras (ej: "Bajo", "Normal", "Lleno"). Cada una puede ir a un paso, <b>volver</b> (bucle) o <b>Terminar</b>.</div></div>';
+  } else {
+    html+='<div class="branchbox"><div class="bh">➡️ Al terminar este paso</div>'+
+      '<div class="branch-line">Ir a <select '+SS+' onchange="setRuta(\'r\',this.value)">'+destOptions(p.id,p.r||"")+'</select></div>'+
+      '<div class="hint" style="margin-top:10px">Dejalo en "Siguiente paso" para el flujo normal, o elegí un paso <b>anterior</b> para volver (bucle).</div></div>';
+  }
+  c.innerHTML=html;
+}
+function opt(arr,val){ return arr.map(function(o){return '<option '+(o===val?"selected":"")+'>'+o+'</option>';}).join(""); }
+
+/* destino de ruteo: "" siguiente · id de paso · "fin" terminar */
+function destOptions(pid,val){
+  let o='<option value="" '+(val===""?"selected":"")+'>Siguiente paso</option>';
+  flow.pasos.forEach(function(x,idx){ if(x.id===pid)return; o+='<option value="'+x.id+'" '+(x.id===val?"selected":"")+'>Paso '+(idx+1)+': '+esc((x.titulo||"(sin título)").slice(0,34))+'</option>'; });
+  o+='<option value="fin" '+(val==="fin"?"selected":"")+'>Terminar (ir al resultado)</option>';
+  return o;
+}
+function routeText(val,curIdx){
+  if(!val) return null;
+  if(val==="fin") return "→ terminar";
+  const idx=flow.pasos.findIndex(function(x){return x.id===val;});
+  if(idx<0) return null;
+  return (idx<curIdx?"↩ volver a paso ":"→ paso ")+(idx+1);
+}
+function setRuta(k,v){ const p=pasoSel(); if(p){ p[k]=v; renderLista(); } }
+
+/* ---------- Extras del paso (imagen, dato, foto) — para CUALQUIER tipo ---------- */
+function extrasUI(p){
+  const SS='style="padding:7px 10px;border-radius:8px;border:1.5px solid var(--line2);font-family:inherit;font-size:13px;background:#fff"';
+  const IN='style="padding:7px 10px;border:1.5px solid var(--line2);border-radius:8px;font-family:inherit;font-size:13px;width:160px"';
+  let h='<div class="branchbox"><div class="bh">➕ Extras del paso (opcionales)</div>';
+  // Imagen de referencia (todos los tipos)
+  const imgOn=(p.imagen!==undefined && p.imagen!==null);
+  h+='<label class="chkline"><input type="checkbox" '+(imgOn?"checked":"")+' onchange="toggleImg(this.checked)" /> 🖼 Imagen de referencia (se le muestra al operador)</label>';
+  if(imgOn){ h+='<label class="logo-drop" style="margin:4px 0 8px"><span>'+(p.imagen?'<img src="'+p.imagen+'" style="max-height:56px" />Cambiar imagen':'⭱ Subir imagen')+'</span><input type="file" accept="image/*" style="display:none" onchange="onImgPaso(this)" /></label>'; }
+  // Pedir un dato (todos salvo el tipo "dato")
+  if(p.tipo!=="dato"){
+    const on=!!p.pedirDato;
+    h+='<label class="chkline"><input type="checkbox" '+(on?"checked":"")+' onchange="togglePedirDato(this.checked)" /> 🔢 Pedir un dato (ej: nivel de aceite)</label>';
+    if(on){ h+='<div class="branch-line" style="margin:4px 0 8px">Campo <input value="'+esc(p.pedirDato.campo||"")+'" oninput="setPedirDato(\'campo\',this.value)" placeholder="ej: nivel_aceite" '+IN+' /> · formato <select '+SS+' onchange="setPedirDato(\'formato\',this.value)">'+opt2(["numero","texto","medicion","fecha"],p.pedirDato.formato||"numero")+'</select></div>'; }
+  }
+  // Pedir foto de evidencia (todos salvo el tipo "foto")
+  if(p.tipo!=="foto"){
+    const on=!!p.pedirFoto;
+    h+='<label class="chkline"><input type="checkbox" '+(on?"checked":"")+' onchange="togglePedirFoto(this.checked)" /> 📷 Pedir foto de evidencia</label>';
+    if(on){ h+='<div class="branch-line" style="margin:4px 0 2px">Campo <input value="'+esc(p.pedirFoto.campo||"")+'" oninput="setPedirFoto(this.value)" placeholder="ej: foto_aceite" '+IN+' /></div>'; }
+  }
+  return h+'</div>';
+}
+function opt2(arr,val){ return arr.map(function(o){return '<option value="'+o+'" '+(o===val?"selected":"")+'>'+o+'</option>';}).join(""); }
+function toggleImg(on){ const p=pasoSel(); if(!p)return; p.imagen=on?"":null; renderInsp(); renderLista(); }
+function onImgPaso(inp){ const p=pasoSel(); const f=inp.files&&inp.files[0]; if(!p||!f)return; const rd=new FileReader(); rd.onload=function(){ p.imagen=rd.result; renderInsp(); renderLista(); }; rd.readAsDataURL(f); }
+function togglePedirDato(on){ const p=pasoSel(); if(!p)return; p.pedirDato=on?{campo:"",formato:"numero"}:null; renderInsp(); renderLista(); }
+function setPedirDato(k,v){ const p=pasoSel(); if(p&&p.pedirDato){ p.pedirDato[k]=v; renderLista(); } }
+function togglePedirFoto(on){ const p=pasoSel(); if(!p)return; p.pedirFoto=on?{campo:""}:null; renderInsp(); renderLista(); }
+function setPedirFoto(v){ const p=pasoSel(); if(p&&p.pedirFoto){ p.pedirFoto.campo=v; renderLista(); } }
+
+/* ---------- Opciones de la confirmación (editables) ---------- */
+function addOpc(){ const p=pasoSel(); if(p){ if(!p.opciones)p.opciones=[]; p.opciones.push({label:"Opción",ruta:""}); renderInsp(); renderLista(); } }
+function delOpc(i){ const p=pasoSel(); if(p&&p.opciones){ p.opciones.splice(i,1); renderInsp(); renderLista(); } }
+function setOpcLabel(i,v){ const p=pasoSel(); if(p&&p.opciones&&p.opciones[i]){ p.opciones[i].label=v; renderLista(); } }
+function setOpcRuta(i,v){ const p=pasoSel(); if(p&&p.opciones&&p.opciones[i]){ p.opciones[i].ruta=v; renderLista(); } }
+
+/* ---------- Acciones ---------- */
+function sel(id){ selId=id; renderAll(); }
+function upd(k,v){ const p=pasoSel(); if(p){ p[k]=v; renderLista(); } }
+function addPaso(tipo){
+  const p={ id:nid(), tipo:tipo, titulo:"", instruccion:"" };
+  if(tipo!=="instruccion") p.campo="";
+  if(tipo==="dato") p.formato="numero";
+  if(tipo==="confirmacion"){ p.opciones=[{label:"Sí",ruta:""},{label:"No",ruta:""}]; } else { p.r=""; }
+  flow.pasos.push(p); selId=p.id; renderAll();
+  const inp=$("#insp input"); if(inp) inp.focus();
+}
+function mover(id,d){ const i=flow.pasos.findIndex(function(p){return p.id===id;}); const j=i+d; if(j<0||j>=flow.pasos.length)return; const t=flow.pasos[i]; flow.pasos[i]=flow.pasos[j]; flow.pasos[j]=t; renderAll(); }
+function dup(id){ const i=flow.pasos.findIndex(function(p){return p.id===id;}); const c=JSON.parse(JSON.stringify(flow.pasos[i])); c.id=nid(); c.r=""; if(c.opciones) c.opciones.forEach(function(o){o.ruta="";}); flow.pasos.splice(i+1,0,c); selId=c.id; renderAll(); }
+function del(id){ const i=flow.pasos.findIndex(function(p){return p.id===id;}); flow.pasos.splice(i,1); flow.pasos.forEach(function(p){ if(p.r===id)p.r=""; if(p.opciones) p.opciones.forEach(function(o){ if(o.ruta===id)o.ruta=""; }); }); if(selId===id) selId=flow.pasos.length?flow.pasos[Math.max(0,i-1)].id:null; renderAll(); }
+
+function renderAll(){ renderLista(); renderInsp(); }
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* ---------- Vista previa (lente) ---------- */
+function preview(){
+  const p=pasoSel()||flow.pasos[0];
+  const w=$("#lenteWrap");
+  if(!p){ w.innerHTML='<div class="empty">Agregá un paso para previsualizar.</div>'; $("#mPrev").classList.add("show"); return; }
+  let opts="", help="";
+  if(p.tipo==="confirmacion"){
+    const os=(p.opciones&&p.opciones.length)?p.opciones:[{label:"Sí"},{label:"No"}];
+    opts=os.map(function(o,ix){ return '<div class="lb '+(ix===0?"ok":(ix===1?"no":"pri"))+'">'+esc(o.label)+'</div>'; }).join("");
+    help='Decí '+os.map(function(o){ return '“'+esc(o.label)+'”'; }).join(" · ");
+  }
+  else if(p.tipo==="foto"){ opts='<div class="lb pri">Tomar foto</div><div class="lb">Omitir</div>'; help='Decí “Tomar foto” · “Omitir”'; }
+  else if(p.tipo==="escaneo"){ opts='<div class="lb pri">Escanear</div>'; help='Decí “Escanear”'; }
+  else if(p.tipo==="dato"){ opts='<div class="lb pri">Ingresar</div>'; help='Teclado / voz'; }
+  else { opts='<div class="lb pri">Siguiente</div>'; help='Decí “Siguiente”'; }
+  if(p.pedirDato && p.pedirDato.campo) help+=' · dato: '+esc(p.pedirDato.campo);
+  if(p.pedirFoto && p.pedirFoto.campo) help+=' · 📷';
+  const img=(p.imagen?'<img src="'+p.imagen+'" style="max-height:78px;border-radius:6px;margin-bottom:8px;object-fit:contain;background:#000;align-self:flex-start">':'');
+  w.innerHTML='<div class="lente"><div class="lbar">🥽 KALU · Realidad Asistida</div>'+
+    '<div class="lscr"><div class="lk">'+(TIPOS[p.tipo]?TIPOS[p.tipo].nombre:"Paso")+'</div>'+
+    '<div class="lt">'+esc(p.titulo||"(sin título)")+'</div>'+
+    '<div class="li">'+esc(p.instruccion||"")+'</div>'+
+    img+
+    '<div class="lopts">'+opts+'</div></div>'+
+    '<div class="lhelp">🎤 '+help+'</div></div>';
+  $("#mPrev").classList.add("show");
+}
+
+/* ---------- Exportar (forma Supabase) ---------- */
+function buildExport(){
+  return {
+    flujo:{ nombre:flow.nombre, tipo:flow.tipo, descripcion:flow.descripcion, version:1, estado:"borrador" },
+    flujo_pasos: flow.pasos.map(function(p,idx){
+      const o={ orden:idx+1, tipo_paso:p.tipo, titulo:p.titulo||"", instruccion:p.instruccion||"", config:{} };
+      if(p.campo) o.config.campo=p.campo;
+      if(p.formato) o.config.formato=p.formato;
+      function target(val){ if(val==="fin") return {fin:true}; const j=flow.pasos.findIndex(function(x){return x.id===val;}); return j>=0?{ir_a_orden:j+1}:null; }
+      const rama=[];
+      if(p.tipo==="confirmacion"){
+        o.config.opciones=(p.opciones||[]).map(function(x){return {label:x.label};});
+        (p.opciones||[]).forEach(function(x){ if(x.ruta){ const t=target(x.ruta); if(t) rama.push(Object.assign({cuando:x.label},t)); } });
+      } else if(p.r){ const t=target(p.r); if(t) rama.push(Object.assign({cuando:"siempre"},t)); }
+      if(p.imagen) o.config.imagen=p.imagen;
+      if(p.pedirDato && p.pedirDato.campo) o.config.dato={ campo:p.pedirDato.campo, formato:p.pedirDato.formato };
+      if(p.pedirFoto && p.pedirFoto.campo) o.config.foto={ campo:p.pedirFoto.campo };
+      if(rama.length) o.rama=rama;
+      return o;
+    }),
+    plantilla_informe: { nombre:(informe.titulo||"Plantilla"), config: informe }
+  };
+}
+function exportar(){ $("#json").value=JSON.stringify(buildExport(),null,2); $("#mExp").classList.add("show"); }
+function copyJson(){ const t=$("#json"); t.select(); try{ document.execCommand("copy"); }catch(e){} $("#copied").style.display="inline"; setTimeout(function(){$("#copied").style.display="none";},1500); }
+function descargarJson(){ const blob=new Blob([$("#json").value],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=(flow.tipo||"flujo")+".json"; a.click(); }
+function closeM(id){ $("#"+id).classList.remove("show"); }
+
+/* ---------- Informe (plantilla) ---------- */
+let informe = {
+  logo:null, titulo:"Realidad Asistida", subtitulo:"",
+  empresa:"Dinamho T&T SAS", color:"#1F4E79",
+  pie:"Documento generado electrónicamente · Ley 527 de 2008",
+  secciones:{ datos:true, checklist:true, evidencia:true, resultado:true, firma:true }, mostrar_hash:true
+};
+function fillInforme(){
+  $("#i_titulo").value=informe.titulo; $("#i_emp").value=informe.empresa;
+  $("#i_color").value=informe.color; $("#i_pie").value=informe.pie;
+  $("#s_datos").checked=informe.secciones.datos; $("#s_checklist").checked=informe.secciones.checklist;
+  $("#s_evidencia").checked=informe.secciones.evidencia; $("#s_resultado").checked=informe.secciones.resultado;
+  $("#s_firma").checked=informe.secciones.firma; $("#s_hash").checked=informe.mostrar_hash;
+}
+function setInf(k,v){ informe[k]=v; renderDoc(); }
+function setSec(k,v){ informe.secciones[k]=v; renderDoc(); }
+function onLogo(inp){ const f=inp.files&&inp.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=function(){ informe.logo=rd.result; $("#logoTxt").innerHTML='<img src="'+informe.logo+'" />Cambiar logo'; renderDoc(); }; rd.readAsDataURL(f); }
+function quitarLogo(){ informe.logo=null; $("#logoTxt").textContent="⭱ Subir logo (PNG/JPG)"; renderDoc(); }
+function switchTab(t){
+  const f=(t==="flujo");
+  $("#tabFlujo").style.display=f?"flex":"none";
+  $("#tabInforme").style.display=f?"none":"grid";
+  $("#tabBtnFlujo").classList.toggle("active",f);
+  $("#tabBtnInforme").classList.toggle("active",!f);
+  if(!f) renderDoc();
+}
+function renderDoc(){
+  const s=informe.secciones, c=informe.color;
+  let h='<div class="dhead" style="background:'+c+'">'+
+    (informe.logo?'<img src="'+informe.logo+'" />':'')+
+    '<div class="dt"><b>'+esc(informe.titulo||"Realidad Asistida")+'</b></div>'+
+    '<div class="dpower">POWERED BY DINAMHO INTELLIGENCE</div>'+
+    '</div><div class="dbody">';
+  if(s.datos){ h+='<h5>Datos</h5><div class="drow"><span>Equipo</span><span>EQ-166</span></div><div class="drow"><span>Operador</span><span>Carla Seguel · 12.345</span></div><div class="drow"><span>Fecha</span><span>—</span></div>'; }
+  if(s.checklist){ h+='<h5>Checklist</h5><div class="drow"><span>¿Nivel de aceite OK?</span><span>Sí</span></div><div class="drow"><span>¿Hay fugas visibles?</span><span>Sí</span></div>'; }
+  if(s.evidencia){ h+='<h5>Evidencia</h5><div class="dthumbs"><div class="dthumb">📷</div><div class="dthumb">📷</div></div>'; }
+  if(s.resultado){ h+='<h5>Resultado</h5><span class="dbadge">NO APTO</span>'; }
+  if(s.firma){ h+='<div class="dsign"><div class="sl">Firma del operador</div><div class="sl">Firma HSE</div></div>'; }
+  if(informe.mostrar_hash){ h+='<div class="dhash">Hash de integridad: 8f3a…c21 (FNV-1a)</div>'; }
+  h+='</div><div class="dfoot">'+esc(informe.pie||"")+'</div>';
+  $("#doc").innerHTML=h;
+}
+
+/* ---------- Init ---------- */
+fillMeta(); fillInforme(); renderAll(); renderDoc();
+</script>
+</body>
+</html>

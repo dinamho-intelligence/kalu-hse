@@ -50,16 +50,6 @@
   .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
   .hero-note{margin-top:26px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:9px}
   .hero-note .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e}
-  /* HERO CARDS (dos recuadros: HSE + Realidad Asistida) */
-  .hero-cards{display:flex;flex-direction:column;gap:16px}
-  .hcard{background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--border);border-radius:16px;padding:24px 26px;transition:transform .3s,border-color .3s}
-  .hcard:hover{transform:translateY(-3px);border-color:rgba(242,140,0,.4)}
-  .hcard h2{font-size:clamp(21px,2.5vw,29px);font-weight:700;line-height:1.12;letter-spacing:-.5px;margin:0 0 12px}
-  .hcard h2 .hl{background:linear-gradient(120deg,var(--orange),var(--orange2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hcard p{color:var(--muted);font-size:14.5px;margin:0 0 20px;max-width:520px}
-  .htag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:4px 11px;border-radius:20px;margin-bottom:14px}
-  .htag.o{color:var(--orange);border:1px solid rgba(242,140,0,.35)}
-  .htag.c{color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
   /* avatar visual */
   .avatar-stage{position:relative;display:flex;align-items:center;justify-content:center;height:560px}
   .avatar-stage svg{width:100%;max-width:400px;height:auto;filter:drop-shadow(0 0 40px rgba(0,212,255,.15))}
@@ -146,6 +136,7 @@
       <a class="lnk" href="#producto">Producto</a>
       <a class="lnk" href="#seguridad">Seguridad</a>
       <a class="lnk" href="#norma">Cumplimiento</a>
+      <a class="btn btn-ghost" href="/app.html">Ingresar</a>
     </div>
   </div>
 </nav>
@@ -155,19 +146,11 @@
   <div class="wrap">
     <div>
       <span class="eyebrow">Inteligencia HSE · Colombia</span>
-      <div class="hero-cards">
-        <div class="hcard">
-          <span class="htag o">Investigación &amp; Validación</span>
-          <h2>La IA que investiga cada accidente como un <span class="hl">experto</span> — y previene el próximo.</h2>
-          <p>KALU habla en el lenguaje de la cuadrilla, investiga bajo la norma colombiana y entrega el expediente completo en minutos — con criterio humano al mando.</p>
-          <a class="btn btn-primary" href="/app.html">Ingresar a KALU HSE →</a>
-        </div>
-        <div class="hcard">
-          <span class="htag c">RealWear · Manos libres</span>
-          <h2>Realidad Asistida: inspecciones <span class="hl">por voz</span>, en terreno.</h2>
-          <p>Flujos de trabajo en gafas RealWear, 100% manos libres. Evidencia firmada y trazable, que funciona incluso sin conexión.</p>
-          <a class="btn btn-primary" href="/realidad-asistida.html">Ingresar a Realidad Asistida →</a>
-        </div>
+      <h1>La IA que investiga cada accidente como un <span class="hl">experto</span> — y previene el próximo.</h1>
+      <p class="sub">KALU es el asistente HSE que habla en el lenguaje de la cuadrilla, conduce investigaciones bajo la norma colombiana y entrega el expediente completo en minutos. Con los datos de tu empresa blindados y el criterio humano siempre al mando.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#contacto">Solicitar una demo →</a>
+        <a class="btn btn-ghost" href="/app.html">Ingresar</a>
       </div>
       <div class="hero-note"><span class="dot"></span> En operación en campo · Res. 1401 / ISO 45001</div>
     </div>

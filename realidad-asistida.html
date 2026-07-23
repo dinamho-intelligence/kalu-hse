@@ -125,11 +125,16 @@ const PASOS = [
 const idxDe = id => PASOS.findIndex(p=>p.id===id);
 
 /* ---------- Estado ---------- */
-let ejec=null, i=0, cedBuf="";
+let ejec=null, i=0, cedBuf="", pinBuf="", stage="";
+/* ===== Operadores autorizados · EDITÁ acá: agregá cédulas y PIN reales ===== */
+const OPERADORES = [
+  { cedula:"12345", pin:"1234", nombre:"Operador demo" }
+  // ,{ cedula:"CEDULA_REAL", pin:"PIN_REAL", nombre:"Carla Seguel" }
+];
 function nuevaEjecucion(){
-  ejec={ id:genId(), flujo:"Inspección pre-uso de equipo", version:1, operador_cedula:"",
+  ejec={ id:genId(), flujo:"Inspección pre-uso de equipo", version:1, operador_cedula:"", operador_nombre:"",
     equipo_id:"", inicio:new Date().toISOString(), fin:null, resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
-  i=0; cedBuf="";
+  i=0; cedBuf=""; pinBuf=""; stage="";
 }
 
 /* ---------- Pantallas ---------- */
@@ -144,27 +149,37 @@ function showInicio(){
   chips(["“<b>Entrar</b>”"]);
 }
 
-function irIdent(){ showIdent(); }
-function showIdent(){
+function irIdent(){ cedBuf=""; pinBuf=""; showCedula(""); }
+
+/* Teclado reutilizable (cédula y PIN) */
+function keypadScreen(kick,title,instr,display,enterFn,errMsg){
   let keys="";
-  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="ced(\''+n+'\')">'+n+'</button>'; });
-  keys+='<button class="key wide act" title="'+wm("Borrar")+'" onclick="cedDel()">Borrar</button>';
-  keys+='<button class="key" title="'+wm("")+'" onclick="ced(\'0\')">0</button>';
-  keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="irFlujo()">Entrar</button>';
+  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="keyPress(\''+n+'\')">'+n+'</button>'; });
+  keys+='<button class="key wide act" title="'+wm("Borrar")+'" onclick="keyDel()">Borrar</button>';
+  keys+='<button class="key" title="'+wm("")+'" onclick="keyPress(\'0\')">0</button>';
+  keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="'+enterFn+'">Entrar</button>';
   setScreen("",
-    '<div class="kick">Operador</div>'+
-    '<div class="title">Tu cédula</div>'+
-    '<p class="instr">Tocá los números o decí el número de cada tecla. Después «Entrar».</p>'+
+    '<div class="kick">'+kick+'</div>'+
+    '<div class="title">'+title+'</div>'+
+    (errMsg?'<p class="instr" style="color:#f2a6a3">'+errMsg+'</p>':'<p class="instr">'+instr+'</p>')+
     '<div class="idwrap">'+
-      '<div class="iddisplay"><div class="idbox '+(cedBuf?"":"empty")+'" id="idbox">'+(cedBuf||"— — — —")+'</div></div>'+
+      '<div class="iddisplay"><div class="idbox '+(display?"":"empty")+'" id="idbox">'+(display||"— — — —")+'</div></div>'+
       '<div class="keys">'+keys+'</div>'+
     '</div>');
   chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
 }
-function ced(n){ if(cedBuf.length<12){ cedBuf+=n; pintCed(); } }
-function cedDel(){ cedBuf=cedBuf.slice(0,-1); pintCed(); }
-function pintCed(){ const b=$("#idbox"); if(!b)return; b.textContent=cedBuf||"— — — —"; if(cedBuf) b.classList.remove("empty"); else b.classList.add("empty"); }
-function irFlujo(){ ejec.operador_cedula=cedBuf; i=0; render(); }
+function showCedula(err){ stage="ced"; keypadScreen("Operador · Paso 1","Tu cédula","Tocá los números o decí el número de cada tecla. Después «Entrar».", cedBuf, "cedListo()", err||""); }
+function showPin(err){ stage="pin"; keypadScreen("Operador · Paso 2","Tu PIN","Ingresá tu PIN y decí «Entrar».", pinMask(), "pinListo()", err||""); }
+function pinMask(){ return pinBuf.replace(/./g,"•"); }
+function keyPress(n){ const buf=(stage==="pin"?pinBuf:cedBuf); if(buf.length<12){ if(stage==="pin") pinBuf+=n; else cedBuf+=n; paintKey(); } }
+function keyDel(){ if(stage==="pin") pinBuf=pinBuf.slice(0,-1); else cedBuf=cedBuf.slice(0,-1); paintKey(); }
+function paintKey(){ const b=$("#idbox"); if(!b)return; const v=(stage==="pin"?pinMask():cedBuf); b.textContent=v||"— — — —"; if(v) b.classList.remove("empty"); else b.classList.add("empty"); }
+function cedListo(){ if(!cedBuf){ showCedula("Ingresá tu cédula."); return; } showPin(""); }
+function pinListo(){
+  const op=OPERADORES.find(function(o){ return o.cedula===cedBuf && o.pin===pinBuf; });
+  if(op){ ejec.operador_cedula=cedBuf; ejec.operador_nombre=op.nombre||""; i=0; render(); }
+  else { cedBuf=""; pinBuf=""; showCedula("❌ Cédula o PIN incorrecto. Volvé a intentar."); }
+}
 
 function render(){
   const p=PASOS[i];
@@ -215,7 +230,7 @@ function render(){
       '<div class="kick">✔ Registro guardado</div><div class="title" style="font-size:20px">'+p.titulo+'</div>'+
       '<div class="sum">'+
         '<div class="row"><span>Equipo</span><span>'+(ejec.equipo_id||"—")+'</span></div>'+
-        '<div class="row"><span>Operador (cédula)</span><span>'+(ejec.operador_cedula||"—")+'</span></div>'+
+        '<div class="row"><span>Operador</span><span>'+((ejec.operador_nombre?ejec.operador_nombre+" · ":"")+(ejec.operador_cedula||"—"))+'</span></div>'+
         '<div class="row"><span>Aceite / Fugas</span><span>'+fmt(r.aceite)+' / '+fmt(r.fugas)+'</span></div>'+
         '<div class="row"><span>Evidencia</span><span>'+fotos+' foto(s)</span></div>'+
         '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+

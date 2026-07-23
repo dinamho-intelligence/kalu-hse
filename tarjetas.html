@@ -195,12 +195,10 @@
     </div>
 
     <div class="fld">
-      <label>Foto de evidencia <span style="color:var(--tx3)">(opcional)</span></label>
-      <div class="photo">
-        <label class="pbtn" for="foto">📷 Tomar / adjuntar foto</label>
-        <img id="fotoPrev">
-      </div>
-      <input type="file" id="foto" accept="image/*" capture="environment" class="hide" onchange="prevFoto()">
+      <label>Fotos de evidencia <span style="color:var(--tx3)">(hasta 5, opcional)</span></label>
+      <div id="fotosPrev" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+      <label class="pbtn" id="btnAddFoto" for="foto" style="display:block">📷 Agregar foto</label>
+      <input type="file" id="foto" accept="image/*" capture="environment" class="hide" onchange="addFoto()">
     </div>
 
     <button class="btn" onclick="irFirma()">Continuar a la firma ▸</button>
@@ -237,7 +235,7 @@ const CATS=['Uso de EPP','Posición de personas','Herramientas y equipos','Proce
 
 let obs=null, cands=[], clase='inseguro';
 const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
-let fotoFile=null, fotoDataUrl=null, last=null;
+let fotos=[], last=null;
 
 function $(id){return document.getElementById(id);}
 function show(id){['scId','scForm','scFirma','scDone'].forEach(s=>$(s).classList.toggle('hide',s!==id)); window.scrollTo(0,0);}
@@ -286,13 +284,16 @@ async function cacheRoster(empId){ if(!empId||!navigator.onLine)return;
   }catch(e){ /* silencioso: si falla, seguimos */ } }
 
 // -- cola de tarjetas sin subir --
-function encolar(reg,fotoBlob,fotoType,firmaBlob,ts,empresa,pdfBlob){
-  return idbPut('cola',{id:reg.id,reg:reg,fotoBlob:fotoBlob||null,fotoType:fotoType||null,firmaBlob:firmaBlob,pdfBlob:pdfBlob||null,ts:ts,empresa:empresa,reintentos:0,at:Date.now()}); }
+function encolar(reg,fotosArr,firmaBlob,ts,empresa,pdfBlob){
+  return idbPut('cola',{id:reg.id,reg:reg,fotos:fotosArr||[],firmaBlob:firmaBlob,pdfBlob:pdfBlob||null,ts:ts,empresa:empresa,reintentos:0,at:Date.now()}); }
 let _syncing=false;
 async function syncCola(){ if(_syncing||!navigator.onLine)return; _syncing=true;
   try{ const items=await idbAll('cola');
     for(const it of items){ try{ const reg=it.reg;
-        if(it.fotoBlob){ reg.foto_path=await sbUpload(reg.id+'/foto.jpg', it.fotoBlob, it.fotoType||'image/jpeg'); }
+        const _fs = it.fotos || (it.fotoBlob?[{blob:it.fotoBlob,type:it.fotoType}]:[]);
+        const _paths=[];
+        for(let fi=0; fi<_fs.length; fi++){ if(_fs[fi]&&_fs[fi].blob){ _paths.push(await sbUpload(reg.id+'/foto'+(fi+1)+'.jpg', _fs[fi].blob, _fs[fi].type||'image/jpeg')); } }
+        reg.foto_paths = _paths.length?_paths:null; reg.foto_path = _paths.length?_paths[0]:null;
         reg.firma_path=await sbUpload(reg.id+'/firma.png', it.firmaBlob, 'image/png');
         await sbInsert('tarjetas', reg);
         if(it.pdfBlob){ await guardarPdfTarjeta(reg, it.ts, it.pdfBlob); }
@@ -358,7 +359,9 @@ function setClase(c){
 }
 function pick(k,el){ const box=el.parentElement; [...box.children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal[k]=el.dataset.v; }
 function pickCat(el){ [...$('catChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal.categoria=el.dataset.v; }
-function prevFoto(){ const f=$('foto').files[0]; if(!f) return; fotoFile=f; const rd=new FileReader(); rd.onload=e=>{fotoDataUrl=e.target.result; const im=$('fotoPrev'); im.src=fotoDataUrl; im.style.display='block';}; rd.readAsDataURL(f); }
+function addFoto(){ const f=$('foto').files[0]; $('foto').value=''; if(!f) return; if(fotos.length>=5){ alert('Máximo 5 fotos.'); return; } const rd=new FileReader(); rd.onload=e=>{ fotos.push({file:f, dataUrl:e.target.result, type:(f.type||'image/jpeg')}); renderFotos(); }; rd.readAsDataURL(f); }
+function renderFotos(){ const c=$('fotosPrev'); if(!c) return; c.innerHTML=fotos.map(function(ft,i){ return '<div style="position:relative;width:66px;height:66px"><img src="'+ft.dataUrl+'" style="width:66px;height:66px;object-fit:cover;border-radius:10px;border:1px solid var(--line)"><button type="button" onclick="quitarFoto('+i+')" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--rojo,#e23b3b);color:#fff;border:2px solid #fff;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button></div>'; }).join(''); const b=$('btnAddFoto'); if(b) b.style.display=(fotos.length>=5)?'none':'block'; }
+function quitarFoto(i){ fotos.splice(i,1); renderFotos(); }
 
 function irFirma(){
   err('fErr','');
@@ -416,23 +419,24 @@ async function registrar(){
   };
   reg.hash=hashStr(id+obs.cedula+reg.descripcion+clase+ts);
   const firmaBlob=dataURLtoBlob(firmaDataUrl);
-  const pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoDataUrl).output('blob');
+  const fotoUrls=fotos.map(function(f){return f.dataUrl;});
+  const pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoUrls).output('blob');
   try{
     if(!navigator.onLine) throw new Error('offline');
-    let fotoPath=null;
-    if(fotoFile){ fotoPath=await sbUpload(id+'/foto.jpg', fotoFile, fotoFile.type||'image/jpeg'); }
+    const paths=[];
+    for(let fi=0; fi<fotos.length; fi++){ paths.push(await sbUpload(id+'/foto'+(fi+1)+'.jpg', fotos[fi].file, fotos[fi].type||'image/jpeg')); }
     const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
-    reg.foto_path=fotoPath; reg.firma_path=firmaPath;
+    reg.foto_paths = paths.length?paths:null; reg.foto_path = paths.length?paths[0]:null; reg.firma_path=firmaPath;
     await sbInsert('tarjetas', reg);
     await guardarPdfTarjeta(reg, ts, pdfBlob);
-    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa, pendiente:false};
+    last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrls:fotoUrls, empresa:obs.empresa, pendiente:false};
     mostrarHecho(false);
   }catch(e){
     const netFail = !navigator.onLine || e.message==='offline' || (e instanceof TypeError) || /Failed to fetch|NetworkError/i.test(e.message||'');
     if(netFail){ // sin señal (o se cayó): guardar en el equipo y subir después
       try{
-        await encolar(reg, fotoFile, (fotoFile&&fotoFile.type)||null, firmaBlob, ts, obs.empresa, pdfBlob);
-        last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrl:fotoDataUrl, empresa:obs.empresa, pendiente:true};
+        await encolar(reg, fotos.map(function(f){return {blob:f.file,type:f.type};}), firmaBlob, ts, obs.empresa, pdfBlob);
+        last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrls:fotoUrls, empresa:obs.empresa, pendiente:true};
         mostrarHecho(true); actualizarPendientes();
         if(navigator.onLine) syncCola();
       }catch(e2){
@@ -458,7 +462,7 @@ function mostrarHecho(pendiente){
   show('scDone');
 }
 
-function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrl){
+function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
   const W=doc.internal.pageSize.getWidth(); let y=54;
   doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
@@ -488,7 +492,13 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrl){
   if(r.observado_nombre) row('Persona observada', r.observado_nombre);
 
   y+=6;
-  if(fotoDataUrl){ try{ doc.setFont('helvetica','bold'); doc.text('Evidencia', 40, y); y+=8; doc.addImage(fotoDataUrl,'JPEG',40,y,130,98); y+=110; }catch(e){} }
+  var _fu = Array.isArray(fotoDataUrls)?fotoDataUrls:(fotoDataUrls?[fotoDataUrls]:[]);
+  if(_fu.length){
+    doc.setFont('helvetica','bold'); doc.text('Evidencia'+(_fu.length>1?' ('+_fu.length+' fotos)':''), 40, y); y+=8;
+    var _fx=40, _fw=95, _fh=72, _gap=8, _yy=y;
+    _fu.forEach(function(u){ if(_fx+_fw>W-40){ _fx=40; _yy+=_fh+_gap; } try{ doc.addImage(u,'JPEG',_fx,_yy,_fw,_fh); }catch(e){} _fx+=_fw+_gap; });
+    y=_yy+_fh+10;
+  }
   doc.setFont('helvetica','bold'); doc.text('Firma del observador', 40, y); y+=6;
   try{ doc.addImage(firmaDataUrl,'PNG',40,y,150,60); }catch(e){}
   y+=74;
@@ -501,7 +511,7 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrl){
 }
 function descargarPDF(){
   const r=last.reg;
-  buildTarjetaPdf(r, last.ts, last.empresa, last.firmaDataUrl, last.fotoDataUrl).save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
+  buildTarjetaPdf(r, last.ts, last.empresa, last.firmaDataUrl, last.fotoDataUrls).save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
 }
 
 function salirTarjetas(){ var st=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true; if(st){ location.reload(); } else { location.href='/app.html'; } }

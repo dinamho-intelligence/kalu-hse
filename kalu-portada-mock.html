@@ -71,6 +71,8 @@
   .chip.g{color:var(--green); border-color:rgba(52,211,153,.4); bottom:10%; left:52%; transform:translateX(-50%)}
   .chip.v{color:var(--violet); border-color:rgba(167,139,250,.4); top:46%; left:2%}
   .charnote{position:absolute; bottom:-6px; font-size:10.5px; color:var(--faint)}
+  .charimg{max-height:440px; max-width:100%; object-fit:contain; display:block; margin:0 auto; filter:drop-shadow(0 14px 44px rgba(0,0,0,.55))}
+  .emblem-fallback{position:relative; width:100%; min-height:360px; display:flex; align-items:center; justify-content:center}
 
   /* PLATAFORMA / módulos */
   section.mods{padding:34px 0 30px; border-top:1px solid var(--border); margin-top:24px}
@@ -128,7 +130,6 @@
       <a href="#modulos">Módulos</a>
       <a href="#">Seguridad</a>
       <a href="#">Cumplimiento</a>
-      <a href="#" class="enter">Ingresar</a>
     </div>
   </div></nav>
 
@@ -142,28 +143,30 @@
         <p class="lead">KALU es el asistente que habla en el lenguaje de la cuadrilla, conduce investigaciones bajo la norma colombiana y entrega el expediente completo en minutos. Con los datos de tu empresa blindados y el criterio humano siempre al mando.</p>
         <div class="ctas">
           <a href="#" class="btn primary">Solicitar una demo →</a>
-          <a href="#" class="btn ghost">Ingresar</a>
         </div>
-        <div class="status"><span class="dot"></span> En operación en campo · Res. 1401 / ISO 45001</div>
+        <div class="status"><span class="dot"></span> En operación en campo · Investigación bajo Res. 1401 · alineada a ISO 45001</div>
       </div>
 
-      <!-- Visual de plataforma (acá va el personaje KALU) -->
+      <!-- Visual del hero: personaje KALU (kalu-sherlock.png en el repo). Fallback al emblema si la imagen no está. -->
       <div class="emblem">
         <div class="glow"></div>
-        <div class="orbit">
-          <span class="chip o">HSE</span>
-          <span class="chip c">Realidad Asistida</span>
-          <span class="chip g">QA/QC</span>
-          <span class="chip v">NDT</span>
+        <img class="charimg" src="kalu-sherlock.png" alt="KALU"
+             onerror="this.style.display='none';var f=document.getElementById('emblemFallback');if(f)f.style.display='flex';">
+        <div id="emblemFallback" class="emblem-fallback" style="display:none">
+          <div class="orbit">
+            <span class="chip o">HSE</span>
+            <span class="chip c">Realidad Asistida</span>
+            <span class="chip g">QA/QC</span>
+            <span class="chip v">NDT</span>
+          </div>
+          <div class="hex">
+            <svg viewBox="0 0 170 190" aria-hidden="true">
+              <polygon points="85,6 162,50 162,140 85,184 8,140 8,50" fill="none" stroke="#f5a623" stroke-width="2.5" opacity=".85"/>
+              <polygon points="85,26 145,60 145,130 85,164 25,130 25,60" fill="none" stroke="#f5a623" stroke-width="1" opacity=".3"/>
+            </svg>
+            <div class="lbl"><div class="di">DI</div><div class="pl">PLATAFORMA</div></div>
+          </div>
         </div>
-        <div class="hex">
-          <svg viewBox="0 0 170 190" aria-hidden="true">
-            <polygon points="85,6 162,50 162,140 85,184 8,140 8,50" fill="none" stroke="#f5a623" stroke-width="2.5" opacity=".85"/>
-            <polygon points="85,26 145,60 145,130 85,164 25,130 25,60" fill="none" stroke="#f5a623" stroke-width="1" opacity=".3"/>
-          </svg>
-          <div class="lbl"><div class="di">DI</div><div class="pl">PLATAFORMA</div></div>
-        </div>
-        <div class="charnote">↳ espacio para el personaje KALU</div>
       </div>
     </header>
 
@@ -181,7 +184,7 @@
         </div>
         <h3>KALU HSE</h3>
         <p class="desc">Investigación de accidentes de punta a punta: declaraciones firmadas, expediente con todos los PDF y prevención del próximo evento. El módulo probado, en uso real en campo.</p>
-        <a href="#" class="btn primary">Ingresar a HSE →</a>
+        <a href="hse.html" class="btn primary">Ingresar a HSE →</a>
       </div>
 
       <!-- Otros módulos -->
@@ -211,7 +214,7 @@
     </section>
 
     <footer>
-      <div class="comp"><span class="dot"></span> En operación en campo · Res. 1401 / ISO 45001</div>
+      <div class="comp">Datos de tu empresa blindados · criterio humano al mando</div>
       <div>KALU · Dinamho Intelligence — getkalu.com</div>
     </footer>
 

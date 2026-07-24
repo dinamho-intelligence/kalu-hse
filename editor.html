@@ -146,6 +146,21 @@
   .mapscroll{flex:1;overflow:auto;padding:12px;background:#fbfcfe;background-image:radial-gradient(#e6e9f0 1px,transparent 1px);background-size:16px 16px}
   .mapreopen{position:fixed;right:18px;top:214px;z-index:40;display:none}
   #mapaFullInner{transform-origin:top left;padding:20px}
+  /* Mis flujos + estado + toast */
+  .fbadge{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px;vertical-align:middle}
+  .fbadge.pub{background:#e4f4ec;color:#1c6b47}
+  .fbadge.bor{background:#fdeede;color:#8a5a12}
+  .fbadge.arc{background:#eef0f4;color:#6b7385}
+  .frow{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid var(--line);border-radius:11px;margin-bottom:8px;background:#fff}
+  .frow .finfo{flex:1;min-width:0}
+  .frow .fn{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .frow .fm{font-size:12px;margin-top:4px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .frow .facts{display:flex;gap:6px;flex-shrink:0}
+  .frow .facts .chipbtn{padding:6px 10px;font-size:12px}
+  .chipbtn.danger:hover{border-color:var(--no);color:var(--no)}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f1218;color:#fff;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:all .2s;z-index:400;max-width:80vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:#c0392b}
 </style>
 </head>
 <body>
@@ -170,10 +185,13 @@
   </a>
   <div class="sp"></div>
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="nuevoFlujo()">＋ Nuevo</button>
+      <button class="btn btn-ghost" onclick="misFlujos()">📂 Mis flujos</button>
       <button class="btn btn-ghost" onclick="simOpen()">▶ Probar</button>
-      <button class="btn btn-ghost" onclick="preview()">👁 Vista previa</button>
+      <button class="btn btn-ghost" onclick="preview()">👁 Vista</button>
       <button class="btn btn-ghost" onclick="exportar()">⭳ Exportar</button>
+      <button class="btn btn-ghost" onclick="guardarBorrador()">💾 Guardar borrador</button>
       <button class="btn btn-amber" onclick="publicar()">☁ Publicar</button>
     </div>
     <span style="font-size:9px;color:#8a93a3;font-weight:700;letter-spacing:.5px">POWERED BY <span style="color:#F28C00">DINAMHO INTELLIGENCE</span></span>
@@ -201,6 +219,7 @@
     <button class="chipbtn" onclick="addPaso('dato')">🔢 Dato</button>
     <button class="chipbtn" onclick="addPaso('escaneo')">📇 Escaneo</button>
   </div>
+  <div id="fstatus" style="margin-left:auto"></div>
 </div>
 
 <div class="body">
@@ -261,6 +280,14 @@
   </div>
 </div>
 
+<!-- Modal Mis flujos -->
+<div class="modal" id="mList">
+  <div class="mbox" style="max-width:640px">
+    <div class="mh"><b>📂 Mis flujos</b><button class="x" onclick="closeM('mList')">×</button></div>
+    <div class="mbody"><div id="listWrap"></div></div>
+  </div>
+</div>
+
 <!-- Modal simulador (runner del flujo) -->
 <div class="modal" id="mSim">
   <div class="mbox" style="max-width:560px">
@@ -315,7 +342,7 @@ function nid(){ return "p"+(uid++); }
    ===================================================================== */
 const SB_URL  = "https://jwqgvlcktzhyddrofqqg.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, pendingPublish=false;
+let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, pendingAction=null, pendingList=false;
 function sbReady(){ return SB_URL.indexOf("TU-PROYECTO")<0 && SB_ANON.indexOf("TU-ANON")<0; }
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({ "apikey":SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
@@ -334,28 +361,137 @@ async function sbLogin(email,password){
   if(!perf[0].tiene_consola) throw new Error("Tu usuario no tiene acceso a consola (tiene_consola=false).");
   SB_EMPRESA=perf[0].empresa_id;
 }
-async function sbPublicar(){
+/* ---------- Guardar / actualizar (borrador o publicado) ---------- */
+async function sbUpsertFlujo(estado){
   if(!SB_EMPRESA) throw new Error("Sesión sin empresa.");
   const exp=buildExport();
-  const pl=await sbFetch("/rest/v1/plantillas_informe",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({empresa_id:SB_EMPRESA, nombre:exp.plantilla_informe.nombre, config:exp.plantilla_informe.config})});
-  const plId=pl[0].id;
-  const fl=await sbFetch("/rest/v1/flujos",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({empresa_id:SB_EMPRESA, nombre:exp.flujo.nombre, tipo:exp.flujo.tipo, descripcion:exp.flujo.descripcion, version:1, estado:"publicado", plantilla_id:plId, config:{}})});
-  const flId=fl[0].id;
+  // 1) Plantilla de informe (update si ya existe, si no insert)
+  let plId=flow.plantilla_id||null;
+  const plBody={ empresa_id:SB_EMPRESA, nombre:exp.plantilla_informe.nombre||"Plantilla", config:exp.plantilla_informe.config };
+  if(plId){ await sbFetch("/rest/v1/plantillas_informe?id=eq."+plId,{method:"PATCH",body:JSON.stringify(plBody)}); }
+  else { const pl=await sbFetch("/rest/v1/plantillas_informe",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(plBody)}); plId=pl[0].id; }
+  // 2) Flujo (update o insert)
+  const flBody={ empresa_id:SB_EMPRESA, nombre:exp.flujo.nombre||"(sin nombre)", tipo:exp.flujo.tipo||"", descripcion:exp.flujo.descripcion||"", estado:estado, plantilla_id:plId };
+  let flId=flow.id||null;
+  if(flId){ await sbFetch("/rest/v1/flujos?id=eq."+flId,{method:"PATCH",body:JSON.stringify(flBody)}); }
+  else { const fl=await sbFetch("/rest/v1/flujos",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(Object.assign({version:1,config:{}},flBody))}); flId=fl[0].id; }
+  // 3) Pasos: borrar los viejos e insertar los actuales (round-trip completo)
+  await sbFetch("/rest/v1/flujo_pasos?flujo_id=eq."+flId,{method:"DELETE"});
   const pasos=exp.flujo_pasos.map(function(p){ return { flujo_id:flId, orden:p.orden, tipo_paso:p.tipo_paso, titulo:p.titulo, instruccion:p.instruccion, config:p.config, rama:p.rama||null }; });
-  await sbFetch("/rest/v1/flujo_pasos",{method:"POST",body:JSON.stringify(pasos)});
+  if(pasos.length) await sbFetch("/rest/v1/flujo_pasos",{method:"POST",body:JSON.stringify(pasos)});
+  flow.id=flId; flow.plantilla_id=plId; flow.estado=estado;
   return flId;
 }
-function publicar(){
-  if(!sbReady()){ alert("Falta configurar Supabase: completá SB_URL y SB_ANON en el código con los datos de tu proyecto RealWear."); return; }
-  if(!flow.pasos.length){ alert("El flujo no tiene pasos."); return; }
-  if(!SB_TOKEN){ pendingPublish=true; $("#lg_err").style.display="none"; $("#mLogin").classList.add("show"); setTimeout(function(){var e=$("#lg_email"); if(e)e.focus();},60); return; }
-  realPublicar();
+function guardar(estado){
+  if(!sbReady()){ toast("Falta configurar Supabase en el código.",true); return; }
+  if(!flow.pasos.length){ toast("El flujo no tiene pasos.",true); return; }
+  if(!flow.nombre||!flow.nombre.trim()){ toast("Poné un nombre al flujo antes de guardar.",true); $("#f_nombre").focus(); return; }
+  if(!SB_TOKEN){ pendingAction=estado; $("#lg_err").style.display="none"; $("#mLogin").classList.add("show"); setTimeout(function(){var e=$("#lg_email"); if(e)e.focus();},60); return; }
+  doGuardar(estado);
 }
-async function realPublicar(){
-  const btn=$("#lg_btn");
-  try{ const id=await sbPublicar(); alert("✅ Flujo publicado en la nube (id "+id+"), bajo tu empresa."); }
-  catch(e){ alert("Error al publicar: "+((e&&e.message)||e)); }
+async function doGuardar(estado){
+  try{ toast(estado==="publicado"?"Publicando…":"Guardando…");
+    await sbUpsertFlujo(estado);
+    toast(estado==="publicado"?"✅ Publicado en la consola":"💾 Guardado como borrador");
+    updateStatus();
+  }catch(e){ toast("Error: "+((e&&e.message)||e),true); }
 }
+function publicar(){ guardar("publicado"); }
+function guardarBorrador(){ guardar("borrador"); }
+
+/* ---------- Mis flujos (listar / abrir / duplicar / borrar) ---------- */
+function misFlujos(){
+  if(!sbReady()){ toast("Falta configurar Supabase en el código.",true); return; }
+  if(!SB_TOKEN){ pendingList=true; $("#lg_err").style.display="none"; $("#mLogin").classList.add("show"); setTimeout(function(){var e=$("#lg_email"); if(e)e.focus();},60); return; }
+  abrirMisFlujos();
+}
+async function abrirMisFlujos(){
+  $("#mList").classList.add("show");
+  $("#listWrap").innerHTML='<div style="padding:24px;text-align:center;color:var(--mut)">Cargando…</div>';
+  try{
+    const rows=await sbFetch("/rest/v1/flujos?empresa_id=eq."+SB_EMPRESA+"&select=id,nombre,tipo,estado,updated_at&order=updated_at.desc");
+    renderMisFlujos(rows);
+  }catch(e){ $("#listWrap").innerHTML='<div style="padding:20px;color:var(--no)">Error: '+esc((e&&e.message)||String(e))+'</div>'; }
+}
+function fFecha(s){ if(!s)return ""; try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return ""; } }
+function renderMisFlujos(rows){
+  if(!rows||!rows.length){ $("#listWrap").innerHTML='<div class="empty" style="margin:6px">Todavía no tenés flujos guardados.<br>Armá uno y dale <b>Guardar borrador</b> o <b>Publicar</b>.</div>'; return; }
+  $("#listWrap").innerHTML=rows.map(function(f){
+    const badge=f.estado==="publicado"?'<span class="fbadge pub">● Publicado</span>':(f.estado==="archivado"?'<span class="fbadge arc">Archivado</span>':'<span class="fbadge bor">● Borrador</span>');
+    const cur=(f.id===flow.id)?' <span class="fbadge" style="background:#fff3e0;color:#F28C00">abierto</span>':'';
+    const nm=(f.nombre||"(sin nombre)").replace(/'/g,"\\'");
+    return '<div class="frow"><div class="finfo"><div class="fn">'+esc(f.nombre||"(sin nombre)")+cur+'</div>'+
+      '<div class="fm">'+badge+' <span style="color:var(--mut)">'+esc(f.tipo||"—")+'</span> <span style="color:#b5bcc9">· '+esc(fFecha(f.updated_at))+'</span></div></div>'+
+      '<div class="facts">'+
+        '<button class="chipbtn" onclick="abrirFlujo(\''+f.id+'\',false)">✎ Editar</button>'+
+        '<button class="chipbtn" onclick="abrirFlujo(\''+f.id+'\',true)">⧉ Duplicar</button>'+
+        '<button class="chipbtn danger" onclick="borrarFlujo(\''+f.id+'\',\''+nm+'\')">🗑</button>'+
+      '</div></div>';
+  }).join("");
+}
+async function abrirFlujo(id,asCopy){
+  try{
+    const rf=await sbFetch("/rest/v1/flujos?id=eq."+id+"&select=id,nombre,tipo,descripcion,estado,plantilla_id");
+    const fl=rf&&rf[0]; if(!fl) throw new Error("No se encontró el flujo.");
+    const pasos=await sbFetch("/rest/v1/flujo_pasos?flujo_id=eq."+id+"&select=orden,tipo_paso,titulo,instruccion,config,rama&order=orden.asc");
+    let plConf=null;
+    if(fl.plantilla_id){ const pl=await sbFetch("/rest/v1/plantillas_informe?id=eq."+fl.plantilla_id+"&select=config"); if(pl&&pl[0]) plConf=pl[0].config; }
+    dbToModel(fl,pasos,plConf,asCopy);
+    closeM("mList");
+    toast(asCopy?"Duplicado — editá y guardá el nuevo":"Flujo abierto para editar");
+  }catch(e){ toast("Error al abrir: "+((e&&e.message)||e),true); }
+}
+async function borrarFlujo(id,nombre){
+  if(!confirm('¿Borrar el flujo "'+nombre+'"?\nSe borran también sus pasos. Esta acción no se puede deshacer.')) return;
+  try{
+    await sbFetch("/rest/v1/flujos?id=eq."+id,{method:"DELETE"});
+    if(flow.id===id){ flow.id=null; flow.plantilla_id=null; flow.estado="borrador"; updateStatus(); }
+    toast("Flujo borrado"); abrirMisFlujos();
+  }catch(e){ toast("Error al borrar: "+((e&&e.message)||e),true); }
+}
+function dbToModel(fl,pasos,plConf,asCopy){
+  const model={ nombre:(fl.nombre||"")+(asCopy?" (copia)":""), tipo:(fl.tipo||"")+(asCopy?"_copia":""), descripcion:fl.descripcion||"", pasos:[] };
+  const byOrden={};
+  (pasos||[]).forEach(function(row){
+    const cfg=row.config||{};
+    const p={ id:nid(), tipo:row.tipo_paso, titulo:row.titulo||"", instruccion:row.instruccion||"" };
+    if(cfg.campo!==undefined) p.campo=cfg.campo;
+    if(cfg.formato!==undefined) p.formato=cfg.formato;
+    if(cfg.imagen) p.imagen=cfg.imagen;
+    if(cfg.dato) p.pedirDato={campo:cfg.dato.campo||"",formato:cfg.dato.formato||"numero"};
+    if(cfg.foto) p.pedirFoto={campo:cfg.foto.campo||""};
+    if(row.tipo_paso==="confirmacion"){ p.opciones=(cfg.opciones||[]).map(function(o){return {label:o.label||"",ruta:""};}); }
+    else { p.r=""; }
+    model.pasos.push(p); byOrden[row.orden]=p;
+  });
+  (pasos||[]).forEach(function(row){
+    const p=byOrden[row.orden]; if(!p||!row.rama)return;
+    row.rama.forEach(function(rm){
+      const dest=rm.fin?"fin":(byOrden[rm.ir_a_orden]?byOrden[rm.ir_a_orden].id:"");
+      if(row.tipo_paso==="confirmacion"){ const op=(p.opciones||[]).find(function(o){return o.label===rm.cuando;}); if(op) op.ruta=dest; }
+      else { p.r=dest; }
+    });
+  });
+  flow=model;
+  flow.id = asCopy? null : fl.id;
+  flow.plantilla_id = asCopy? null : (fl.plantilla_id||null);
+  flow.estado = asCopy? "borrador" : (fl.estado||"borrador");
+  if(plConf){ informe=Object.assign({}, informe, plConf); }
+  selId = flow.pasos.length? flow.pasos[0].id : null;
+  fillMeta(); fillInforme(); renderAll(); renderDoc(); updateStatus();
+}
+function nuevoFlujo(){
+  if(flow.pasos.length && !confirm("¿Empezar un flujo nuevo?\nSe descarta lo que no hayas guardado.")) return;
+  flow={ nombre:"", tipo:"", descripcion:"", pasos:[], id:null, plantilla_id:null, estado:"borrador" };
+  selId=null; fillMeta(); renderAll(); updateStatus(); toast("Flujo nuevo en blanco");
+}
+function updateStatus(){
+  const el=$("#fstatus"); if(!el)return;
+  if(flow.id){ el.innerHTML=(flow.estado==="publicado"?'<span class="fbadge pub">● Publicado</span>':'<span class="fbadge bor">● Borrador</span>')+' <span style="color:#8a93a3;font-size:11px">guardado en la nube</span>'; }
+  else { el.innerHTML='<span style="color:#8a93a3;font-size:12px;font-weight:700">○ Sin guardar</span>'; }
+}
+let toastT=null;
+function toast(msg,err){ let t=$("#toast"); if(!t){ t=document.createElement("div"); t.id="toast"; document.body.appendChild(t); } t.textContent=msg; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){ t.className="toast"; },2800); }
 async function doLoginGate(){
   const email=$("#g_email").value.trim(), pass=$("#g_pass").value, err=$("#g_err"), btn=$("#g_btn");
   if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
@@ -373,7 +509,8 @@ async function doLogin(){
   try{
     await sbLogin(email,pass);
     closeM("mLogin");
-    if(pendingPublish){ pendingPublish=false; await realPublicar(); }
+    if(pendingAction){ const a=pendingAction; pendingAction=null; await doGuardar(a); }
+    if(pendingList){ pendingList=false; abrirMisFlujos(); }
   }catch(e){ err.textContent=(e&&e.message)||("Error de login"); err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar"; }
 }
@@ -388,7 +525,7 @@ const TIPOS = {
 };
 
 /* ---------- Modelo (seed: pre-uso, con un BUCLE de corrección de ejemplo) ---------- */
-let flow = { nombre:"Inspección pre-uso de equipo", tipo:"preuso_equipo", descripcion:"", pasos:[] };
+let flow = { nombre:"Inspección pre-uso de equipo", tipo:"preuso_equipo", descripcion:"", pasos:[], id:null, plantilla_id:null, estado:"borrador" };
 (function(){
   const pEsc ={ id:nid(), tipo:"escaneo",     titulo:"Identificá el equipo", instruccion:"Escaneá el código del equipo.", campo:"equipo", r:"" };
   const pAce ={ id:nid(), tipo:"confirmacion", titulo:"Nivel de aceite", instruccion:"Revisá la varilla.", campo:"aceite", opciones:[] };
@@ -808,7 +945,7 @@ function renderDoc(){
 }
 
 /* ---------- Init ---------- */
-fillMeta(); fillInforme(); renderAll(); renderDoc(); applyMap();
+fillMeta(); fillInforme(); renderAll(); renderDoc(); applyMap(); updateStatus();
 </script>
 </body>
 </html>

@@ -91,7 +91,7 @@
   <div class="bar">
     <svg width="26" height="28" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
     <h1>KALU · Realidad Asistida</h1>
-    <span id="pend" class="pend" style="display:none"></span>
+    <span id="pend" class="pend" style="display:none;cursor:pointer" onclick="diagPend()" title="Ver estado de subida / reintentar"></span>
     <span id="net" class="pill on">● En línea</span>
   </div>
 
@@ -490,7 +490,7 @@ async function subirEjecucion(ej){
   return ejecId;
 }
 
-let sincronizando=false;
+let sincronizando=false, lastSyncError="", lastSyncOk=0;
 function sincronizar(){
   if(sincronizando || !navigator.onLine || !db) return;
   sincronizando=true;
@@ -500,14 +500,22 @@ function sincronizar(){
   store.onsuccess=function(){
     const lista=store.result||[];
     (async function(){
+      lastSyncOk=0;
       for(let k=0;k<lista.length;k++){
-        try{ await subirEjecucion(lista[k]); await borrarLocal(lista[k].id); }
-        catch(e){ /* si falla, queda en cola para el próximo intento */ }
+        try{ await subirEjecucion(lista[k]); await borrarLocal(lista[k].id); lastSyncOk++; lastSyncError=""; }
+        catch(e){ lastSyncError=(e&&e.message)||String(e); }
       }
       sincronizando=false; refrescarPend();
     })();
   };
   store.onerror=function(){ sincronizando=false; };
+}
+/* Diagnóstico: tocar el ⏳ muestra el estado y reintenta */
+function diagPend(){
+  if(!navigator.onLine){ alert("Sin conexión.\nSe subirá solo cuando vuelva la señal."); return; }
+  if(lastSyncError){ alert("No pudo subir una inspección.\n\nError:\n"+lastSyncError+"\n\nToco «Aceptar» y reintento…"); }
+  else { alert("Reintentando subir lo pendiente…"); }
+  lastSyncError=""; sincronizar();
 }
 function borrarLocal(id){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").delete(id); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
 

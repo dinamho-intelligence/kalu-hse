@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>KALU · Realidad Asistida</title>
 <!--
-  EJECUTOR v2.2 · RealWear (pantalla apaisada ~854x480)
-  Ajustes por feedback de campo (Carla):
-   #1 Teclado: ✓ -> "Entrar", ← -> "Borrar" (palabras, no símbolos).
-   #2 Comandos WearHF pegados: se RECREA la pantalla entera en cada paso
-      (mutación fuerte del DOM) + comando WearML explícito por botón, para
-      forzar el re-scan de WearHF. [validar en equipo]
-   #3 Solo cuenta la foto si realmente se tomó.
-   #4 Cámara por INPUT CAPTURE (cámara nativa del RealWear), no getUserMedia.
-   + Arranque a prueba de navegador viejo (sin crypto.randomUUID, DB opcional).
+  APP DEL LENTE v3.0 · RealWear (apaisado ~854x480)
+  Nivel 2 · Etapa 1: HUB + Flujos ONLINE/OFFLINE desde Supabase.
+   - Después del login, HUB de módulos (Flujos activo; Asistencia y Kalu próximamente).
+   - Flujos: baja los PUBLICADOS de la base (rol anon), marca en línea/offline (cache IndexedDB).
+   - Motor GENÉRICO: corre cualquier flujo (instruccion, confirmacion multi-opción,
+     foto, dato, escaneo) con ramas, bucles y terminar. Mismo modelo que el editor.
+   - Login de operador sigue quemado (lista OPERADORES) — el login real y multi-empresa
+     van en "usuarios + permisos".
+   - Etapa 2 (pendiente): subir la ejecución + evidencia a la base.
 -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -42,6 +42,8 @@
   button.opt.no{border-color:#6b2f2d}
   button.opt.primary{background:var(--pri);border-color:var(--pri2)}
   button.opt.amber{background:linear-gradient(180deg,#ffb845,var(--amber));color:#1a1200;border:none}
+  .soon{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:2px dashed var(--line);border-radius:13px;padding:13px 18px;font-size:17px;font-weight:800;color:#6b7d97}
+  .soon span{font-size:11px;font-weight:800;color:#54637d}
   .cam{position:relative;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px;min-height:150px;display:flex;align-items:center;justify-content:center}
   .cam img{width:100%;display:block;max-height:200px;object-fit:contain;background:#000}
   .cam .ph{color:#54637d;font-size:14px;padding:20px;text-align:center}
@@ -96,62 +98,66 @@
 <script>
 const $ = s => document.querySelector(s);
 function genId(){ return "r-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e9).toString(36); }
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
-/* WearML: comando explícito por control -> title="COMANDO|hf_make_clickable|hf_show_text" */
-function wm(cmd){ return (cmd?cmd.toUpperCase().replace(/"/g,"")+"|":"")+"hf_make_clickable|hf_show_text"; }
+/* =====================================================================
+   SUPABASE · mismo proyecto RealWear que el editor (rol anon, clave pública)
+   EMPRESA_ID: dejalo vacío para ver todos los flujos publicados, o pegá
+   el id de tu empresa para filtrar solo los tuyos.
+   ===================================================================== */
+const SB_URL   = "https://jwqgvlcktzhyddrofqqg.supabase.co";
+const SB_ANON  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
+const EMPRESA_ID = "";
+async function sbFetch(path){
+  const res=await fetch(SB_URL+path,{headers:{ apikey:SB_ANON }});
+  const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
+  if(!res.ok) throw new Error((data&&(data.message||data.msg))||("HTTP "+res.status));
+  return data;
+}
+
+/* WearML: comando explícito por control */
+function wm(cmd){ return (cmd?String(cmd).toUpperCase().replace(/"/g,"")+"|":"")+"hf_make_clickable|hf_show_text"; }
 function btn(cls,label,onclick){ return '<button class="opt '+cls+'" title="'+wm(label)+'" onclick="'+onclick+'">'+label+'</button>'; }
 
-/* Recrea la pantalla ENTERA (mutación fuerte) para forzar el re-scan de WearHF */
+/* Recrea la pantalla ENTERA para forzar el re-scan de WearHF */
 function setScreen(cls, html){
   const old=$("#screen");
   const neo=document.createElement("div");
   neo.id="screen"; neo.className=cls||""; neo.innerHTML=html;
   old.parentNode.replaceChild(neo, old);
-  try{ window.dispatchEvent(new Event("resize")); }catch(e){}   // empujón para que WearHF re-lea
+  try{ window.dispatchEvent(new Event("resize")); }catch(e){}
 }
-function chips(list){ $("#chips").innerHTML = list.filter(Boolean).map(function(c){return '<span class="chip">'+c+'</span>';}).join(""); }
-
-/* ---------- Flujo (misma forma que Supabase) ---------- */
-const PASOS = [
-  { id:"escaneo",      tipo:"escaneo",      titulo:"Identificá el equipo",   instr:"Decí «Escanear» para leer el equipo." },
-  { id:"aceite",       tipo:"confirmacion", campo:"aceite", titulo:"¿Nivel de aceite OK?", instr:"Revisá la varilla." },
-  { id:"fugas",        tipo:"confirmacion", campo:"fugas",  titulo:"¿Hay fugas visibles?", instr:"Mirá el piso y las mangueras.",
-      rama:[{ cuando:"no", irA:"foto_general" }] },
-  { id:"foto_fuga",    tipo:"foto", campo:"foto_fuga", titulo:"Foto de la fuga",          instr:"Decí «Tomar foto» y usá la cámara." },
-  { id:"foto_general", tipo:"foto", campo:"foto_general", titulo:"Foto del estado general", instr:"Decí «Tomar foto» y usá la cámara." },
-  { id:"resultado",    tipo:"resultado", titulo:"Resultado", instr:"Confirmá el estado del equipo." },
-  { id:"fin",          tipo:"fin", titulo:"Inspección completada" },
-];
-const idxDe = id => PASOS.findIndex(p=>p.id===id);
+function chips(list){ $("#chips").innerHTML = (list||[]).filter(Boolean).map(function(c){return '<span class="chip">'+c+'</span>';}).join(""); }
+function brandHTML(){
+  return '<div class="brandbig">'+
+    '<svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>'+
+    '<div style="text-align:left"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div></div>';
+}
 
 /* ---------- Estado ---------- */
-let ejec=null, i=0, cedBuf="", pinBuf="", stage="";
-/* ===== Operadores autorizados · EDITÁ acá: agregá cédulas y PIN reales ===== */
+let ejec=null, F=[], i=0, cedBuf="", pinBuf="", datoBuf="", stage="";
+/* ===== Operadores autorizados · EDITÁ acá (login real va en usuarios+permisos) ===== */
 const OPERADORES = [
   { cedula:"12345", pin:"1234", nombre:"Operador demo" }
   // ,{ cedula:"CEDULA_REAL", pin:"PIN_REAL", nombre:"Carla Seguel" }
 ];
 function nuevaEjecucion(){
-  ejec={ id:genId(), flujo:"Inspección pre-uso de equipo", version:1, operador_cedula:"", operador_nombre:"",
+  ejec={ id:genId(), flujo:"", flujo_id:"", version:1, operador_cedula:"", operador_nombre:"",
     equipo_id:"", inicio:new Date().toISOString(), fin:null, resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
-  i=0; cedBuf=""; pinBuf=""; stage="";
+  i=0; F=[]; cedBuf=""; pinBuf=""; datoBuf=""; stage="";
 }
 
-/* ---------- Pantallas ---------- */
+/* ---------- Inicio / login ---------- */
 function showInicio(){
   setScreen("home",
-    '<div class="brandbig">'+
-      '<svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>'+
-      '<div style="text-align:left"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div></div>'+
+    brandHTML()+
     '<h2>Realidad <span class="amber">Asistida</span></h2>'+
-    '<p class="instr" style="max-width:520px">Inspección pre-uso de equipo, manos libres. Decí «Entrar» para comenzar.</p>'+
+    '<p class="instr" style="max-width:520px">Asistencia manos libres. Decí «Entrar» para identificarte.</p>'+
     '<div class="opts" style="max-width:340px;width:100%">'+btn("amber","Entrar","irIdent()")+'</div>');
   chips(["“<b>Entrar</b>”"]);
 }
-
 function irIdent(){ cedBuf=""; pinBuf=""; showCedula(""); }
 
-/* Teclado reutilizable (cédula y PIN) */
 function keypadScreen(kick,title,instr,display,enterFn,errMsg){
   let keys="";
   ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="keyPress(\''+n+'\')">'+n+'</button>'; });
@@ -159,16 +165,13 @@ function keypadScreen(kick,title,instr,display,enterFn,errMsg){
   keys+='<button class="key" title="'+wm("")+'" onclick="keyPress(\'0\')">0</button>';
   keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="'+enterFn+'">Entrar</button>';
   setScreen("",
-    '<div class="kick">'+kick+'</div>'+
-    '<div class="title">'+title+'</div>'+
+    '<div class="kick">'+kick+'</div><div class="title">'+title+'</div>'+
     (errMsg?'<p class="instr" style="color:#f2a6a3">'+errMsg+'</p>':'<p class="instr">'+instr+'</p>')+
-    '<div class="idwrap">'+
-      '<div class="iddisplay"><div class="idbox '+(display?"":"empty")+'" id="idbox">'+(display||"— — — —")+'</div></div>'+
-      '<div class="keys">'+keys+'</div>'+
-    '</div>');
+    '<div class="idwrap"><div class="iddisplay"><div class="idbox '+(display?"":"empty")+'" id="idbox">'+(display||"— — — —")+'</div></div>'+
+    '<div class="keys">'+keys+'</div></div>');
   chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
 }
-function showCedula(err){ stage="ced"; keypadScreen("Operador · Paso 1","Tu cédula","Tocá los números o decí el número de cada tecla. Después «Entrar».", cedBuf, "cedListo()", err||""); }
+function showCedula(err){ stage="ced"; keypadScreen("Operador · Paso 1","Tu cédula","Tocá los números o decí cada número. Después «Entrar».", cedBuf, "cedListo()", err||""); }
 function showPin(err){ stage="pin"; keypadScreen("Operador · Paso 2","Tu PIN","Ingresá tu PIN y decí «Entrar».", pinMask(), "pinListo()", err||""); }
 function pinMask(){ return pinBuf.replace(/./g,"•"); }
 function keyPress(n){ const buf=(stage==="pin"?pinBuf:cedBuf); if(buf.length<12){ if(stage==="pin") pinBuf+=n; else cedBuf+=n; paintKey(); } }
@@ -177,98 +180,221 @@ function paintKey(){ const b=$("#idbox"); if(!b)return; const v=(stage==="pin"?p
 function cedListo(){ if(!cedBuf){ showCedula("Ingresá tu cédula."); return; } showPin(""); }
 function pinListo(){
   const op=OPERADORES.find(function(o){ return o.cedula===cedBuf && o.pin===pinBuf; });
-  if(op){ ejec.operador_cedula=cedBuf; ejec.operador_nombre=op.nombre||""; i=0; render(); }
+  if(op){ ejec.operador_cedula=cedBuf; ejec.operador_nombre=op.nombre||""; showHub(); }
   else { cedBuf=""; pinBuf=""; showCedula("❌ Cédula o PIN incorrecto. Volvé a intentar."); }
 }
 
-function render(){
-  const p=PASOS[i];
+/* ---------- HUB de módulos ---------- */
+function showHub(){
+  const nom=ejec.operador_nombre?ejec.operador_nombre.split(" ")[0]:"";
+  setScreen("home",
+    brandHTML()+
+    '<h2>Hola'+(nom?' '+esc(nom):'')+'</h2>'+
+    '<p class="instr" style="max-width:520px">Elegí un módulo. Por ahora está activo <b style="color:#fff">Flujos</b>.</p>'+
+    '<div style="display:flex;flex-direction:column;max-width:440px;width:100%;gap:10px">'+
+      btn("amber","▶ Flujos de trabajo","showFlujos()")+
+      '<div class="soon">📞 Asistencia remota <span>Próximamente</span></div>'+
+      '<div class="soon">🤖 Preguntá a Kalu <span>Próximamente</span></div>'+
+    '</div>'+
+    '<p class="note" style="margin-top:12px"><button class="opt" style="max-width:220px;font-size:14px;padding:8px 14px" title="'+wm("Cambiar operador")+'" onclick="irIdent()">Cambiar operador</button></p>');
+  chips(["“<b>Flujos</b>”"]);
+}
 
+/* ---------- Módulo Flujos: listar (online + offline) ---------- */
+async function showFlujos(){
+  setScreen("", '<div class="kick">Módulo · Flujos</div><div class="title">Buscando flujos…</div><p class="instr">Un momento.</p>');
+  chips([]);
+  const cache=await listFlujosCache(); const cids={}; cache.forEach(function(c){ cids[c.id]=true; });
+  let online=[];
+  if(navigator.onLine){
+    try{ online=await sbFetch("/rest/v1/flujos?estado=eq.publicado"+(EMPRESA_ID?"&empresa_id=eq."+EMPRESA_ID:"")+"&select=id,nombre,tipo&order=actualizado_en.desc"); }
+    catch(e){ online=[]; }
+  }
+  const map={};
+  online.forEach(function(f){ map[f.id]={id:f.id,nombre:f.nombre,tipo:f.tipo,online:true,offline:!!cids[f.id]}; });
+  cache.forEach(function(c){ if(!map[c.id]) map[c.id]={id:c.id,nombre:c.nombre,tipo:c.tipo,online:false,offline:true}; });
+  const list=Object.keys(map).map(function(k){ return map[k]; });
+
+  let body='<div class="kick">Módulo · Flujos</div><div class="title">Elegí un flujo</div>';
+  if(!list.length){
+    body+='<p class="instr">'+(navigator.onLine?'No hay flujos publicados todavía. Publicá uno desde el editor.':'No tenés flujos offline. Conectate para descargarlos.')+'</p>';
+  } else {
+    body+='<div style="display:flex;flex-direction:column;gap:9px;max-width:580px;width:100%">'+
+      list.map(function(f){
+        const tags=(f.offline?'<span style="color:#7ee2ab">● offline</span>':'')+(f.online?(f.offline?' · ':'')+'<span style="color:#8bc0f5">● en línea</span>':'');
+        return '<button class="opt" style="justify-content:space-between;text-align:left;font-size:17px" title="'+wm(f.nombre)+'" onclick="abrirFlujoLente(\''+f.id+'\')">'+
+          '<span>'+esc(f.nombre||"(sin nombre)")+'</span>'+
+          '<span style="font-size:11px;font-weight:800;white-space:nowrap">'+tags+'</span></button>';
+      }).join('')+'</div>';
+  }
+  body+='<div class="opts" style="margin-top:12px;max-width:240px">'+btn("","Volver","showHub()")+'</div>';
+  setScreen("",body);
+  chips(list.length?["número del flujo","“<b>Volver</b>”"]:["“<b>Volver</b>”"]);
+}
+
+/* Convierte los pasos de la base al modelo del motor (dest por índice) */
+function normalizar(pasos){
+  const F2=(pasos||[]).map(function(row){
+    const cfg=row.config||{};
+    const p={ orden:row.orden, tipo:row.tipo_paso, titulo:row.titulo||"", instr:row.instruccion||"",
+      campo:cfg.campo||"", formato:cfg.formato||"", imagen:cfg.imagen||null, dest:null,
+      opciones:(row.tipo_paso==="confirmacion"?(cfg.opciones||[]).map(function(o){return {label:o.label||"",dest:null};}):null) };
+    return p;
+  });
+  const byOrden={}; F2.forEach(function(p,ix){ byOrden[p.orden]=ix; });
+  function resolve(rm){ return rm.fin ? "fin" : (byOrden[rm.ir_a_orden]!=null ? byOrden[rm.ir_a_orden] : null); }
+  (pasos||[]).forEach(function(row,ix){
+    const p=F2[ix]; if(!row.rama) return;
+    row.rama.forEach(function(rm){
+      const dest=resolve(rm);
+      if(row.tipo_paso==="confirmacion"){ const op=(p.opciones||[]).find(function(o){return o.label===rm.cuando;}); if(op) op.dest=dest; }
+      else { p.dest=dest; }
+    });
+  });
+  return F2;
+}
+
+async function abrirFlujoLente(id){
+  setScreen("", '<div class="kick">Flujo</div><div class="title">Abriendo…</div><p class="instr">Un momento.</p>');
+  chips([]);
+  let fo=null;
+  if(navigator.onLine){
+    try{
+      const rf=await sbFetch("/rest/v1/flujos?id=eq."+id+"&select=id,nombre,tipo");
+      const meta=rf&&rf[0];
+      const pasos=await sbFetch("/rest/v1/flujo_pasos?flujo_id=eq."+id+"&select=orden,tipo_paso,titulo,instruccion,config,rama&order=orden.asc");
+      fo={ id:id, nombre:meta?meta.nombre:"Flujo", tipo:meta?meta.tipo:"", pasos:normalizar(pasos), cached_at:new Date().toISOString() };
+      cacheFlujo(fo);           // queda disponible offline
+    }catch(e){ fo=await getFlujoCache(id); }
+  } else {
+    fo=await getFlujoCache(id);
+  }
+  if(!fo || !fo.pasos || !fo.pasos.length){
+    setScreen("", '<div class="kick">Flujo</div><div class="title">No se pudo abrir</div><p class="instr">'+(navigator.onLine?'El flujo no tiene pasos.':'No está disponible offline.')+'</p><div class="opts" style="max-width:240px">'+btn("","Volver","showFlujos()")+'</div>');
+    chips(["“<b>Volver</b>”"]); return;
+  }
+  F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente";
+  render();
+}
+
+/* ---------- Motor genérico ---------- */
+function head(t){ return '<div class="kick">Paso '+(i+1)+' · '+t+'</div>'; }
+function titleH(p){ return '<div class="title">'+esc(p.titulo||"(sin título)")+'</div>'; }
+function instrH(p){ return p.instr?'<p class="instr">'+esc(p.instr)+'</p>':''; }
+function imgBlock(src){ return '<div class="cam"><span class="tag">REFERENCIA</span><img src="'+src+'" /></div>'; }
+function imgH(p){ return p.imagen?imgBlock(p.imagen):''; }
+function opCls(n,ix){ return n===2?(ix===0?"ok":"no"):"primary"; }
+
+function render(){
+  if(i>=F.length){ showResultado(); return; }
+  const p=F[i];
   if(p.tipo==="escaneo"){
-    setScreen("",
-      '<div class="kick">Paso '+(i+1)+' · Escaneo</div><div class="title">'+p.titulo+'</div>'+
-      '<p class="instr">'+p.instr+'</p>'+
-      (ejec.equipo_id?'<div class="equipo">🔧 '+ejec.equipo_id+'</div>':'')+
-      '<div class="opts">'+btn("primary","Escanear","escanear()")+(ejec.equipo_id?btn("","Siguiente","siguiente()"):'')+'</div>');
+    setScreen("", head("Escaneo")+titleH(p)+instrH(p)+imgH(p)+
+      (ejec.equipo_id?'<div class="equipo">🔧 '+esc(ejec.equipo_id)+'</div>':'')+
+      '<div class="opts">'+btn("primary","Escanear","escanear()")+(ejec.equipo_id?btn("","Siguiente","avanzar()"):'')+'</div>');
     chips(["“<b>Escanear</b>”", ejec.equipo_id?"“<b>Siguiente</b>”":""]);
   }
   else if(p.tipo==="confirmacion"){
-    setScreen("",
-      '<div class="kick">Paso '+(i+1)+' · Verificación</div><div class="title">'+p.titulo+'</div>'+
-      '<p class="instr">'+p.instr+'</p>'+
-      '<div class="opts">'+btn("ok","Sí","responder('"+p.campo+"','si')")+btn("no","No","responder('"+p.campo+"','no')")+'</div>');
-    chips(["“<b>Sí</b>”","“<b>No</b>”"]);
+    const os=(p.opciones&&p.opciones.length)?p.opciones:[{label:"Sí",dest:null},{label:"No",dest:null}];
+    setScreen("", head("Verificación")+titleH(p)+instrH(p)+imgH(p)+
+      '<div class="opts">'+os.map(function(o,ix){ return btn(opCls(os.length,ix),esc(o.label||"Opción"),"responderOp("+ix+")"); }).join('')+'</div>');
+    chips(os.map(function(o){ return "“<b>"+esc(o.label)+"</b>”"; }));
   }
   else if(p.tipo==="foto"){
-    const tiene=!!ejec.respuestas[p.campo];
-    setScreen("",
-      '<div class="kick">Paso '+(i+1)+' · Evidencia</div><div class="title">'+p.titulo+'</div>'+
-      (tiene
-        ? '<div class="cam"><span class="tag">FOTO TOMADA</span><img src="'+ejec.respuestas[p.campo]+'" /></div>'
-        : '<div class="cam"><span class="tag">CÁMARA</span><div class="ph">'+p.instr+'</div></div>')+
-      '<input type="file" id="cap" accept="image/*" capture="environment" style="display:none" onchange="onFoto(\''+p.campo+'\')" />'+
-      '<div class="opts">'+
-        (tiene
-          ? btn("ok","Siguiente","siguiente()")+btn("","Repetir","repetir('"+p.campo+"')")
-          : btn("primary","Tomar foto","tomarFoto()")+btn("","Omitir","siguiente()"))+
-      '</div>');
+    const campo=p.campo||("foto_"+(i+1));
+    const tiene=!!ejec.respuestas[campo];
+    setScreen("", head("Evidencia")+titleH(p)+
+      (tiene?'<div class="cam"><span class="tag">FOTO TOMADA</span><img src="'+ejec.respuestas[campo]+'" /></div>'
+            :'<div class="cam"><span class="tag">CÁMARA</span><div class="ph">'+esc(p.instr||"Encuadrá y tomá la foto")+'</div></div>')+
+      '<input type="file" id="cap" accept="image/*" capture="environment" style="display:none" onchange="onFoto(\''+campo+'\')" />'+
+      '<div class="opts">'+(tiene?btn("ok","Siguiente","avanzar()")+btn("","Repetir","repetir('"+campo+"')")
+                                 :btn("primary","Tomar foto","tomarFoto()")+btn("","Omitir","avanzar()"))+'</div>');
     chips(tiene?["“<b>Siguiente</b>”","“<b>Repetir</b>”"]:["“<b>Tomar foto</b>”","“<b>Omitir</b>”"]);
   }
-  else if(p.tipo==="resultado"){
-    const r=ejec.respuestas, sug=(r.aceite==="no"||r.fugas==="si");
-    setScreen("",
-      '<div class="kick">Paso '+(i+1)+' · Cierre</div><div class="title">'+p.titulo+'</div>'+
-      '<p class="instr">'+p.instr+' '+(sug?'<b style="color:var(--warn)">Sugerido: No apto</b>':'<b style="color:var(--ok)">Sugerido: Apto</b>')+'</p>'+
-      '<div class="opts">'+btn("ok","Apto","resultado('apto')")+btn("no","No apto","resultado('no_apto')")+'</div>');
-    chips(["“<b>Apto</b>”","“<b>No apto</b>”"]);
-  }
-  else if(p.tipo==="fin"){
-    ejec.fin=new Date().toISOString();
-    const r=ejec.respuestas, apto=ejec.resultado==="apto";
-    let fotos=0; for(const k in r){ if(k.indexOf("foto_")===0 && r[k]) fotos++; }
-    setScreen("",
-      '<div class="kick">✔ Registro guardado</div><div class="title" style="font-size:20px">'+p.titulo+'</div>'+
-      '<div class="sum">'+
-        '<div class="row"><span>Equipo</span><span>'+(ejec.equipo_id||"—")+'</span></div>'+
-        '<div class="row"><span>Operador</span><span>'+((ejec.operador_nombre?ejec.operador_nombre+" · ":"")+(ejec.operador_cedula||"—"))+'</span></div>'+
-        '<div class="row"><span>Aceite / Fugas</span><span>'+fmt(r.aceite)+' / '+fmt(r.fugas)+'</span></div>'+
-        '<div class="row"><span>Evidencia</span><span>'+fotos+' foto(s)</span></div>'+
-        '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+
-      '</div>'+
-      '<div class="opts">'+btn("amber","Nueva inspección","finalizar()")+'</div>'+
-      '<p class="note">El PDF firmado se genera en la próxima etapa. Por ahora la ejecución queda en cola local.</p>');
-    chips(["“<b>Nueva inspección</b>”"]);
+  else if(p.tipo==="dato"){ datoScreen(p); }
+  else { /* instruccion (y cualquier otro) */
+    setScreen("", head("Instrucción")+titleH(p)+instrH(p)+imgH(p)+
+      '<div class="opts">'+btn("primary","Siguiente","avanzar()")+'</div>');
+    chips(["“<b>Siguiente</b>”"]);
   }
 }
 
-/* ---------- Navegación ---------- */
-function siguiente(){
-  const p=PASOS[i];
-  if(p.rama){ const val=ejec.respuestas[p.campo]; const r=p.rama.find(function(x){return x.cuando===val;}); if(r){ i=idxDe(r.irA); render(); return; } }
-  if(i<PASOS.length-1){ i++; render(); }
+/* Navegación por ruteo (dest: índice · "fin" · null=siguiente) */
+function irA(dest){
+  if(dest==="fin"){ i=F.length; render(); return; }
+  if(dest==null){ if(i<F.length-1){ i++; } else { i=F.length; } render(); return; }
+  i=dest; render();
 }
-function responder(c,v){ ejec.respuestas[c]=v; siguiente(); }
-function resultado(v){ ejec.resultado=v; siguiente(); }
-function escanear(){ ejec.equipo_id="EQ-"+(100+Math.floor(Math.abs(Math.sin(Date.now()))*899)); render(); }
-function fmt(v){ return v==="si"?"Sí":v==="no"?"No":"—"; }
+function avanzar(){ irA(F[i].dest); }
+function responderOp(ix){ const p=F[i]; const o=(p.opciones||[])[ix]||{}; ejec.respuestas[p.campo||("resp_"+(i+1))]=o.label||""; irA(o.dest); }
+function escanear(){ const p=F[i]; ejec.equipo_id="EQ-"+(100+Math.floor(Math.abs(Math.sin(Date.now()))*899)); if(p.campo) ejec.respuestas[p.campo]=ejec.equipo_id; render(); }
 
-/* ---------- Foto: cámara NATIVA del RealWear (input capture) ---------- */
+/* Dato: teclado numérico */
+function datoScreen(p){
+  let keys="";
+  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="datoKey(\''+n+'\')">'+n+'</button>'; });
+  keys+='<button class="key wide act" title="'+wm("Borrar")+'" onclick="datoDel()">Borrar</button>';
+  keys+='<button class="key" title="'+wm("")+'" onclick="datoKey(\'0\')">0</button>';
+  keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="datoListo()">Entrar</button>';
+  datoBuf="";
+  setScreen("", head("Dato")+titleH(p)+instrH(p)+imgH(p)+
+    '<div class="idwrap"><div class="iddisplay"><div class="idbox empty" id="idbox">— — — —</div>'+(p.campo?'<p class="note">Campo: '+esc(p.campo)+'</p>':'')+'</div>'+
+    '<div class="keys">'+keys+'</div></div>');
+  chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
+}
+function datoKey(n){ if(datoBuf.length<12){ datoBuf+=n; const b=$("#idbox"); if(b){ b.textContent=datoBuf; b.classList.remove("empty"); } } }
+function datoDel(){ datoBuf=datoBuf.slice(0,-1); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"— — — —"; if(!datoBuf)b.classList.add("empty"); } }
+function datoListo(){ const p=F[i]; ejec.respuestas[p.campo||("dato_"+(i+1))]=datoBuf||"—"; datoBuf=""; irA(p.dest); }
+
+/* Foto: cámara nativa del RealWear (input capture) */
 function tomarFoto(){ const c=$("#cap"); if(c) c.click(); }
 function repetir(campo){ delete ejec.respuestas[campo]; render(); tomarFoto(); }
 function onFoto(campo){
   const inp=$("#cap"); const f=inp && inp.files && inp.files[0];
   if(!f){ return; }
   const rd=new FileReader();
-  rd.onload=function(){ ejec.respuestas[campo]=rd.result; render(); };   // guarda y muestra la foto
+  rd.onload=function(){ ejec.respuestas[campo]=rd.result; render(); };
   rd.onerror=function(){ render(); };
   rd.readAsDataURL(f);
 }
 
-/* ---------- Offline (IndexedDB) · opcional, no rompe la app ---------- */
+/* ---------- Cierre ---------- */
+function showResultado(){
+  setScreen("", '<div class="kick">Cierre</div><div class="title">Resultado</div>'+
+    '<p class="instr">Confirmá el estado del equipo.</p>'+
+    '<div class="opts">'+btn("ok","Apto","resultado('apto')")+btn("no","No apto","resultado('no_apto')")+'</div>');
+  chips(["“<b>Apto</b>”","“<b>No apto</b>”"]);
+}
+function resultado(v){ ejec.resultado=v; ejec.fin=new Date().toISOString(); showFin(); }
+function showFin(){
+  const r=ejec.respuestas, apto=ejec.resultado==="apto";
+  let fotos=0, datos=0; for(const k in r){ const v=r[k]; if(typeof v==="string" && v.indexOf("data:")===0) fotos++; else datos++; }
+  setScreen("", '<div class="kick">✔ Registro en cola local</div><div class="title" style="font-size:20px">'+esc(ejec.flujo||"Inspección")+' — completada</div>'+
+    '<div class="sum">'+
+      '<div class="row"><span>Equipo</span><span>'+esc(ejec.equipo_id||"—")+'</span></div>'+
+      '<div class="row"><span>Operador</span><span>'+esc((ejec.operador_nombre?ejec.operador_nombre+" · ":"")+(ejec.operador_cedula||"—"))+'</span></div>'+
+      '<div class="row"><span>Respuestas</span><span>'+datos+' dato(s) · '+fotos+' foto(s)</span></div>'+
+      '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+
+    '</div>'+
+    '<div class="opts">'+btn("amber","Volver al menú","finalizar()")+'</div>'+
+    '<p class="note">La subida a la base y el PDF firmado van en la próxima etapa. Por ahora queda en cola local.</p>');
+  chips(["“<b>Volver al menú</b>”"]);
+}
+function finalizar(){
+  try{ guardarLocal(ejec).then(refrescarPend).catch(function(){}); }catch(e){}
+  const c=ejec.operador_cedula, n=ejec.operador_nombre;
+  nuevaEjecucion(); ejec.operador_cedula=c; ejec.operador_nombre=n;
+  showHub();
+}
+
+/* ---------- Offline (IndexedDB): ejecuciones en cola + cache de flujos ---------- */
 let db=null;
 function abrirDB(){ return new Promise(function(res){ try{
-  const q=indexedDB.open("realwear_ra",1);
-  q.onupgradeneeded=function(e){ const d=e.target.result; if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"}); };
+  const q=indexedDB.open("realwear_ra",2);
+  q.onupgradeneeded=function(e){ const d=e.target.result;
+    if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"});
+    if(!d.objectStoreNames.contains("flujos")) d.createObjectStore("flujos",{keyPath:"id"});
+  };
   q.onsuccess=function(e){ db=e.target.result; res(true); };
   q.onerror=function(){ res(false); };
 }catch(e){ res(false); } }); }
@@ -277,13 +403,15 @@ function refrescarPend(){ return new Promise(function(res){ const el=$("#pend");
   try{ const q=db.transaction("pendientes","readonly").objectStore("pendientes").count();
     q.onsuccess=function(){ const n=q.result; if(n>0){ el.style.display="inline-block"; el.textContent="⏳ "+n; } else el.style.display="none"; res(); };
     q.onerror=function(){ res(); }; }catch(e){ res(); } }); }
-function finalizar(){ try{ guardarLocal(ejec).then(refrescarPend).catch(function(){}); }catch(e){} nuevaEjecucion(); showInicio(); }
+function cacheFlujo(o){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("flujos","readwrite"); tx.objectStore("flujos").put(o); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
+function getFlujoCache(id){ return new Promise(function(res){ if(!db){res(null);return;} try{ const q=db.transaction("flujos","readonly").objectStore("flujos").get(id); q.onsuccess=function(){ res(q.result||null); }; q.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }
+function listFlujosCache(){ return new Promise(function(res){ if(!db){res([]);return;} try{ const q=db.transaction("flujos","readonly").objectStore("flujos").getAll(); q.onsuccess=function(){ res(q.result||[]); }; q.onerror=function(){ res([]); }; }catch(e){ res([]); } }); }
 
 /* ---------- Conexión ---------- */
 function pintarNet(){ const el=$("#net"); if(!el)return; if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
 addEventListener("online",pintarNet); addEventListener("offline",pintarNet);
 
-/* ---------- Init · dibuja PRIMERO ---------- */
+/* ---------- Init ---------- */
 function boot(){
   try{ nuevaEjecucion(); showInicio(); }
   catch(e){ $("#screen").innerHTML='<div style="margin:auto;text-align:center;color:#f2a6a3;padding:20px;font-size:15px">No se pudo iniciar.<br><small style="color:#9fb0c9">'+((e&&e.message)||e)+'</small><br><br><button class="opt primary" style="max-width:240px" onclick="location.reload()">Reintentar</button></div>'; }

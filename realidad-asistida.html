@@ -115,8 +115,11 @@ function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</
 const SB_URL   = "https://jwqgvlcktzhyddrofqqg.supabase.co";
 const SB_ANON  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
 const EMPRESA_ID = "";
-async function sbFetch(path){
-  const res=await fetch(SB_URL+path,{headers:{ apikey:SB_ANON }});
+async function sbFetch(path, opts){
+  opts=opts||{};
+  opts.headers=Object.assign({ apikey:SB_ANON, Authorization:"Bearer "+SB_ANON }, opts.headers||{});
+  if(opts.body && !opts.headers["Content-Type"]) opts.headers["Content-Type"]="application/json";
+  const res=await fetch(SB_URL+path, opts);
   const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
   if(!res.ok) throw new Error((data&&(data.message||data.msg))||("HTTP "+res.status));
   return data;
@@ -267,10 +270,10 @@ async function abrirFlujoLente(id){
   let fo=null;
   if(navigator.onLine){
     try{
-      const rf=await sbFetch("/rest/v1/flujos?id=eq."+id+"&select=id,nombre,tipo");
+      const rf=await sbFetch("/rest/v1/flujos?id=eq."+id+"&select=id,nombre,tipo,empresa_id,version");
       const meta=rf&&rf[0];
       const pasos=await sbFetch("/rest/v1/flujo_pasos?flujo_id=eq."+id+"&select=orden,tipo_paso,titulo,instruccion,config,rama&order=orden.asc");
-      fo={ id:id, nombre:meta?meta.nombre:"Flujo", tipo:meta?meta.tipo:"", pasos:normalizar(pasos), cached_at:new Date().toISOString() };
+      fo={ id:id, nombre:meta?meta.nombre:"Flujo", tipo:meta?meta.tipo:"", empresa_id:meta?meta.empresa_id:null, version:meta?meta.version:1, pasos:normalizar(pasos), cached_at:new Date().toISOString() };
       cacheFlujo(fo);           // queda disponible offline
     }catch(e){ fo=await getFlujoCache(id); }
   } else {
@@ -280,7 +283,8 @@ async function abrirFlujoLente(id){
     setScreen("", '<div class="kick">Flujo</div><div class="title">No se pudo abrir</div><p class="instr">'+(navigator.onLine?'El flujo no tiene pasos.':'No está disponible offline.')+'</p><div class="opts" style="max-width:240px">'+btn("","Volver","showFlujos()")+'</div>');
     chips(["“<b>Volver</b>”"]); return;
   }
-  F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente";
+  F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.empresa_id=fo.empresa_id||""; ejec.flujo_version=fo.version||1;
+  ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente";
   render();
 }
 
@@ -384,11 +388,15 @@ function showFin(){
       '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+
     '</div>'+
     '<div class="opts">'+btn("amber","Volver al menú","finalizar()")+'</div>'+
-    '<p class="note">La subida a la base y el PDF firmado van en la próxima etapa. Por ahora queda en cola local.</p>');
+    '<p class="note">Al volver al menú se guarda y <b>sube a la base</b> (con evidencia). Sin señal queda en cola y sincroniza solo al reconectar. El PDF firmado va en la próxima etapa.</p>');
   chips(["“<b>Volver al menú</b>”"]);
 }
 function finalizar(){
-  try{ guardarLocal(ejec).then(refrescarPend).catch(function(){}); }catch(e){}
+  ejec.fin=ejec.fin||new Date().toISOString(); ejec.estado="completada";
+  armarItems();
+  ejec.hash=fnv(JSON.stringify({ eq:ejec.equipo_id, op:ejec.operador_cedula, res:ejec.resultado,
+    it:(ejec.items||[]).map(function(x){ return { c:x.campo, v:x.valor, f:!!x.foto }; }) }));
+  try{ guardarLocal(ejec).then(function(){ refrescarPend(); sincronizar(); }).catch(function(){}); }catch(e){}
   const c=ejec.operador_cedula, n=ejec.operador_nombre;
   nuevaEjecucion(); ejec.operador_cedula=c; ejec.operador_nombre=n;
   showHub();
@@ -414,16 +422,97 @@ function cacheFlujo(o){ return new Promise(function(res){ if(!db){res();return;}
 function getFlujoCache(id){ return new Promise(function(res){ if(!db){res(null);return;} try{ const q=db.transaction("flujos","readonly").objectStore("flujos").get(id); q.onsuccess=function(){ res(q.result||null); }; q.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }
 function listFlujosCache(){ return new Promise(function(res){ if(!db){res([]);return;} try{ const q=db.transaction("flujos","readonly").objectStore("flujos").getAll(); q.onsuccess=function(){ res(q.result||[]); }; q.onerror=function(){ res([]); }; }catch(e){ res([]); } }); }
 
+/* =====================================================================
+   ETAPA 2 · Subir la ejecución a la base (anon) + evidencia al Storage
+   con cola offline y sincronización al volver la señal.
+   ===================================================================== */
+function fnv(str){ let h=0x811c9dc5; for(let k=0;k<str.length;k++){ h^=str.charCodeAt(k); h=(h*0x01000193)>>>0; } return ("0000000"+h.toString(16)).slice(-8); }
+function dataURLtoBlob(d){ const c=d.split(','); const mime=((c[0]||"").match(/data:(.*?);/)||[])[1]||"image/jpeg"; const bin=atob(c[1]||""); const u=new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) u[k]=bin.charCodeAt(k); return new Blob([u],{type:mime}); }
+
+/* Congela las respuestas del recorrido en una lista lista para subir (usa F actual) */
+function armarItems(){
+  const items=[];
+  F.forEach(function(p,ix){
+    let key = p.tipo==="confirmacion" ? (p.campo||("resp_"+(ix+1)))
+            : p.tipo==="foto"        ? (p.campo||("foto_"+(ix+1)))
+            : p.tipo==="dato"        ? (p.campo||("dato_"+(ix+1)))
+            : p.tipo==="escaneo"     ? (p.campo||"equipo") : null;
+    if(!key) return;
+    const val=ejec.respuestas[key];
+    if(val===undefined || val===null) return;
+    const esFoto = (typeof val==="string" && val.indexOf("data:")===0);
+    items.push({ paso_orden:p.orden, tipo_paso:p.tipo, campo:key, foto: esFoto?val:null, valor: esFoto?null:val });
+  });
+  ejec.items=items;
+}
+
+async function subirFoto(path, dataUrl){
+  const blob=dataURLtoBlob(dataUrl);
+  const res=await fetch(SB_URL+"/storage/v1/object/evidencias/"+path, {
+    method:"POST", headers:{ apikey:SB_ANON, Authorization:"Bearer "+SB_ANON, "Content-Type":blob.type||"image/jpeg" }, body:blob
+  });
+  if(!res.ok){ let t=""; try{ t=await res.text(); }catch(e){} throw new Error("Storage "+res.status+" "+t); }
+  return path;
+}
+
+async function subirEjecucion(ej){
+  if(!ej.empresa_id || !ej.flujo_id) throw new Error("Faltan empresa/flujo en la ejecución.");
+  // 1) Ejecución
+  const body={ empresa_id:ej.empresa_id, flujo_id:ej.flujo_id, flujo_version:ej.flujo_version||1,
+    operador_cedula:ej.operador_cedula||null, operador_nombre:ej.operador_nombre||null, equipo_id:ej.equipo_id||null,
+    inicio:ej.inicio, fin:ej.fin||new Date().toISOString(), estado:"completada", resultado:ej.resultado||"pendiente",
+    dispositivo:ej.dispositivo||"RealWear", hash:ej.hash||null };
+  const ins=await sbFetch("/rest/v1/ejecuciones",{ method:"POST", headers:{ Prefer:"return=representation" }, body:JSON.stringify(body) });
+  const ejecId=ins[0].id;
+  // 2) Respuestas (+ fotos al Storage). Ruta: evidencia/<empresa_id>/<ejecucion_id>/<archivo>
+  const rows=[];
+  const items=ej.items||[];
+  for(let k=0;k<items.length;k++){
+    const it=items[k]; let evidencia_path=null;
+    if(it.foto){
+      const path="evidencia/"+ej.empresa_id+"/"+ejecId+"/"+(it.campo||("p"+it.paso_orden))+"_"+Date.now()+"_"+k+".jpg";
+      await subirFoto(path, it.foto);
+      evidencia_path=path;
+    }
+    rows.push({ ejecucion_id:ejecId, paso_orden:(it.paso_orden||null), tipo_paso:(it.tipo_paso||null),
+      valor:(it.valor!==undefined&&it.valor!==null)?it.valor:null, evidencia_path:evidencia_path });
+  }
+  if(rows.length) await sbFetch("/rest/v1/ejecucion_respuestas",{ method:"POST", body:JSON.stringify(rows) });
+  return ejecId;
+}
+
+let sincronizando=false;
+function sincronizar(){
+  if(sincronizando || !navigator.onLine || !db) return;
+  sincronizando=true;
+  let store;
+  try{ store=db.transaction("pendientes","readonly").objectStore("pendientes").getAll(); }
+  catch(e){ sincronizando=false; return; }
+  store.onsuccess=function(){
+    const lista=store.result||[];
+    (async function(){
+      for(let k=0;k<lista.length;k++){
+        try{ await subirEjecucion(lista[k]); await borrarLocal(lista[k].id); }
+        catch(e){ /* si falla, queda en cola para el próximo intento */ }
+      }
+      sincronizando=false; refrescarPend();
+    })();
+  };
+  store.onerror=function(){ sincronizando=false; };
+}
+function borrarLocal(id){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").delete(id); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
+
 /* ---------- Conexión ---------- */
 function pintarNet(){ const el=$("#net"); if(!el)return; if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
-addEventListener("online",pintarNet); addEventListener("offline",pintarNet);
+addEventListener("online", function(){ pintarNet(); sincronizar(); });
+addEventListener("offline", pintarNet);
 
 /* ---------- Init ---------- */
 function boot(){
   try{ nuevaEjecucion(); showInicio(); }
   catch(e){ $("#screen").innerHTML='<div style="margin:auto;text-align:center;color:#f2a6a3;padding:20px;font-size:15px">No se pudo iniciar.<br><small style="color:#9fb0c9">'+((e&&e.message)||e)+'</small><br><br><button class="opt primary" style="max-width:240px" onclick="location.reload()">Reintentar</button></div>'; }
   try{ pintarNet(); }catch(e){}
-  try{ abrirDB().then(refrescarPend).catch(function(){}); }catch(e){}
+  try{ abrirDB().then(function(){ refrescarPend(); sincronizar(); }).catch(function(){}); }catch(e){}
 }
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
 

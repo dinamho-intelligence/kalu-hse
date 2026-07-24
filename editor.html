@@ -194,7 +194,11 @@
       <button class="btn btn-ghost" onclick="guardarBorrador()">💾 Guardar borrador</button>
       <button class="btn btn-amber" onclick="publicar()">☁ Publicar</button>
     </div>
-    <span style="font-size:9px;color:#8a93a3;font-weight:700;letter-spacing:.5px">POWERED BY <span style="color:#F28C00">DINAMHO INTELLIGENCE</span></span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span id="userChip" style="font-size:11px;color:#cfd4dd;font-weight:600"></span>
+      <button onclick="salir()" class="btn btn-ghost" style="padding:4px 11px;font-size:11px">⎋ Salir</button>
+      <span style="font-size:9px;color:#8a93a3;font-weight:700;letter-spacing:.5px">POWERED BY <span style="color:#F28C00">DINAMHO INTELLIGENCE</span></span>
+    </div>
   </div>
 </header>
 
@@ -409,7 +413,7 @@ async function abrirMisFlujos(){
   $("#mList").classList.add("show");
   $("#listWrap").innerHTML='<div style="padding:24px;text-align:center;color:var(--mut)">Cargando…</div>';
   try{
-    const rows=await sbFetch("/rest/v1/flujos?empresa_id=eq."+SB_EMPRESA+"&select=id,nombre,tipo,estado,updated_at&order=updated_at.desc");
+    const rows=await sbFetch("/rest/v1/flujos?empresa_id=eq."+SB_EMPRESA+"&select=id,nombre,tipo,estado,actualizado_en&order=actualizado_en.desc");
     renderMisFlujos(rows);
   }catch(e){ $("#listWrap").innerHTML='<div style="padding:20px;color:var(--no)">Error: '+esc((e&&e.message)||String(e))+'</div>'; }
 }
@@ -421,7 +425,7 @@ function renderMisFlujos(rows){
     const cur=(f.id===flow.id)?' <span class="fbadge" style="background:#fff3e0;color:#F28C00">abierto</span>':'';
     const nm=(f.nombre||"(sin nombre)").replace(/'/g,"\\'");
     return '<div class="frow"><div class="finfo"><div class="fn">'+esc(f.nombre||"(sin nombre)")+cur+'</div>'+
-      '<div class="fm">'+badge+' <span style="color:var(--mut)">'+esc(f.tipo||"—")+'</span> <span style="color:#b5bcc9">· '+esc(fFecha(f.updated_at))+'</span></div></div>'+
+      '<div class="fm">'+badge+' <span style="color:var(--mut)">'+esc(f.tipo||"—")+'</span> <span style="color:#b5bcc9">· '+esc(fFecha(f.actualizado_en))+'</span></div></div>'+
       '<div class="facts">'+
         '<button class="chipbtn" onclick="abrirFlujo(\''+f.id+'\',false)">✎ Editar</button>'+
         '<button class="chipbtn" onclick="abrirFlujo(\''+f.id+'\',true)">⧉ Duplicar</button>'+
@@ -490,6 +494,12 @@ function updateStatus(){
   if(flow.id){ el.innerHTML=(flow.estado==="publicado"?'<span class="fbadge pub">● Publicado</span>':'<span class="fbadge bor">● Borrador</span>')+' <span style="color:#8a93a3;font-size:11px">guardado en la nube</span>'; }
   else { el.innerHTML='<span style="color:#8a93a3;font-size:12px;font-weight:700">○ Sin guardar</span>'; }
 }
+function updateUser(){ const c=$("#userChip"); if(c) c.innerHTML = SB_EMAIL? '👤 '+esc(SB_EMAIL) : ''; }
+function salir(){
+  if(!confirm("¿Cerrar sesión y salir del editor?")) return;
+  SB_TOKEN=null; SB_EMPRESA=null; SB_EMAIL=null;
+  window.location.href="realidad-asistida-landing.html";
+}
 let toastT=null;
 function toast(msg,err){ let t=$("#toast"); if(!t){ t=document.createElement("div"); t.id="toast"; document.body.appendChild(t); } t.textContent=msg; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){ t.className="toast"; },2800); }
 async function doLoginGate(){
@@ -497,7 +507,7 @@ async function doLoginGate(){
   if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
   if(!sbReady()){ err.textContent="Falta configurar Supabase en el código."; err.style.display="block"; return; }
   btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
-  try{ await sbLogin(email,pass); $("#gate").style.display="none"; }
+  try{ await sbLogin(email,pass); $("#gate").style.display="none"; updateUser(); }
   catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
@@ -508,7 +518,7 @@ async function doLogin(){
   btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
   try{
     await sbLogin(email,pass);
-    closeM("mLogin");
+    closeM("mLogin"); updateUser();
     if(pendingAction){ const a=pendingAction; pendingAction=null; await doGuardar(a); }
     if(pendingList){ pendingList=false; abrirMisFlujos(); }
   }catch(e){ err.textContent=(e&&e.message)||("Error de login"); err.style.display="block"; }

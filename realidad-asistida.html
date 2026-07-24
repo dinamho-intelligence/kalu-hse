@@ -456,7 +456,17 @@ async function subirFoto(path, dataUrl){
 }
 
 async function subirEjecucion(ej){
+  // Reponer empresa_id/version si faltan (ejecuciones encoladas por una versión anterior)
+  if(!ej.empresa_id && ej.flujo_id && navigator.onLine){
+    try{ const r=await sbFetch("/rest/v1/flujos?id=eq."+ej.flujo_id+"&select=empresa_id,version");
+      if(r&&r[0]){ ej.empresa_id=r[0].empresa_id; if(!ej.flujo_version) ej.flujo_version=r[0].version||1; } }catch(e){}
+  }
   if(!ej.empresa_id || !ej.flujo_id) throw new Error("Faltan empresa/flujo en la ejecución.");
+  // Reponer items desde respuestas si faltan (ejecuciones viejas)
+  let items=ej.items;
+  if(!items){ items=[]; const r=ej.respuestas||{}; for(const key in r){ const val=r[key];
+    if(val===undefined||val===null) continue; const esFoto=(typeof val==="string"&&val.indexOf("data:")===0);
+    items.push({ paso_orden:null, tipo_paso:esFoto?"foto":null, campo:key, foto:esFoto?val:null, valor:esFoto?null:val }); } }
   // 1) Ejecución
   const body={ empresa_id:ej.empresa_id, flujo_id:ej.flujo_id, flujo_version:ej.flujo_version||1,
     operador_cedula:ej.operador_cedula||null, operador_nombre:ej.operador_nombre||null, equipo_id:ej.equipo_id||null,
@@ -466,7 +476,6 @@ async function subirEjecucion(ej){
   const ejecId=ins[0].id;
   // 2) Respuestas (+ fotos al Storage). Ruta: evidencia/<empresa_id>/<ejecucion_id>/<archivo>
   const rows=[];
-  const items=ej.items||[];
   for(let k=0;k<items.length;k++){
     const it=items[k]; let evidencia_path=null;
     if(it.foto){

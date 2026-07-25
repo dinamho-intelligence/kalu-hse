@@ -125,6 +125,11 @@ async function sbFetch(path, opts){
   return data;
 }
 
+/* Empresa por defecto: se aprende de los flujos publicados y se usa de respaldo
+   para subir inspecciones que quedaron sin empresa_id (versiones viejas). */
+let DEFAULT_EMP=""; try{ DEFAULT_EMP=localStorage.getItem("kalu_emp")||""; }catch(e){}
+function recordarEmpresa(id){ if(id && id!==DEFAULT_EMP){ DEFAULT_EMP=id; try{ localStorage.setItem("kalu_emp",id); }catch(e){} } }
+
 /* WearML: comando explícito por control */
 function wm(cmd){ return (cmd?String(cmd).toUpperCase().replace(/"/g,"")+"|":"")+"hf_make_clickable|hf_show_text"; }
 function btn(cls,label,onclick){ return '<button class="opt '+cls+'" title="'+wm(label)+'" onclick="'+onclick+'">'+label+'</button>'; }
@@ -146,11 +151,11 @@ function brandHTML(){
 
 /* ---------- Estado ---------- */
 let ejec=null, F=[], i=0, cedBuf="", pinBuf="", datoBuf="", stage="";
-/* ===== Operadores autorizados · EDITÁ acá (login real va en usuarios+permisos) ===== */
-const OPERADORES = [
-  { cedula:"12345", pin:"1234", nombre:"Operador demo" }
-  // ,{ cedula:"CEDULA_REAL", pin:"PIN_REAL", nombre:"Carla Seguel" }
-];
+/* Operador: se valida contra la base (función login_operador, rol anon).
+   La empresa sale del operador. Se cachea el que entra para re-login offline en este equipo. */
+let OP_EMP="", OP_NOMBRE="", OP_CEDULA="";
+function cacheOperador(ced,pin,op){ try{ localStorage.setItem("op_"+ced, JSON.stringify({ nombre:op.nombre||"", empresa_id:op.empresa_id, ph:fnv(pin) })); }catch(e){} }
+function loginOfflineCache(ced,pin){ try{ var s=JSON.parse(localStorage.getItem("op_"+ced)||"null"); if(s&&s.ph===fnv(pin)) return { nombre:s.nombre, empresa_id:s.empresa_id }; }catch(e){} return null; }
 function nuevaEjecucion(){
   ejec={ id:genId(), flujo:"", flujo_id:"", version:1, operador_cedula:"", operador_nombre:"",
     equipo_id:"", inicio:new Date().toISOString(), fin:null, resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
@@ -188,10 +193,21 @@ function keyPress(n){ const buf=(stage==="pin"?pinBuf:cedBuf); if(buf.length<12)
 function keyDel(){ if(stage==="pin") pinBuf=pinBuf.slice(0,-1); else cedBuf=cedBuf.slice(0,-1); paintKey(); }
 function paintKey(){ const b=$("#idbox"); if(!b)return; const v=(stage==="pin"?pinMask():cedBuf); b.textContent=v||"— — — —"; if(v) b.classList.remove("empty"); else b.classList.add("empty"); }
 function cedListo(){ if(!cedBuf){ showCedula("Ingresá tu cédula."); return; } showPin(""); }
-function pinListo(){
-  const op=OPERADORES.find(function(o){ return o.cedula===cedBuf && o.pin===pinBuf; });
-  if(op){ ejec.operador_cedula=cedBuf; ejec.operador_nombre=op.nombre||""; showHub(); }
-  else { cedBuf=""; pinBuf=""; showCedula("❌ Cédula o PIN incorrecto. Volvé a intentar."); }
+async function pinListo(){
+  keypadScreen("Operador · Paso 2","Verificando…","Un momento.", pinMask(), "", "");
+  let op=null;
+  if(navigator.onLine){
+    try{ const r=await sbFetch("/rest/v1/rpc/login_operador",{ method:"POST", body:JSON.stringify({ p_cedula:cedBuf, p_pin:pinBuf }) });
+      if(r && r.length){ op=r[0]; cacheOperador(cedBuf,pinBuf,op); } }catch(e){}
+  }
+  if(!op) op=loginOfflineCache(cedBuf,pinBuf);   // fallback offline (si entró antes en este equipo)
+  if(op){
+    OP_EMP=op.empresa_id||""; OP_NOMBRE=op.nombre||""; OP_CEDULA=cedBuf;
+    ejec.operador_cedula=cedBuf; ejec.operador_nombre=OP_NOMBRE; ejec.empresa_id=OP_EMP; recordarEmpresa(OP_EMP);
+    showHub();
+  } else {
+    cedBuf=""; pinBuf=""; showCedula("❌ Cédula o PIN incorrecto"+(navigator.onLine?"":" (sin señal y no registrado en este equipo)")+".");
+  }
 }
 
 /* ---------- HUB de módulos ---------- */
@@ -217,9 +233,10 @@ async function showFlujos(){
   const cache=await listFlujosCache(); const cids={}; cache.forEach(function(c){ cids[c.id]=true; });
   let online=[];
   if(navigator.onLine){
-    try{ online=await sbFetch("/rest/v1/flujos?estado=eq.publicado"+(EMPRESA_ID?"&empresa_id=eq."+EMPRESA_ID:"")+"&select=id,nombre,tipo&order=actualizado_en.desc"); }
+    try{ online=await sbFetch("/rest/v1/flujos?estado=eq.publicado"+(OP_EMP?"&empresa_id=eq."+OP_EMP:"")+"&select=id,nombre,tipo,empresa_id&order=actualizado_en.desc"); }
     catch(e){ online=[]; }
   }
+  if(online&&online[0]) recordarEmpresa(online[0].empresa_id);
   const map={};
   online.forEach(function(f){ map[f.id]={id:f.id,nombre:f.nombre,tipo:f.tipo,online:true,offline:!!cids[f.id]}; });
   cache.forEach(function(c){ if(!map[c.id]) map[c.id]={id:c.id,nombre:c.nombre,tipo:c.tipo,online:false,offline:true}; });
@@ -274,6 +291,7 @@ async function abrirFlujoLente(id){
       const meta=rf&&rf[0];
       const pasos=await sbFetch("/rest/v1/flujo_pasos?flujo_id=eq."+id+"&select=orden,tipo_paso,titulo,instruccion,config,rama&order=orden.asc");
       fo={ id:id, nombre:meta?meta.nombre:"Flujo", tipo:meta?meta.tipo:"", empresa_id:meta?meta.empresa_id:null, version:meta?meta.version:1, pasos:normalizar(pasos), cached_at:new Date().toISOString() };
+      recordarEmpresa(meta&&meta.empresa_id);
       cacheFlujo(fo);           // queda disponible offline
     }catch(e){ fo=await getFlujoCache(id); }
   } else {
@@ -283,7 +301,7 @@ async function abrirFlujoLente(id){
     setScreen("", '<div class="kick">Flujo</div><div class="title">No se pudo abrir</div><p class="instr">'+(navigator.onLine?'El flujo no tiene pasos.':'No está disponible offline.')+'</p><div class="opts" style="max-width:240px">'+btn("","Volver","showFlujos()")+'</div>');
     chips(["“<b>Volver</b>”"]); return;
   }
-  F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.empresa_id=fo.empresa_id||""; ejec.flujo_version=fo.version||1;
+  F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.empresa_id=OP_EMP||fo.empresa_id||""; ejec.flujo_version=fo.version||1;
   ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente";
   render();
 }
@@ -397,8 +415,8 @@ function finalizar(){
   ejec.hash=fnv(JSON.stringify({ eq:ejec.equipo_id, op:ejec.operador_cedula, res:ejec.resultado,
     it:(ejec.items||[]).map(function(x){ return { c:x.campo, v:x.valor, f:!!x.foto }; }) }));
   try{ guardarLocal(ejec).then(function(){ refrescarPend(); sincronizar(); }).catch(function(){}); }catch(e){}
-  const c=ejec.operador_cedula, n=ejec.operador_nombre;
-  nuevaEjecucion(); ejec.operador_cedula=c; ejec.operador_nombre=n;
+  nuevaEjecucion();
+  ejec.operador_cedula=OP_CEDULA; ejec.operador_nombre=OP_NOMBRE; ejec.empresa_id=OP_EMP;
   showHub();
 }
 
@@ -461,7 +479,9 @@ async function subirEjecucion(ej){
     try{ const r=await sbFetch("/rest/v1/flujos?id=eq."+ej.flujo_id+"&select=empresa_id,version");
       if(r&&r[0]){ ej.empresa_id=r[0].empresa_id; if(!ej.flujo_version) ej.flujo_version=r[0].version||1; } }catch(e){}
   }
-  if(!ej.empresa_id || !ej.flujo_id) throw new Error("Faltan empresa/flujo en la ejecución.");
+  if(!ej.empresa_id) ej.empresa_id=DEFAULT_EMP;   // respaldo: empresa aprendida de los flujos publicados
+  if(!ej.empresa_id) throw new Error("No hay empresa. Entrá a «Flujos» con señal una vez para que la app la aprenda, y reintentá.");
+  if(!ej.flujo_id) throw new Error("Falta el flujo en la inspección.");
   // Reponer items desde respuestas si faltan (ejecuciones viejas)
   let items=ej.items;
   if(!items){ items=[]; const r=ej.respuestas||{}; for(const key in r){ const val=r[key];
@@ -510,12 +530,33 @@ function sincronizar(){
   };
   store.onerror=function(){ sincronizando=false; };
 }
-/* Diagnóstico: tocar el ⏳ muestra el estado y reintenta */
+/* Diagnóstico: tocar el ⏳ muestra el estado, reintenta o descarta la trabada */
 function diagPend(){
-  if(!navigator.onLine){ alert("Sin conexión.\nSe subirá solo cuando vuelva la señal."); return; }
-  if(lastSyncError){ alert("No pudo subir una inspección.\n\nError:\n"+lastSyncError+"\n\nToco «Aceptar» y reintento…"); }
-  else { alert("Reintentando subir lo pendiente…"); }
-  lastSyncError=""; sincronizar();
+  if(!db){ alert("Base local no disponible."); return; }
+  let q;
+  try{ q=db.transaction("pendientes","readonly").objectStore("pendientes").getAll(); }
+  catch(e){ alert("No se pudo leer la cola local."); return; }
+  q.onsuccess=function(){
+    const l=q.result||[];
+    if(!l.length){ alert("No hay inspecciones pendientes. ✅"); refrescarPend(); return; }
+    const ej=l[0];
+    const fotos=(ej.items||[]).filter(function(x){return x.foto;}).length;
+    const det="Pendientes: "+l.length+"\n\nInspección trabada:\n"+
+      "• flujo: "+(ej.flujo||"(?)")+"\n"+
+      "• flujo_id: "+(ej.flujo_id||"(vacío)")+"\n"+
+      "• empresa_id: "+(ej.empresa_id||"(VACÍO)")+"\n"+
+      "• ítems: "+(ej.items?ej.items.length:"(sin)")+" · fotos: "+fotos+"\n\n"+
+      (lastSyncError?("Último error:\n"+lastSyncError+"\n\n"):"")+
+      "«Aceptar» = reintentar subir\n«Cancelar» = descartar esta inspección de prueba";
+    if(!navigator.onLine){ alert("Sin conexión.\nSe subirán al reconectar.\n\n"+det); return; }
+    const info="Hay "+l.length+" inspección(es) sin subir.\n\n"+(lastSyncError?("Último error:\n"+lastSyncError+"\n\n"):"")+
+      "«Aceptar» = REINTENTAR subir todas\n«Cancelar» = opción de descartar";
+    if(confirm(info)){ lastSyncError=""; sincronizar(); }
+    else if(confirm("¿Descartar las "+l.length+" inspecciones pendientes?\nNo se suben — se borran del teléfono.")){
+      (async function(){ for(let k=0;k<l.length;k++){ try{ await borrarLocal(l[k].id); }catch(e){} } refrescarPend(); alert("Cola vaciada. ✅"); })();
+    }
+  };
+  q.onerror=function(){ alert("No se pudo leer la cola local."); };
 }
 function borrarLocal(id){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").delete(id); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
 

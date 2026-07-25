@@ -168,6 +168,9 @@ function mostrarPortal(){
       '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+c.nombre+'</h3><p>'+c.desc+'</p>'+
       (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
   });
+  if(SB_SUPER || SB_ROL==="admin" || SB_ROL==="hse"){
+    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":SB_ROL)+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
+  }
   $("#mods").innerHTML = cards.join("");
 }
 function salir(){ borrarSesion(); SB_TOKEN=SB_EMPRESA=SB_EMAIL=SB_NOMBRE=null; $("#portalView").style.display="none"; $("#loginView").style.display="block"; }

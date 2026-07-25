@@ -144,7 +144,7 @@ async function doLoginGate(){
   catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
-function salir(){ if(!confirm("¿Cerrar sesión?"))return; SB_TOKEN=null;SB_EMPRESA=null;SB_EMAIL=null; location.reload(); }
+function salir(){ if(!confirm("¿Cerrar sesión?"))return; SB_TOKEN=null;SB_EMPRESA=null;SB_EMAIL=null; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} window.location.href="ingreso.html"; }
 
 function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function fFecha(s){ if(!s)return "—"; try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return "—"; } }
@@ -222,6 +222,11 @@ async function verDetalle(id){
   }
 }
 function fmtVal(v){ if(v==null)return "—"; if(typeof v==="object")return JSON.stringify(v); return String(v); }
+/* SSO: si venís del ingreso con sesión activa, entrar directo */
+function ssoAuto(){ try{ var s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null");
+  if(s&&s.token&&(Date.now()-s.ts)<55*60*1000){ SB_TOKEN=s.token; SB_EMPRESA=s.empresa; SB_EMAIL=s.email;
+    document.getElementById("gate").style.display="none"; $("#userChip").textContent="👤 "+SB_EMAIL; cargar(); } }catch(e){} }
+ssoAuto();
 </script>
 </body>
 </html>

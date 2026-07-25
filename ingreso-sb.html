@@ -3,185 +3,287 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Ingreso — KALU | Dinamho Intelligence</title>
-<meta name="description" content="Ingreso a la plataforma KALU de Dinamho Intelligence. Un solo acceso a todos tus módulos: HSE, Realidad Asistida, Consola." />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<title>KALU · Administración</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.35);--glow-c:rgba(0,212,255,.25)}
-  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;overflow-x:hidden}
-  a{color:inherit;text-decoration:none}
-  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
-  .bg .grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 20%,transparent 75%);opacity:.5}
-  .bg .glow1{position:absolute;top:-10%;right:-5%;width:640px;height:640px;background:radial-gradient(circle,var(--glow-o),transparent 62%);filter:blur(30px);opacity:.45}
-  .bg .glow2{position:absolute;bottom:-20%;left:-10%;width:560px;height:560px;background:radial-gradient(circle,var(--glow-c),transparent 62%);filter:blur(30px);opacity:.4}
-  .mono{font-family:'JetBrains Mono',monospace}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--orange)}
-  .logo{display:inline-flex;align-items:center;gap:11px;margin-bottom:26px}
-  .logo-txt{display:flex;flex-direction:column;line-height:1.05;text-align:left}
-  .logo-txt .b{font-weight:700;font-size:15px;letter-spacing:1px}
-  .logo-txt .s{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;font-weight:600;font-size:15px;padding:13px 24px;border-radius:12px;cursor:pointer;transition:all .25s;border:1px solid transparent}
-  .btn-primary{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;box-shadow:0 8px 30px -8px var(--glow-o)}
-  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 40px -8px var(--glow-o)}
-  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-  .btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
-  /* stage */
-  .stage{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 24px}
-  /* login card */
-  .login{width:100%;max-width:410px;text-align:center}
-  .card{background:linear-gradient(180deg,rgba(22,26,34,.9),rgba(15,18,24,.9));border:1px solid var(--border);border-radius:22px;padding:34px 30px;backdrop-filter:blur(8px);box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
-  .card h1{font-size:24px;font-weight:700;letter-spacing:-.3px;margin-bottom:5px}
-  .card .sub{color:var(--muted);font-size:14px;margin-bottom:24px}
-  .fld{text-align:left;margin-bottom:14px}
-  .fld label{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-  .fld input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:inherit;font-size:15px;padding:12px 15px;outline:none;transition:border-color .2s}
-  .fld input:focus{border-color:var(--orange)}
-  .err{color:#ff6b6b;font-size:13px;margin-bottom:12px;display:none;text-align:left}
-  .foot{margin-top:20px;font-size:12px;color:var(--muted)}
-  .foot a{color:var(--cyan)}
-  /* portal */
-  .portal{width:100%;max-width:1000px;display:none}
-  .phead{text-align:center;margin-bottom:36px}
-  .phead h1{font-size:clamp(26px,3.4vw,38px);font-weight:700;letter-spacing:-.5px;margin:12px 0 8px}
-  .phead .who{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted)}
-  .phead .who b{color:var(--cyan)}
-  .mods{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-  .mod{background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--border);border-radius:18px;padding:24px;display:flex;flex-direction:column;transition:transform .3s,border-color .3s}
-  .mod:hover{transform:translateY(-5px);border-color:rgba(242,140,0,.45)}
-  .mod.c:hover{border-color:rgba(0,212,255,.45)}
-  .mod.g:hover{border-color:rgba(52,211,153,.45)}
-  .mod .ic{width:52px;height:52px;border-radius:14px;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:25px;margin-bottom:16px}
-  .mod .st{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:20px;align-self:flex-start;margin-bottom:12px}
-  .st-live{color:#34d399;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
-  .st-soon{color:var(--muted);border:1px solid var(--border)}
-  .mod h3{font-size:18px;font-weight:600;margin-bottom:7px}
-  .mod p{color:var(--muted);font-size:13.5px;flex:1;margin-bottom:16px}
-  .mod .go{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--orange);align-self:flex-start}
-  .mod.c .go{color:var(--cyan)} .mod.g .go{color:#34d399}
-  .mod.disabled{opacity:.5;pointer-events:none}
-  .ptools{text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-  .spin{color:var(--muted);font-size:14px}
-  @media(max-width:860px){.mods{grid-template-columns:1fr 1fr}}
-  @media(max-width:520px){.mods{grid-template-columns:1fr}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#0f1218;--amber:#F28C00;--amber2:#FF9F1C;--bg:#eef0f4;--panel:#fff;--line:#e2e5ec;--line2:#d7dbe4;--tx:#1c2230;--mut:#6b7385;--pri:#2e75b6;--ok:#2fa36b;--no:#d9534f}
+  html,body{height:100%}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header{background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:11px 20px;flex-shrink:0}
+  header .txt b{display:block;font-size:16px;font-weight:800;letter-spacing:.4px;line-height:1}
+  header .sp{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-size:13px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;border:1px solid transparent;transition:all .15s}
+  .btn-amber{background:linear-gradient(180deg,var(--amber2),var(--amber));color:#1a1200}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.25);color:#fff}
+  .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-sm{font-size:12px;padding:6px 11px;border-radius:8px}
+  .btn-b{background:#fff;border:1.5px solid var(--line2);color:var(--tx)} .btn-b:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-danger{background:#fff;border:1.5px solid #f0c9c6;color:var(--no)} .btn-danger:hover{background:#fdeeed}
+  .tabs{display:flex;gap:2px;background:var(--ink);padding:0 20px;flex-shrink:0;flex-wrap:wrap}
+  .tab{background:transparent;border:none;color:#9aa3b2;font-family:inherit;font-size:13px;font-weight:700;padding:11px 16px;cursor:pointer;border-bottom:3px solid transparent}
+  .tab.active{color:#fff;border-bottom-color:var(--amber)}
+  .body{flex:1;overflow-y:auto;padding:20px}
+  .wrap{max-width:920px;margin:0 auto}
+  h2.sec{font-size:14px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:0 0 14px}
+  .row{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .row.off{opacity:.55}
+  .row .nm{font-size:15px;font-weight:700}
+  .row .meta{font-size:12.5px;color:var(--mut)}
+  .grow{flex:1;min-width:0}
+  .bdg{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px}
+  .bdg.a{background:#e4f4ec;color:#1c6b47}.bdg.i{background:#fdeeed;color:#b23b34}.bdg.r{background:#eef0f4;color:#3a4658}.bdg.s{background:#fff3e0;color:#8a5a12}
+  .modchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+  .mchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;background:#f7f8fb;border:1.5px solid var(--line2);border-radius:20px;padding:5px 11px;cursor:pointer;user-select:none}
+  .mchk.on{background:#fff3e0;border-color:var(--amber);color:#8a5a12}
+  .card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
+  .fld label{display:block;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+  .fld input,.fld select{width:100%;font-family:inherit;font-size:14px;border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;outline:none}
+  .fld input:focus,.fld select:focus{border-color:var(--amber)}
+  .empty{color:var(--mut);font-size:13px;text-align:center;padding:26px;border:2px dashed var(--line2);border-radius:12px}
+  .note{font-size:12.5px;color:var(--mut);background:#f7f8fb;border:1px solid var(--line);border-radius:10px;padding:11px 13px;line-height:1.5}
+  .note b{color:var(--tx)}
+  .aud{font-size:12.5px;border-bottom:1px dashed var(--line);padding:8px 0;display:flex;gap:10px}
+  .aud .t{color:var(--mut);white-space:nowrap}
+  #gate{position:fixed;inset:0;z-index:300;background:radial-gradient(1000px 520px at 50% -12%,#141a24,#0b0e13);display:flex;align-items:center;justify-content:center;padding:20px}
+  #gate .gbox{width:100%;max-width:380px;text-align:center}
+  #gate h1{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px}
+  #gate .gsub{color:#9aa3b2;font-size:13px;margin-bottom:22px}
+  #gate .gfld{text-align:left;margin-bottom:12px}
+  #gate .gfld label{display:block;font-size:11px;font-weight:700;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+  #gate input{width:100%;background:#141a24;border:1.5px solid #2a3340;border-radius:10px;color:#fff;font-size:15px;padding:11px 14px;font-family:inherit;outline:none}
+  #gate input:focus{border-color:var(--amber)}
+  #gate .gerr{color:#e0574a;font-size:13px;margin-bottom:10px;display:none}
+  .spin{color:var(--mut);text-align:center;padding:30px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f1218;color:#fff;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:all .2s;z-index:400}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)} .toast.err{background:#c0392b}
 </style>
 </head>
 <body>
-<div class="bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
 
-<div class="stage">
-  <!-- LOGIN -->
-  <div class="login" id="loginView">
-    <a class="logo" href="index.html" title="Volver al inicio">
-      <svg viewBox="0 0 40 40" fill="none" style="width:36px;height:36px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
-      <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
-    </a>
-    <div class="card">
-      <span class="eyebrow">Plataforma KALU</span>
-      <h1>Ingresá a tu cuenta</h1>
-      <div class="sub">Un solo acceso a todos tus módulos.</div>
-      <div class="fld"><label>Email</label><input id="g_email" type="email" placeholder="tu@empresa.com" autocomplete="username" /></div>
-      <div class="fld"><label>Contraseña</label><input id="g_pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" /></div>
-      <div class="err" id="g_err"></div>
-      <button class="btn btn-primary" id="g_btn" style="width:100%" onclick="doLogin()">Ingresar →</button>
-    </div>
-    <div class="foot">¿Problemas para entrar? Escribinos a <a href="mailto:info@dinamho.co">info@dinamho.co</a></div>
-  </div>
-
-  <!-- PORTAL -->
-  <div class="portal" id="portalView">
-    <div class="phead">
-      <a class="logo" href="index.html" style="justify-content:center">
-        <svg viewBox="0 0 40 40" fill="none" style="width:34px;height:34px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
-        <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
-      </a>
-      <h1 id="p_hola">Hola</h1>
-      <div class="who" id="p_who"></div>
-    </div>
-    <div class="mods" id="mods"></div>
-    <div class="ptools">
-      <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">La gestión de usuarios está dentro de la Consola HSE</span>
-      <button class="btn btn-ghost" onclick="salir()">⎋ Cerrar sesión</button>
-    </div>
+<div id="gate">
+  <div class="gbox">
+    <svg width="42" height="46" viewBox="0 0 46 50" style="margin-bottom:12px"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#F28C00" stroke-width="2.5"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Inter">DI</text></svg>
+    <h1>KALU · Administración</h1>
+    <div class="gsub">Panel de super-admin / admin de empresa</div>
+    <div class="gfld"><label>Email</label><input id="g_email" type="email" placeholder="tu@empresa.com" /></div>
+    <div class="gfld"><label>Contraseña</label><input id="g_pass" type="password" onkeydown="if(event.key==='Enter')doLoginGate()" /></div>
+    <div class="gerr" id="g_err"></div>
+    <button class="btn btn-amber" id="g_btn" style="width:100%;justify-content:center" onclick="doLoginGate()">Ingresar →</button>
+    <div style="margin-top:16px"><a href="ingreso.html" style="color:#8a93a3;font-size:12px;text-decoration:none">← Volver al portal</a></div>
   </div>
 </div>
 
+<header>
+  <svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#F28C00" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Inter">DI</text></svg>
+  <div class="txt"><b>KALU · Administración</b></div>
+  <div class="sp"></div>
+  <span id="meChip" style="font-size:12px;color:#cfd4dd;font-weight:600"></span>
+  <button class="btn btn-ghost" onclick="salir()">⎋ Salir</button>
+</header>
+
+<div class="tabs" id="tabs"></div>
+<div class="body"><div class="wrap" id="view"><div class="spin">Cargando…</div></div></div>
+
 <script>
 const $ = s => document.querySelector(s);
-/* CASA DE LOS USUARIOS = HSE. La puerta única pregunta acá. */
-/* SANDBOX (kalu plataforma) — copia de prueba, no toca producción */
+/* CASA = HSE */
+/* SANDBOX (kalu plataforma) — copia de prueba */
 const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
 const SB_ANON = "sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false;
-/* Catálogo del portal. live = anda por esta puerta hoy; soon = se une pronto. */
-const PORTAL=[
-  {href:"app.html", ic:"🛡️", cls:"g", nombre:"KALU HSE",     desc:"Validación, ATS e investigación de accidentes bajo norma."},
-  {href:"hse.html", ic:"📊", cls:"c", nombre:"Consola HSE",   desc:"Tablero, expedientes, tarjetas, usuarios y auditoría."},
-  {href:"#",        ic:"🥽", cls:"c", nombre:"Realidad Asistida", desc:"Editor, lente y consola de flujos. Se une al acceso único pronto.", soon:true},
-  {href:"#",        ic:"📐", cls:"g", nombre:"QA/QC",         desc:"Aseguramiento de calidad.", soon:true},
-  {href:"#",        ic:"🔬", cls:"c", nombre:"NDT",           desc:"Ensayos no destructivos.", soon:true}
-];
+let SB_TOKEN=null, ME=null, TAB="";
+const MODULOS=[{key:"hse",nombre:"KALU HSE",ic:"🛡️"},{key:"ra",nombre:"Realidad Asistida",ic:"🥽"},{key:"qaqc",nombre:"QA/QC",ic:"📐"},{key:"ndt",nombre:"NDT",ic:"🔬"}];
+const ROLES=["trabajador","supervisor","hse","admin"];
 
 async function sbFetch(path, opts){
-  opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
+  opts=opts||{}; opts.headers=Object.assign({apikey:SB_ANON,"Content-Type":"application/json"}, opts.headers||{});
   if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
-  const res=await fetch(SB_URL+path, opts);
-  const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
-  if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
-  return data;
+  const res=await fetch(SB_URL+path,opts);
+  const txt=await res.text(); let d=null; try{d=txt?JSON.parse(txt):null;}catch(e){d=txt;}
+  if(!res.ok) throw new Error((d&&(d.message||d.error_description||d.msg))||("HTTP "+res.status));
+  return d;
 }
-/* Sesión compartida entre módulos (mismo navegador, misma pestaña) */
-function guardarSesion(){ try{ sessionStorage.setItem("kalu_ses", JSON.stringify({ token:SB_TOKEN, empresa:SB_EMPRESA, email:SB_EMAIL, nombre:SB_NOMBRE, ts:Date.now() })); }catch(e){} }
-function leerSesion(){ try{ const s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null"); if(s&&s.token&&(Date.now()-s.ts)<55*60*1000) return s; }catch(e){} return null; }
-function borrarSesion(){ try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} }
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function fFecha(s){ try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return ""; } }
+let toastT=null;
+function toast(m,err){ let t=$(".toast"); if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t);} t.textContent=m; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){t.className="toast";},2800); }
+async function logAud(accion,entidad,entidad_id,detalle){ try{ await sbFetch("/rest/v1/auditoria",{method:"POST",body:JSON.stringify({empresa_id:ME.empresa_id,actor_id:ME.id,actor_nombre:ME.nombre||ME.email,accion:accion,entidad:entidad,entidad_id:String(entidad_id||""),detalle:detalle||null})}); }catch(e){} }
 
+/* ---------- Auth ---------- */
 async function sbLoginPass(email,password){
   const d=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:email,password:password})});
-  SB_TOKEN=d.access_token; SB_EMAIL=email;
+  SB_TOKEN=d.access_token;
 }
-async function cargarPerfilYPortal(){
+async function cargarMe(){
   const u=await sbFetch("/auth/v1/user",{});
-  if(u&&u.email) SB_EMAIL=u.email;
-  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado");
-  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil asignado. Contactá a Dinamho.");
-  const p=perf[0];
-  if(p.estado && p.estado!=="activo") throw new Error("Tu cuenta está "+p.estado+". Contactá a tu administrador.");
-  SB_EMPRESA=p.empresa_id; SB_NOMBRE=p.nombre||""; SB_ROL=p.rol||""; SB_SUPER=!!p.es_super;
-  guardarSesion(); mostrarPortal();
+  const p=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=id,empresa_id,nombre,email,rol,es_super,estado,acceso_consola");
+  if(!p||!p.length) throw new Error("Tu usuario no tiene perfil.");
+  ME=p[0]; ME.email=ME.email||u.email;
+  if(!ME.es_super && ME.rol!=="admin" && ME.rol!=="hse") throw new Error("Necesitás ser admin, HSE o super-admin para entrar acá.");
+  $("#meChip").textContent="👤 "+(ME.nombre||ME.email)+(ME.es_super?" · super-admin":" · "+(ME.rol||"admin"));
+  $("#gate").style.display="none";
+  construirTabs();
 }
-async function doLogin(){
+async function doLoginGate(){
   const email=$("#g_email").value.trim(), pass=$("#g_pass").value, err=$("#g_err"), btn=$("#g_btn");
   if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
   btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
-  try{ await sbLoginPass(email,pass); await cargarPerfilYPortal(); }
-  catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
+  try{ await sbLoginPass(email,pass); try{ sessionStorage.setItem("kalu_ses",JSON.stringify({token:SB_TOKEN,ts:Date.now()})); }catch(e){} await cargarMe(); }
+  catch(e){ err.textContent=(e&&e.message)||"Error"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
-function mostrarPortal(){
-  $("#loginView").style.display="none";
-  $("#portalView").style.display="block";
-  $("#p_hola").textContent = "Hola" + (SB_NOMBRE ? ", "+SB_NOMBRE.split(" ")[0] : "");
-  $("#p_who").innerHTML = "Ingresaste como <b>"+(SB_EMAIL||"")+"</b>";
-  let cards=PORTAL.map(function(c){
-    const st=c.soon?'<span class="st st-soon">Próximo</span>':'<span class="st st-live">● En operación</span>';
-    const href=c.soon?'#':c.href;
-    return '<a class="mod '+c.cls+(c.soon?' disabled':'')+'" href="'+href+'">'+
-      '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+c.nombre+'</h3><p>'+c.desc+'</p>'+
-      (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
-  });
-  if(SB_SUPER || SB_ROL==="admin" || SB_ROL==="hse"){
-    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":SB_ROL)+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
-  }
-  $("#mods").innerHTML = cards.join("");
-}
-function salir(){ borrarSesion(); SB_TOKEN=SB_EMPRESA=SB_EMAIL=SB_NOMBRE=null; $("#portalView").style.display="none"; $("#loginView").style.display="block"; }
+function salir(){ if(!confirm("¿Cerrar sesión?"))return; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} SB_TOKEN=null; window.location.href="ingreso.html"; }
 
-/* Si ya hay sesión activa, re-leer perfil/módulos frescos y mostrar el portal */
+/* ---------- Tabs ---------- */
+function construirTabs(){
+  const tabs=[];
+  if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
+  tabs.push(["usuarios","👥 Usuarios (roles y acceso)"]);
+  tabs.push(["personal","🪪 Personal (cédulas)"]);
+  tabs.push(["auditoria","📜 Auditoría"]);
+  $("#tabs").innerHTML=tabs.map(function(t){return '<button class="tab" id="tab_'+t[0]+'" onclick="irTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("");
+  irTab(tabs[0][0]);
+}
+function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
+  if(t==="empresas") viewEmpresas(); else if(t==="usuarios") viewUsuarios(); else if(t==="personal") viewPersonal(); else viewAuditoria(); }
+
+/* ---------- EMPRESAS + MÓDULOS (solo super) ---------- */
+async function viewEmpresas(){
+  $("#view").innerHTML='<div class="spin">Cargando empresas…</div>';
+  let emps=[];
+  try{ emps=await sbFetch("/rest/v1/empresas?select=id,razon_social,modulos,activa&order=razon_social.asc"); }
+  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  let h='<h2 class="sec">Empresas y módulos contratados</h2>';
+  h+='<div class="note" style="margin-bottom:14px">Marcá qué módulos tiene cada empresa. El portal le muestra a su gente solo los módulos habilitados.</div>';
+  if(!emps.length){ h+='<div class="empty">No hay empresas cargadas.</div>'; }
+  else h+=emps.map(function(e){
+    const mods=Array.isArray(e.modulos)?e.modulos:[];
+    const chips=MODULOS.map(function(m){ const on=mods.indexOf(m.key)>=0; return '<span class="mchk '+(on?"on":"")+'" onclick="toggleModulo(\''+e.id+'\',\''+m.key+'\','+(on?"false":"true")+')">'+m.ic+' '+m.nombre+(on?' ✓':'')+'</span>'; }).join("");
+    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div></div>';
+  }).join("");
+  $("#view").innerHTML=h;
+}
+async function toggleModulo(empId,key,activar){
+  try{
+    const cur=(await sbFetch("/rest/v1/empresas?id=eq."+empId+"&select=modulos"))[0].modulos||[];
+    let mods=Array.isArray(cur)?cur.slice():[];
+    if(activar){ if(mods.indexOf(key)<0) mods.push(key); } else { mods=mods.filter(function(k){return k!==key;}); }
+    await sbFetch("/rest/v1/empresas?id=eq."+empId,{method:"PATCH",body:JSON.stringify({modulos:mods})});
+    logAud("set_modulos","empresa",empId,{modulos:mods}); toast("Módulos actualizados"); viewEmpresas();
+  }catch(e){ toast("Error: "+e.message,true); }
+}
+async function toggleEmpresaActiva(id,activar){
+  try{ await sbFetch("/rest/v1/empresas?id=eq."+id,{method:"PATCH",body:JSON.stringify({activa:activar})}); logAud(activar?"reactivar_empresa":"desactivar_empresa","empresa",id,null); viewEmpresas(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+
+/* ---------- USUARIOS (perfiles · roles y acceso) ---------- */
+async function viewUsuarios(){
+  $("#view").innerHTML='<div class="spin">Cargando usuarios…</div>';
+  let us=[];
+  try{ us=await sbFetch("/rest/v1/perfiles?select=id,nombre,email,rol,es_super,estado,acceso_consola&order=estado.asc,nombre.asc"); }
+  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  const mandos=us.filter(function(u){return u.estado==="activo"&&(u.rol==="admin"||u.rol==="hse"||u.es_super);}).length;
+  let h='<h2 class="sec">Usuarios · rol y acceso (correo + contraseña)</h2>';
+  h+='<div class="note" style="margin-bottom:14px"><b>Rol</b> = qué puede hacer. <b>Consola</b> = si entra a la Consola HSE. <b>Super</b> = manda en todo. Nada se borra: se desactiva (estado = baja) y se puede reactivar.</div>';
+  h+=us.map(function(u){
+    const yo=(u.id===ME.id);
+    const activo=(u.estado==="activo");
+    const rolSel=ROLES.map(function(r){return '<option value="'+r+'"'+(u.rol===r?" selected":"")+'>'+r+'</option>';}).join("");
+    let acc="";
+    if(yo){ acc='<span class="bdg r">vos</span>'; }
+    else {
+      acc+='<select class="fld" style="width:auto" onchange="cambiarRol(\''+u.id+'\',this.value)">'+rolSel+'</select>';
+      acc+='<button class="btn btn-b btn-sm" onclick="toggleConsola(\''+u.id+'\','+(u.acceso_consola?"false":"true")+')">'+(u.acceso_consola?"Quitar consola":"Dar consola")+'</button>';
+      if(ME.es_super) acc+='<button class="btn btn-b btn-sm" onclick="toggleSuper(\''+u.id+'\','+(u.es_super?"false":"true")+')">'+(u.es_super?"Quitar super":"Hacer super")+'</button>';
+      if(activo) acc+='<button class="btn btn-danger btn-sm" onclick="bajaUsuario(\''+u.id+'\','+mandos+','+(u.rol==="admin"||u.rol==="hse"||u.es_super)+')">Desactivar</button>';
+      else acc+='<button class="btn btn-b btn-sm" onclick="reactivarUsuario(\''+u.id+'\')">Reactivar</button>';
+    }
+    const badges=(activo?'<span class="bdg a">activo</span>':'<span class="bdg i">'+esc(u.estado||"inactivo")+'</span>')
+      +' <span class="bdg r">'+esc(u.rol||"—")+'</span>'
+      +(u.es_super?' <span class="bdg s">super</span>':'')
+      +(u.acceso_consola?' <span class="bdg r">consola</span>':'');
+    return '<div class="row '+(activo?"":"off")+'"><div class="grow"><div class="nm">'+esc(u.nombre||"(sin nombre)")+' '+badges+'</div><div class="meta">'+esc(u.email||"—")+'</div></div>'+acc+'</div>';
+  }).join("");
+  $("#view").innerHTML=h;
+}
+async function cambiarRol(id,rol){
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({rol:rol})}); logAud("cambiar_rol","perfil",id,{rol:rol}); toast("Rol actualizado → "+rol); }
+  catch(e){ toast("Error: "+e.message,true); viewUsuarios(); }
+}
+async function toggleConsola(id,val){
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({acceso_consola:val})}); logAud("acceso_consola","perfil",id,{acceso_consola:val}); toast(val?"Acceso a consola dado":"Acceso a consola quitado"); viewUsuarios(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function toggleSuper(id,val){
+  if(val && !confirm("¿Hacer super-admin a esta persona? Va a poder administrar TODO.")) return;
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({es_super:val})}); logAud(val?"hacer_super":"quitar_super","perfil",id,null); toast(val?"Ahora es super-admin":"Ya no es super"); viewUsuarios(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function bajaUsuario(id,mandos,esMando){
+  if(esMando && mandos<=1){ alert("No podés desactivar al último admin/super activo.\nDejá siempre al menos uno."); return; }
+  if(!confirm("¿Desactivar este usuario?\nNo va a poder entrar. Se puede reactivar (no se borra)."))return;
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"baja"})}); logAud("baja_usuario","perfil",id,null); toast("Usuario desactivado"); viewUsuarios(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function reactivarUsuario(id){
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"activo"})}); logAud("reactivar_usuario","perfil",id,null); toast("Usuario reactivado"); viewUsuarios(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+
+/* ---------- PERSONAL (personas · cédulas) ---------- */
+async function viewPersonal(){
+  $("#view").innerHTML='<div class="spin">Cargando personal…</div>';
+  let ps=[];
+  try{ ps=await sbFetch("/rest/v1/personas?select=id,cedula,nombre,cargo,vigente&order=vigente.desc,nombre.asc"); }
+  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  let h='<h2 class="sec">Personal por cédula</h2>';
+  h+='<div class="note" style="margin-bottom:14px"><b>Importante:</b> para que alguien pueda crear su cuenta (app o consola), su cédula tiene que estar acá primero. Cargala y después la persona se registra con ese documento.</div>';
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Agregar persona</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="np_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula</label><input id="np_cedula" placeholder="12345678"/></div><div class="fld"><label>Cargo</label><input id="np_cargo" placeholder="Inspector (opcional)"/></div></div><button class="btn btn-amber btn-sm" onclick="crearPersona()">+ Agregar</button></div>';
+  if(!ps.length){ h+='<div class="empty">Todavía no hay personal cargado.</div>'; }
+  else h+=ps.map(function(p){
+    const vig=(p.vigente!==false);
+    return '<div class="row '+(vig?"":"off")+'"><div class="grow"><div class="nm">'+esc(p.nombre||"(sin nombre)")+' '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'</div><div class="meta">C.C. '+esc(p.cedula||"—")+(p.cargo?' · '+esc(p.cargo):'')+'</div></div>'+
+      (vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div>';
+  }).join("");
+  $("#view").innerHTML=h;
+}
+async function crearPersona(){
+  const nombre=$("#np_nombre").value.trim(), cedula=$("#np_cedula").value.trim(), cargo=$("#np_cargo").value.trim();
+  if(!nombre||!cedula){ toast("Nombre y cédula son obligatorios.",true); return; }
+  try{ await sbFetch("/rest/v1/personas",{method:"POST",body:JSON.stringify({empresa_id:ME.empresa_id,nombre:nombre,cedula:cedula,cargo:cargo||null,vigente:true})}); logAud("crear_persona","trabajador",cedula,{nombre:nombre}); toast("Persona agregada"); viewPersonal(); }
+  catch(e){ toast((String(e.message).indexOf("duplicate")>=0?"Ya existe alguien con esa cédula.":"Error: "+e.message),true); }
+}
+async function bajaPersona(id){
+  if(!confirm("¿Dar de baja a esta persona? No podrá registrar tarjetas ni crear cuenta."))return;
+  try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:false})}); logAud("baja_persona","trabajador",id,null); toast("Dada de baja"); viewPersonal(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function altaPersona(id){
+  try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:true})}); logAud("alta_persona","trabajador",id,null); toast("Reactivada"); viewPersonal(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+
+/* ---------- AUDITORÍA ---------- */
+async function viewAuditoria(){
+  $("#view").innerHTML='<div class="spin">Cargando…</div>';
+  let a=[];
+  try{ a=await sbFetch("/rest/v1/auditoria?select=actor_nombre,accion,entidad,detalle,creado&order=creado.desc&limit=120"); }
+  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  let h='<h2 class="sec">Auditoría · últimas acciones</h2>';
+  if(!a.length){ h+='<div class="empty">Sin actividad registrada todavía.</div>'; }
+  else h+='<div class="card">'+a.map(function(x){ return '<div class="aud"><span class="t">'+esc(fFecha(x.creado))+'</span><span class="grow"><b>'+esc(x.actor_nombre||"—")+'</b> · '+esc(x.accion)+' <span style="color:var(--mut)">('+esc(x.entidad||"")+')</span></span></div>'; }).join("")+'</div>';
+  $("#view").innerHTML=h;
+}
+
+/* ---------- Init (SSO o gate) ---------- */
 (function(){
-  const s=leerSesion();
-  if(s){ SB_TOKEN=s.token; SB_EMAIL=s.email; cargarPerfilYPortal().catch(function(){ $("#loginView").style.display="block"; $("#portalView").style.display="none"; setTimeout(function(){var e=$("#g_email");if(e)e.focus();},60); }); }
-  else { setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80); }
+  try{ const s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null");
+    if(s&&s.token&&(Date.now()-s.ts)<55*60*1000){ SB_TOKEN=s.token; cargarMe().catch(function(){ $("#gate").style.display="flex"; }); return; } }catch(e){}
+  setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80);
 })();
 </script>
+<div style="position:fixed;bottom:14px;left:14px;z-index:99999;background:linear-gradient(135deg,#F28C00,#FF9F1C);color:#141414;font:800 12px/1 monospace;padding:9px 14px;border-radius:20px;box-shadow:0 8px 24px rgba(0,0,0,.5);letter-spacing:1px;pointer-events:none;border:2px solid #141414">🧪 SANDBOX · base de pruebas</div>
 </body>
 </html>

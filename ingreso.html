@@ -98,28 +98,7 @@
       <h1 id="p_hola">Hola</h1>
       <div class="who" id="p_who"></div>
     </div>
-    <div class="mods">
-      <a class="mod g" href="app.html">
-        <div class="ic">🛡️</div><span class="st st-live">● En operación</span>
-        <h3>KALU HSE</h3><p>Validación de conocimiento, ATS e investigación de accidentes bajo norma.</p>
-        <span class="go">Entrar →</span>
-      </a>
-      <a class="mod" href="editor.html">
-        <div class="ic">🧩</div><span class="st st-live">● En operación</span>
-        <h3>Editor de flujos</h3><p>Diseñá y publicá los procedimientos de Realidad Asistida.</p>
-        <span class="go">Entrar →</span>
-      </a>
-      <a class="mod c" href="consola.html">
-        <div class="ic">📊</div><span class="st st-live">● En operación</span>
-        <h3>Consola / Informes</h3><p>Inspecciones, estadísticas y evidencia de tu empresa.</p>
-        <span class="go">Entrar →</span>
-      </a>
-      <a class="mod c" href="realidad-asistida.html">
-        <div class="ic">🥽</div><span class="st st-live">● En operación</span>
-        <h3>App del lente</h3><p>Corré los flujos por voz en las gafas RealWear (manos libres).</p>
-        <span class="go">Abrir →</span>
-      </a>
-    </div>
+    <div class="mods" id="mods"></div>
     <div class="ptools">
       <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">Los módulos disponibles dependen de tu empresa</span>
       <button class="btn btn-ghost" onclick="salir()">⎋ Cerrar sesión</button>
@@ -131,7 +110,16 @@
 const $ = s => document.querySelector(s);
 const SB_URL  = "https://jwqgvlcktzhyddrofqqg.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null;
+let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[];
+/* Catálogo del portal: cada acceso pertenece a un módulo que la empresa debe tener */
+const PORTAL=[
+  {mod:"hse",  href:"app.html",              ic:"🛡️", cls:"g", nombre:"KALU HSE",           desc:"Validación, ATS e investigación de accidentes bajo norma."},
+  {mod:"ra",   href:"editor.html",           ic:"🧩", cls:"",  nombre:"Editor de flujos",   desc:"Diseñá y publicá los procedimientos de Realidad Asistida."},
+  {mod:"ra",   href:"consola.html",          ic:"📊", cls:"c", nombre:"Consola / Informes", desc:"Inspecciones, estadísticas y evidencia de tu empresa."},
+  {mod:"ra",   href:"realidad-asistida.html",ic:"🥽", cls:"c", nombre:"App del lente",      desc:"Corré los flujos por voz en las gafas RealWear."},
+  {mod:"qaqc", href:"#",                     ic:"📐", cls:"g", nombre:"QA/QC",              desc:"Aseguramiento de calidad.", soon:true},
+  {mod:"ndt",  href:"#",                     ic:"🔬", cls:"c", nombre:"NDT",                desc:"Ensayos no destructivos.", soon:true}
+];
 
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
@@ -146,19 +134,25 @@ function guardarSesion(){ try{ sessionStorage.setItem("kalu_ses", JSON.stringify
 function leerSesion(){ try{ const s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null"); if(s&&s.token&&(Date.now()-s.ts)<55*60*1000) return s; }catch(e){} return null; }
 function borrarSesion(){ try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} }
 
-async function sbLogin(email,password){
+async function sbLoginPass(email,password){
   const d=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:email,password:password})});
   SB_TOKEN=d.access_token; SB_EMAIL=email;
+}
+async function cargarPerfilYPortal(){
   const u=await sbFetch("/auth/v1/user",{});
-  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,tiene_consola,nombre");
+  if(u&&u.email) SB_EMAIL=u.email;
+  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,activo");
   if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil/empresa asignada.");
-  SB_EMPRESA=perf[0].empresa_id; SB_NOMBRE=perf[0].nombre||"";
+  if(perf[0].activo===false) throw new Error("Tu usuario está desactivado. Contactá a tu administrador.");
+  SB_EMPRESA=perf[0].empresa_id; SB_NOMBRE=perf[0].nombre||""; SB_ROL=perf[0].rol||"supervisor"; SB_SUPER=!!perf[0].es_super;
+  try{ const emp=await sbFetch("/rest/v1/empresas?id=eq."+SB_EMPRESA+"&select=modulos,activo"); SB_MODULOS=(emp&&emp[0]&&Array.isArray(emp[0].modulos))?emp[0].modulos:[]; }catch(e){ SB_MODULOS=[]; }
+  guardarSesion(); mostrarPortal();
 }
 async function doLogin(){
   const email=$("#g_email").value.trim(), pass=$("#g_pass").value, err=$("#g_err"), btn=$("#g_btn");
   if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
   btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
-  try{ await sbLogin(email,pass); guardarSesion(); mostrarPortal(); }
+  try{ await sbLoginPass(email,pass); await cargarPerfilYPortal(); }
   catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
@@ -167,13 +161,25 @@ function mostrarPortal(){
   $("#portalView").style.display="block";
   $("#p_hola").textContent = "Hola" + (SB_NOMBRE ? ", "+SB_NOMBRE.split(" ")[0] : "");
   $("#p_who").innerHTML = "Ingresaste como <b>"+(SB_EMAIL||"")+"</b>";
+  // Solo los accesos de los módulos que la empresa tiene
+  let cards=PORTAL.filter(function(c){ return SB_MODULOS.indexOf(c.mod)>=0; }).map(function(c){
+    const st=c.soon?'<span class="st st-soon">Próximo</span>':'<span class="st st-live">● En operación</span>';
+    return '<a class="mod '+c.cls+(c.soon?' disabled':'')+'" href="'+c.href+'">'+
+      '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+c.nombre+'</h3><p>'+c.desc+'</p>'+
+      (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
+  });
+  // Acceso a Administración para admin / super-admin
+  if(SB_SUPER || SB_ROL==="admin"){
+    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":"admin")+'</span><h3>Administración</h3><p>'+(SB_SUPER?"Empresas, módulos, usuarios y operadores.":"Usuarios y operadores de tu empresa.")+'</p><span class="go">Abrir →</span></a>');
+  }
+  $("#mods").innerHTML = cards.length ? cards.join("") : '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px">Tu empresa todavía no tiene módulos habilitados. Contactá a Dinamho.</div>';
 }
 function salir(){ borrarSesion(); SB_TOKEN=SB_EMPRESA=SB_EMAIL=SB_NOMBRE=null; $("#portalView").style.display="none"; $("#loginView").style.display="block"; }
 
-/* Si ya hay sesión activa, saltar directo al portal */
+/* Si ya hay sesión activa, re-leer perfil/módulos frescos y mostrar el portal */
 (function(){
   const s=leerSesion();
-  if(s){ SB_TOKEN=s.token; SB_EMPRESA=s.empresa; SB_EMAIL=s.email; SB_NOMBRE=s.nombre; mostrarPortal(); }
+  if(s){ SB_TOKEN=s.token; SB_EMAIL=s.email; cargarPerfilYPortal().catch(function(){ $("#loginView").style.display="block"; $("#portalView").style.display="none"; setTimeout(function(){var e=$("#g_email");if(e)e.focus();},60); }); }
   else { setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80); }
 })();
 </script>

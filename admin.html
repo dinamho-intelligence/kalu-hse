@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KALU · Administración</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#0f1218;--amber:#F28C00;--amber2:#FF9F1C;--bg:#eef0f4;--panel:#fff;--line:#e2e5ec;--line2:#d7dbe4;--tx:#1c2230;--mut:#6b7385;--pri:#2e75b6;--ok:#2fa36b;--no:#d9534f}
+  html,body{height:100%}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header{background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:11px 20px;flex-shrink:0}
+  header .txt b{display:block;font-size:16px;font-weight:800;letter-spacing:.4px;line-height:1}
+  header .sp{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-size:13px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;border:1px solid transparent;transition:all .15s}
+  .btn-amber{background:linear-gradient(180deg,var(--amber2),var(--amber));color:#1a1200}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.25);color:#fff}
+  .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-sm{font-size:12px;padding:6px 11px;border-radius:8px}
+  .btn-b{background:#fff;border:1.5px solid var(--line2);color:var(--tx)} .btn-b:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-danger{background:#fff;border:1.5px solid #f0c9c6;color:var(--no)} .btn-danger:hover{background:#fdeeed}
+  .tabs{display:flex;gap:2px;background:var(--ink);padding:0 20px;flex-shrink:0}
+  .tab{background:transparent;border:none;color:#9aa3b2;font-family:inherit;font-size:13px;font-weight:700;padding:11px 16px;cursor:pointer;border-bottom:3px solid transparent}
+  .tab.active{color:#fff;border-bottom-color:var(--amber)}
+  .body{flex:1;overflow-y:auto;padding:20px}
+  .wrap{max-width:920px;margin:0 auto}
+  h2.sec{font-size:14px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:0 0 14px}
+  .row{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .row.off{opacity:.55}
+  .row .nm{font-size:15px;font-weight:700}
+  .row .meta{font-size:12.5px;color:var(--mut)}
+  .grow{flex:1;min-width:0}
+  .bdg{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px}
+  .bdg.a{background:#e4f4ec;color:#1c6b47}.bdg.i{background:#fdeeed;color:#b23b34}.bdg.r{background:#eef0f4;color:#3a4658}
+  .modchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+  .mchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;background:#f7f8fb;border:1.5px solid var(--line2);border-radius:20px;padding:5px 11px;cursor:pointer;user-select:none}
+  .mchk.on{background:#fff3e0;border-color:var(--amber);color:#8a5a12}
+  .card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
+  .fld label{display:block;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+  .fld input,.fld select{width:100%;font-family:inherit;font-size:14px;border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;outline:none}
+  .fld input:focus,.fld select:focus{border-color:var(--amber)}
+  .empty{color:var(--mut);font-size:13px;text-align:center;padding:26px;border:2px dashed var(--line2);border-radius:12px}
+  .note{font-size:12.5px;color:var(--mut);background:#f7f8fb;border:1px solid var(--line);border-radius:10px;padding:11px 13px;line-height:1.5}
+  .note b{color:var(--tx)}
+  .aud{font-size:12.5px;border-bottom:1px dashed var(--line);padding:8px 0;display:flex;gap:10px}
+  .aud .t{color:var(--mut);white-space:nowrap}
+  /* gate */
+  #gate{position:fixed;inset:0;z-index:300;background:radial-gradient(1000px 520px at 50% -12%,#141a24,#0b0e13);display:flex;align-items:center;justify-content:center;padding:20px}
+  #gate .gbox{width:100%;max-width:380px;text-align:center}
+  #gate h1{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px}
+  #gate .gsub{color:#9aa3b2;font-size:13px;margin-bottom:22px}
+  #gate .gfld{text-align:left;margin-bottom:12px}
+  #gate .gfld label{display:block;font-size:11px;font-weight:700;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+  #gate input{width:100%;background:#141a24;border:1.5px solid #2a3340;border-radius:10px;color:#fff;font-size:15px;padding:11px 14px;font-family:inherit;outline:none}
+  #gate input:focus{border-color:var(--amber)}
+  #gate .gerr{color:#e0574a;font-size:13px;margin-bottom:10px;display:none}
+  .spin{color:var(--mut);text-align:center;padding:30px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f1218;color:#fff;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:all .2s;z-index:400}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)} .toast.err{background:#c0392b}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gbox">
+    <svg width="42" height="46" viewBox="0 0 46 50" style="margin-bottom:12px"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#F28C00" stroke-width="2.5"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Inter">DI</text></svg>
+    <h1>KALU · Administración</h1>
+    <div class="gsub">Panel de super-admin / admin de empresa</div>
+    <div class="gfld"><label>Email</label><input id="g_email" type="email" placeholder="tu@empresa.com" /></div>
+    <div class="gfld"><label>Contraseña</label><input id="g_pass" type="password" onkeydown="if(event.key==='Enter')doLoginGate()" /></div>
+    <div class="gerr" id="g_err"></div>
+    <button class="btn btn-amber" id="g_btn" style="width:100%;justify-content:center" onclick="doLoginGate()">Ingresar →</button>
+    <div style="margin-top:16px"><a href="ingreso.html" style="color:#8a93a3;font-size:12px;text-decoration:none">← Volver al portal</a></div>
+  </div>
+</div>
+
+<header>
+  <svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#F28C00" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Inter">DI</text></svg>
+  <div class="txt"><b>KALU · Administración</b></div>
+  <div class="sp"></div>
+  <span id="meChip" style="font-size:12px;color:#cfd4dd;font-weight:600"></span>
+  <button class="btn btn-ghost" onclick="salir()">⎋ Salir</button>
+</header>
+
+<div class="tabs" id="tabs"></div>
+<div class="body"><div class="wrap" id="view"><div class="spin">Cargando…</div></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const SB_URL  = "https://jwqgvlcktzhyddrofqqg.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
+let SB_TOKEN=null, ME=null, TAB="";
+const MODULOS=[{key:"hse",nombre:"KALU HSE",ic:"🛡️"},{key:"ra",nombre:"Realidad Asistida",ic:"🥽"},{key:"qaqc",nombre:"QA/QC",ic:"📐"},{key:"ndt",nombre:"NDT",ic:"🔬"}];
+
+async function sbFetch(path, opts){
+  opts=opts||{}; opts.headers=Object.assign({apikey:SB_ANON,"Content-Type":"application/json"}, opts.headers||{});
+  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
+  const res=await fetch(SB_URL+path,opts);
+  const txt=await res.text(); let d=null; try{d=txt?JSON.parse(txt):null;}catch(e){d=txt;}
+  if(!res.ok) throw new Error((d&&(d.message||d.error_description||d.msg))||("HTTP "+res.status));
+  return d;
+}
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function fFecha(s){ try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return ""; } }
+let toastT=null;
+function toast(m,err){ let t=$(".toast"); if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t);} t.textContent=m; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){t.className="toast";},2600); }
+async function logAud(accion,entidad,entidad_id,detalle){ try{ await sbFetch("/rest/v1/auditoria",{method:"POST",body:JSON.stringify({empresa_id:ME.empresa_id,actor_id:ME.id,actor_nombre:ME.nombre||ME.email,accion:accion,entidad:entidad,entidad_id:String(entidad_id||""),detalle:detalle||null})}); }catch(e){} }
+
+/* ---------- Auth ---------- */
+async function sbLoginPass(email,password){
+  const d=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:email,password:password})});
+  SB_TOKEN=d.access_token;
+}
+async function cargarMe(){
+  const u=await sbFetch("/auth/v1/user",{});
+  const p=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=id,empresa_id,nombre,email,rol,es_super,activo,tiene_consola");
+  if(!p||!p.length) throw new Error("Tu usuario no tiene perfil.");
+  ME=p[0]; ME.email=ME.email||u.email;
+  if(!ME.es_super && ME.rol!=="admin") throw new Error("Necesitás rol de admin o super-admin para entrar acá.");
+  $("#meChip").textContent="👤 "+(ME.nombre||ME.email)+(ME.es_super?" · super-admin":" · admin");
+  $("#gate").style.display="none";
+  construirTabs();
+}
+async function doLoginGate(){
+  const email=$("#g_email").value.trim(), pass=$("#g_pass").value, err=$("#g_err"), btn=$("#g_btn");
+  if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
+  btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
+  try{ await sbLoginPass(email,pass); try{ sessionStorage.setItem("kalu_ses",JSON.stringify({token:SB_TOKEN,ts:Date.now()})); }catch(e){} await cargarMe(); }
+  catch(e){ err.textContent=(e&&e.message)||"Error"; err.style.display="block"; }
+  finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
+}
+function salir(){ if(!confirm("¿Cerrar sesión?"))return; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} SB_TOKEN=null; window.location.href="ingreso.html"; }
+
+/* ---------- Tabs ---------- */
+function construirTabs(){
+  const tabs=[];
+  if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
+  tabs.push(["operadores","🥽 Operadores"]);
+  tabs.push(["usuarios","👥 Usuarios de consola"]);
+  tabs.push(["auditoria","📜 Auditoría"]);
+  $("#tabs").innerHTML=tabs.map(function(t){return '<button class="tab" id="tab_'+t[0]+'" onclick="irTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("");
+  irTab(tabs[0][0]);
+}
+function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
+  if(t==="empresas") viewEmpresas(); else if(t==="operadores") viewOperadores(); else if(t==="usuarios") viewUsuarios(); else viewAuditoria(); }
+
+/* ---------- EMPRESAS + MÓDULOS (super) ---------- */
+async function viewEmpresas(){
+  $("#view").innerHTML='<div class="spin">Cargando empresas…</div>';
+  let emps=[];
+  try{ emps=await sbFetch("/rest/v1/empresas?select=id,nombre,slug,modulos,activo&order=nombre.asc"); }catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  let h='<h2 class="sec">Empresas y módulos contratados</h2>';
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Nueva empresa</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="ne_nombre" placeholder="Ej: TQC SAS"/></div><div class="fld"><label>Slug (interno)</label><input id="ne_slug" placeholder="tqc"/></div></div><button class="btn btn-amber btn-sm" onclick="crearEmpresa()">+ Crear empresa</button></div>';
+  h+=emps.map(function(e){
+    const mods=Array.isArray(e.modulos)?e.modulos:[];
+    const chips=MODULOS.map(function(m){ const on=mods.indexOf(m.key)>=0; return '<span class="mchk '+(on?"on":"")+'" onclick="toggleModulo(\''+e.id+'\',\''+m.key+'\','+(on?"false":"true")+')">'+m.ic+' '+m.nombre+(on?' ✓':'')+'</span>'; }).join("");
+    return '<div class="row '+(e.activo?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px"><span class="nm">'+esc(e.nombre)+'</span><span class="bdg r">'+esc(e.slug||"")+'</span>'+(e.activo?'<span class="bdg a">activa</span>':'<span class="bdg i">inactiva</span>')+'<div class="grow"></div><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activo?"false":"true")+')">'+(e.activo?"Desactivar":"Reactivar")+'</button></div><div class="modchips">'+chips+'</div></div>';
+  }).join("");
+  $("#view").innerHTML=h;
+}
+async function toggleModulo(empId,key,activar){
+  try{
+    const cur=(await sbFetch("/rest/v1/empresas?id=eq."+empId+"&select=modulos"))[0].modulos||[];
+    let mods=Array.isArray(cur)?cur.slice():[];
+    if(activar){ if(mods.indexOf(key)<0) mods.push(key); } else { mods=mods.filter(function(k){return k!==key;}); }
+    await sbFetch("/rest/v1/empresas?id=eq."+empId,{method:"PATCH",body:JSON.stringify({modulos:mods})});
+    logAud("set_modulos","empresa",empId,{modulos:mods}); toast("Módulos actualizados"); viewEmpresas();
+  }catch(e){ toast("Error: "+e.message,true); }
+}
+async function toggleEmpresaActiva(id,activar){
+  try{ await sbFetch("/rest/v1/empresas?id=eq."+id,{method:"PATCH",body:JSON.stringify({activo:activar})}); logAud(activar?"reactivar_empresa":"desactivar_empresa","empresa",id,null); viewEmpresas(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function crearEmpresa(){
+  const nombre=$("#ne_nombre").value.trim(), slug=$("#ne_slug").value.trim().toLowerCase().replace(/\s+/g,"-");
+  if(!nombre||!slug){ toast("Completá nombre y slug.",true); return; }
+  try{ await sbFetch("/rest/v1/empresas",{method:"POST",body:JSON.stringify({nombre:nombre,slug:slug,modulos:[],activo:true})}); logAud("crear_empresa","empresa",slug,{nombre:nombre}); toast("Empresa creada"); viewEmpresas(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+
+/* ---------- OPERADORES (admin de empresa) ---------- */
+async function viewOperadores(){
+  $("#view").innerHTML='<div class="spin">Cargando operadores…</div>';
+  let ops=[];
+  try{ ops=await sbFetch("/rest/v1/operadores?empresa_id=eq."+ME.empresa_id+"&select=id,cedula,nombre,cargo,activo&order=nombre.asc"); }catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  let h='<h2 class="sec">Operadores (lente · cédula + PIN)</h2>';
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Nuevo operador</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="no_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula</label><input id="no_cedula" placeholder="12345678"/></div><div class="fld"><label>PIN</label><input id="no_pin" placeholder="1234"/></div><div class="fld"><label>Cargo</label><input id="no_cargo" placeholder="Inspector"/></div></div><button class="btn btn-amber btn-sm" onclick="crearOperador()">+ Agregar operador</button></div>';
+  if(!ops.length){ h+='<div class="empty">Todavía no hay operadores. Agregá el primero arriba.</div>'; }
+  else h+=ops.map(function(o){
+    return '<div class="row '+(o.activo?"":"off")+'"><div class="grow"><div class="nm">'+esc(o.nombre)+' '+(o.activo?'<span class="bdg a">activo</span>':'<span class="bdg i">archivado</span>')+'</div><div class="meta">Cédula '+esc(o.cedula)+(o.cargo?' · '+esc(o.cargo):'')+'</div></div>'+
+      (o.activo
+        ? '<button class="btn btn-b btn-sm" onclick="editarOperador(\''+o.id+'\',\''+esc(o.nombre).replace(/\x27/g,"")+'\')">PIN/Editar</button><button class="btn btn-danger btn-sm" onclick="archivarOperador(\''+o.id+'\',\''+esc(o.nombre).replace(/\x27/g,"")+'\')">Archivar</button>'
+        : '<button class="btn btn-b btn-sm" onclick="reactivarOperador(\''+o.id+'\')">Reactivar</button>')+
+    '</div>';
+  }).join("");
+  $("#view").innerHTML=h;
+}
+async function crearOperador(){
+  const nombre=$("#no_nombre").value.trim(), cedula=$("#no_cedula").value.trim(), pin=$("#no_pin").value.trim(), cargo=$("#no_cargo").value.trim();
+  if(!nombre||!cedula||!pin){ toast("Nombre, cédula y PIN son obligatorios.",true); return; }
+  try{ await sbFetch("/rest/v1/operadores",{method:"POST",body:JSON.stringify({empresa_id:ME.empresa_id,nombre:nombre,cedula:cedula,pin:pin,cargo:cargo||null,activo:true})}); logAud("crear_operador","operador",cedula,{nombre:nombre}); toast("Operador agregado"); viewOperadores(); }
+  catch(e){ toast((e.message.indexOf("duplicate")>=0?"Ya existe un operador con esa cédula.":"Error: "+e.message),true); }
+}
+async function editarOperador(id,nombre){
+  const pin=prompt("Nuevo PIN para "+nombre+" (dejá vacío para no cambiar):");
+  if(pin===null) return;
+  const body={}; if(pin.trim()) body.pin=pin.trim();
+  if(!Object.keys(body).length){ return; }
+  try{ await sbFetch("/rest/v1/operadores?id=eq."+id,{method:"PATCH",body:JSON.stringify(body)}); logAud("editar_operador","operador",id,{cambio:"pin"}); toast("Operador actualizado"); viewOperadores(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function archivarOperador(id,nombre){
+  if(!confirm("¿Archivar a "+nombre+"?\nNo podrá entrar al lente. Se puede reactivar después (no se borra)."))return;
+  try{ await sbFetch("/rest/v1/operadores?id=eq."+id,{method:"PATCH",body:JSON.stringify({activo:false})}); logAud("archivar_operador","operador",id,null); toast("Operador archivado"); viewOperadores(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function reactivarOperador(id){
+  try{ await sbFetch("/rest/v1/operadores?id=eq."+id,{method:"PATCH",body:JSON.stringify({activo:true})}); logAud("reactivar_operador","operador",id,null); viewOperadores(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+
+/* ---------- USUARIOS DE CONSOLA (perfiles) ---------- */
+async function viewUsuarios(){
+  $("#view").innerHTML='<div class="spin">Cargando usuarios…</div>';
+  let us=[];
+  try{ us=await sbFetch("/rest/v1/perfiles?empresa_id=eq."+ME.empresa_id+"&select=id,nombre,email,rol,es_super,activo&order=nombre.asc"); }catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  const adminsActivos=us.filter(function(u){return u.activo&&(u.rol==="admin"||u.es_super);}).length;
+  let h='<h2 class="sec">Usuarios de consola (web · correo + contraseña)</h2>';
+  h+=us.map(function(u){
+    const yo=(u.id===ME.id);
+    const rolTxt=u.es_super?"super-admin":(u.rol||"supervisor");
+    let acc="";
+    if(!yo){
+      acc+='<select class="fld" style="width:auto" onchange="cambiarRol(\''+u.id+'\',this.value)"><option value="supervisor"'+(u.rol==="supervisor"?" selected":"")+'>supervisor</option><option value="admin"'+(u.rol==="admin"?" selected":"")+'>admin</option></select>';
+      if(u.activo) acc+='<button class="btn btn-danger btn-sm" onclick="archivarUsuario(\''+u.id+'\','+adminsActivos+','+(u.rol==="admin"||u.es_super)+')">Desactivar</button>';
+      else acc+='<button class="btn btn-b btn-sm" onclick="reactivarUsuario(\''+u.id+'\')">Reactivar</button>';
+    } else { acc='<span class="bdg r">vos</span>'; }
+    return '<div class="row '+(u.activo?"":"off")+'"><div class="grow"><div class="nm">'+esc(u.nombre||"(sin nombre)")+' '+(u.activo?'<span class="bdg a">activo</span>':'<span class="bdg i">inactivo</span>')+' <span class="bdg r">'+rolTxt+'</span></div><div class="meta">'+esc(u.email||"—")+'</div></div>'+acc+'</div>';
+  }).join("");
+  h+='<div class="note" style="margin-top:14px"><b>¿Agregar un usuario de consola nuevo?</b> La cuenta (correo+contraseña) se crea una sola vez en Supabase → Authentication → Add user (o el super-admin la invita). Apenas exista, acá le asignás <b>empresa y rol</b>. Los <b>operadores</b> del lente, en cambio, se cargan enteros desde la pestaña Operadores.</div>';
+  $("#view").innerHTML=h;
+}
+async function cambiarRol(id,rol){
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({rol:rol})}); logAud("cambiar_rol","perfil",id,{rol:rol}); toast("Rol actualizado"); }
+  catch(e){ toast("Error: "+e.message,true); viewUsuarios(); }
+}
+async function archivarUsuario(id,admins,esAdmin){
+  if(esAdmin && admins<=1){ alert("No podés desactivar al último admin activo.\nDejá siempre al menos un admin en la empresa."); return; }
+  if(!confirm("¿Desactivar este usuario?\nNo podrá entrar a la consola. Se puede reactivar (no se borra)."))return;
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({activo:false})}); logAud("archivar_usuario","perfil",id,null); toast("Usuario desactivado"); viewUsuarios(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function reactivarUsuario(id){
+  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({activo:true})}); logAud("reactivar_usuario","perfil",id,null); viewUsuarios(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+
+/* ---------- AUDITORÍA ---------- */
+async function viewAuditoria(){
+  $("#view").innerHTML='<div class="spin">Cargando…</div>';
+  let a=[];
+  try{ a=await sbFetch("/rest/v1/auditoria?"+(ME.es_super?"":"empresa_id=eq."+ME.empresa_id+"&")+"select=actor_nombre,accion,entidad,detalle,creado_en&order=creado_en.desc&limit=100"); }catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  let h='<h2 class="sec">Auditoría · últimas acciones</h2>';
+  if(!a.length){ h+='<div class="empty">Sin actividad registrada todavía.</div>'; }
+  else h+='<div class="card">'+a.map(function(x){ return '<div class="aud"><span class="t">'+esc(fFecha(x.creado_en))+'</span><span class="grow"><b>'+esc(x.actor_nombre||"—")+'</b> · '+esc(x.accion)+' <span style="color:var(--mut)">('+esc(x.entidad||"")+')</span></span></div>'; }).join("")+'</div>';
+  $("#view").innerHTML=h;
+}
+
+/* ---------- Init (SSO o gate) ---------- */
+(function(){
+  try{ const s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null");
+    if(s&&s.token&&(Date.now()-s.ts)<55*60*1000){ SB_TOKEN=s.token; cargarMe().catch(function(){ $("#gate").style.display="flex"; }); return; } }catch(e){}
+  setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80);
+})();
+</script>
+</body>
+</html>

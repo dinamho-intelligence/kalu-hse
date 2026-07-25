@@ -100,7 +100,7 @@
     </div>
     <div class="mods" id="mods"></div>
     <div class="ptools">
-      <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">Los módulos disponibles dependen de tu empresa</span>
+      <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">La gestión de usuarios está dentro de la Consola HSE</span>
       <button class="btn btn-ghost" onclick="salir()">⎋ Cerrar sesión</button>
     </div>
   </div>
@@ -108,17 +108,17 @@
 
 <script>
 const $ = s => document.querySelector(s);
-const SB_URL  = "https://jwqgvlcktzhyddrofqqg.supabase.co";
-const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[];
-/* Catálogo del portal: cada acceso pertenece a un módulo que la empresa debe tener */
+/* CASA DE LOS USUARIOS = HSE. La puerta única pregunta acá. */
+const SB_URL  = "https://mpozawfbtajsrfccqldw.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE";
+let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false;
+/* Catálogo del portal. live = anda por esta puerta hoy; soon = se une pronto. */
 const PORTAL=[
-  {mod:"hse",  href:"app.html",              ic:"🛡️", cls:"g", nombre:"KALU HSE",           desc:"Validación, ATS e investigación de accidentes bajo norma."},
-  {mod:"ra",   href:"editor.html",           ic:"🧩", cls:"",  nombre:"Editor de flujos",   desc:"Diseñá y publicá los procedimientos de Realidad Asistida."},
-  {mod:"ra",   href:"consola.html",          ic:"📊", cls:"c", nombre:"Consola / Informes", desc:"Inspecciones, estadísticas y evidencia de tu empresa."},
-  {mod:"ra",   href:"realidad-asistida.html",ic:"🥽", cls:"c", nombre:"App del lente",      desc:"Corré los flujos por voz en las gafas RealWear."},
-  {mod:"qaqc", href:"#",                     ic:"📐", cls:"g", nombre:"QA/QC",              desc:"Aseguramiento de calidad.", soon:true},
-  {mod:"ndt",  href:"#",                     ic:"🔬", cls:"c", nombre:"NDT",                desc:"Ensayos no destructivos.", soon:true}
+  {href:"app.html", ic:"🛡️", cls:"g", nombre:"KALU HSE",     desc:"Validación, ATS e investigación de accidentes bajo norma."},
+  {href:"hse.html", ic:"📊", cls:"c", nombre:"Consola HSE",   desc:"Tablero, expedientes, tarjetas, usuarios y auditoría."},
+  {href:"#",        ic:"🥽", cls:"c", nombre:"Realidad Asistida", desc:"Editor, lente y consola de flujos. Se une al acceso único pronto.", soon:true},
+  {href:"#",        ic:"📐", cls:"g", nombre:"QA/QC",         desc:"Aseguramiento de calidad.", soon:true},
+  {href:"#",        ic:"🔬", cls:"c", nombre:"NDT",           desc:"Ensayos no destructivos.", soon:true}
 ];
 
 async function sbFetch(path, opts){
@@ -141,11 +141,11 @@ async function sbLoginPass(email,password){
 async function cargarPerfilYPortal(){
   const u=await sbFetch("/auth/v1/user",{});
   if(u&&u.email) SB_EMAIL=u.email;
-  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,activo");
-  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil/empresa asignada.");
-  if(perf[0].activo===false) throw new Error("Tu usuario está desactivado. Contactá a tu administrador.");
-  SB_EMPRESA=perf[0].empresa_id; SB_NOMBRE=perf[0].nombre||""; SB_ROL=perf[0].rol||"supervisor"; SB_SUPER=!!perf[0].es_super;
-  try{ const emp=await sbFetch("/rest/v1/empresas?id=eq."+SB_EMPRESA+"&select=modulos,activo"); SB_MODULOS=(emp&&emp[0]&&Array.isArray(emp[0].modulos))?emp[0].modulos:[]; }catch(e){ SB_MODULOS=[]; }
+  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado");
+  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil asignado. Contactá a Dinamho.");
+  const p=perf[0];
+  if(p.estado && p.estado!=="activo") throw new Error("Tu cuenta está "+p.estado+". Contactá a tu administrador.");
+  SB_EMPRESA=p.empresa_id; SB_NOMBRE=p.nombre||""; SB_ROL=p.rol||""; SB_SUPER=!!p.es_super;
   guardarSesion(); mostrarPortal();
 }
 async function doLogin(){
@@ -161,18 +161,14 @@ function mostrarPortal(){
   $("#portalView").style.display="block";
   $("#p_hola").textContent = "Hola" + (SB_NOMBRE ? ", "+SB_NOMBRE.split(" ")[0] : "");
   $("#p_who").innerHTML = "Ingresaste como <b>"+(SB_EMAIL||"")+"</b>";
-  // Solo los accesos de los módulos que la empresa tiene
-  let cards=PORTAL.filter(function(c){ return SB_MODULOS.indexOf(c.mod)>=0; }).map(function(c){
+  let cards=PORTAL.map(function(c){
     const st=c.soon?'<span class="st st-soon">Próximo</span>':'<span class="st st-live">● En operación</span>';
-    return '<a class="mod '+c.cls+(c.soon?' disabled':'')+'" href="'+c.href+'">'+
+    const href=c.soon?'#':c.href;
+    return '<a class="mod '+c.cls+(c.soon?' disabled':'')+'" href="'+href+'">'+
       '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+c.nombre+'</h3><p>'+c.desc+'</p>'+
       (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
   });
-  // Acceso a Administración para admin / super-admin
-  if(SB_SUPER || SB_ROL==="admin"){
-    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":"admin")+'</span><h3>Administración</h3><p>'+(SB_SUPER?"Empresas, módulos, usuarios y operadores.":"Usuarios y operadores de tu empresa.")+'</p><span class="go">Abrir →</span></a>');
-  }
-  $("#mods").innerHTML = cards.length ? cards.join("") : '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px">Tu empresa todavía no tiene módulos habilitados. Contactá a Dinamho.</div>';
+  $("#mods").innerHTML = cards.join("");
 }
 function salir(){ borrarSesion(); SB_TOKEN=SB_EMPRESA=SB_EMAIL=SB_NOMBRE=null; $("#portalView").style.display="none"; $("#loginView").style.display="block"; }
 

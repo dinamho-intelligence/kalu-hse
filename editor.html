@@ -498,8 +498,13 @@ function updateUser(){ const c=$("#userChip"); if(c) c.innerHTML = SB_EMAIL? '�
 function salir(){
   if(!confirm("¿Cerrar sesión y salir del editor?")) return;
   SB_TOKEN=null; SB_EMPRESA=null; SB_EMAIL=null;
-  window.location.href="realidad-asistida-landing.html";
+  try{ sessionStorage.removeItem("kalu_ses"); }catch(e){}
+  window.location.href="ingreso.html";
 }
+/* SSO: si venís del ingreso con sesión activa, entrar sin volver a loguear */
+function ssoAuto(){ try{ var s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null");
+  if(s&&s.token&&(Date.now()-s.ts)<55*60*1000){ SB_TOKEN=s.token; SB_EMPRESA=s.empresa; SB_EMAIL=s.email;
+    var g=document.getElementById("gate"); if(g)g.style.display="none"; if(typeof updateUser==="function")updateUser(); } }catch(e){} }
 let toastT=null;
 function toast(msg,err){ let t=$("#toast"); if(!t){ t=document.createElement("div"); t.id="toast"; document.body.appendChild(t); } t.textContent=msg; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){ t.className="toast"; },2800); }
 async function doLoginGate(){
@@ -955,6 +960,7 @@ function renderDoc(){
 }
 
 /* ---------- Init ---------- */
+ssoAuto();
 fillMeta(); fillInforme(); renderAll(); renderDoc(); applyMap(); updateStatus();
 </script>
 </body>

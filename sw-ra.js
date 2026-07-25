@@ -2,7 +2,7 @@
    Convive con el sw.js de la app principal: se registra con scope propio
    (solo la página realidad-asistida.html), así no pelean entre sí.
    Al publicar una versión nueva de la app del lente, subí el número de CACHE. */
-const CACHE = 'kalu-ra-v3';
+const CACHE = 'kalu-ra-v6';
 const SHELL = [
   'realidad-asistida.html',
   'manifest-ra.webmanifest',

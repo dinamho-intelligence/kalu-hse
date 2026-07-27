@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>KALU · Realidad Asistida</title>
-<link rel="manifest" href="manifest-ra.webmanifest" />
+<!-- SANDBOX: sin PWA (no manifest, no service worker) para no pisarse con producción -->
 <meta name="theme-color" content="#1f4e79" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -653,10 +653,11 @@ function boot(){
 }
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
 
-/* PWA: registra el service worker con SCOPE PROPIO (solo esta página),
-   para convivir con el sw.js de la app principal. Solo activa por HTTPS. */
+/* SANDBOX: sin PWA. Además des-registra cualquier service worker viejo y
+   limpia su caché, para destrabar el navegador si quedó pegado a producción. */
 if('serviceWorker' in navigator){
-  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw-ra.js', { scope: 'realidad-asistida.html' }).catch(function(){}); });
+  navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
+  if(window.caches && caches.keys){ caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }).catch(function(){}); }
 }
 </script>
 

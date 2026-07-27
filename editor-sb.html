@@ -138,7 +138,7 @@
   #gate input:focus{border-color:var(--amber)}
   #gate .gerr{color:#e0574a;font-size:13px;margin-bottom:10px;display:none}
   /* Mapa flotante del flujo */
-  .mapfloat{position:fixed;right:18px;top:214px;width:344px;max-height:72vh;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(15,18,24,.14);display:flex;flex-direction:column;z-index:40;overflow:hidden}
+  .mapfloat{position:fixed;right:18px;top:214px;width:344px;height:60vh;max-height:82vh;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(15,18,24,.14);display:flex;flex-direction:column;z-index:40;overflow:auto;resize:both;min-width:280px;min-height:220px}
   .mapfloat .mfh{display:flex;align-items:center;gap:6px;padding:9px 11px;border-bottom:1px solid var(--line);background:#f7f8fb;flex-shrink:0}
   .mapfloat .mfh b{font-size:11px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;flex:1}
   .mapfloat .mfh button{border:none;background:#eef0f4;color:var(--tx);border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center}
@@ -401,7 +401,35 @@ async function doGuardar(estado){
     updateStatus();
   }catch(e){ toast("Error: "+((e&&e.message)||e),true); }
 }
-function publicar(){ guardar("publicado"); }
+/* Valida que todos los caminos lleguen al FIN (feedback Carla) */
+function validarFlujo(){
+  const P=flow.pasos||[]; if(!P.length) return ["El flujo no tiene pasos."];
+  const idx={}; P.forEach(function(p,k){ idx[p.id]=k; });
+  function resolve(rt,k){ if(rt==="fin") return "fin"; if(rt && idx[rt]!=null) return idx[rt]; return (k<P.length-1? k+1 : "fin"); }
+  function edges(k){ const p=P[k], outs=[];
+    if(p.tipo==="confirmacion" && p.opciones && p.opciones.length){ p.opciones.forEach(function(o){ outs.push(resolve(o.ruta||"",k)); }); }
+    else { outs.push(resolve(p.r||"",k)); }
+    return outs;
+  }
+  // ¿desde qué pasos se puede llegar al FIN?
+  const canFin=new Array(P.length).fill(false); let changed=true;
+  while(changed){ changed=false;
+    for(let k=0;k<P.length;k++){ if(canFin[k]) continue;
+      if(edges(k).some(function(d){ return d==="fin" || (typeof d==="number" && canFin[d]); })){ canFin[k]=true; changed=true; } } }
+  // ¿qué pasos son alcanzables desde el inicio?
+  const reach=new Array(P.length).fill(false); const st=[0]; reach[0]=true;
+  while(st.length){ const k=st.pop(); edges(k).forEach(function(d){ if(typeof d==="number" && !reach[d]){ reach[d]=true; st.push(d); } }); }
+  const probs=[];
+  P.forEach(function(p,k){ if(reach[k] && !canFin[k]) probs.push('· Paso '+(k+1)+' («'+(p.titulo||"sin título")+'») no llega al FIN (queda en un camino sin salida o en un bucle sin terminar).'); });
+  return probs;
+}
+function publicar(){
+  const probs=validarFlujo();
+  if(probs.length){
+    if(!confirm("⚠ Atención — hay caminos que no cierran en el FIN:\n\n"+probs.join("\n")+"\n\nRevisá las rutas de esos pasos. ¿Publicar igual?")) return;
+  }
+  guardar("publicado");
+}
 function guardarBorrador(){ guardar("borrador"); }
 
 /* ---------- Mis flujos (listar / abrir / duplicar / borrar) ---------- */

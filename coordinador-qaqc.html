@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KALU QA/QC · Coordinación</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0b0d0a;--panel:#15181a;--panel2:#1b1f22;--border:#2a2f2c;--text:#f5f5f4;
+    --muted:#a8a29e;--orange:#f5a623;--green:#34d399;--amber:#f5a623;--red:#f87171;--cyan:#4fc3f7;--violet:#a78bfa}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+  .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:32px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;margin-bottom:4px}
+  .brand svg{width:30px;height:33px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+  label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;font-weight:600}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px;font-size:15px}
+  select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a8a29e' stroke-width='1.6' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+  .btn{border:0;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;background:var(--orange);color:#141414}
+  .btn.full{width:100%;margin-top:18px}
+  .btn:active{transform:scale(.99)} .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:9px 16px;font-size:13px}
+  .btn.sm{padding:8px 14px;font-size:13px;border-radius:10px}
+  .err{color:var(--red);font-size:13px;margin-top:12px;min-height:18px}
+  #app{display:none}
+  header{position:sticky;top:0;z-index:10;background:rgba(11,13,10,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);
+    padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .hleft{display:flex;align-items:center;gap:12px}
+  .emp{color:var(--muted);font-size:13px;border-left:1px solid var(--border);padding-left:12px}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px}
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  h1{font-size:20px;font-weight:800}
+  .row-btns{display:flex;gap:8px;flex-wrap:wrap}
+  .ot{border:1px solid var(--border);border-radius:14px;background:var(--panel);margin-bottom:16px;overflow:hidden}
+  .ot-h{padding:14px 18px;background:var(--panel2);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .ot-h .cod{font-weight:800;font-size:16px}
+  .ot-h .m{color:var(--muted);font-size:13px}
+  .ot-h .count{font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px}
+  .ot-h .spacer{margin-left:auto}
+  .herrs{padding:8px 14px 14px}
+  .herr{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--border);border-radius:12px;background:var(--bg);padding:12px 14px;margin-top:10px}
+  .herr .nm{font-weight:700;font-size:15px}
+  .herr .tp{color:var(--muted);font-size:12px}
+  .rolbadge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+  .rolbadge.main{color:var(--orange);border-color:rgba(245,166,35,.4)}
+  .herr .asig{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .herr .asig label{margin:0;font-size:10px}
+  .herr .asig select{width:auto;min-width:170px;padding:8px 30px 8px 10px;font-size:13px}
+  .asigok{color:var(--green)} .asignone{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:50px 0}
+  .hint{color:var(--muted);font-size:12.5px;padding:2px 4px 10px}
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal.on{display:flex}
+  .card{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:24px;max-height:92vh;overflow:auto}
+  .card h2{font-size:17px;font-weight:800;margin-bottom:2px}
+  .card .csub{color:var(--muted);font-size:13px;margin-bottom:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .modactions{display:flex;gap:10px;margin-top:20px}
+  .modactions .btn{flex:1}
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .toast.ok{border-color:rgba(52,211,153,.5)} .toast.bad{border-color:rgba(248,113,113,.5)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="center">
+  <div class="login">
+    <div class="brand">
+      <svg viewBox="0 0 34 38"><polygon points="17,1.5 32.5,10.25 32.5,27.75 17,36.5 1.5,27.75 1.5,10.25" fill="none" stroke="#f5a623" stroke-width="2"/><text x="17" y="22.5" text-anchor="middle" fill="#f5a623" font-size="11" font-weight="700">DI</text></svg>
+      KALU QA/QC · Coordinación
+    </div>
+    <div class="sub">Acceso del coordinador / admin.</div>
+    <label>Email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="coordtaller.ecp@totalqcsas.com">
+    <label>Contraseña</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn full" onclick="entrar()">Ingresar</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="hleft">
+      <div class="brand" style="font-size:16px"><svg viewBox="0 0 34 38"><polygon points="17,1.5 32.5,10.25 32.5,27.75 17,36.5 1.5,27.75 1.5,10.25" fill="none" stroke="#f5a623" stroke-width="2"/></svg>KALU QA/QC</div>
+      <span class="emp" id="emp"></span>
+    </div>
+    <button class="btn ghost" onclick="salir()">Salir</button>
+  </header>
+  <div class="wrap">
+    <div class="toolbar">
+      <h1>Órdenes de trabajo</h1>
+      <div class="row-btns">
+        <button class="btn sm" onclick="abrirOT()">＋ Nueva OT</button>
+        <button class="btn ghost sm" onclick="cargar()">↻ Actualizar</button>
+      </div>
+    </div>
+    <div class="hint">Creá la orden, sumale herramientas y asignale a cada una un asegurador. Recién ahí le aparece en “Mis trabajos”.</div>
+    <div id="lista"><div class="empty">Cargando…</div></div>
+  </div>
+</div>
+
+<!-- MODAL: Nueva OT -->
+<div class="modal" id="mOT">
+  <div class="card">
+    <h2>Nueva orden de trabajo</h2>
+    <div class="csub">El expediente por despacho.</div>
+    <label>Código *</label>
+    <input id="ot_codigo" placeholder="TQC-002">
+    <div class="grid2">
+      <div><label>Pozo</label><input id="ot_pozo" placeholder="FLOREÑA-AP21"></div>
+      <div><label>Cliente</label><input id="ot_cliente" placeholder="Ecopetrol"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Despacho</label><input id="ot_despacho" placeholder="Despacho…"></div>
+      <div><label>Fecha</label><input id="ot_fecha" type="date"></div>
+    </div>
+    <div class="err" id="ot_err"></div>
+    <div class="modactions">
+      <button class="btn ghost" onclick="cerrar('mOT')">Cancelar</button>
+      <button class="btn" onclick="crearOT()">Crear OT</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nueva herramienta -->
+<div class="modal" id="mHerr">
+  <div class="card">
+    <h2>Agregar herramienta</h2>
+    <div class="csub" id="mHerr_ot"></div>
+    <label>Tipo *</label>
+    <select id="h_tipo"></select>
+    <label>Nombre *</label>
+    <input id="h_nombre" placeholder="String Stabilizer 14.750">
+    <label>Rol</label>
+    <select id="h_rol"><option value="main">main (principal)</option><option value="backup">backup</option></select>
+    <div class="err" id="h_err"></div>
+    <div class="modactions">
+      <button class="btn ghost" onclick="cerrar('mHerr')">Cancelar</button>
+      <button class="btn" onclick="crearHerr()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Supabase como script CLÁSICO (UMD) -> expone el global `supabase` -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SB_URL = 'https://tytjurhxdwwytagcjxji.supabase.co';
+  const SB_KEY = 'sb_publishable_vMJSHRPHEI-LU7A5GG6EUg_8Q69q5x0';
+  const sb = supabase.createClient(SB_URL, SB_KEY);
+  const $ = (id) => document.getElementById(id);
+
+  let me = null;          // {id, empresa_id, nombre, rol}
+  let tipos = [];         // herramienta_tipo
+  let aseguradores = [];  // perfiles rol=asegurador
+  let ordenes = [];       // OT + herramientas
+  let herrOT = null;      // OT activa al agregar herramienta
+
+  function esc(s){ return (s==null?'':String(s)).replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+  function toast(msg, tipo){ const t=$('toast'); t.textContent=msg; t.className='toast on '+(tipo||''); setTimeout(()=>t.className='toast',1900); }
+  function abrir(id){ $(id).classList.add('on'); }
+  function cerrar(id){ $(id).classList.remove('on'); }
+
+  async function entrar(){
+    const email = $('email').value.trim(), password = $('pass').value;
+    $('err').textContent = '';
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error){ $('err').textContent = 'Credenciales inválidas o usuario sin perfil.'; return; }
+    iniciar();
+  }
+  async function salir(){ await sb.auth.signOut(); location.reload(); }
+
+  async function iniciar(){
+    const { data:{ user } } = await sb.auth.getUser();
+    const { data: perfil } = await sb.from('perfil').select('id,nombre,rol,empresa_id,empresa(nombre)').eq('id', user.id).maybeSingle();
+    if (!perfil){ $('err').textContent = 'Tu usuario no tiene perfil en ninguna empresa.'; return; }
+    if (!['admin','coordinador'].includes(perfil.rol)){
+      $('err').textContent = 'Esta consola es solo para coordinador/admin. Tu rol: '+perfil.rol+'.';
+      await sb.auth.signOut(); return;
+    }
+    me = perfil;
+    $('emp').textContent = (perfil.empresa && perfil.empresa.nombre) || 'Mi empresa';
+    $('login').style.display = 'none';
+    $('app').style.display = 'block';
+    await cargarRef();
+    cargar();
+  }
+
+  async function cargarRef(){
+    const [t, a] = await Promise.all([
+      sb.from('herramienta_tipo').select('id,nombre').eq('activo',true).order('nombre'),
+      sb.from('perfil').select('id,nombre').eq('rol','asegurador').order('nombre')
+    ]);
+    tipos = t.data || [];
+    aseguradores = a.data || [];
+    $('h_tipo').innerHTML = tipos.map(x=>`<option value="${esc(x.id)}">${esc(x.nombre)}</option>`).join('');
+  }
+
+  async function cargar(){
+    const cont = $('lista');
+    cont.innerHTML = '<div class="empty">Cargando…</div>';
+    const { data, error } = await sb.from('orden_de_trabajo')
+      .select('id,codigo,despacho,pozo,cliente,fecha,estado, herramienta(id,nombre,tipo,rol,asegurador_id)')
+      .order('id',{ ascending:false });
+    if (error){ cont.innerHTML = '<div class="empty">Error al cargar.</div>'; return; }
+    ordenes = data || [];
+    render();
+  }
+
+  function opcionesAsig(sel){
+    let o = `<option value="">— sin asignar —</option>`;
+    o += aseguradores.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.nombre)}</option>`).join('');
+    return o;
+  }
+
+  function render(){
+    const cont = $('lista');
+    if (!ordenes.length){ cont.innerHTML = '<div class="empty">Todavía no hay órdenes. Creá la primera con “＋ Nueva OT”.</div>'; return; }
+    cont.innerHTML = ordenes.map(ot=>{
+      const hs = ot.herramienta || [];
+      const herrs = hs.length ? hs.map(h=>{
+        const asignado = !!h.asegurador_id;
+        return `<div class="herr">
+          <div>
+            <div class="nm">${esc(h.nombre)}</div>
+            <div class="tp">${esc(h.tipo||'—')}</div>
+          </div>
+          <span class="rolbadge ${h.rol==='main'?'main':''}">${esc(h.rol)}</span>
+          <div class="asig">
+            <label class="${asignado?'asigok':'asignone'}">${asignado?'✔ asegurador':'sin asignar'}</label>
+            <select onchange="asignar('${h.id}', this.value)">${opcionesAsig(h.asegurador_id)}</select>
+          </div>
+        </div>`;
+      }).join('') : '<div class="hint" style="padding:12px 2px 2px">Sin herramientas todavía.</div>';
+      return `<div class="ot">
+        <div class="ot-h">
+          <span class="cod">${esc(ot.codigo)}</span>
+          <span class="m">${esc(ot.pozo||'')}${ot.cliente?' · '+esc(ot.cliente):''}</span>
+          <span class="count">${hs.length} herr.</span>
+          <span class="spacer"></span>
+          <button class="btn sm" onclick="abrirHerr(${ot.id}, '${esc(ot.codigo)}')">＋ Herramienta</button>
+        </div>
+        <div class="herrs">${herrs}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---- crear OT ----
+  function abrirOT(){ ['ot_codigo','ot_pozo','ot_cliente','ot_despacho','ot_fecha'].forEach(i=>$(i).value=''); $('ot_err').textContent=''; abrir('mOT'); }
+  async function crearOT(){
+    const codigo = $('ot_codigo').value.trim();
+    if (!codigo){ $('ot_err').textContent='El código es obligatorio.'; return; }
+    const payload = {
+      empresa_id: me.empresa_id, codigo,
+      pozo: $('ot_pozo').value.trim() || null,
+      cliente: $('ot_cliente').value.trim() || null,
+      despacho: $('ot_despacho').value.trim() || null,
+      fecha: $('ot_fecha').value || null,
+      estado: 'abierta'
+    };
+    const { error } = await sb.from('orden_de_trabajo').insert(payload);
+    if (error){ $('ot_err').textContent = /duplicate|unique/i.test(error.message) ? 'Ya existe una OT con ese código.' : ('Error: '+error.message); return; }
+    cerrar('mOT'); toast('OT '+codigo+' creada','ok'); cargar();
+  }
+
+  // ---- crear herramienta ----
+  function abrirHerr(otId, cod){ herrOT=otId; $('mHerr_ot').textContent='Orden '+cod; $('h_nombre').value=''; $('h_rol').value='main'; $('h_err').textContent=''; abrir('mHerr'); }
+  async function crearHerr(){
+    const nombre = $('h_nombre').value.trim();
+    if (!nombre){ $('h_err').textContent='El nombre es obligatorio.'; return; }
+    const payload = {
+      empresa_id: me.empresa_id, orden_id: herrOT,
+      tipo: $('h_tipo').value, nombre, rol: $('h_rol').value, estado:'en_proceso'
+    };
+    const { error } = await sb.from('herramienta').insert(payload);
+    if (error){ $('h_err').textContent = 'Error: '+error.message; return; }
+    cerrar('mHerr'); toast('Herramienta agregada','ok'); cargar();
+  }
+
+  // ---- asignar asegurador ----
+  async function asignar(hid, aseguradorId){
+    const { error } = await sb.from('herramienta').update({ asegurador_id: aseguradorId || null }).eq('id', hid);
+    if (error){ toast('No se pudo asignar','bad'); return; }
+    toast(aseguradorId ? 'Asignada' : 'Asignación quitada','ok');
+    const h = ordenes.flatMap(o=>o.herramienta||[]).find(x=>String(x.id)===String(hid));
+    if (h){ h.asegurador_id = aseguradorId || null; render(); }
+  }
+
+  // cerrar modal al tocar el fondo
+  document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('on'); }));
+
+  // sesión persistente
+  sb.auth.getSession().then(({ data }) => { if (data.session) iniciar(); });
+</script>
+</body>
+</html>

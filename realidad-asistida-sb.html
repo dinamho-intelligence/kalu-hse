@@ -84,6 +84,13 @@
   .home .brandbig span{display:block;color:var(--amber);font-size:9px;font-weight:800;letter-spacing:2px}
   .home h2{font-size:28px;font-weight:900;margin:2px 0 6px}
   .home .amber{color:var(--amber)}
+  /* Campos dato/número/fecha (feedback Carla) */
+  .txtin{width:100%;background:var(--card);border:2px solid var(--line);border-radius:12px;color:#fff;font-size:24px;font-weight:700;padding:13px 16px;margin-bottom:12px;outline:none}
+  .txtin:focus{border-color:var(--pri2)}
+  button.opt.blue{background:var(--pri);border-color:var(--pri2);color:#fff}
+  .numrow{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .numrow .idbox{flex:1}
+  .numrow button.opt{flex:0 0 66px;font-size:26px;padding:10px}
 </style>
 </head>
 <body>
@@ -152,6 +159,7 @@ function brandHTML(){
 
 /* ---------- Estado ---------- */
 let ejec=null, F=[], i=0, cedBuf="", pinBuf="", datoBuf="", stage="";
+let stepStart=0, lastStepI=-1;   // contador de tiempo por paso (feedback Carla)
 /* Operador: se valida contra la base (función login_operador, rol anon).
    La empresa sale del operador. Se cachea el que entra para re-login offline en este equipo. */
 let OP_EMP="", OP_NOMBRE="", OP_CEDULA="";
@@ -303,7 +311,7 @@ async function abrirFlujoLente(id){
     chips(["“<b>Volver</b>”"]); return;
   }
   F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.empresa_id=OP_EMP||fo.empresa_id||""; ejec.flujo_version=fo.version||1;
-  ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente";
+  ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente"; ejec.tiempos={}; lastStepI=-1;
   render();
 }
 
@@ -316,8 +324,9 @@ function imgH(p){ return p.imagen?imgBlock(p.imagen):''; }
 function opCls(n,ix){ return n===2?(ix===0?"ok":"no"):"primary"; }
 
 function render(){
-  if(i>=F.length){ showResultado(); return; }
+  if(i>=F.length){ marcarTiempo(); showResultado(); return; }
   const p=F[i];
+  if(i!==lastStepI){ stepStart=Date.now(); lastStepI=i; }   // arranca el cronómetro del paso
   if(p.tipo==="escaneo"){
     setScreen("", head("Escaneo")+titleH(p)+instrH(p)+imgH(p)+
       (ejec.equipo_id?'<div class="equipo">🔧 '+esc(ejec.equipo_id)+'</div>':'')+
@@ -350,7 +359,15 @@ function render(){
 }
 
 /* Navegación por ruteo (dest: índice · "fin" · null=siguiente) */
+function marcarTiempo(){
+  if(stepStart && lastStepI>=0 && lastStepI<F.length){
+    const seg=Math.round((Date.now()-stepStart)/1000);
+    const p=F[lastStepI]; const k="paso_"+(p.orden||(lastStepI+1));
+    ejec.tiempos=ejec.tiempos||{}; ejec.tiempos[k]=(ejec.tiempos[k]||0)+seg;
+  }
+}
 function irA(dest){
+  marcarTiempo();
   if(dest==="fin"){ i=F.length; render(); return; }
   if(dest==null){ if(i<F.length-1){ i++; } else { i=F.length; } render(); return; }
   i=dest; render();
@@ -359,22 +376,80 @@ function avanzar(){ irA(F[i].dest); }
 function responderOp(ix){ const p=F[i]; const o=(p.opciones||[])[ix]||{}; ejec.respuestas[p.campo||("resp_"+(i+1))]=o.label||""; irA(o.dest); }
 function escanear(){ const p=F[i]; ejec.equipo_id="EQ-"+(100+Math.floor(Math.abs(Math.sin(Date.now()))*899)); if(p.campo) ejec.respuestas[p.campo]=ejec.equipo_id; render(); }
 
-/* Dato: teclado numérico */
+/* Dato: enruta por formato (texto | numero | fecha) — feedback Carla */
 function datoScreen(p){
-  let keys="";
-  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="datoKey(\''+n+'\')">'+n+'</button>'; });
-  keys+='<button class="key wide act" title="'+wm("Borrar")+'" onclick="datoDel()">Borrar</button>';
-  keys+='<button class="key" title="'+wm("")+'" onclick="datoKey(\'0\')">0</button>';
-  keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="datoListo()">Entrar</button>';
-  datoBuf="";
-  setScreen("", head("Dato")+titleH(p)+instrH(p)+imgH(p)+
-    '<div class="idwrap"><div class="iddisplay"><div class="idbox empty" id="idbox">— — — —</div>'+(p.campo?'<p class="note">Campo: '+esc(p.campo)+'</p>':'')+'</div>'+
-    '<div class="keys">'+keys+'</div></div>');
-  chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
+  const fmt=(p.formato||"").toLowerCase();
+  if(fmt==="fecha") return fechaScreen(p);
+  if(fmt==="numero"||fmt==="número"||fmt==="num"||fmt==="medicion"||fmt==="medición") return numeroScreen(p);
+  return textoScreen(p);
 }
 function datoKey(n){ if(datoBuf.length<12){ datoBuf+=n; const b=$("#idbox"); if(b){ b.textContent=datoBuf; b.classList.remove("empty"); } } }
 function datoDel(){ datoBuf=datoBuf.slice(0,-1); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"— — — —"; if(!datoBuf)b.classList.add("empty"); } }
 function datoListo(){ const p=F[i]; ejec.respuestas[p.campo||("dato_"+(i+1))]=datoBuf||"—"; datoBuf=""; irA(p.dest); }
+
+/* --- TEXTO: casillero + dictado + Aceptar/Borrar azules --- */
+function textoScreen(p){
+  setScreen("", head("Dato")+titleH(p)+instrH(p)+imgH(p)+
+    '<input id="txtin" class="txtin" type="text" placeholder="Escribí o dictá…" autocomplete="off" />'+
+    (p.campo?'<p class="note">Campo: '+esc(p.campo)+'</p>':'')+
+    '<div class="opts">'+
+      '<button class="opt" onclick="txtDictar()">🎤 Dictar</button>'+
+      '<button class="opt blue" onclick="txtBorrar()">Borrar</button>'+
+      '<button class="opt blue" onclick="txtListo()">Aceptar</button>'+
+    '</div>');
+  chips(["dictá el dato","“<b>Aceptar</b>”","“<b>Borrar</b>”"]);
+  setTimeout(function(){ var el=$("#txtin"); if(el) el.focus(); }, 120);
+}
+function txtDictar(){
+  const el=$("#txtin"); if(!el) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ el.focus(); return; }               // en RealWear, el teclado/voz nativo llena el input
+  try{ const r=new SR(); r.lang="es-CO"; r.onresult=function(e){ el.value=(el.value?el.value+" ":"")+e.results[0][0].transcript; }; r.start(); }catch(e){ el.focus(); }
+}
+function txtBorrar(){ const el=$("#txtin"); if(el){ el.value=""; el.focus(); } }
+function txtListo(){ const el=$("#txtin"); const v=el?el.value.trim():""; const p=F[i]; ejec.respuestas[p.campo||("dato_"+(i+1))]=v||"—"; irA(p.dest); }
+
+/* --- NÚMERO: flechas ▲▼ + teclado + voz --- */
+function numeroScreen(p){
+  datoBuf="";
+  let keys="";
+  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" onclick="datoKey(\''+n+'\')">'+n+'</button>'; });
+  keys+='<button class="key wide act" onclick="datoDel()">Borrar</button>';
+  keys+='<button class="key" onclick="datoKey(\'0\')">0</button>';
+  keys+='<button class="key wide go" onclick="datoListo()">Entrar</button>';
+  setScreen("", head("Número")+titleH(p)+instrH(p)+imgH(p)+
+    '<div class="idwrap"><div class="iddisplay">'+
+      '<div class="numrow"><button class="opt blue" onclick="numStep(-1)">▼</button><div class="idbox" id="idbox">0</div><button class="opt blue" onclick="numStep(1)">▲</button></div>'+
+      (p.campo?'<p class="note">Campo: '+esc(p.campo)+'</p>':'')+'</div>'+
+    '<div class="keys">'+keys+'</div></div>');
+  chips(["decí el número","“<b>Más</b>” / “<b>Menos</b>”","“<b>Entrar</b>”"]);
+}
+function numStep(d){ let n=parseInt(datoBuf||"0",10)||0; n=Math.max(0,n+d); datoBuf=String(n); const b=$("#idbox"); if(b){ b.textContent=datoBuf; b.classList.remove("empty"); } }
+
+/* --- FECHA: hoy por defecto (dd/mm/aaaa), confirmar o cambiar --- */
+function fechaHoy(){ const d=new Date(), z=function(n){return (n<10?"0":"")+n;}; return z(d.getDate())+"/"+z(d.getMonth()+1)+"/"+d.getFullYear(); }
+function fechaScreen(p){
+  datoBuf=fechaHoy();                            // predefinida: la fecha actual
+  setScreen("", head("Fecha")+titleH(p)+instrH(p)+imgH(p)+
+    '<div class="idbox" id="idbox" style="font-size:30px">'+datoBuf+'</div>'+
+    '<p class="note">Por defecto es hoy. Confirmala o cambiala.</p>'+
+    '<div class="opts">'+btn("blue","Cambiar","fechaCambiar()")+btn("ok","Confirmar","datoListo()")+'</div>');
+  chips(["“<b>Confirmar</b>”","“<b>Cambiar</b>”"]);
+}
+function fechaFmt(raw){ raw=raw.replace(/\D/g,"").slice(0,8); let o=raw.slice(0,2); if(raw.length>2)o+="/"+raw.slice(2,4); if(raw.length>4)o+="/"+raw.slice(4,8); return o; }
+function fechaCambiar(){
+  datoBuf="";
+  const p=F[i]; let keys="";
+  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" onclick="fechaKey(\''+n+'\')">'+n+'</button>'; });
+  keys+='<button class="key wide act" onclick="fechaDel()">Borrar</button>';
+  keys+='<button class="key" onclick="fechaKey(\'0\')">0</button>';
+  keys+='<button class="key wide go" onclick="datoListo()">Entrar</button>';
+  setScreen("", head("Fecha")+titleH(p)+
+    '<div class="idwrap"><div class="iddisplay"><div class="idbox empty" id="idbox">dd/mm/aaaa</div></div><div class="keys">'+keys+'</div></div>');
+  chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
+}
+function fechaKey(n){ let raw=(datoBuf||"").replace(/\D/g,""); if(raw.length<8){ datoBuf=fechaFmt(raw+n); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"dd/mm/aaaa"; b.classList.remove("empty"); } } }
+function fechaDel(){ let raw=(datoBuf||"").replace(/\D/g,"").slice(0,-1); datoBuf=fechaFmt(raw); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"dd/mm/aaaa"; if(!datoBuf)b.classList.add("empty"); } }
 
 /* Foto: cámara nativa del RealWear (input capture) */
 function tomarFoto(){ const c=$("#cap"); if(c) c.click(); }
@@ -399,11 +474,14 @@ function resultado(v){ ejec.resultado=v; ejec.fin=new Date().toISOString(); show
 function showFin(){
   const r=ejec.respuestas, apto=ejec.resultado==="apto";
   let fotos=0, datos=0; for(const k in r){ const v=r[k]; if(typeof v==="string" && v.indexOf("data:")===0) fotos++; else datos++; }
+  let totseg=0; if(ejec.tiempos){ for(const tk in ejec.tiempos) totseg+=ejec.tiempos[tk]; }
+  const durTxt=totseg<60?(totseg+"s"):(Math.floor(totseg/60)+"m "+(totseg%60)+"s");
   setScreen("", '<div class="kick">✔ Registro en cola local</div><div class="title" style="font-size:20px">'+esc(ejec.flujo||"Inspección")+' — completada</div>'+
     '<div class="sum">'+
       '<div class="row"><span>Equipo</span><span>'+esc(ejec.equipo_id||"—")+'</span></div>'+
       '<div class="row"><span>Operador</span><span>'+esc((ejec.operador_nombre?ejec.operador_nombre+" · ":"")+(ejec.operador_cedula||"—"))+'</span></div>'+
       '<div class="row"><span>Respuestas</span><span>'+datos+' dato(s) · '+fotos+' foto(s)</span></div>'+
+      '<div class="row"><span>Tiempo total</span><span>⏱ '+durTxt+'</span></div>'+
       '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+
     '</div>'+
     '<div class="opts">'+btn("amber","Volver al menú","finalizar()")+'</div>'+

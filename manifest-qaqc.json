@@ -1,0 +1,17 @@
+{
+  "name": "KALU QA/QC — Aseguramiento en Taller",
+  "short_name": "KALU QA/QC",
+  "description": "Captura de aseguramiento de calidad en taller: fotos, dictado por voz y registro offline.",
+  "start_url": "/qaqc.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d0a",
+  "theme_color": "#0b0d0a",
+  "lang": "es",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

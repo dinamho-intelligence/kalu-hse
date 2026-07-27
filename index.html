@@ -2,664 +2,457 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>KALU · Realidad Asistida</title>
-<link rel="manifest" href="manifest-ra.webmanifest" />
-<meta name="theme-color" content="#1f4e79" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="apple-touch-icon" href="icon-ra-192.png" />
-<link rel="icon" type="image/png" href="icon-ra-192.png" />
-<!--
-  APP DEL LENTE v3.0 · RealWear (apaisado ~854x480)
-  Nivel 2 · Etapa 1: HUB + Flujos ONLINE/OFFLINE desde Supabase.
-   - Después del login, HUB de módulos (Flujos activo; Asistencia y Kalu próximamente).
-   - Flujos: baja los PUBLICADOS de la base (rol anon), marca en línea/offline (cache IndexedDB).
-   - Motor GENÉRICO: corre cualquier flujo (instruccion, confirmacion multi-opción,
-     foto, dato, escaneo) con ramas, bucles y terminar. Mismo modelo que el editor.
-   - Login de operador sigue quemado (lista OPERADORES) — el login real y multi-empresa
-     van en "usuarios + permisos".
-   - Etapa 2 (pendiente): subir la ejecución + evidencia a la base.
--->
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KALU — Inteligencia HSE | Dinamho Intelligence</title>
+<meta name="description" content="KALU es el asistente HSE con inteligencia artificial que investiga accidentes bajo norma colombiana, valida el conocimiento de la cuadrilla y protege los datos de tu empresa. Por Dinamho Intelligence." />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
-    --bg:#0b1220; --bg2:#101c2e; --card:#16233a; --line:#2b3c56;
-    --tx:#eef4fc; --mut:#9fb0c9; --acc:#1f4e79; --pri:#2e75b6; --pri2:#4d97e0;
-    --ok:#2fa36b; --no:#d9534f; --warn:#e0a44a; --amber:#f5a623;
+    --bg:#080A0D; --bg2:#0F1218; --bg3:#161A22;
+    --orange:#F28C00; --orange2:#FF9F1C; --cyan:#00D4FF;
+    --text:#EDEFF2; --muted:#8A909C; --border:rgba(255,255,255,.08);
+    --glow-o:rgba(242,140,0,.35); --glow-c:rgba(0,212,255,.25);
   }
-  html,body{height:100%;overflow:hidden}
-  body{background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;flex-direction:column}
-  .bar{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--acc);border-bottom:2px solid var(--pri);flex-shrink:0}
-  .bar h1{font-size:14px;font-weight:800;flex:1;letter-spacing:.3px}
-  .pill{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
-  .pill.on{background:#123d29;color:#7ee2ab;border:1px solid #2fa36b}
-  .pill.off{background:#3d1414;color:#f2a6a3;border:1px solid #d9534f}
-  .pend{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;background:#3a2f12;color:#f0cf8f;border:1px solid #e0a44a}
-  #screen{flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;justify-content:center}
-  .kick{color:var(--mut);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
-  .title{font-size:23px;line-height:1.12;font-weight:800;margin:0 0 4px}
-  .instr{font-size:14px;color:var(--mut);margin:0 0 12px;line-height:1.35}
-  .equipo{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:16px;font-weight:800;margin-bottom:10px}
-  .opts{display:flex;gap:12px}
-  button.opt{display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;background:var(--card);color:var(--tx);border:2px solid var(--line);border-radius:13px;padding:14px 18px;font-size:19px;font-weight:800;flex:1;transition:transform .05s,border-color .15s}
-  button.opt:active{transform:scale(.98)}
-  button.opt.ok{border-color:#2b6b4b}
-  button.opt.no{border-color:#6b2f2d}
-  button.opt.primary{background:var(--pri);border-color:var(--pri2)}
-  button.opt.amber{background:linear-gradient(180deg,#ffb845,var(--amber));color:#1a1200;border:none}
-  .soon{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:2px dashed var(--line);border-radius:13px;padding:13px 18px;font-size:17px;font-weight:800;color:#6b7d97}
-  .soon span{font-size:11px;font-weight:800;color:#54637d}
-  .cam{position:relative;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px;min-height:150px;display:flex;align-items:center;justify-content:center}
-  .cam img{width:100%;display:block;max-height:200px;object-fit:contain;background:#000}
-  .cam .ph{color:#54637d;font-size:14px;padding:20px;text-align:center}
-  .cam .tag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);font-size:11px;font-weight:800;padding:4px 8px;border-radius:7px}
-  .idwrap{display:flex;gap:18px;align-items:center}
-  .iddisplay{flex:1;min-width:0}
-  .idbox{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:12px 16px;font-size:30px;font-weight:800;letter-spacing:3px;min-height:56px;text-align:center;color:#fff}
-  .idbox.empty{color:#54637d}
-  .keys{display:grid;grid-template-columns:repeat(3,64px);grid-auto-rows:50px;gap:8px}
-  button.key{font-size:20px;font-weight:800;background:var(--card);border:2px solid var(--line);border-radius:11px;color:#fff;cursor:pointer}
-  button.key:active{transform:scale(.96)}
-  button.key.wide{font-size:15px}
-  button.key.act{border-color:var(--no);color:#f2a6a3}
-  button.key.go{border-color:#2b6b4b;color:#7ee2ab}
-  .sum{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px}
-  .sum .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
-  .sum .row:last-child{border-bottom:none}
-  .sum .row span:first-child{color:var(--mut)}
-  .sum .row span:last-child{font-weight:800}
-  .badge{display:inline-block;padding:5px 14px;border-radius:999px;font-size:17px;font-weight:900}
-  .badge.apto{background:#123d29;color:#7ee2ab;border:1px solid #2fa36b}
-  .badge.noapto{background:#3d1414;color:#f2a6a3;border:1px solid #d9534f}
-  .note{color:var(--mut);font-size:12px;margin:6px 0 0}
-  .help{border-top:1px solid var(--line);background:var(--bg2);padding:7px 14px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:center;flex-shrink:0}
-  .help .mic{font-size:11px;color:var(--mut);font-weight:800}
-  .chip{font-size:12px;font-weight:800;background:var(--card);border:1px solid var(--line);color:#cfe0f5;padding:4px 10px;border-radius:999px}
-  .chip b{color:#fff}
-  .home{align-items:center;text-align:center}
-  .home .brandbig{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:8px}
-  .home .brandbig b{font-size:20px;font-weight:900;letter-spacing:1px}
-  .home .brandbig span{display:block;color:var(--amber);font-size:9px;font-weight:800;letter-spacing:2px}
-  .home h2{font-size:28px;font-weight:900;margin:2px 0 6px}
-  .home .amber{color:var(--amber)}
-  /* Campos dato/número/fecha (feedback Carla) */
-  .txtin{width:100%;background:var(--card);border:2px solid var(--line);border-radius:12px;color:#fff;font-size:24px;font-weight:700;padding:13px 16px;margin-bottom:12px;outline:none}
-  .txtin:focus{border-color:var(--pri2)}
-  button.opt.blue{background:var(--pri);border-color:var(--pri2);color:#fff}
-  .numrow{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-  .numrow .idbox{flex:1}
-  .numrow button.opt{flex:0 0 66px;font-size:26px;padding:10px}
+  html{scroll-behavior:smooth}
+  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--orange)}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15px;padding:13px 24px;border-radius:12px;cursor:pointer;transition:all .25s;border:1px solid transparent}
+  .btn-primary{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;box-shadow:0 8px 30px -8px var(--glow-o)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 40px -8px var(--glow-o)}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
+  /* NAV */
+  nav{position:fixed;top:0;left:0;right:0;z-index:50;transition:all .3s;padding:18px 0}
+  nav.scrolled{background:rgba(8,10,13,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:12px 0}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between}
+  .logo{display:flex;align-items:center;gap:11px}
+  .logo svg{width:34px;height:34px}
+  .logo-txt{display:flex;flex-direction:column;line-height:1.05}
+  .logo-txt .b{font-weight:700;font-size:15px;letter-spacing:1px}
+  .logo-txt .s{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
+  .nav-links{display:flex;align-items:center;gap:30px}
+  .nav-links a.lnk{font-size:14px;color:var(--muted);transition:color .2s}
+  .nav-links a.lnk:hover{color:var(--text)}
+  /* HERO */
+  .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 80px;overflow:hidden}
+  .hero-bg{position:absolute;inset:0;z-index:0}
+  .hero-bg .grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 60% at 50% 40%,#000 20%,transparent 75%);opacity:.5}
+  .hero-bg .glow1{position:absolute;top:-10%;right:-5%;width:640px;height:640px;background:radial-gradient(circle,var(--glow-o),transparent 62%);filter:blur(30px);opacity:.5}
+  .hero-bg .glow2{position:absolute;bottom:-20%;left:-10%;width:560px;height:560px;background:radial-gradient(circle,var(--glow-c),transparent 62%);filter:blur(30px);opacity:.45}
+  .hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
+  .hero h1{font-size:clamp(38px,5.2vw,62px);font-weight:700;line-height:1.05;letter-spacing:-1px;margin:20px 0 22px}
+  .hero h1 .hl{background:linear-gradient(120deg,var(--orange),var(--orange2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p.sub{font-size:clamp(16px,2vw,19px);color:var(--muted);max-width:560px;margin-bottom:34px}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+  .hero-note{margin-top:26px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:9px}
+  .hero-note .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e}
+  /* avatar visual */
+  .avatar-stage{position:relative;display:flex;align-items:center;justify-content:center;height:560px}
+  .avatar-stage svg{width:100%;max-width:400px;height:auto;filter:drop-shadow(0 0 40px rgba(0,212,255,.15))}
+  .av-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-46%);width:440px;height:440px;background:radial-gradient(circle,rgba(0,212,255,.20),rgba(242,140,0,.09) 45%,transparent 68%);filter:blur(20px);z-index:0}
+  .av-img{position:relative;z-index:1;height:100%;max-height:560px;width:auto;object-fit:contain;filter:drop-shadow(0 26px 60px rgba(0,0,0,.55))}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes spinr{to{transform:rotate(-360deg)}}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+  .r1{transform-origin:110px 110px;animation:spin 22s linear infinite}
+  .r2{transform-origin:110px 110px;animation:spinr 16s linear infinite}
+  .r3{transform-origin:110px 110px;animation:spin 30s linear infinite}
+  .face{animation:float 6s ease-in-out infinite}
+  /* TRUST BAR */
+  .trust{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg2)}
+  .trust .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:14px 34px;padding:22px 24px}
+  .trust .lbl{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase}
+  .trust .norm{font-size:14px;font-weight:600;color:#C8CDD6}
+  /* SECTIONS */
+  section.s{padding:100px 0}
+  .sec-head{text-align:center;max-width:720px;margin:0 auto 56px}
+  .sec-head h2{font-size:clamp(28px,4vw,42px);font-weight:700;letter-spacing:-.5px;margin:14px 0 16px}
+  .sec-head p{color:var(--muted);font-size:17px}
+  .cards2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .card{background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--border);border-radius:18px;padding:32px;transition:transform .3s,border-color .3s}
+  .card:hover{transform:translateY(-4px);border-color:rgba(242,140,0,.4)}
+  .card .ic{width:52px;height:52px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);margin-bottom:18px;font-size:24px}
+  .card h3{font-size:21px;font-weight:600;margin-bottom:10px}
+  .card p{color:var(--muted);font-size:15px}
+  .card .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--cyan);border:1px solid rgba(0,212,255,.3);border-radius:20px;padding:3px 10px;margin-bottom:16px}
+  .feats{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .feat{display:flex;gap:18px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:26px;transition:border-color .3s}
+  .feat:hover{border-color:rgba(0,212,255,.35)}
+  .feat .fi{flex-shrink:0;width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,rgba(242,140,0,.15),rgba(0,212,255,.12));display:flex;align-items:center;justify-content:center;font-size:22px}
+  .feat h4{font-size:18px;font-weight:600;margin-bottom:7px}
+  .feat p{color:var(--muted);font-size:14.5px}
+  /* SECURITY */
+  .sec-sec{background:linear-gradient(180deg,var(--bg),var(--bg2),var(--bg))}
+  .sec-grid{display:grid;grid-template-columns:.95fr 1.05fr;gap:48px;align-items:center}
+  .sec-grid .lft h2{font-size:clamp(28px,3.6vw,40px);font-weight:700;letter-spacing:-.5px;margin:14px 0 18px}
+  .sec-grid .lft p{color:var(--muted);font-size:16px;margin-bottom:26px}
+  .sec-list{list-style:none;display:flex;flex-direction:column;gap:14px}
+  .sec-list li{display:flex;gap:13px;align-items:flex-start}
+  .sec-list .chk{flex-shrink:0;width:22px;height:22px;border-radius:6px;background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.4);color:var(--cyan);display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:2px}
+  .sec-list b{color:var(--text)}
+  .sec-list span{color:var(--muted);font-size:14.5px}
+  .vault{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:30px;position:relative;overflow:hidden}
+  .vault::before{content:'';position:absolute;top:-40%;right:-30%;width:300px;height:300px;background:radial-gradient(circle,var(--glow-c),transparent 65%);filter:blur(20px);opacity:.5}
+  .vault .vh{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:18px;position:relative}
+  .tenant{display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:11px;position:relative}
+  .tenant .tlock{width:34px;height:34px;border-radius:9px;background:rgba(242,140,0,.12);border:1px solid rgba(242,140,0,.35);display:flex;align-items:center;justify-content:center}
+  .tenant .tn{font-weight:600;font-size:14px}
+  .tenant .td{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)}
+  .tenant .rls{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--cyan);border:1px solid rgba(0,212,255,.3);border-radius:20px;padding:3px 9px}
+  /* CTA */
+  .cta{padding:110px 0}
+  .cta-box{position:relative;text-align:center;background:linear-gradient(135deg,rgba(242,140,0,.10),rgba(0,212,255,.06));border:1px solid var(--border);border-radius:26px;padding:64px 40px;overflow:hidden}
+  .cta-box::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 50% 0%,var(--glow-o),transparent 60%);opacity:.25}
+  .cta-box h2{position:relative;font-size:clamp(28px,4vw,44px);font-weight:700;letter-spacing:-.5px;margin-bottom:16px}
+  .cta-box p{position:relative;color:var(--muted);font-size:17px;max-width:560px;margin:0 auto 30px}
+  .cta-box .hero-cta{position:relative;justify-content:center}
+  /* FOOTER */
+  footer{border-top:1px solid var(--border);padding:40px 0;background:var(--bg2)}
+  footer .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+  footer .fmuted{color:var(--muted);font-size:13px}
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+  @media(max-width:860px){
+    .hero .wrap{grid-template-columns:1fr}
+    .avatar-stage{height:300px;order:-1}
+    .cards2,.feats,.sec-grid{grid-template-columns:1fr}
+    .nav-links .lnk{display:none}
+  }
+  /* MÓDULOS (plataforma / hub) */
+  .mod-feat{background:linear-gradient(180deg,rgba(242,140,0,.10),var(--bg2));border:1px solid rgba(242,140,0,.35);border-radius:18px;padding:30px;margin-bottom:22px;position:relative;overflow:hidden}
+  .mod-feat::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--orange),var(--orange2))}
+  .mods-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px}
+  .mod-card{background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--border);border-radius:18px;padding:26px;transition:transform .3s,border-color .3s;display:flex;flex-direction:column}
+  .mod-card:hover{transform:translateY(-4px)}
+  .mod-card.c:hover{border-color:rgba(0,212,255,.4)}
+  .mod-card.g:hover{border-color:rgba(52,211,153,.4)}
+  .mod-card.v:hover{border-color:rgba(167,139,250,.4)}
+  .mod-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+  .st{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px;display:inline-block;white-space:nowrap}
+  .st-live{color:#34d399;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
+  .st-design{color:var(--orange);border:1px solid rgba(242,140,0,.4);background:rgba(242,140,0,.1)}
+  .st-soon{color:var(--muted);border:1px solid var(--border);background:rgba(255,255,255,.03)}
+  .flagchip{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--orange);border:1px solid rgba(242,140,0,.45);border-radius:20px;padding:4px 10px}
+  .mtag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;border-radius:20px;padding:4px 10px}
+  .mtag.o{color:var(--orange);border:1px solid rgba(242,140,0,.35)}
+  .mtag.c{color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
+  .mtag.g{color:#34d399;border:1px solid rgba(52,211,153,.35)}
+  .mtag.v{color:#a78bfa;border:1px solid rgba(167,139,250,.35)}
+  .mod-card h3,.mod-feat h3{font-size:20px;font-weight:600;margin:12px 0 10px}
+  .mod-card p,.mod-feat p{color:var(--muted);font-size:14.5px;flex:1;margin-bottom:18px}
+  .mlink{align-self:flex-start;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--orange)}
+  .mod-card.c .mlink{color:var(--cyan)} .mod-card.g .mlink{color:#34d399} .mod-card.v .mlink{color:var(--muted)}
+  @media(max-width:860px){.mods-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-
-  <div class="bar">
-    <svg width="26" height="28" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>
-    <h1>KALU · Realidad Asistida</h1>
-    <span id="pend" class="pend" style="display:none;cursor:pointer" onclick="diagPend()" title="Ver estado de subida / reintentar"></span>
-    <span id="net" class="pill on">● En línea</span>
+<!-- NAV -->
+<nav id="nav">
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 40 40" fill="none"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
+      <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
+    </div>
+    <div class="nav-links">
+      <a class="lnk" href="#modulos">Módulos</a>
+      <a class="lnk" href="#seguridad">Seguridad</a>
+      <a class="lnk" href="#norma">Cumplimiento</a>
+      <a class="btn btn-ghost" href="admin.html">Ingresar Admin</a>
+      <a class="btn btn-ghost" href="ingreso-sb.html" style="border-color:#F28C00;color:#F28C00">🧪 Sandbox</a>
+    </div>
   </div>
-
-  <div id="screen"><div style="margin:auto;color:#9fb0c9;font-size:15px">Cargando…</div></div>
-
-  <div class="help">
-    <span class="mic">🎤 Decí</span>
-    <div id="chips" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center"></div>
+</nav>
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Inteligencia HSE · Colombia</span>
+      <h1>La IA que investiga cada accidente como un <span class="hl">experto</span> — y previene el próximo.</h1>
+      <p class="sub">KALU es el asistente HSE que habla en el lenguaje de la cuadrilla, conduce investigaciones bajo la norma colombiana y entrega el expediente completo en minutos. Con los datos de tu empresa blindados y el criterio humano siempre al mando.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#contacto">Solicitar una demo →</a>
+        <a class="btn btn-ghost" href="ingreso.html">Ingresar a módulos</a>
+      </div>
+      <div class="hero-note"><span class="dot"></span> En operación en campo · Investigación bajo Res. 1401 · alineada a ISO 45001</div>
+    </div>
+    <div class="avatar-stage">
+      <div class="av-glow"></div>
+      <img src="kalu-sherlock.png" alt="KALU — Sherlock HSE, investigadora de seguridad" class="av-img" onerror="this.style.display='none';var s=document.getElementById('avFallback');if(s)s.style.display='block'" />
+      <svg id="avFallback" style="display:none" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="kcore" cx="50%" cy="42%" r="62%">
+            <stop offset="0%" stop-color="#FFC46B"/>
+            <stop offset="38%" stop-color="#F28C00" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#0B0E13" stop-opacity="0.92"/>
+          </radialGradient>
+          <radialGradient id="khalo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#00D4FF" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="#00D4FF" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="110" cy="110" r="98" fill="url(#khalo)"/>
+        <g class="r1"><circle cx="110" cy="110" r="94" stroke="rgba(0,212,255,0.22)" stroke-width="1" stroke-dasharray="3 11" fill="none"/><circle cx="110" cy="16" r="4" fill="#00D4FF"/></g>
+        <g class="r2"><circle cx="110" cy="110" r="76" stroke="rgba(242,140,0,0.30)" stroke-width="1" stroke-dasharray="2 9" fill="none"/><circle cx="186" cy="110" r="3.5" fill="#F28C00"/></g>
+        <g class="r3"><circle cx="110" cy="110" r="60" stroke="rgba(0,212,255,0.13)" stroke-width="0.8" stroke-dasharray="9 13" fill="none"/><circle cx="110" cy="170" r="2.5" fill="#00D4FF"/></g>
+        <g class="face">
+          <polygon points="110,60 153,85 153,135 110,160 67,135 67,85" fill="none" stroke="#00D4FF" stroke-width="1" opacity="0.45"/>
+          <circle cx="110" cy="110" r="45" fill="url(#kcore)" stroke="#F28C00" stroke-width="1.4" stroke-opacity="0.6"/>
+          <circle cx="110" cy="110" r="31" fill="none" stroke="#00D4FF" stroke-width="0.8" opacity="0.4"/>
+          <circle cx="110" cy="110" r="12" fill="#FFC46B"/>
+          <circle cx="110" cy="110" r="12" fill="none" stroke="#FFFFFF" stroke-opacity="0.45"/>
+          <path d="M110 65 L110 78 M110 142 L110 155 M65 110 L78 110 M142 110 L155 110" stroke="#00D4FF" stroke-width="1" opacity="0.5"/>
+        </g>
+      </svg>
+    </div>
   </div>
-
+</header>
+<!-- TRUST -->
+<div class="trust">
+  <div class="wrap">
+    <span class="lbl">Bajo norma</span>
+    <span class="norm">Resolución 1401/2007</span>
+    <span class="norm">Resolución 156/2005</span>
+    <span class="norm">NTC 3701</span>
+    <span class="norm">ISO 45001:2018</span>
+  </div>
+</div>
+<!-- MÓDULOS / PLATAFORMA -->
+<section class="s" id="modulos" style="background:var(--bg2)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">La plataforma KALU</span>
+      <h2>Un asistente. Varios módulos.</h2>
+      <p>HSE ya está en operación. Los demás módulos comparten el mismo cerebro: hablan tu lenguaje, trabajan bajo norma y dejan todo firmado y trazable.</p>
+    </div>
+    <div class="mod-feat reveal">
+      <div class="mod-top">
+        <span class="mtag o">Investigación &amp; validación</span>
+        <span style="display:flex;gap:8px;align-items:center"><span class="flagchip">★ FLAGSHIP</span><span class="st st-live">● En operación</span></span>
+      </div>
+      <h3>KALU HSE</h3>
+      <p>Validación de conocimiento + ATS antes del trabajo, e investigación de accidentes bajo la Resolución 1401 después del evento. El módulo probado, en uso real en campo — es lo que ves en esta misma página.</p>
+      <a class="btn btn-primary" href="app.html">Ingresar →</a>
+    </div>
+    <div class="mods-grid">
+      <div class="mod-card c reveal">
+        <div class="mod-top"><span class="mtag c">RealWear · manos libres</span><span class="st st-live">● En operación</span></div>
+        <h3>Realidad Asistida</h3>
+        <p>Inspecciones por voz en gafas RealWear, 100% manos libres. El mismo cerebro, otra interfaz — corre sobre HSE y QA/QC.</p>
+        <a class="mlink" href="realidad-asistida.html">Ingresar →</a>
+      </div>
+      <div class="mod-card g reveal">
+        <div class="mod-top"><span class="mtag g">Aseguramiento de calidad</span><span class="st st-design">En diseño</span></div>
+        <h3>KALU QA/QC</h3>
+        <p>Aseguramiento en talleres: captura + conversación, sin formularios. Ordena lo desordenado en un reporte por pozo.</p>
+        <a class="mlink" href="#">Ver módulo →</a>
+      </div>
+      <div class="mod-card v reveal">
+        <div class="mod-top"><span class="mtag v">Ensayos no destructivos</span><span class="st st-soon">Próximo</span></div>
+        <h3>KALU NDT</h3>
+        <p>Módulo de ensayos no destructivos. Alcance en definición.</p>
+        <a class="mlink" href="#">Definir alcance</a>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- PRODUCTO -->
+<section class="s" id="producto">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">El módulo HSE</span>
+      <h2>Un experto HSE que trabaja en campo, por voz.</h2>
+      <p>Cubre el ciclo completo de la seguridad en dos módulos — antes de que empiece el trabajo, y después de que algo pasa.</p>
+    </div>
+    <div class="cards2">
+      <div class="card reveal">
+        <div class="ic">🛡️</div>
+        <span class="tag">ANTES DEL TRABAJO</span>
+        <h3>Validación de conocimiento + ATS</h3>
+        <p>KALU valida que la cuadrilla realmente conoce los riesgos y controles de la tarea del día, y arma el ATS según la tarea, los equipos y las condiciones reales — todo en el lenguaje de la gente.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ic">🔎</div>
+        <span class="tag">DESPUÉS DEL EVENTO</span>
+        <h3>Investigación de accidentes</h3>
+        <p>Conduce la investigación bajo la Resolución 1401, toma las declaraciones del afectado y los testigos —incluso en días distintos—, analiza las causas y genera el expediente completo, listo para firmar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- DIFERENCIADORES -->
+<section class="s" style="background:var(--bg2)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Lo que lo hace distinto</span>
+      <h2>No es un formulario. Es un investigador.</h2>
+    </div>
+    <div class="feats">
+      <div class="feat reveal"><div class="fi">🗣️</div><div><h4>Habla como la cuadrilla</h4><p>Por voz, en campo, sin jerga jurídica ni códigos. La gente declara tranquila y con honestidad — porque no siente que está en un juicio.</p></div></div>
+      <div class="feat reveal"><div class="fi">📋</div><div><h4>Investiga bajo norma</h4><p>Res. 1401/156, NTC 3701 e ISO 45001. Elige la metodología adecuada (Árbol de Causas, 5 Por Qué, SCAT) y clasifica cada causa.</p></div></div>
+      <div class="feat reveal"><div class="fi">⚖️</div><div><h4>No juzga las contradicciones</h4><p>Cuando dos versiones chocan, KALU no elige un bando: registra ambas con igual peso y deja la mecánica "por determinar por el COPASST/HSE".</p></div></div>
+      <div class="feat reveal"><div class="fi">🔒</div><div><h4>Nota confidencial para el HSE</h4><p>Un análisis reservado que enumera solo fallas de lógica —contradicciones, secuencias que no cierran, vacíos— nunca suposiciones ni juicios. Busca la mejora, no culpables.</p></div></div>
+    </div>
+  </div>
+</section>
+<!-- SEGURIDAD -->
+<section class="s sec-sec" id="seguridad">
+  <div class="wrap">
+    <div class="sec-grid">
+      <div class="lft reveal">
+        <span class="eyebrow">Seguridad de nivel empresarial</span>
+        <h2>Tus datos, solo tuyos. Garantizado por diseño.</h2>
+        <p>Para una operación grande, la pregunta no es solo si funciona, sino si sus datos están seguros. KALU responde que sí — no por promesa, por arquitectura.</p>
+        <ul class="sec-list">
+          <li><span class="chk">✓</span><span><b>Multi-tenant con Row Level Security (RLS).</b> Tu información vive aislada a nivel de la base de datos misma, protegida por el motor de la base — no por una configuración que se pueda aflojar.</span></li>
+          <li><span class="chk">✓</span><span><b>Cifrado en tránsito y en reposo.</b> Ilegible para cualquiera sin acceso, sobre dominio propio con certificado SSL.</span></li>
+          <li><span class="chk">✓</span><span><b>Accesos por rol + aprobación.</b> Cada persona ve solo lo suyo; la nota confidencial, únicamente el HSE.</span></li>
+          <li><span class="chk">✓</span><span><b>La IA asiste, el humano decide.</b> KALU no firma ni determina hechos en disputa; lo que no sabe, lo marca como vacío.</span></li>
+        </ul>
+      </div>
+      <div class="vault reveal" style="display:flex;align-items:center;justify-content:center;min-height:320px">
+        <svg viewBox="0 0 240 240" style="width:100%;max-width:270px;position:relative" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs><radialGradient id="sglow" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#00D4FF" stop-opacity=".26"/><stop offset="1" stop-color="#00D4FF" stop-opacity="0"/></radialGradient></defs>
+          <circle cx="120" cy="118" r="104" fill="url(#sglow)"/>
+          <path d="M120 28 L198 66 L198 148 Q198 192 120 214 Q42 192 42 148 L42 66 Z" fill="rgba(0,212,255,0.03)" stroke="#00D4FF" stroke-width="1.6" opacity=".75"/>
+          <path d="M120 46 L182 77 L182 146 Q182 180 120 198 Q58 180 58 146 L58 77 Z" fill="none" stroke="rgba(242,140,0,0.35)" stroke-width="1" stroke-dasharray="4 7"/>
+          <rect x="95" y="118" width="50" height="42" rx="8" fill="#0C0F14" stroke="#F28C00" stroke-width="2.2"/>
+          <path d="M104 118 v-11 a16 16 0 0 1 32 0 v11" fill="none" stroke="#F28C00" stroke-width="2.6"/>
+          <circle cx="120" cy="135" r="6" fill="#FFC46B"/>
+          <rect x="117" y="135" width="6" height="14" rx="3" fill="#FFC46B"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- CUMPLIMIENTO -->
+<section class="s" id="norma">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Cumplimiento</span>
+      <h2>Un escudo frente a ARL, fiscalización y litigio.</h2>
+      <p>Cada investigación queda documentada, firmada y trazable bajo el marco legal colombiano e internacional. Deja de depender de que el buen profesional esté ese día — el rigor es el mismo en toda base y turno.</p>
+    </div>
+    <div class="feats">
+      <div class="feat reveal"><div class="fi">✅</div><div><h4>Cumplimiento</h4><p>Res. 1401/156, NTC 3701 e ISO 45001 — documentado, firmado y trazable.</p></div></div>
+      <div class="feat reveal"><div class="fi">⚡</div><div><h4>Velocidad</h4><p>Expediente completo en minutos, no en días. La acción correctiva llega antes.</p></div></div>
+      <div class="feat reveal"><div class="fi">📈</div><div><h4>Datos que trabajan</h4><p>Todo centralizado y consultable por empresa: prevención estratégica, no papeleo archivado.</p></div></div>
+      <div class="feat reveal"><div class="fi">🤝</div><div><h4>Cultura de reporte</h4><p>El enfoque sin culpables hace que la gente reporte los casi-accidentes — y se previene el grave.</p></div></div>
+    </div>
+  </div>
+</section>
+<!-- CTA -->
+<section class="cta" id="contacto">
+  <div class="wrap">
+    <div class="cta-box reveal">
+      <h2>Conversemos un piloto.</h2>
+      <p>Un mes en una base. Medimos tiempo de cierre, tasa de reporte y calidad documental frente a la norma. Sin compromiso de continuidad — los números deciden.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="mailto:info@dinamho.co?subject=Demo%20KALU%20HSE">Solicitar una demo →</a>
+        <a class="btn btn-ghost" href="ingreso.html">Ingresar a la plataforma</a>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 40 40" fill="none" style="width:30px;height:30px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
+      <div class="logo-txt"><span class="b">KALU HSE</span><span class="s">DINAMHO INTELLIGENCE</span></div>
+    </div>
+    <div class="fmuted">© 2026 Dinamho Intelligence · getkalu.com · Inteligencia HSE con criterio humano</div>
+  </div>
+</footer>
 <script>
-const $ = s => document.querySelector(s);
-function genId(){ return "r-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e9).toString(36); }
-function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-
-/* =====================================================================
-   SUPABASE · mismo proyecto RealWear que el editor (rol anon, clave pública)
-   EMPRESA_ID: dejalo vacío para ver todos los flujos publicados, o pegá
-   el id de tu empresa para filtrar solo los tuyos.
-   ===================================================================== */
-/* SANDBOX (kalu plataforma) — copia de prueba */
-const SB_URL   = "https://nignqeipzlemwfrwmpip.supabase.co";
-const SB_ANON  = "sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl";
-const EMPRESA_ID = "";
-async function sbFetch(path, opts){
-  opts=opts||{};
-  opts.headers=Object.assign({ apikey:SB_ANON }, opts.headers||{});
-  if(opts.body && !opts.headers["Content-Type"]) opts.headers["Content-Type"]="application/json";
-  const res=await fetch(SB_URL+path, opts);
-  const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
-  if(!res.ok) throw new Error((data&&(data.message||data.msg))||("HTTP "+res.status));
-  return data;
-}
-
-/* Empresa por defecto: se aprende de los flujos publicados y se usa de respaldo
-   para subir inspecciones que quedaron sin empresa_id (versiones viejas). */
-let DEFAULT_EMP=""; try{ DEFAULT_EMP=localStorage.getItem("kalu_emp")||""; }catch(e){}
-function recordarEmpresa(id){ if(id && id!==DEFAULT_EMP){ DEFAULT_EMP=id; try{ localStorage.setItem("kalu_emp",id); }catch(e){} } }
-
-/* WearML: comando explícito por control */
-function wm(cmd){ return (cmd?String(cmd).toUpperCase().replace(/"/g,"")+"|":"")+"hf_make_clickable|hf_show_text"; }
-function btn(cls,label,onclick){ return '<button class="opt '+cls+'" title="'+wm(label)+'" onclick="'+onclick+'">'+label+'</button>'; }
-
-/* Recrea la pantalla ENTERA para forzar el re-scan de WearHF */
-function setScreen(cls, html){
-  const old=$("#screen");
-  const neo=document.createElement("div");
-  neo.id="screen"; neo.className=cls||""; neo.innerHTML=html;
-  old.parentNode.replaceChild(neo, old);
-  try{ window.dispatchEvent(new Event("resize")); }catch(e){}
-}
-function chips(list){ $("#chips").innerHTML = (list||[]).filter(Boolean).map(function(c){return '<span class="chip">'+c+'</span>';}).join(""); }
-function brandHTML(){
-  return '<div class="brandbig">'+
-    '<svg width="30" height="33" viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="#1a140a" stroke="#f5a623" stroke-width="3"/><text x="23" y="31" text-anchor="middle" fill="#f5a623" font-size="15" font-weight="900" font-family="system-ui">DI</text></svg>'+
-    '<div style="text-align:left"><b>KALU</b><span>DINAMHO INTELLIGENCE</span></div></div>';
-}
-
-/* ---------- Estado ---------- */
-let ejec=null, F=[], i=0, cedBuf="", pinBuf="", datoBuf="", stage="";
-let stepStart=0, lastStepI=-1;   // contador de tiempo por paso (feedback Carla)
-/* Operador: se valida contra la base (función login_operador, rol anon).
-   La empresa sale del operador. Se cachea el que entra para re-login offline en este equipo. */
-let OP_EMP="", OP_NOMBRE="", OP_CEDULA="";
-function cacheOperador(ced,pin,op){ try{ localStorage.setItem("op_"+ced, JSON.stringify({ nombre:op.nombre||"", empresa_id:op.empresa_id, ph:fnv(pin) })); }catch(e){} }
-function loginOfflineCache(ced,pin){ try{ var s=JSON.parse(localStorage.getItem("op_"+ced)||"null"); if(s&&s.ph===fnv(pin)) return { nombre:s.nombre, empresa_id:s.empresa_id }; }catch(e){} return null; }
-function nuevaEjecucion(){
-  ejec={ id:genId(), flujo:"", flujo_id:"", version:1, operador_cedula:"", operador_nombre:"",
-    equipo_id:"", inicio:new Date().toISOString(), fin:null, resultado:"pendiente", respuestas:{}, dispositivo:"RealWear" };
-  i=0; F=[]; cedBuf=""; pinBuf=""; datoBuf=""; stage="";
-}
-
-/* ---------- Inicio / login ---------- */
-function showInicio(){
-  setScreen("home",
-    brandHTML()+
-    '<h2>Realidad <span class="amber">Asistida</span></h2>'+
-    '<p class="instr" style="max-width:520px">Asistencia manos libres. Decí «Entrar» para identificarte.</p>'+
-    '<div class="opts" style="max-width:340px;width:100%">'+btn("amber","Entrar","irIdent()")+'</div>');
-  chips(["“<b>Entrar</b>”"]);
-}
-function irIdent(){ cedBuf=""; pinBuf=""; showCedula(""); }
-
-function keypadScreen(kick,title,instr,display,enterFn,errMsg){
-  let keys="";
-  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" title="'+wm("")+'" onclick="keyPress(\''+n+'\')">'+n+'</button>'; });
-  keys+='<button class="key wide act" title="'+wm("Borrar")+'" onclick="keyDel()">Borrar</button>';
-  keys+='<button class="key" title="'+wm("")+'" onclick="keyPress(\'0\')">0</button>';
-  keys+='<button class="key wide go" title="'+wm("Entrar")+'" onclick="'+enterFn+'">Entrar</button>';
-  setScreen("",
-    '<div class="kick">'+kick+'</div><div class="title">'+title+'</div>'+
-    (errMsg?'<p class="instr" style="color:#f2a6a3">'+errMsg+'</p>':'<p class="instr">'+instr+'</p>')+
-    '<div class="idwrap"><div class="iddisplay"><div class="idbox '+(display?"":"empty")+'" id="idbox">'+(display||"— — — —")+'</div></div>'+
-    '<div class="keys">'+keys+'</div></div>');
-  chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
-}
-function showCedula(err){ stage="ced"; keypadScreen("Operador · Paso 1","Tu cédula","Tocá los números o decí cada número. Después «Entrar».", cedBuf, "cedListo()", err||""); }
-function showPin(err){ stage="pin"; keypadScreen("Operador · Paso 2","Tu PIN","Ingresá tu PIN y decí «Entrar».", pinMask(), "pinListo()", err||""); }
-function pinMask(){ return pinBuf.replace(/./g,"•"); }
-function keyPress(n){ const buf=(stage==="pin"?pinBuf:cedBuf); if(buf.length<12){ if(stage==="pin") pinBuf+=n; else cedBuf+=n; paintKey(); } }
-function keyDel(){ if(stage==="pin") pinBuf=pinBuf.slice(0,-1); else cedBuf=cedBuf.slice(0,-1); paintKey(); }
-function paintKey(){ const b=$("#idbox"); if(!b)return; const v=(stage==="pin"?pinMask():cedBuf); b.textContent=v||"— — — —"; if(v) b.classList.remove("empty"); else b.classList.add("empty"); }
-function cedListo(){ if(!cedBuf){ showCedula("Ingresá tu cédula."); return; } showPin(""); }
-async function pinListo(){
-  keypadScreen("Operador · Paso 2","Verificando…","Un momento.", pinMask(), "", "");
-  let op=null;
-  if(navigator.onLine){
-    try{ const r=await sbFetch("/rest/v1/rpc/login_operador",{ method:"POST", body:JSON.stringify({ p_cedula:cedBuf, p_pin:pinBuf }) });
-      if(r && r.length){ op=r[0]; cacheOperador(cedBuf,pinBuf,op); } }catch(e){}
-  }
-  if(!op) op=loginOfflineCache(cedBuf,pinBuf);   // fallback offline (si entró antes en este equipo)
-  if(op){
-    OP_EMP=op.empresa_id||""; OP_NOMBRE=op.nombre||""; OP_CEDULA=cedBuf;
-    ejec.operador_cedula=cedBuf; ejec.operador_nombre=OP_NOMBRE; ejec.empresa_id=OP_EMP; recordarEmpresa(OP_EMP);
-    showHub();
-  } else {
-    cedBuf=""; pinBuf=""; showCedula("❌ Cédula o PIN incorrecto"+(navigator.onLine?"":" (sin señal y no registrado en este equipo)")+".");
-  }
-}
-
-/* ---------- HUB de módulos ---------- */
-function showHub(){
-  const nom=ejec.operador_nombre?ejec.operador_nombre.split(" ")[0]:"";
-  setScreen("home",
-    brandHTML()+
-    '<h2>Hola'+(nom?' '+esc(nom):'')+'</h2>'+
-    '<p class="instr" style="max-width:520px">Elegí un módulo. Por ahora está activo <b style="color:#fff">Flujos</b>.</p>'+
-    '<div style="display:flex;flex-direction:column;max-width:440px;width:100%;gap:10px">'+
-      btn("amber","▶ Flujos de trabajo","showFlujos()")+
-      '<div class="soon">📞 Asistencia remota <span>Próximamente</span></div>'+
-      '<div class="soon">🤖 Preguntá a Kalu <span>Próximamente</span></div>'+
-    '</div>'+
-    '<p class="note" style="margin-top:12px"><button class="opt" style="max-width:220px;font-size:14px;padding:8px 14px" title="'+wm("Cambiar operador")+'" onclick="irIdent()">Cambiar operador</button></p>');
-  chips(["“<b>Flujos</b>”"]);
-}
-
-/* ---------- Módulo Flujos: listar (online + offline) ---------- */
-async function showFlujos(){
-  setScreen("", '<div class="kick">Módulo · Flujos</div><div class="title">Buscando flujos…</div><p class="instr">Un momento.</p>');
-  chips([]);
-  const cache=await listFlujosCache(); const cids={}; cache.forEach(function(c){ cids[c.id]=true; });
-  let online=[];
-  if(navigator.onLine){
-    try{ online=await sbFetch("/rest/v1/flujos?estado=eq.publicado"+(OP_EMP?"&empresa_id=eq."+OP_EMP:"")+"&select=id,nombre,tipo,empresa_id&order=actualizado_en.desc"); }
-    catch(e){ online=[]; }
-  }
-  if(online&&online[0]) recordarEmpresa(online[0].empresa_id);
-  const map={};
-  online.forEach(function(f){ map[f.id]={id:f.id,nombre:f.nombre,tipo:f.tipo,online:true,offline:!!cids[f.id]}; });
-  cache.forEach(function(c){ if(!map[c.id]) map[c.id]={id:c.id,nombre:c.nombre,tipo:c.tipo,online:false,offline:true}; });
-  const list=Object.keys(map).map(function(k){ return map[k]; });
-
-  let body='<div class="kick">Módulo · Flujos</div><div class="title">Elegí un flujo</div>';
-  if(!list.length){
-    body+='<p class="instr">'+(navigator.onLine?'No hay flujos publicados todavía. Publicá uno desde el editor.':'No tenés flujos offline. Conectate para descargarlos.')+'</p>';
-  } else {
-    body+='<div style="display:flex;flex-direction:column;gap:9px;max-width:580px;width:100%">'+
-      list.map(function(f){
-        const tags=(f.offline?'<span style="color:#7ee2ab">● offline</span>':'')+(f.online?(f.offline?' · ':'')+'<span style="color:#8bc0f5">● en línea</span>':'');
-        return '<button class="opt" style="justify-content:space-between;text-align:left;font-size:17px" title="'+wm(f.nombre)+'" onclick="abrirFlujoLente(\''+f.id+'\')">'+
-          '<span>'+esc(f.nombre||"(sin nombre)")+'</span>'+
-          '<span style="font-size:11px;font-weight:800;white-space:nowrap">'+tags+'</span></button>';
-      }).join('')+'</div>';
-  }
-  body+='<div class="opts" style="margin-top:12px;max-width:240px">'+btn("","Volver","showHub()")+'</div>';
-  setScreen("",body);
-  chips(list.length?["número del flujo","“<b>Volver</b>”"]:["“<b>Volver</b>”"]);
-}
-
-/* Convierte los pasos de la base al modelo del motor (dest por índice) */
-function normalizar(pasos){
-  const F2=(pasos||[]).map(function(row){
-    const cfg=row.config||{};
-    const p={ orden:row.orden, tipo:row.tipo_paso, titulo:row.titulo||"", instr:row.instruccion||"",
-      campo:cfg.campo||"", formato:cfg.formato||"", imagen:cfg.imagen||null, dest:null,
-      opciones:(row.tipo_paso==="confirmacion"?(cfg.opciones||[]).map(function(o){return {label:o.label||"",dest:null};}):null) };
-    return p;
-  });
-  const byOrden={}; F2.forEach(function(p,ix){ byOrden[p.orden]=ix; });
-  function resolve(rm){ return rm.fin ? "fin" : (byOrden[rm.ir_a_orden]!=null ? byOrden[rm.ir_a_orden] : null); }
-  (pasos||[]).forEach(function(row,ix){
-    const p=F2[ix]; if(!row.rama) return;
-    row.rama.forEach(function(rm){
-      const dest=resolve(rm);
-      if(row.tipo_paso==="confirmacion"){ const op=(p.opciones||[]).find(function(o){return o.label===rm.cuando;}); if(op) op.dest=dest; }
-      else { p.dest=dest; }
-    });
-  });
-  return F2;
-}
-
-async function abrirFlujoLente(id){
-  setScreen("", '<div class="kick">Flujo</div><div class="title">Abriendo…</div><p class="instr">Un momento.</p>');
-  chips([]);
-  let fo=null;
-  if(navigator.onLine){
-    try{
-      const rf=await sbFetch("/rest/v1/flujos?id=eq."+id+"&select=id,nombre,tipo,empresa_id,version");
-      const meta=rf&&rf[0];
-      const pasos=await sbFetch("/rest/v1/flujo_pasos?flujo_id=eq."+id+"&select=orden,tipo_paso,titulo,instruccion,config,rama&order=orden.asc");
-      fo={ id:id, nombre:meta?meta.nombre:"Flujo", tipo:meta?meta.tipo:"", empresa_id:meta?meta.empresa_id:null, version:meta?meta.version:1, pasos:normalizar(pasos), cached_at:new Date().toISOString() };
-      recordarEmpresa(meta&&meta.empresa_id);
-      cacheFlujo(fo);           // queda disponible offline
-    }catch(e){ fo=await getFlujoCache(id); }
-  } else {
-    fo=await getFlujoCache(id);
-  }
-  if(!fo || !fo.pasos || !fo.pasos.length){
-    setScreen("", '<div class="kick">Flujo</div><div class="title">No se pudo abrir</div><p class="instr">'+(navigator.onLine?'El flujo no tiene pasos.':'No está disponible offline.')+'</p><div class="opts" style="max-width:240px">'+btn("","Volver","showFlujos()")+'</div>');
-    chips(["“<b>Volver</b>”"]); return;
-  }
-  F=fo.pasos; i=0; ejec.flujo=fo.nombre; ejec.flujo_id=fo.id; ejec.empresa_id=OP_EMP||fo.empresa_id||""; ejec.flujo_version=fo.version||1;
-  ejec.equipo_id=""; ejec.respuestas={}; ejec.resultado="pendiente"; ejec.tiempos={}; lastStepI=-1;
-  render();
-}
-
-/* ---------- Motor genérico ---------- */
-function head(t){ return '<div class="kick">Paso '+(i+1)+' · '+t+'</div>'; }
-function titleH(p){ return '<div class="title">'+esc(p.titulo||"(sin título)")+'</div>'; }
-function instrH(p){ return p.instr?'<p class="instr">'+esc(p.instr)+'</p>':''; }
-function imgBlock(src){ return '<div class="cam"><span class="tag">REFERENCIA</span><img src="'+src+'" /></div>'; }
-function imgH(p){ return p.imagen?imgBlock(p.imagen):''; }
-function opCls(n,ix){ return n===2?(ix===0?"ok":"no"):"primary"; }
-
-function render(){
-  if(i>=F.length){ marcarTiempo(); showResultado(); return; }
-  const p=F[i];
-  if(i!==lastStepI){ stepStart=Date.now(); lastStepI=i; }   // arranca el cronómetro del paso
-  if(p.tipo==="escaneo"){
-    setScreen("", head("Escaneo")+titleH(p)+instrH(p)+imgH(p)+
-      (ejec.equipo_id?'<div class="equipo">🔧 '+esc(ejec.equipo_id)+'</div>':'')+
-      '<div class="opts">'+btn("primary","Escanear","escanear()")+(ejec.equipo_id?btn("","Siguiente","avanzar()"):'')+'</div>');
-    chips(["“<b>Escanear</b>”", ejec.equipo_id?"“<b>Siguiente</b>”":""]);
-  }
-  else if(p.tipo==="confirmacion"){
-    const os=(p.opciones&&p.opciones.length)?p.opciones:[{label:"Sí",dest:null},{label:"No",dest:null}];
-    setScreen("", head("Verificación")+titleH(p)+instrH(p)+imgH(p)+
-      '<div class="opts">'+os.map(function(o,ix){ return btn(opCls(os.length,ix),esc(o.label||"Opción"),"responderOp("+ix+")"); }).join('')+'</div>');
-    chips(os.map(function(o){ return "“<b>"+esc(o.label)+"</b>”"; }));
-  }
-  else if(p.tipo==="foto"){
-    const campo=p.campo||("foto_"+(i+1));
-    const tiene=!!ejec.respuestas[campo];
-    setScreen("", head("Evidencia")+titleH(p)+
-      (tiene?'<div class="cam"><span class="tag">FOTO TOMADA</span><img src="'+ejec.respuestas[campo]+'" /></div>'
-            :'<div class="cam"><span class="tag">CÁMARA</span><div class="ph">'+esc(p.instr||"Encuadrá y tomá la foto")+'</div></div>')+
-      '<input type="file" id="cap" accept="image/*" capture="environment" style="display:none" onchange="onFoto(\''+campo+'\')" />'+
-      '<div class="opts">'+(tiene?btn("ok","Siguiente","avanzar()")+btn("","Repetir","repetir('"+campo+"')")
-                                 :btn("primary","Tomar foto","tomarFoto()")+btn("","Omitir","avanzar()"))+'</div>');
-    chips(tiene?["“<b>Siguiente</b>”","“<b>Repetir</b>”"]:["“<b>Tomar foto</b>”","“<b>Omitir</b>”"]);
-  }
-  else if(p.tipo==="dato"){ datoScreen(p); }
-  else { /* instruccion (y cualquier otro) */
-    setScreen("", head("Instrucción")+titleH(p)+instrH(p)+imgH(p)+
-      '<div class="opts">'+btn("primary","Siguiente","avanzar()")+'</div>');
-    chips(["“<b>Siguiente</b>”"]);
-  }
-}
-
-/* Navegación por ruteo (dest: índice · "fin" · null=siguiente) */
-function marcarTiempo(){
-  if(stepStart && lastStepI>=0 && lastStepI<F.length){
-    const seg=Math.round((Date.now()-stepStart)/1000);
-    const p=F[lastStepI]; const k="paso_"+(p.orden||(lastStepI+1));
-    ejec.tiempos=ejec.tiempos||{}; ejec.tiempos[k]=(ejec.tiempos[k]||0)+seg;
-  }
-}
-function irA(dest){
-  marcarTiempo();
-  if(dest==="fin"){ i=F.length; render(); return; }
-  if(dest==null){ if(i<F.length-1){ i++; } else { i=F.length; } render(); return; }
-  i=dest; render();
-}
-function avanzar(){ irA(F[i].dest); }
-function responderOp(ix){ const p=F[i]; const o=(p.opciones||[])[ix]||{}; ejec.respuestas[p.campo||("resp_"+(i+1))]=o.label||""; irA(o.dest); }
-function escanear(){ const p=F[i]; ejec.equipo_id="EQ-"+(100+Math.floor(Math.abs(Math.sin(Date.now()))*899)); if(p.campo) ejec.respuestas[p.campo]=ejec.equipo_id; render(); }
-
-/* Dato: enruta por formato (texto | numero | fecha) — feedback Carla */
-function datoScreen(p){
-  const fmt=(p.formato||"").toLowerCase();
-  if(fmt==="fecha") return fechaScreen(p);
-  if(fmt==="numero"||fmt==="número"||fmt==="num"||fmt==="medicion"||fmt==="medición") return numeroScreen(p);
-  return textoScreen(p);
-}
-function datoKey(n){ if(datoBuf.length<12){ datoBuf+=n; const b=$("#idbox"); if(b){ b.textContent=datoBuf; b.classList.remove("empty"); } } }
-function datoDel(){ datoBuf=datoBuf.slice(0,-1); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"— — — —"; if(!datoBuf)b.classList.add("empty"); } }
-function datoListo(){ const p=F[i]; ejec.respuestas[p.campo||("dato_"+(i+1))]=datoBuf||"—"; datoBuf=""; irA(p.dest); }
-
-/* --- TEXTO: casillero + dictado + Aceptar/Borrar azules --- */
-function textoScreen(p){
-  setScreen("", head("Dato")+titleH(p)+instrH(p)+imgH(p)+
-    '<input id="txtin" class="txtin" type="text" placeholder="Escribí o dictá…" autocomplete="off" />'+
-    (p.campo?'<p class="note">Campo: '+esc(p.campo)+'</p>':'')+
-    '<div class="opts">'+
-      '<button class="opt" onclick="txtDictar()">🎤 Dictar</button>'+
-      '<button class="opt blue" onclick="txtBorrar()">Borrar</button>'+
-      '<button class="opt blue" onclick="txtListo()">Aceptar</button>'+
-    '</div>');
-  chips(["dictá el dato","“<b>Aceptar</b>”","“<b>Borrar</b>”"]);
-  setTimeout(function(){ var el=$("#txtin"); if(el) el.focus(); }, 120);
-}
-function txtDictar(){
-  const el=$("#txtin"); if(!el) return;
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ el.focus(); return; }               // en RealWear, el teclado/voz nativo llena el input
-  try{ const r=new SR(); r.lang="es-CO"; r.onresult=function(e){ el.value=(el.value?el.value+" ":"")+e.results[0][0].transcript; }; r.start(); }catch(e){ el.focus(); }
-}
-function txtBorrar(){ const el=$("#txtin"); if(el){ el.value=""; el.focus(); } }
-function txtListo(){ const el=$("#txtin"); const v=el?el.value.trim():""; const p=F[i]; ejec.respuestas[p.campo||("dato_"+(i+1))]=v||"—"; irA(p.dest); }
-
-/* --- NÚMERO: flechas ▲▼ + teclado + voz --- */
-function numeroScreen(p){
-  datoBuf="";
-  let keys="";
-  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" onclick="datoKey(\''+n+'\')">'+n+'</button>'; });
-  keys+='<button class="key wide act" onclick="datoDel()">Borrar</button>';
-  keys+='<button class="key" onclick="datoKey(\'0\')">0</button>';
-  keys+='<button class="key wide go" onclick="datoListo()">Entrar</button>';
-  setScreen("", head("Número")+titleH(p)+instrH(p)+imgH(p)+
-    '<div class="idwrap"><div class="iddisplay">'+
-      '<div class="numrow"><button class="opt blue" onclick="numStep(-1)">▼</button><div class="idbox" id="idbox">0</div><button class="opt blue" onclick="numStep(1)">▲</button></div>'+
-      (p.campo?'<p class="note">Campo: '+esc(p.campo)+'</p>':'')+'</div>'+
-    '<div class="keys">'+keys+'</div></div>');
-  chips(["decí el número","“<b>Más</b>” / “<b>Menos</b>”","“<b>Entrar</b>”"]);
-}
-function numStep(d){ let n=parseInt(datoBuf||"0",10)||0; n=Math.max(0,n+d); datoBuf=String(n); const b=$("#idbox"); if(b){ b.textContent=datoBuf; b.classList.remove("empty"); } }
-
-/* --- FECHA: hoy por defecto (dd/mm/aaaa), confirmar o cambiar --- */
-function fechaHoy(){ const d=new Date(), z=function(n){return (n<10?"0":"")+n;}; return z(d.getDate())+"/"+z(d.getMonth()+1)+"/"+d.getFullYear(); }
-function fechaScreen(p){
-  datoBuf=fechaHoy();                            // predefinida: la fecha actual
-  setScreen("", head("Fecha")+titleH(p)+instrH(p)+imgH(p)+
-    '<div class="idbox" id="idbox" style="font-size:30px">'+datoBuf+'</div>'+
-    '<p class="note">Por defecto es hoy. Confirmala o cambiala.</p>'+
-    '<div class="opts">'+btn("blue","Cambiar","fechaCambiar()")+btn("ok","Confirmar","datoListo()")+'</div>');
-  chips(["“<b>Confirmar</b>”","“<b>Cambiar</b>”"]);
-}
-function fechaFmt(raw){ raw=raw.replace(/\D/g,"").slice(0,8); let o=raw.slice(0,2); if(raw.length>2)o+="/"+raw.slice(2,4); if(raw.length>4)o+="/"+raw.slice(4,8); return o; }
-function fechaCambiar(){
-  datoBuf="";
-  const p=F[i]; let keys="";
-  ["1","2","3","4","5","6","7","8","9"].forEach(function(n){ keys+='<button class="key" onclick="fechaKey(\''+n+'\')">'+n+'</button>'; });
-  keys+='<button class="key wide act" onclick="fechaDel()">Borrar</button>';
-  keys+='<button class="key" onclick="fechaKey(\'0\')">0</button>';
-  keys+='<button class="key wide go" onclick="datoListo()">Entrar</button>';
-  setScreen("", head("Fecha")+titleH(p)+
-    '<div class="idwrap"><div class="iddisplay"><div class="idbox empty" id="idbox">dd/mm/aaaa</div></div><div class="keys">'+keys+'</div></div>');
-  chips(["números","“<b>Borrar</b>”","“<b>Entrar</b>”"]);
-}
-function fechaKey(n){ let raw=(datoBuf||"").replace(/\D/g,""); if(raw.length<8){ datoBuf=fechaFmt(raw+n); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"dd/mm/aaaa"; b.classList.remove("empty"); } } }
-function fechaDel(){ let raw=(datoBuf||"").replace(/\D/g,"").slice(0,-1); datoBuf=fechaFmt(raw); const b=$("#idbox"); if(b){ b.textContent=datoBuf||"dd/mm/aaaa"; if(!datoBuf)b.classList.add("empty"); } }
-
-/* Foto: cámara nativa del RealWear (input capture) */
-function tomarFoto(){ const c=$("#cap"); if(c) c.click(); }
-function repetir(campo){ delete ejec.respuestas[campo]; render(); tomarFoto(); }
-function onFoto(campo){
-  const inp=$("#cap"); const f=inp && inp.files && inp.files[0];
-  if(!f){ return; }
-  const rd=new FileReader();
-  rd.onload=function(){ ejec.respuestas[campo]=rd.result; render(); };
-  rd.onerror=function(){ render(); };
-  rd.readAsDataURL(f);
-}
-
-/* ---------- Cierre ---------- */
-function showResultado(){
-  setScreen("", '<div class="kick">Cierre</div><div class="title">Resultado</div>'+
-    '<p class="instr">Confirmá el estado del equipo.</p>'+
-    '<div class="opts">'+btn("ok","Apto","resultado('apto')")+btn("no","No apto","resultado('no_apto')")+'</div>');
-  chips(["“<b>Apto</b>”","“<b>No apto</b>”"]);
-}
-function resultado(v){ ejec.resultado=v; ejec.fin=new Date().toISOString(); showFin(); }
-function showFin(){
-  const r=ejec.respuestas, apto=ejec.resultado==="apto";
-  let fotos=0, datos=0; for(const k in r){ const v=r[k]; if(typeof v==="string" && v.indexOf("data:")===0) fotos++; else datos++; }
-  let totseg=0; if(ejec.tiempos){ for(const tk in ejec.tiempos) totseg+=ejec.tiempos[tk]; }
-  const durTxt=totseg<60?(totseg+"s"):(Math.floor(totseg/60)+"m "+(totseg%60)+"s");
-  setScreen("", '<div class="kick">✔ Registro en cola local</div><div class="title" style="font-size:20px">'+esc(ejec.flujo||"Inspección")+' — completada</div>'+
-    '<div class="sum">'+
-      '<div class="row"><span>Equipo</span><span>'+esc(ejec.equipo_id||"—")+'</span></div>'+
-      '<div class="row"><span>Operador</span><span>'+esc((ejec.operador_nombre?ejec.operador_nombre+" · ":"")+(ejec.operador_cedula||"—"))+'</span></div>'+
-      '<div class="row"><span>Respuestas</span><span>'+datos+' dato(s) · '+fotos+' foto(s)</span></div>'+
-      '<div class="row"><span>Tiempo total</span><span>⏱ '+durTxt+'</span></div>'+
-      '<div class="row"><span>Resultado</span><span><span class="badge '+(apto?'apto':'noapto')+'">'+(apto?'APTO':'NO APTO')+'</span></span></div>'+
-    '</div>'+
-    '<div class="opts">'+btn("amber","Volver al menú","finalizar()")+'</div>'+
-    '<p class="note">Al volver al menú se guarda y <b>sube a la base</b> (con evidencia). Sin señal queda en cola y sincroniza solo al reconectar. El PDF firmado va en la próxima etapa.</p>');
-  chips(["“<b>Volver al menú</b>”"]);
-}
-function finalizar(){
-  ejec.fin=ejec.fin||new Date().toISOString(); ejec.estado="completada";
-  armarItems();
-  ejec.hash=fnv(JSON.stringify({ eq:ejec.equipo_id, op:ejec.operador_cedula, res:ejec.resultado,
-    it:(ejec.items||[]).map(function(x){ return { c:x.campo, v:x.valor, f:!!x.foto }; }) }));
-  try{ guardarLocal(ejec).then(function(){ refrescarPend(); sincronizar(); }).catch(function(){}); }catch(e){}
-  nuevaEjecucion();
-  ejec.operador_cedula=OP_CEDULA; ejec.operador_nombre=OP_NOMBRE; ejec.empresa_id=OP_EMP;
-  showHub();
-}
-
-/* ---------- Offline (IndexedDB): ejecuciones en cola + cache de flujos ---------- */
-let db=null;
-function abrirDB(){ return new Promise(function(res){ try{
-  const q=indexedDB.open("realwear_ra",2);
-  q.onupgradeneeded=function(e){ const d=e.target.result;
-    if(!d.objectStoreNames.contains("pendientes")) d.createObjectStore("pendientes",{keyPath:"id"});
-    if(!d.objectStoreNames.contains("flujos")) d.createObjectStore("flujos",{keyPath:"id"});
-  };
-  q.onsuccess=function(e){ db=e.target.result; res(true); };
-  q.onerror=function(){ res(false); };
-}catch(e){ res(false); } }); }
-function guardarLocal(o){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").put(o); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
-function refrescarPend(){ return new Promise(function(res){ const el=$("#pend"); if(!el){res();return;} if(!db){ el.style.display="none"; res(); return; }
-  try{ const q=db.transaction("pendientes","readonly").objectStore("pendientes").count();
-    q.onsuccess=function(){ const n=q.result; if(n>0){ el.style.display="inline-block"; el.textContent="⏳ "+n; } else el.style.display="none"; res(); };
-    q.onerror=function(){ res(); }; }catch(e){ res(); } }); }
-function cacheFlujo(o){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("flujos","readwrite"); tx.objectStore("flujos").put(o); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
-function getFlujoCache(id){ return new Promise(function(res){ if(!db){res(null);return;} try{ const q=db.transaction("flujos","readonly").objectStore("flujos").get(id); q.onsuccess=function(){ res(q.result||null); }; q.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }
-function listFlujosCache(){ return new Promise(function(res){ if(!db){res([]);return;} try{ const q=db.transaction("flujos","readonly").objectStore("flujos").getAll(); q.onsuccess=function(){ res(q.result||[]); }; q.onerror=function(){ res([]); }; }catch(e){ res([]); } }); }
-
-/* =====================================================================
-   ETAPA 2 · Subir la ejecución a la base (anon) + evidencia al Storage
-   con cola offline y sincronización al volver la señal.
-   ===================================================================== */
-function fnv(str){ let h=0x811c9dc5; for(let k=0;k<str.length;k++){ h^=str.charCodeAt(k); h=(h*0x01000193)>>>0; } return ("0000000"+h.toString(16)).slice(-8); }
-function dataURLtoBlob(d){ const c=d.split(','); const mime=((c[0]||"").match(/data:(.*?);/)||[])[1]||"image/jpeg"; const bin=atob(c[1]||""); const u=new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) u[k]=bin.charCodeAt(k); return new Blob([u],{type:mime}); }
-
-/* Congela las respuestas del recorrido en una lista lista para subir (usa F actual) */
-function armarItems(){
-  const items=[];
-  F.forEach(function(p,ix){
-    let key = p.tipo==="confirmacion" ? (p.campo||("resp_"+(ix+1)))
-            : p.tipo==="foto"        ? (p.campo||("foto_"+(ix+1)))
-            : p.tipo==="dato"        ? (p.campo||("dato_"+(ix+1)))
-            : p.tipo==="escaneo"     ? (p.campo||"equipo") : null;
-    if(!key) return;
-    const val=ejec.respuestas[key];
-    if(val===undefined || val===null) return;
-    const esFoto = (typeof val==="string" && val.indexOf("data:")===0);
-    items.push({ paso_orden:p.orden, tipo_paso:p.tipo, campo:key, foto: esFoto?val:null, valor: esFoto?null:val });
-  });
-  ejec.items=items;
-}
-
-async function subirFoto(path, dataUrl){
-  const blob=dataURLtoBlob(dataUrl);
-  const res=await fetch(SB_URL+"/storage/v1/object/evidencias/"+path, {
-    method:"POST", headers:{ apikey:SB_ANON, "Content-Type":blob.type||"image/jpeg" }, body:blob
-  });
-  if(!res.ok){ let t=""; try{ t=await res.text(); }catch(e){} throw new Error("Storage "+res.status+" "+t); }
-  return path;
-}
-
-async function subirEjecucion(ej){
-  // Reponer empresa_id/version si faltan (ejecuciones encoladas por una versión anterior)
-  if(!ej.empresa_id && ej.flujo_id && navigator.onLine){
-    try{ const r=await sbFetch("/rest/v1/flujos?id=eq."+ej.flujo_id+"&select=empresa_id,version");
-      if(r&&r[0]){ ej.empresa_id=r[0].empresa_id; if(!ej.flujo_version) ej.flujo_version=r[0].version||1; } }catch(e){}
-  }
-  if(!ej.empresa_id) ej.empresa_id=DEFAULT_EMP;   // respaldo: empresa aprendida de los flujos publicados
-  if(!ej.empresa_id) throw new Error("No hay empresa. Entrá a «Flujos» con señal una vez para que la app la aprenda, y reintentá.");
-  if(!ej.flujo_id) throw new Error("Falta el flujo en la inspección.");
-  // Reponer items desde respuestas si faltan (ejecuciones viejas)
-  let items=ej.items;
-  if(!items){ items=[]; const r=ej.respuestas||{}; for(const key in r){ const val=r[key];
-    if(val===undefined||val===null) continue; const esFoto=(typeof val==="string"&&val.indexOf("data:")===0);
-    items.push({ paso_orden:null, tipo_paso:esFoto?"foto":null, campo:key, foto:esFoto?val:null, valor:esFoto?null:val }); } }
-  // 1) Ejecución
-  const body={ empresa_id:ej.empresa_id, flujo_id:ej.flujo_id, flujo_version:ej.flujo_version||1,
-    operador_cedula:ej.operador_cedula||null, operador_nombre:ej.operador_nombre||null, equipo_id:ej.equipo_id||null,
-    inicio:ej.inicio, fin:ej.fin||new Date().toISOString(), estado:"completada", resultado:ej.resultado||"pendiente",
-    dispositivo:ej.dispositivo||"RealWear", hash:ej.hash||null };
-  const ins=await sbFetch("/rest/v1/ejecuciones",{ method:"POST", headers:{ Prefer:"return=representation" }, body:JSON.stringify(body) });
-  const ejecId=ins[0].id;
-  // 2) Respuestas (+ fotos al Storage). Ruta: evidencia/<empresa_id>/<ejecucion_id>/<archivo>
-  const rows=[];
-  for(let k=0;k<items.length;k++){
-    const it=items[k]; let evidencia_path=null;
-    if(it.foto){
-      const path="evidencia/"+ej.empresa_id+"/"+ejecId+"/"+(it.campo||("p"+it.paso_orden))+"_"+Date.now()+"_"+k+".jpg";
-      await subirFoto(path, it.foto);
-      evidencia_path=path;
-    }
-    rows.push({ ejecucion_id:ejecId, paso_orden:(it.paso_orden||null), tipo_paso:(it.tipo_paso||null),
-      valor:(it.valor!==undefined&&it.valor!==null)?it.valor:null, evidencia_path:evidencia_path });
-  }
-  if(rows.length) await sbFetch("/rest/v1/ejecucion_respuestas",{ method:"POST", body:JSON.stringify(rows) });
-  return ejecId;
-}
-
-let sincronizando=false, lastSyncError="", lastSyncOk=0;
-function sincronizar(){
-  if(sincronizando || !navigator.onLine || !db) return;
-  sincronizando=true;
-  let store;
-  try{ store=db.transaction("pendientes","readonly").objectStore("pendientes").getAll(); }
-  catch(e){ sincronizando=false; return; }
-  store.onsuccess=function(){
-    const lista=store.result||[];
-    (async function(){
-      lastSyncOk=0;
-      for(let k=0;k<lista.length;k++){
-        try{ await subirEjecucion(lista[k]); await borrarLocal(lista[k].id); lastSyncOk++; lastSyncError=""; }
-        catch(e){ lastSyncError=(e&&e.message)||String(e); }
-      }
-      sincronizando=false; refrescarPend();
-    })();
-  };
-  store.onerror=function(){ sincronizando=false; };
-}
-/* Diagnóstico: tocar el ⏳ muestra el estado, reintenta o descarta la trabada */
-function diagPend(){
-  if(!db){ alert("Base local no disponible."); return; }
-  let q;
-  try{ q=db.transaction("pendientes","readonly").objectStore("pendientes").getAll(); }
-  catch(e){ alert("No se pudo leer la cola local."); return; }
-  q.onsuccess=function(){
-    const l=q.result||[];
-    if(!l.length){ alert("No hay inspecciones pendientes. ✅"); refrescarPend(); return; }
-    const ej=l[0];
-    const fotos=(ej.items||[]).filter(function(x){return x.foto;}).length;
-    const det="Pendientes: "+l.length+"\n\nInspección trabada:\n"+
-      "• flujo: "+(ej.flujo||"(?)")+"\n"+
-      "• flujo_id: "+(ej.flujo_id||"(vacío)")+"\n"+
-      "• empresa_id: "+(ej.empresa_id||"(VACÍO)")+"\n"+
-      "• ítems: "+(ej.items?ej.items.length:"(sin)")+" · fotos: "+fotos+"\n\n"+
-      (lastSyncError?("Último error:\n"+lastSyncError+"\n\n"):"")+
-      "«Aceptar» = reintentar subir\n«Cancelar» = descartar esta inspección de prueba";
-    if(!navigator.onLine){ alert("Sin conexión.\nSe subirán al reconectar.\n\n"+det); return; }
-    const info="Hay "+l.length+" inspección(es) sin subir.\n\n"+(lastSyncError?("Último error:\n"+lastSyncError+"\n\n"):"")+
-      "«Aceptar» = REINTENTAR subir todas\n«Cancelar» = opción de descartar";
-    if(confirm(info)){ lastSyncError=""; sincronizar(); }
-    else if(confirm("¿Descartar las "+l.length+" inspecciones pendientes?\nNo se suben — se borran del teléfono.")){
-      (async function(){ for(let k=0;k<l.length;k++){ try{ await borrarLocal(l[k].id); }catch(e){} } refrescarPend(); alert("Cola vaciada. ✅"); })();
-    }
-  };
-  q.onerror=function(){ alert("No se pudo leer la cola local."); };
-}
-function borrarLocal(id){ return new Promise(function(res){ if(!db){res();return;} try{ const tx=db.transaction("pendientes","readwrite"); tx.objectStore("pendientes").delete(id); tx.oncomplete=function(){res()}; tx.onerror=function(){res()}; }catch(e){ res(); } }); }
-
-/* ---------- Conexión ---------- */
-function pintarNet(){ const el=$("#net"); if(!el)return; if(navigator.onLine){ el.className="pill on"; el.textContent="● En línea"; } else { el.className="pill off"; el.textContent="● Sin conexión"; } }
-addEventListener("online", function(){ pintarNet(); sincronizar(); });
-addEventListener("offline", pintarNet);
-
-/* ---------- Init ---------- */
-function boot(){
-  try{ nuevaEjecucion(); showInicio(); }
-  catch(e){ $("#screen").innerHTML='<div style="margin:auto;text-align:center;color:#f2a6a3;padding:20px;font-size:15px">No se pudo iniciar.<br><small style="color:#9fb0c9">'+((e&&e.message)||e)+'</small><br><br><button class="opt primary" style="max-width:240px" onclick="location.reload()">Reintentar</button></div>'; }
-  try{ pintarNet(); }catch(e){}
-  try{ abrirDB().then(function(){ refrescarPend(); sincronizar(); }).catch(function(){}); }catch(e){}
-}
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
-
-/* PWA: registra el service worker con SCOPE PROPIO (solo esta página),
-   para convivir con el sw.js de la app principal. Solo activa por HTTPS. */
-if('serviceWorker' in navigator){
-  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw-ra.js', { scope: 'realidad-asistida.html' }).catch(function(){}); });
-}
+  // Nav scroll
+  const nav=document.getElementById('nav');
+  addEventListener('scroll',()=>{nav.classList.toggle('scrolled',scrollY>30)});
+  // Reveal on scroll
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.15});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 </script>
-
-<div style="position:fixed;bottom:14px;left:14px;z-index:99999;background:linear-gradient(135deg,#F28C00,#FF9F1C);color:#141414;font:800 12px/1 monospace;padding:9px 14px;border-radius:20px;box-shadow:0 8px 24px rgba(0,0,0,.5);letter-spacing:1px;pointer-events:none;border:2px solid #141414">🧪 SANDBOX · base de pruebas</div>
+<script>
+(function(){
+  function boot(){
+    var hero=document.querySelector('header.hero')||document.querySelector('.hero')||document.body;
+    if(getComputedStyle(hero).position==='static') hero.style.position='relative';
+    var canvas=document.createElement('canvas');
+    canvas.id='fx0';
+    canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;'
+      +'-webkit-mask-image:linear-gradient(180deg,#000 80%,transparent);mask-image:linear-gradient(180deg,#000 80%,transparent)';
+    hero.insertBefore(canvas,hero.firstChild);
+    var ctx=canvas.getContext('2d');
+    var KATA="ウアウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリレロン";
+    var RAIN_OPACITY=0.17, BIN_PROB=0.80, RAIN_SPEED=0.16, FONT=18, FALL_RPS=12, MSG_OPACITY=0.30, CYCLE_MINUTES=1982;
+    var POOL=[0.05,0.11,0.50,0.56,0.88,0.95];
+    var GAP=2.9;
+    var Q=[[102,107,121],[103,107,102,124,99,100,107,121],[121,101,100],[107,120,109,111,100,126,99,100,107,121]];
+    var G=[0,649,74,19];
+    function toBits(a){var o=[];for(var i=0;i<a.length;i++){var c=a[i]^42,b=c.toString(2);while(b.length<8)b='0'+b;for(var j=0;j<8;j++)o.push(b[j]);}return o;}
+    var cols,drops,W,H,flashes=[];
+    function newDrop(){return {y:Math.random()*-40,speed:RAIN_SPEED+Math.random()*0.12};}
+    function resize(){
+      W=hero.clientWidth||window.innerWidth; H=hero.clientHeight||600;
+      canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio;
+      ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+      cols=Math.max(1,Math.floor(W/FONT)); drops=new Array(cols).fill(0).map(newDrop);
+    }
+    var easeOut=function(t){return 1-Math.pow(1-t,3);}, easeIn=function(t){return t*t*t;};
+    var lastCols=[];
+    function pickCol(){
+      var active={}; for(var f=0;f<flashes.length;f++) active[flashes[f].col]=1;
+      var cands=POOL.map(function(fr){return Math.max(0,Math.min(cols-1,Math.round(fr*cols)));});
+      var free=cands.filter(function(c){return !active[c] && lastCols.indexOf(c)<0;});
+      var pool2=free.length?free:cands.filter(function(c){return !active[c];});
+      if(!pool2.length) pool2=cands;
+      var choice=pool2[Math.floor(Math.random()*pool2.length)];
+      lastCols.push(choice); if(lastCols.length>3) lastCols.shift();
+      return choice;
+    }
+    function emit(a){ flashes.push({bits:toBits(a),col:pickCol(),t0:performance.now()}); }
+    function run(fast){ var acc=fast?0.3:0; for(var i=0;i<Q.length;i++){ acc+=fast?GAP:G[i]; (function(w,t){ setTimeout(function(){emit(w);}, t*1000); })(Q[i],acc); } }
+    function tick(){ run(false); }
+    window.__v=function(){ run(true); };
+    function draw(){
+      ctx.fillStyle='rgba(8,10,13,0.07)'; ctx.fillRect(0,0,W,H);
+      var screenRows=Math.ceil(H/FONT), now=performance.now();
+      var busy={}; for(var f=0;f<flashes.length;f++) busy[flashes[f].col]=1;
+      ctx.font=FONT+'px monospace'; ctx.textAlign='left';
+      for(var i=0;i<cols;i++){
+        var d=drops[i], x=i*FONT, yPix=d.y*FONT;
+        if(!busy[i]){
+          var ch=Math.random()<BIN_PROB?(Math.random()<0.5?'0':'1'):KATA[Math.floor(Math.random()*KATA.length)];
+          ctx.fillStyle='rgba(242,140,0,'+RAIN_OPACITY+')'; ctx.fillText(ch,x,yPix);
+        }
+        d.y+=d.speed; if(yPix>H&&Math.random()>0.985) drops[i]=newDrop();
+      }
+      ctx.font=FONT+'px monospace';
+      for(var f2=flashes.length-1;f2>=0;f2--){
+        var fl=flashes[f2], len=fl.bits.length;
+        var head=((now-fl.t0)/1000)*FALL_RPS;
+        var topRow=head-len+1;
+        if(topRow>screenRows+1){ flashes.splice(f2,1); continue; }
+        var cx=fl.col*FONT;
+        for(var j=0;j<len;j++){
+          var row=Math.round(topRow+j);
+          if(row<0||row>screenRows) continue;
+          var dist=head-row, a=(dist<1.2?0.5:MSG_OPACITY);
+          ctx.fillStyle='rgba(245,150,12,'+a+')';
+          ctx.fillText(fl.bits[j], cx, row*FONT);
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+    resize(); window.addEventListener('resize',resize); draw();
+    setInterval(tick, CYCLE_MINUTES*60*1000);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
 </body>
 </html>

@@ -96,6 +96,8 @@
   .fchip{display:inline-block;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;margin:0 6px 8px 0;user-select:none}
   .fchip.on{background:var(--orange);color:#141414;border-color:var(--orange)} .fchip b{font-weight:800}
   .hint2{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-size:13px}
+  .card.desasig{opacity:.45;filter:grayscale(.3)}
+  .desbadge{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--red);border:1px solid rgba(248,113,113,.4);border-radius:20px;padding:3px 10px}
   .paso.lock{opacity:.55} .states.lock{opacity:.5;pointer-events:none}
   /* modales flotantes de KALU */
   .modalk{position:fixed;inset:0;background:rgba(0,0,0,.74);display:none;align-items:center;justify-content:center;z-index:90;padding:22px}
@@ -168,6 +170,11 @@
 
 <!-- esperando a KALU -->
 <div class="modalk" id="mkespera"><div class="mkcard"><div class="spin"></div><div class="mkw">Esperando la devolución de KALU…</div></div></div>
+<!-- motivo de desasignación -->
+<div class="modalk" id="mkmot"><div class="mkcard">
+  <div class="mkkalu" id="mkmot-txt"></div>
+  <div class="mkacts"><button class="btn" onclick="$('mkmot').classList.remove('on')">Cerrar</button></div>
+</div></div>
 <!-- devolución de KALU -->
 <div class="modalk" id="mkver"><div class="mkcard">
   <div class="mkkalu" id="mkver-txt"></div>
@@ -216,7 +223,7 @@ async function iniciar(){
 async function cargarDatos(){
   const [cat,herr,resu,pa]=await Promise.all([
     sb.from('catalogo_actividad').select('id, herramienta_tipo, orden, actividad, norma_ref').order('orden'),
-    sb.from('herramienta').select('id, nombre, tipo, rol, orden_id, orden_de_trabajo(codigo,pozo,cliente)'),
+    sb.from('herramienta').select('id, nombre, tipo, rol, orden_id, asegurador_id, desasignado_de, desasignado_motivo, orden_de_trabajo(codigo,pozo,cliente)'),
     sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, kalu_veredicto, kalu_detalle, aprobado, estado_flujo, pasos'),
     sb.from('paso_actividad').select('id, actividad_id, orden, paso, tipo, criterio').order('orden')
   ]);
@@ -239,7 +246,14 @@ function mostrarTrabajos(){
   const g={}; herramientas.forEach(h=>{const k=h.orden_id;(g[k]=g[k]||{ot:h.orden_de_trabajo,list:[]}).list.push(h);});
   cont.innerHTML=Object.values(g).map(gr=>`
     <div class="otg">${esc(gr.ot&&gr.ot.codigo)||'OT'} · ${esc(gr.ot&&gr.ot.pozo)} ${gr.ot&&gr.ot.cliente?'· '+esc(gr.ot.cliente):''}</div>
-    ${gr.list.map(h=>{const p=progreso(h);return `
+    ${gr.list.map(h=>{
+      const des = h.desasignado_de===me.id && h.asegurador_id!==me.id;
+      if(des) return `
+      <div class="card desasig" onclick="verMotivo(${h.id})">
+        <div><div class="t">${esc(h.nombre)}</div><div class="m">${esc(h.tipo)} · ${esc(h.rol)}</div></div>
+        <span class="desbadge">desasignada</span>
+      </div>`;
+      const p=progreso(h);return `
       <div class="card" onclick="abrir(${h.id})">
         <div><div class="t">${esc(h.nombre)}</div><div class="m">${esc(h.tipo)} · ${esc(h.rol)}</div></div>
         <div class="prog"><div class="n">${p.aprob}/${p.total}</div><div class="l">cerradas</div></div>
@@ -400,6 +414,11 @@ async function attachFoto(actId,files){
   renderCheck();toast('Evidencia adjuntada ✓');
 }
 function verFoto(u){if(!u)return;$('lbimg').src=u;$('lb').classList.add('on');}
+function verMotivo(hid){
+  const h=herramientas.find(x=>x.id===hid); if(!h)return;
+  $('mkmot-txt').innerHTML='<b>Herramienta desasignada</b><br><br>'+esc(h.desasignado_motivo||'Sin motivo registrado.');
+  $('mkmot').classList.add('on');
+}
 
 // ---- flujo de la actividad: botones según estado ----
 function flowBtns(actId,ef){

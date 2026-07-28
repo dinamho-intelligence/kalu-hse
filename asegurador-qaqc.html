@@ -104,6 +104,7 @@
         <div class="m" id="h-meta"></div>
         <div class="bar"><i id="h-bar" style="width:0%"></i></div>
         <div class="m" id="h-prog" style="margin-top:8px"></div>
+        <button class="btn" id="btn-kalu" style="margin-top:12px;width:100%" onclick="analizarKalu()">🤖 Analizar con KALU</button>
       </div>
       <div id="lista-check"></div>
     </div>
@@ -118,6 +119,8 @@
 const SB_URL='https://tytjurhxdwwytagcjxji.supabase.co';
 const SB_KEY='sb_publishable_vMJSHRPHEI-LU7A5GG6EUg_8Q69q5x0';
 const sb=supabase.createClient(SB_URL,SB_KEY);
+// URL PRODUCTIVA del webhook n8n (workflow ACTIVO). Ojo: /webhook/ no /webhook-test/
+const KALU_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-qaqc-analizar';
 const $=(id)=>document.getElementById(id);
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),1800);}
 function esc(s){return (s==null?'':String(s)).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
@@ -258,6 +261,24 @@ async function attachFoto(actId,files){
   renderCheck();toast('Evidencia adjuntada ✓');
 }
 function verFoto(u){if(!u)return;$('lbimg').src=u;$('lb').classList.add('on');}
+
+async function analizarKalu(){
+  if(!herrActual)return;
+  const btn=$('btn-kalu');
+  if(btn){btn.disabled=true;btn.textContent='🤖 Analizando…';}
+  try{
+    const resp=await fetch(KALU_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({herramienta_id:herrActual})});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    await cargarDatos();
+    renderCheck();
+    toast('KALU analizó ✓');
+  }catch(e){
+    console.error(e);
+    toast('No se pudo analizar. ¿Workflow activo? ¿CORS?');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='🤖 Analizar con KALU';}
+  }
+}
 
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>

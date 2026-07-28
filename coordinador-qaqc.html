@@ -111,16 +111,26 @@
   <div class="card">
     <h2>Nueva orden de trabajo</h2>
     <div class="csub">El expediente por despacho.</div>
-    <label>Código *</label>
-    <input id="ot_codigo" placeholder="TQC-002">
+    <label>Código interno (OIT) *</label>
+    <input id="ot_codigo" placeholder="TQC-01168">
     <div class="grid2">
-      <div><label>Pozo</label><input id="ot_pozo" placeholder="FLOREÑA-AP21"></div>
-      <div><label>Cliente</label><input id="ot_cliente" placeholder="Ecopetrol"></div>
+      <div><label>Contrato</label><input id="ot_contrato" placeholder="3024813"></div>
+      <div><label>Service Ticket</label><input id="ot_ticket" placeholder="ST-TQC-ECP-ACT01168"></div>
     </div>
     <div class="grid2">
-      <div><label>Despacho</label><input id="ot_despacho" placeholder="Despacho…"></div>
+      <div><label>Cliente</label><input id="ot_cliente" placeholder="Ecopetrol"></div>
+      <div><label>Pozo</label><input id="ot_pozo" placeholder="FLOREÑA N18Y"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Compañía</label><input id="ot_compania" placeholder="SLB"></div>
+      <div><label>Sección / Fase</label><input id="ot_seccion" placeholder="8.5"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Solicitado por</label><input id="ot_solicita" placeholder="Andrés Restrepo"></div>
       <div><label>Fecha</label><input id="ot_fecha" type="date"></div>
     </div>
+    <label>Despacho</label>
+    <input id="ot_despacho" placeholder="Despacho…">
     <div class="err" id="ot_err"></div>
     <div class="modactions">
       <button class="btn ghost" onclick="cerrar('mOT')">Cancelar</button>
@@ -224,7 +234,7 @@
     const cont = $('lista');
     cont.innerHTML = '<div class="empty">Cargando…</div>';
     const { data, error } = await sb.from('orden_de_trabajo')
-      .select('id,codigo,despacho,pozo,cliente,fecha,estado, herramienta(id,nombre,tipo,rol,asegurador_id,desasignado_de,desasignado_motivo)')
+      .select('id,codigo,despacho,pozo,cliente,contrato,service_ticket,compania,seccion,solicitado_por,fecha,estado, herramienta(id,nombre,tipo,rol,asegurador_id,desasignado_de,desasignado_motivo)')
       .order('id',{ ascending:false });
     if (error){ cont.innerHTML = '<div class="empty">Error al cargar.</div>'; return; }
     ordenes = data || [];
@@ -259,7 +269,7 @@
       return `<div class="ot">
         <div class="ot-h">
           <span class="cod">${esc(ot.codigo)}</span>
-          <span class="m">${esc(ot.pozo||'')}${ot.cliente?' · '+esc(ot.cliente):''}</span>
+          <span class="m">${esc(ot.pozo||'')}${ot.cliente?' · '+esc(ot.cliente):''}${ot.seccion?' · Sec '+esc(ot.seccion):''}${ot.compania?' · '+esc(ot.compania):''}</span>
           <span class="count">${hs.length} herr.</span>
           <span class="spacer"></span>
           <button class="btn sm" onclick="abrirHerr(${ot.id}, '${esc(ot.codigo)}')">＋ Herramienta</button>
@@ -270,7 +280,7 @@
   }
 
   // ---- crear OT ----
-  function abrirOT(){ ['ot_codigo','ot_pozo','ot_cliente','ot_despacho','ot_fecha'].forEach(i=>$(i).value=''); $('ot_err').textContent=''; abrir('mOT'); }
+  function abrirOT(){ ['ot_codigo','ot_contrato','ot_ticket','ot_cliente','ot_pozo','ot_compania','ot_seccion','ot_solicita','ot_despacho','ot_fecha'].forEach(i=>$(i).value=''); $('ot_err').textContent=''; abrir('mOT'); }
   async function crearOT(){
     const codigo = $('ot_codigo').value.trim();
     if (!codigo){ $('ot_err').textContent='El código es obligatorio.'; return; }
@@ -278,6 +288,11 @@
       empresa_id: me.empresa_id, codigo,
       pozo: $('ot_pozo').value.trim() || null,
       cliente: $('ot_cliente').value.trim() || null,
+      contrato: $('ot_contrato').value.trim() || null,
+      service_ticket: $('ot_ticket').value.trim() || null,
+      compania: $('ot_compania').value.trim() || null,
+      seccion: $('ot_seccion').value.trim() || null,
+      solicitado_por: $('ot_solicita').value.trim() || null,
       despacho: $('ot_despacho').value.trim() || null,
       fecha: $('ot_fecha').value || null,
       estado: 'abierta'

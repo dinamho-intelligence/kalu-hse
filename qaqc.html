@@ -172,7 +172,7 @@ async function cargarDatos(){
 function actsDe(t){return catalogo.filter(a=>a.herramienta_tipo===t).sort((a,b)=>a.orden-b.orden);}
 function progreso(h){
   const acts=actsDe(h.tipo); const total=acts.length||1;
-  const aprob=acts.filter(a=>{const r=res[h.id+'_'+a.id];return r&&r.aprobado;}).length;
+  const aprob=acts.filter(a=>{const r=res[h.id+'_'+a.id];return r&&r.estado_flujo==='cerrada';}).length;
   return {aprob,total:acts.length,pct:Math.round(aprob/total*100)};
 }
 
@@ -186,7 +186,7 @@ function mostrarTrabajos(){
     ${gr.list.map(h=>{const p=progreso(h);return `
       <div class="card" onclick="abrir(${h.id})">
         <div><div class="t">${esc(h.nombre)}</div><div class="m">${esc(h.tipo)} · ${esc(h.rol)}</div></div>
-        <div class="prog"><div class="n">${p.aprob}/${p.total}</div><div class="l">aprobadas</div></div>
+        <div class="prog"><div class="n">${p.aprob}/${p.total}</div><div class="l">cerradas</div></div>
       </div>`;}).join('')}`).join('');
 }
 
@@ -211,7 +211,7 @@ function renderCheck(){
   const h=herramientas.find(x=>x.id===herrActual);
   const acts=actsDe(h.tipo); const p=progreso(h);
   $('h-bar').style.width=p.pct+'%';
-  $('h-prog').textContent=`${p.aprob} de ${p.total} aprobadas para informe (${p.pct}%)`;
+  $('h-prog').textContent=`${p.aprob} de ${p.total} cerradas (${p.pct}%)`;
   $('lista-check').innerHTML=acts.map(a=>{
     const r=res[herrActual+'_'+a.id]||{};
     const val=r.resultado||'pendiente';
@@ -248,7 +248,6 @@ function renderCheck(){
         ${thumbs}
         <label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>
       </div>
-      <label class="aprob ${r.aprobado?'on':''}"><input type="checkbox" ${r.aprobado?'checked':''} ${cerrada?'':''} onchange="toggleAprob(${a.id},this.checked)"> Aprobar para informe</label>
     </div>`;
   }).join('');
 }

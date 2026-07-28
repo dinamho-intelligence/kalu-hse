@@ -60,6 +60,16 @@
   .aprob{display:flex;align-items:center;gap:8px;margin:12px 0 0 36px;font-size:13.5px;font-weight:700;cursor:pointer;user-select:none;color:var(--muted)}
   .aprob input{width:18px;height:18px;accent-color:var(--green);cursor:pointer}
   .aprob.on{color:var(--green)}
+  .efbadge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:20px;border:1px solid var(--border);margin-left:6px;vertical-align:middle}
+  .efbadge.ef-no{color:var(--muted)} .efbadge.ef-cur{color:var(--cyan);border-color:rgba(79,195,247,.4)}
+  .efbadge.ef-pau{color:var(--amber);border-color:rgba(245,166,35,.4)} .efbadge.ef-cer{color:var(--green);border-color:rgba(52,211,153,.4)}
+  .flow{display:flex;gap:8px;flex-wrap:wrap;margin:11px 0 0 36px}
+  .fb{font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer}
+  .fb.go{background:var(--green);color:#0c1a12;border-color:var(--green)} .fb.end{background:var(--red);color:#1a0c0c;border-color:var(--red)}
+  .obsrow{display:flex;gap:8px;align-items:center}
+  .mic{flex:0 0 auto;width:42px;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);font-size:18px;cursor:pointer}
+  .mic.on{background:var(--red);border-color:var(--red);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   .empty{color:var(--muted);text-align:center;padding:50px 0}
   .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;z-index:60;opacity:0;transition:opacity .3s}
   .toast.on{opacity:1}
@@ -129,6 +139,7 @@ function uuid(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math
 
 let me={id:null,empresa_id:null,nombre:''};
 let catalogo=[], herramientas=[], res={}, evid={}, herrActual=null;
+let recog=null, recAct=null;
 
 async function entrar(){
   $('err').textContent='';
@@ -152,10 +163,10 @@ async function cargarDatos(){
   const [cat,herr,resu]=await Promise.all([
     sb.from('catalogo_actividad').select('id, herramienta_tipo, orden, actividad, norma_ref').order('orden'),
     sb.from('herramienta').select('id, nombre, tipo, rol, orden_id, orden_de_trabajo(codigo,pozo,cliente)'),
-    sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, kalu_veredicto, kalu_detalle, aprobado')
+    sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, kalu_veredicto, kalu_detalle, aprobado, estado_flujo')
   ]);
   catalogo=cat.data||[]; herramientas=herr.data||[]; res={};
-  (resu.data||[]).forEach(r=>{res[r.herramienta_id+'_'+r.actividad_id]={resultado:r.resultado,observacion:r.observacion,kalu_veredicto:r.kalu_veredicto,kalu_detalle:r.kalu_detalle,aprobado:r.aprobado};});
+  (resu.data||[]).forEach(r=>{res[r.herramienta_id+'_'+r.actividad_id]={resultado:r.resultado,observacion:r.observacion,kalu_veredicto:r.kalu_veredicto,kalu_detalle:r.kalu_detalle,aprobado:r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada'};});
 }
 
 function actsDe(t){return catalogo.filter(a=>a.herramienta_tipo===t).sort((a,b)=>a.orden-b.orden);}
@@ -210,27 +221,34 @@ function renderCheck(){
     if(r.kalu_veredicto==='cumple'){kaluCls='cumple';kaluTxt='<b>🤖 KALU:</b> ✓ Cumple los criterios';}
     else if(r.kalu_veredicto==='desviacion'){kaluCls='desv';kaluTxt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación detectada');}
     const thumbs=(evid[a.id]||[]).map(e=>`<div class="te"><img src="${e.url||''}" onclick="verFoto('${e.url||''}')"></div>`).join('');
+    const ef=r.estado_flujo||'no_iniciada';
+    const efMap={no_iniciada:['sin iniciar','ef-no'],en_curso:['en curso','ef-cur'],pausada:['en pausa','ef-pau'],cerrada:['cerrada','ef-cer']};
+    const cerrada=ef==='cerrada';
     return `
     <div class="act ${cls}">
       <div class="top">
         <div class="num">${a.orden}</div>
         <div style="flex:1">
-          <div class="ti">${esc(a.actividad)}</div>
+          <div class="ti">${esc(a.actividad)} <span class="efbadge ${efMap[ef][1]}">${efMap[ef][0]}</span></div>
           ${a.norma_ref?`<div class="norma">${esc(a.norma_ref)}</div>`:''}
           <div class="kalu ${kaluCls}">${kaluTxt}</div>
         </div>
       </div>
+      <div class="flow">${flowBtns(a.id,ef)}</div>
       <div class="states">
         <span class="st c ${val==='conforme'?'on':''}" onclick="setRes(${a.id},'conforme')">Conforme</span>
         <span class="st d ${val==='desviacion'?'on':''}" onclick="setRes(${a.id},'desviacion')">Desviación</span>
         <span class="st n ${val==='na'?'on':''}" onclick="setRes(${a.id},'na')">N-A</span>
       </div>
-      <div class="row2"><input class="obs" placeholder="Comentario / medida…" value="${esc(r.observacion)}" onchange="setObs(${a.id},this.value)"></div>
+      <div class="row2 obsrow">
+        <input class="obs" id="obs-${a.id}" placeholder="Comentario / medida…" value="${esc(r.observacion)}" onchange="setObs(${a.id},this.value)">
+        <button class="mic ${recAct===a.id?'on':''}" onclick="dictar(${a.id})" title="Dictar por voz">🎤</button>
+      </div>
       <div class="evid">
         ${thumbs}
         <label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>
       </div>
-      <label class="aprob ${r.aprobado?'on':''}"><input type="checkbox" ${r.aprobado?'checked':''} onchange="toggleAprob(${a.id},this.checked)"> Aprobar para informe</label>
+      <label class="aprob ${r.aprobado?'on':''}"><input type="checkbox" ${r.aprobado?'checked':''} ${cerrada?'':''} onchange="toggleAprob(${a.id},this.checked)"> Aprobar para informe</label>
     </div>`;
   }).join('');
 }
@@ -240,7 +258,8 @@ async function upsertRes(actId){
   const row={empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,
     resultado:r.resultado||'pendiente',observacion:r.observacion||null,
     kalu_veredicto:r.kalu_veredicto||null,kalu_detalle:r.kalu_detalle||null,
-    aprobado:!!r.aprobado,asegurador_id:me.id,updated_at:new Date().toISOString()};
+    aprobado:!!r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',
+    asegurador_id:me.id,updated_at:new Date().toISOString()};
   const {error}=await sb.from('resultado_actividad').upsert(row,{onConflict:'herramienta_id,actividad_id'});
   if(error){toast('No se pudo guardar');console.error(error);}
 }
@@ -261,6 +280,42 @@ async function attachFoto(actId,files){
   renderCheck();toast('Evidencia adjuntada ✓');
 }
 function verFoto(u){if(!u)return;$('lbimg').src=u;$('lb').classList.add('on');}
+
+// ---- flujo de la actividad: botones según estado ----
+function flowBtns(actId,ef){
+  const b=(txt,ev,cls)=>`<button class="fb ${cls||''}" onclick="evento(${actId},'${ev}')">${txt}</button>`;
+  if(ef==='no_iniciada') return b('▶ Iniciar','inicio','go');
+  if(ef==='en_curso')    return b('⏸ Pausar','pausa')+b('■ Cerrar','cierre','end');
+  if(ef==='pausada')     return b('▶ Reanudar','reinicio','go')+b('■ Cerrar','cierre','end');
+  return b('↻ Reabrir','reinicio');   // cerrada
+}
+async function evento(actId,ev){
+  const map={inicio:'en_curso',reinicio:'en_curso',pausa:'pausada',cierre:'cerrada'};
+  const k=herrActual+'_'+actId; res[k]=res[k]||{}; res[k].estado_flujo=map[ev];
+  if(!res[k].resultado) res[k].resultado='pendiente';
+  await sb.from('actividad_evento').insert({empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,asegurador_id:me.id,evento:ev});
+  await upsertRes(actId);
+  renderCheck();
+  const t={inicio:'Actividad iniciada',reinicio:'Actividad reanudada',pausa:'En pausa',cierre:'Cerrada — analizando con KALU…'};
+  toast(t[ev]);
+  if(ev==='cierre') analizarKalu();
+}
+
+// ---- dictado por voz (es-CO) ----
+function dictar(actId){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Tu navegador no soporta dictado');return;}
+  if(recog){recog.stop();return;}   // segundo toque = parar
+  recog=new SR(); recog.lang='es-CO'; recog.continuous=true; recog.interimResults=false; recAct=actId;
+  const k=herrActual+'_'+actId;
+  recog.onresult=(e)=>{
+    let t='';for(let i=e.resultIndex;i<e.results.length;i++){t+=e.results[i][0].transcript;}
+    res[k]=res[k]||{}; res[k].observacion=((res[k].observacion||'')+' '+t).trim();
+    const inp=$('obs-'+actId); if(inp) inp.value=res[k].observacion;
+  };
+  recog.onend=()=>{const a=recAct;recog=null;recAct=null;if(res[k].observacion){upsertRes(a);}renderCheck();};
+  recog.start(); renderCheck(); toast('🎤 Dictando… tocá el micrófono para parar');
+}
 
 async function analizarKalu(){
   if(!herrActual)return;

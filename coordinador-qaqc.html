@@ -148,6 +148,21 @@
   </div>
 </div>
 
+<!-- MODAL: motivo de desasignación -->
+<div class="modal" id="mDes">
+  <div class="card">
+    <h2>Motivo de la desasignación</h2>
+    <div class="csub" id="des_sub"></div>
+    <label>Motivo *</label>
+    <input id="des_motivo" placeholder="Ej: se reasigna a otro turno / error de asignación">
+    <div class="err" id="des_err"></div>
+    <div class="modactions">
+      <button class="btn ghost" onclick="cerrar('mDes')">Cancelar</button>
+      <button class="btn" onclick="confirmarDesasig()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Supabase como script CLÁSICO (UMD) -> expone el global `supabase` -->
@@ -163,6 +178,7 @@
   let aseguradores = [];  // perfiles rol=asegurador
   let ordenes = [];       // OT + herramientas
   let herrOT = null;      // OT activa al agregar herramienta
+  let desasigCtx = null;  // contexto de una desasignación pendiente de motivo
 
   function esc(s){ return (s==null?'':String(s)).replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
   function toast(msg, tipo){ const t=$('toast'); t.textContent=msg; t.className='toast on '+(tipo||''); setTimeout(()=>t.className='toast',1900); }
@@ -208,7 +224,7 @@
     const cont = $('lista');
     cont.innerHTML = '<div class="empty">Cargando…</div>';
     const { data, error } = await sb.from('orden_de_trabajo')
-      .select('id,codigo,despacho,pozo,cliente,fecha,estado, herramienta(id,nombre,tipo,rol,asegurador_id)')
+      .select('id,codigo,despacho,pozo,cliente,fecha,estado, herramienta(id,nombre,tipo,rol,asegurador_id,desasignado_de,desasignado_motivo)')
       .order('id',{ ascending:false });
     if (error){ cont.innerHTML = '<div class="empty">Error al cargar.</div>'; return; }
     ordenes = data || [];
@@ -285,13 +301,41 @@
     cerrar('mHerr'); toast('Herramienta agregada','ok'); cargar();
   }
 
-  // ---- asignar asegurador ----
+  // ---- asignar / desasignar asegurador ----
   async function asignar(hid, aseguradorId){
-    const { error } = await sb.from('herramienta').update({ asegurador_id: aseguradorId || null }).eq('id', hid);
-    if (error){ toast('No se pudo asignar','bad'); return; }
-    toast(aseguradorId ? 'Asignada' : 'Asignación quitada','ok');
     const h = ordenes.flatMap(o=>o.herramienta||[]).find(x=>String(x.id)===String(hid));
-    if (h){ h.asegurador_id = aseguradorId || null; render(); }
+    const prev = h ? (h.asegurador_id||null) : null;
+    const nuevo = aseguradorId || null;
+    if (String(prev||'') === String(nuevo||'')) return;   // sin cambio real
+    // si había alguien y ahora se le saca o se reasigna -> pedir motivo
+    if (prev && String(prev)!==String(nuevo)){
+      desasigCtx = { hid, prev, nuevo };
+      const pn = (aseguradores.find(a=>a.id===prev)||{}).nombre || 'el asegurador';
+      $('des_sub').textContent = nuevo ? `Se reasigna: se le saca a ${pn}.` : `Se le quita a ${pn}.`;
+      $('des_motivo').value=''; $('des_err').textContent='';
+      render();            // revierte el select hasta confirmar
+      abrir('mDes');
+      return;
+    }
+    // asignación fresca (no había nadie): directo, limpiando desasignación previa
+    await aplicarAsignacion(hid, nuevo, null, null);
+  }
+  async function aplicarAsignacion(hid, nuevo, desDe, motivo){
+    const upd = desDe
+      ? { asegurador_id: nuevo, desasignado_de: desDe, desasignado_motivo: motivo, desasignado_at: new Date().toISOString() }
+      : { asegurador_id: nuevo, desasignado_de: null, desasignado_motivo: null, desasignado_at: null };
+    const { error } = await sb.from('herramienta').update(upd).eq('id', hid);
+    if (error){ toast('No se pudo asignar','bad'); return; }
+    toast(nuevo ? 'Asignada' : 'Desasignada','ok');
+    const h = ordenes.flatMap(o=>o.herramienta||[]).find(x=>String(x.id)===String(hid));
+    if (h){ h.asegurador_id = nuevo; h.desasignado_de = desDe||null; h.desasignado_motivo = motivo||null; render(); }
+  }
+  async function confirmarDesasig(){
+    const motivo = $('des_motivo').value.trim();
+    if (!motivo){ $('des_err').textContent='El motivo es obligatorio.'; return; }
+    const c = desasigCtx; desasigCtx = null;
+    await aplicarAsignacion(c.hid, c.nuevo, c.prev, motivo);
+    cerrar('mDes');
   }
 
   // cerrar modal al tocar el fondo

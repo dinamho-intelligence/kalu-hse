@@ -107,6 +107,8 @@
   .mkkalu{font-size:15px;line-height:1.55;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;color:var(--text)}
   .mkkalu.cumple{border-color:rgba(52,211,153,.45)} .mkkalu.desv{border-color:rgba(248,113,113,.45)}
   .mkacts{display:flex;gap:10px} .mkacts .btn{flex:1;padding:13px}
+  .mkerr{color:var(--red);font-size:12.5px;margin:6px 0 0;min-height:16px;text-align:left}
+  #mkpausa-motivo{width:100%;box-sizing:border-box;margin-top:2px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px;font-family:inherit;resize:vertical}
   .spin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;margin:0 auto 16px;animation:sp .8s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
   .obsrow{display:flex;gap:8px;align-items:center}
@@ -190,6 +192,13 @@
 <div class="modalk" id="mkmot"><div class="mkcard">
   <div class="mkkalu" id="mkmot-txt"></div>
   <div class="mkacts"><button class="btn" onclick="$('mkmot').classList.remove('on')">Cerrar</button></div>
+</div></div>
+<!-- motivo de pausa al reanudar -->
+<div class="modalk" id="mkpausa"><div class="mkcard">
+  <div class="mkkalu" id="mkpausa-txt"></div>
+  <textarea id="mkpausa-motivo" rows="3" placeholder="¿Por qué se detuvo la actividad?"></textarea>
+  <div class="mkerr" id="mkpausa-err"></div>
+  <div class="mkacts"><button class="btn" onclick="confirmarReanudar()">▶ Reanudar</button></div>
 </div></div>
 <!-- devolución de KALU -->
 <div class="modalk" id="mkver"><div class="mkcard">
@@ -555,19 +564,51 @@ function flowBtns(actId,ef){
   const b=(txt,ev,cls)=>`<button class="fb ${cls||''}" onclick="evento(${actId},'${ev}')">${txt}</button>`;
   if(ef==='no_iniciada') return b('▶ Iniciar','inicio','go');
   if(ef==='en_curso')    return b('⏸ Pausar','pausa')+b('■ Cerrar','cierre','end');
-  if(ef==='pausada')     return b('▶ Reanudar','reinicio','go')+b('■ Cerrar','cierre','end');
+  if(ef==='pausada')     return `<button class="fb go" onclick="reanudar(${actId})">▶ Reanudar</button>`+b('■ Cerrar','cierre','end');
   return b('↻ Reabrir','reinicio');   // cerrada
 }
-async function evento(actId,ev){
+async function evento(actId,ev,extra){
   const map={inicio:'en_curso',reinicio:'en_curso',pausa:'pausada',cierre:'cerrada'};
   const k=herrActual+'_'+actId; res[k]=res[k]||{}; res[k].estado_flujo=map[ev];
   if(!res[k].resultado) res[k].resultado='pendiente';
-  await sb.from('actividad_evento').insert({empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,asegurador_id:me.id,evento:ev});
+  const row={empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,asegurador_id:me.id,evento:ev};
+  if(extra&&extra.motivo) row.motivo=extra.motivo;
+  if(extra&&extra.detenido_seg!=null) row.detenido_seg=extra.detenido_seg;
+  await sb.from('actividad_evento').insert(row);
   await upsertRes(actId);
   renderCheck();
   const t={inicio:'Actividad iniciada',reinicio:'Actividad reanudada',pausa:'En pausa',cierre:'Cerrada — analizando con KALU…'};
   toast(t[ev]);
   if(ev==='cierre') analizarKalu(actId);
+}
+// ---- reanudar: pedir motivo de la pausa (con el tiempo detenido) ----
+let pausaCtx=null;
+function fmtDur(seg){
+  if(seg<60) return seg+' s';
+  const h=Math.floor(seg/3600), m=Math.round((seg%3600)/60);
+  if(h&&m) return h+' h '+m+' min';
+  if(h)    return h+' h';
+  return m+' min';
+}
+async function reanudar(actId){
+  const {data}=await sb.from('actividad_evento').select('ts')
+    .eq('herramienta_id',herrActual).eq('actividad_id',actId).eq('evento','pausa')
+    .order('ts',{ascending:false}).limit(1);
+  const ev0=(data&&data[0])||null;
+  const seg=ev0?Math.max(0,Math.round((Date.now()-new Date(ev0.ts).getTime())/1000)):0;
+  pausaCtx={actId,seg};
+  $('mkpausa-txt').innerHTML='<b>Reanudar actividad</b><br><br>Estuvo detenida <b>'+fmtDur(seg)+'</b>.<br>Especificá el motivo de la pausa:';
+  $('mkpausa-motivo').value=''; $('mkpausa-err').textContent='';
+  $('mkpausa').classList.add('on');
+  setTimeout(()=>$('mkpausa-motivo').focus(),60);
+}
+async function confirmarReanudar(){
+  const m=$('mkpausa-motivo').value.trim();
+  if(!m){$('mkpausa-err').textContent='El motivo es obligatorio.';return;}
+  if(!pausaCtx)return;
+  $('mkpausa').classList.remove('on');
+  const {actId,seg}=pausaCtx; pausaCtx=null;
+  await evento(actId,'reinicio',{motivo:m,detenido_seg:seg});
 }
 
 // ---- dictado por voz (es-CO) ----

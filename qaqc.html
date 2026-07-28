@@ -82,6 +82,19 @@
   .paso-n{display:inline-flex;width:20px;height:20px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);margin-right:8px;vertical-align:middle}
   .paso-crit{color:var(--gray);font-size:11.5px;font-family:ui-monospace,monospace;margin:5px 0 0}
   .paso .obsrow{margin-top:8px}
+  /* barras de lista + pantalla de actividad */
+  .accbar{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;user-select:none}
+  .accbar.b-azul,.acthead.b-azul{border-left-color:var(--cyan)} .accbar.b-amar,.acthead.b-amar{border-left-color:var(--amber)}
+  .accbar.b-verde,.acthead.b-verde{border-left-color:var(--green)} .accbar.b-rojo,.acthead.b-rojo{border-left-color:var(--red)}
+  .accbar:active{border-color:var(--orange)}
+  .acthead{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:12px;padding:16px;margin:6px 0 12px}
+  .ti.big{font-size:18px;font-weight:800}
+  .chip{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap}
+  .ch-gris{color:var(--muted)} .ch-azul{color:var(--cyan);border-color:rgba(79,195,247,.4)}
+  .ch-amar{color:var(--amber);border-color:rgba(245,166,35,.4)} .ch-verde{color:var(--green);border-color:rgba(52,211,153,.4)} .ch-rojo{color:var(--red);border-color:rgba(248,113,113,.4)}
+  #filtros{margin:2px 0 6px} .acc-body{}
+  .fchip{display:inline-block;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;margin:0 6px 8px 0;user-select:none}
+  .fchip.on{background:var(--orange);color:#141414;border-color:var(--orange)} .fchip b{font-weight:800}
   .obsrow{display:flex;gap:8px;align-items:center}
   .mic{flex:0 0 auto;width:42px;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);font-size:18px;cursor:pointer}
   .mic.on{background:var(--red);border-color:var(--red);animation:pulse 1s infinite}
@@ -124,14 +137,15 @@
       <div id="lista-trabajos"><div class="empty">Cargando…</div></div>
     </div>
     <div id="v-check" style="display:none">
-      <button class="back" onclick="volver()">← Mis trabajos</button>
-      <div class="hhead">
+      <button class="back" id="back-trabajos" onclick="volver()">← Mis trabajos</button>
+      <div class="hhead" id="hhead">
         <div class="t" id="h-nombre"></div>
         <div class="m" id="h-meta"></div>
         <div class="bar"><i id="h-bar" style="width:0%"></i></div>
         <div class="m" id="h-prog" style="margin-top:8px"></div>
         <button class="btn" id="btn-kalu" style="margin-top:12px;width:100%" onclick="analizarKalu()">🤖 Analizar con KALU</button>
       </div>
+      <div id="filtros"></div>
       <div id="lista-check"></div>
     </div>
   </div>
@@ -156,7 +170,7 @@ function uuid(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math
 let me={id:null,empresa_id:null,nombre:''};
 let catalogo=[], herramientas=[], res={}, evid={}, herrActual=null;
 let recog=null, recAct=null;
-let pasosDef={}, expandedAct=null;
+let pasosDef={}, expandedAct=null, filtroEstado='todos';
 
 async function entrar(){
   $('err').textContent='';
@@ -226,67 +240,90 @@ async function abrir(hid){
 }
 function volver(){mostrarTrabajos();}
 
-function colorEstado(ef,val){
-  if(ef==='pausada')return 'b-amar';
-  if(ef==='cerrada')return val==='desviacion'?'b-rojo':'b-verde';
-  return 'b-azul';   // no_iniciada / en_curso
+function estadoInfo(r){
+  const ef=(r&&r.estado_flujo)||'no_iniciada'; const val=(r&&r.resultado)||'pendiente';
+  if(ef==='pausada')  return {k:'pausada',  label:'en pausa',  col:'b-amar', chip:'ch-amar'};
+  if(ef==='cerrada')  return val==='desviacion'
+                        ? {k:'cerrada',label:'cerrada ✗',col:'b-rojo', chip:'ch-rojo'}
+                        : {k:'cerrada',label:'cerrada ✓',col:'b-verde',chip:'ch-verde'};
+  if(ef==='en_curso') return {k:'en_curso',   label:'en curso',  col:'b-azul', chip:'ch-azul'};
+  return                     {k:'no_iniciada',label:'sin iniciar',col:'b-azul', chip:'ch-gris'};
 }
 function renderCheck(){
   const h=herramientas.find(x=>x.id===herrActual);
   const acts=actsDe(h.tipo); const p=progreso(h);
+  // === MODO 1: pantalla de una sola actividad ===
+  if(expandedAct){
+    $('back-trabajos').style.display='none'; $('hhead').style.display='none'; $('filtros').style.display='none';
+    const a=acts.find(x=>x.id===expandedAct); const r=res[herrActual+'_'+a.id]||{};
+    const val=r.resultado||'pendiente'; const ef=r.estado_flujo||'no_iniciada'; const info=estadoInfo(r);
+    const defs=pasosDef[a.id]||[]; const pasosR=r.pasos||{};
+    const hechos=defs.filter(d=>pasosR[d.id]&&pasosR[d.id].valor).length;
+    let kaluCls='',kaluTxt='<b>🤖 KALU:</b> sin analizar aún';
+    if(r.kalu_veredicto==='cumple'){kaluCls='cumple';kaluTxt='<b>🤖 KALU:</b> ✓ Cumple los criterios';}
+    else if(r.kalu_veredicto==='desviacion'){kaluCls='desv';kaluTxt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación detectada');}
+    const pasosHtml=defs.map(d=>{
+      const pv=(pasosR[d.id]&&pasosR[d.id].valor)||'';
+      return `<div class="paso">
+        <div class="paso-t"><span class="paso-n">${d.orden}</span>${esc(d.paso)}</div>
+        ${d.criterio?`<div class="paso-crit">Criterio: ${esc(d.criterio)}</div>`:''}
+        <div class="obsrow">
+          <input class="obs" id="paso-${d.id}" placeholder="Valor / observación…" value="${esc(pv)}" onchange="setPaso(${a.id},${d.id},this.value)">
+          <button class="mic ${recAct===('p'+d.id)?'on':''}" onclick="dictarPaso(${a.id},${d.id})" title="Dictar">🎤</button>
+        </div>
+      </div>`;
+    }).join('') || '<div class="paso-crit" style="margin-top:10px">Esta actividad no tiene pasos cargados.</div>';
+    const thumbs=(evid[a.id]||[]).map(e=>`<div class="te"><img src="${e.url||''}" onclick="verFoto('${e.url||''}')"></div>`).join('');
+    $('lista-check').innerHTML=`
+      <button class="back" onclick="cerrarActividad()">← Actividades</button>
+      <div class="acthead ${info.col}">
+        <div class="num">${a.orden}</div>
+        <div style="flex:1"><div class="ti big">${esc(a.actividad)}</div>
+          <div class="acc-sub"><span class="chip ${info.chip}">${info.label}</span> · ${hechos}/${defs.length} pasos${a.norma_ref?' · '+esc(a.norma_ref):''}</div></div>
+      </div>
+      <div class="flow">${flowBtns(a.id,ef)}</div>
+      <div class="kalu ${kaluCls}">${kaluTxt}</div>
+      ${pasosHtml}
+      <div class="states">
+        <span class="st c ${val==='conforme'?'on':''}" onclick="setRes(${a.id},'conforme')">Conforme</span>
+        <span class="st d ${val==='desviacion'?'on':''}" onclick="setRes(${a.id},'desviacion')">Desviación</span>
+        <span class="st n ${val==='na'?'on':''}" onclick="setRes(${a.id},'na')">N-A</span>
+      </div>
+      <div class="evid">${thumbs}
+        <label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>
+      </div>`;
+    window.scrollTo(0,0); return;
+  }
+  // === MODO 2: lista con filtro y totales ===
+  $('back-trabajos').style.display=''; $('hhead').style.display=''; $('filtros').style.display='';
   $('h-bar').style.width=p.pct+'%';
   $('h-prog').textContent=`${p.aprob} de ${p.total} cerradas (${p.pct}%)`;
-  const efMap={no_iniciada:'sin iniciar',en_curso:'en curso',pausada:'en pausa',cerrada:'cerrada'};
-  $('lista-check').innerHTML=acts.map(a=>{
-    const r=res[herrActual+'_'+a.id]||{};
-    const val=r.resultado||'pendiente';
-    const ef=r.estado_flujo||'no_iniciada';
-    const col=colorEstado(ef,val);
-    const abierto=expandedAct===a.id;
-    const defs=pasosDef[a.id]||[];
-    const pasosR=r.pasos||{};
+  const cnt={todos:acts.length,no_iniciada:0,en_curso:0,pausada:0,cerrada:0};
+  acts.forEach(a=>{cnt[estadoInfo(res[herrActual+'_'+a.id]).k]++;});
+  const fdef=[['todos','Todos'],['no_iniciada','Sin iniciar'],['en_curso','En curso'],['pausada','En pausa'],['cerrada','Cerradas']];
+  $('filtros').innerHTML=fdef.map(([k,lbl])=>`<span class="fchip ${filtroEstado===k?'on':''}" onclick="filtrarEstado('${k}')">${lbl} <b>${cnt[k]}</b></span>`).join('');
+  const lista=acts.filter(a=>filtroEstado==='todos'||estadoInfo(res[herrActual+'_'+a.id]).k===filtroEstado);
+  $('lista-check').innerHTML = lista.length ? lista.map(a=>{
+    const r=res[herrActual+'_'+a.id]||{}; const info=estadoInfo(r);
+    const defs=pasosDef[a.id]||[]; const pasosR=r.pasos||{};
     const hechos=defs.filter(d=>pasosR[d.id]&&pasosR[d.id].valor).length;
-    let html=`<div class="acc ${col} ${abierto?'open':''}">
-      <div class="acc-h" onclick="toggleAct(${a.id})">
-        <div class="num">${a.orden}</div>
-        <div style="flex:1"><div class="ti">${esc(a.actividad)}</div>
-          <div class="acc-sub">${efMap[ef]} · ${hechos}/${defs.length} pasos${a.norma_ref?' · '+esc(a.norma_ref):''}</div></div>
-        <div class="chev">${abierto?'▾':'▸'}</div>
-      </div>`;
-    if(abierto){
-      let kaluCls='',kaluTxt='<b>🤖 KALU:</b> sin analizar aún';
-      if(r.kalu_veredicto==='cumple'){kaluCls='cumple';kaluTxt='<b>🤖 KALU:</b> ✓ Cumple los criterios';}
-      else if(r.kalu_veredicto==='desviacion'){kaluCls='desv';kaluTxt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación detectada');}
-      const pasosHtml=defs.map(d=>{
-        const pv=(pasosR[d.id]&&pasosR[d.id].valor)||'';
-        return `<div class="paso">
-          <div class="paso-t"><span class="paso-n">${d.orden}</span>${esc(d.paso)}</div>
-          ${d.criterio?`<div class="paso-crit">Criterio: ${esc(d.criterio)}</div>`:''}
-          <div class="obsrow">
-            <input class="obs" id="paso-${d.id}" placeholder="Valor / observación…" value="${esc(pv)}" onchange="setPaso(${a.id},${d.id},this.value)">
-            <button class="mic ${recAct===('p'+d.id)?'on':''}" onclick="dictarPaso(${a.id},${d.id})" title="Dictar">🎤</button>
-          </div>
-        </div>`;
-      }).join('') || '<div class="paso-crit" style="margin-top:10px">Esta actividad no tiene pasos cargados.</div>';
-      const thumbs=(evid[a.id]||[]).map(e=>`<div class="te"><img src="${e.url||''}" onclick="verFoto('${e.url||''}')"></div>`).join('');
-      html+=`<div class="acc-body">
-        <div class="flow">${flowBtns(a.id,ef)}</div>
-        <div class="kalu ${kaluCls}">${kaluTxt}</div>
-        ${pasosHtml}
-        <div class="states">
-          <span class="st c ${val==='conforme'?'on':''}" onclick="setRes(${a.id},'conforme')">Conforme</span>
-          <span class="st d ${val==='desviacion'?'on':''}" onclick="setRes(${a.id},'desviacion')">Desviación</span>
-          <span class="st n ${val==='na'?'on':''}" onclick="setRes(${a.id},'na')">N-A</span>
-        </div>
-        <div class="evid">${thumbs}
-          <label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>
-        </div>
-      </div>`;
-    }
-    return html+`</div>`;
-  }).join('');
+    return `<div class="accbar ${info.col}" onclick="abrirActividad(${a.id})">
+      <div class="num">${a.orden}</div>
+      <div style="flex:1"><div class="ti">${esc(a.actividad)}</div>
+        <div class="acc-sub">${hechos}/${defs.length} pasos</div></div>
+      <span class="chip ${info.chip}">${info.label}</span>
+      <div class="chev">▸</div>
+    </div>`;
+  }).join('') : '<div class="empty">No hay actividades en este filtro.</div>';
 }
-function toggleAct(actId){ expandedAct=(expandedAct===actId?null:actId); renderCheck(); if(expandedAct)window.scrollTo(0,0); }
+function filtrarEstado(k){ filtroEstado=k; renderCheck(); }
+function abrirActividad(actId){ expandedAct=actId; renderCheck(); }
+async function cerrarActividad(){
+  // auto-pausa: si estaba en curso y no se cerró, queda en pausa
+  const k=herrActual+'_'+expandedAct; const r=res[k];
+  if(r && r.estado_flujo==='en_curso'){ await evento(expandedAct,'pausa'); }
+  expandedAct=null; renderCheck(); window.scrollTo(0,0);
+}
 async function setPaso(actId,pasoId,valor){
   const k=herrActual+'_'+actId; res[k]=res[k]||{}; res[k].pasos=res[k].pasos||{};
   res[k].pasos[pasoId]={valor};

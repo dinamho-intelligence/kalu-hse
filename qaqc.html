@@ -95,6 +95,18 @@
   #filtros{margin:2px 0 6px} .acc-body{}
   .fchip{display:inline-block;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;margin:0 6px 8px 0;user-select:none}
   .fchip.on{background:var(--orange);color:#141414;border-color:var(--orange)} .fchip b{font-weight:800}
+  .hint2{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-size:13px}
+  .paso.lock{opacity:.55} .states.lock{opacity:.5;pointer-events:none}
+  /* modales flotantes de KALU */
+  .modalk{position:fixed;inset:0;background:rgba(0,0,0,.74);display:none;align-items:center;justify-content:center;z-index:90;padding:22px}
+  .modalk.on{display:flex}
+  .mkcard{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:26px;text-align:center}
+  .mkw{font-size:15px;font-weight:600;color:var(--text)}
+  .mkkalu{font-size:15px;line-height:1.55;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;color:var(--text)}
+  .mkkalu.cumple{border-color:rgba(52,211,153,.45)} .mkkalu.desv{border-color:rgba(248,113,113,.45)}
+  .mkacts{display:flex;gap:10px} .mkacts .btn{flex:1;padding:13px}
+  .spin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;margin:0 auto 16px;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
   .obsrow{display:flex;gap:8px;align-items:center}
   .mic{flex:0 0 auto;width:42px;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);font-size:18px;cursor:pointer}
   .mic.on{background:var(--red);border-color:var(--red);animation:pulse 1s infinite}
@@ -153,6 +165,17 @@
 
 <div class="toast" id="toast"></div>
 <div class="lb" id="lb" onclick="this.classList.remove('on')"><img id="lbimg"></div>
+
+<!-- esperando a KALU -->
+<div class="modalk" id="mkespera"><div class="mkcard"><div class="spin"></div><div class="mkw">Esperando la devolución de KALU…</div></div></div>
+<!-- devolución de KALU -->
+<div class="modalk" id="mkver"><div class="mkcard">
+  <div class="mkkalu" id="mkver-txt"></div>
+  <div class="mkacts">
+    <button class="btn ghost" onclick="cerrarModalVer(false)">Volver a la actividad</button>
+    <button class="btn" onclick="cerrarModalVer(true)">Salir de todas formas</button>
+  </div>
+</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -262,18 +285,22 @@ function renderCheck(){
     let kaluCls='',kaluTxt='<b>🤖 KALU:</b> sin analizar aún';
     if(r.kalu_veredicto==='cumple'){kaluCls='cumple';kaluTxt='<b>🤖 KALU:</b> ✓ Cumple los criterios';}
     else if(r.kalu_veredicto==='desviacion'){kaluCls='desv';kaluTxt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación detectada');}
+    const editable=(ef==='en_curso'||ef==='pausada');
+    const dis=editable?'':'disabled';
     const pasosHtml=defs.map(d=>{
       const pv=(pasosR[d.id]&&pasosR[d.id].valor)||'';
-      return `<div class="paso">
+      return `<div class="paso ${editable?'':'lock'}">
         <div class="paso-t"><span class="paso-n">${d.orden}</span>${esc(d.paso)}</div>
         ${d.criterio?`<div class="paso-crit">Criterio: ${esc(d.criterio)}</div>`:''}
         <div class="obsrow">
-          <input class="obs" id="paso-${d.id}" placeholder="Valor / observación…" value="${esc(pv)}" onchange="setPaso(${a.id},${d.id},this.value)">
-          <button class="mic ${recAct===('p'+d.id)?'on':''}" onclick="dictarPaso(${a.id},${d.id})" title="Dictar">🎤</button>
+          <input class="obs" id="paso-${d.id}" placeholder="Valor / observación…" value="${esc(pv)}" ${dis} onchange="setPaso(${a.id},${d.id},this.value)">
+          <button class="mic ${recAct===('p'+d.id)?'on':''}" ${dis} onclick="dictarPaso(${a.id},${d.id})" title="Dictar">🎤</button>
         </div>
       </div>`;
     }).join('') || '<div class="paso-crit" style="margin-top:10px">Esta actividad no tiene pasos cargados.</div>';
     const thumbs=(evid[a.id]||[]).map(e=>`<div class="te"><img src="${e.url||''}" onclick="verFoto('${e.url||''}')"></div>`).join('');
+    const hint = ef==='no_iniciada' ? '<div class="hint2">▶ Tocá <b>Iniciar</b> para empezar a capturar.</div>'
+               : ef==='cerrada'     ? '<div class="hint2">Actividad cerrada. Tocá <b>↻ Reabrir</b> para editar.</div>' : '';
     $('lista-check').innerHTML=`
       <button class="back" onclick="cerrarActividad()">← Actividades</button>
       <div class="acthead ${info.col}">
@@ -283,14 +310,15 @@ function renderCheck(){
       </div>
       <div class="flow">${flowBtns(a.id,ef)}</div>
       <div class="kalu ${kaluCls}">${kaluTxt}</div>
+      ${hint}
       ${pasosHtml}
-      <div class="states">
-        <span class="st c ${val==='conforme'?'on':''}" onclick="setRes(${a.id},'conforme')">Conforme</span>
-        <span class="st d ${val==='desviacion'?'on':''}" onclick="setRes(${a.id},'desviacion')">Desviación</span>
-        <span class="st n ${val==='na'?'on':''}" onclick="setRes(${a.id},'na')">N-A</span>
+      <div class="states ${editable?'':'lock'}">
+        <span class="st c ${val==='conforme'?'on':''}" ${editable?`onclick="setRes(${a.id},'conforme')"`:''}>Conforme</span>
+        <span class="st d ${val==='desviacion'?'on':''}" ${editable?`onclick="setRes(${a.id},'desviacion')"`:''}>Desviación</span>
+        <span class="st n ${val==='na'?'on':''}" ${editable?`onclick="setRes(${a.id},'na')"`:''}>N-A</span>
       </div>
       <div class="evid">${thumbs}
-        <label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>
+        ${editable?`<label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>`:''}
       </div>`;
     window.scrollTo(0,0); return;
   }
@@ -390,7 +418,7 @@ async function evento(actId,ev){
   renderCheck();
   const t={inicio:'Actividad iniciada',reinicio:'Actividad reanudada',pausa:'En pausa',cierre:'Cerrada — analizando con KALU…'};
   toast(t[ev]);
-  if(ev==='cierre') analizarKalu();
+  if(ev==='cierre') analizarKalu(actId);
 }
 
 // ---- dictado por voz (es-CO) ----
@@ -409,22 +437,38 @@ function dictar(actId){
   recog.start(); renderCheck(); toast('🎤 Dictando… tocá el micrófono para parar');
 }
 
-async function analizarKalu(){
+async function analizarKalu(actId){
   if(!herrActual)return;
   const btn=$('btn-kalu');
-  if(btn){btn.disabled=true;btn.textContent='🤖 Analizando…';}
+  if(btn&&!actId){btn.disabled=true;btn.textContent='🤖 Analizando…';}
+  if(actId) $('mkespera').classList.add('on');
   try{
     const resp=await fetch(KALU_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({herramienta_id:herrActual})});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     await cargarDatos();
+    $('mkespera').classList.remove('on');
     renderCheck();
-    toast('KALU analizó ✓');
+    if(actId) mostrarVeredicto(actId); else toast('KALU analizó ✓');
   }catch(e){
+    $('mkespera').classList.remove('on');
     console.error(e);
     toast('No se pudo analizar. ¿Workflow activo? ¿CORS?');
   }finally{
-    if(btn){btn.disabled=false;btn.textContent='🤖 Analizar con KALU';}
+    if(btn&&!actId){btn.disabled=false;btn.textContent='🤖 Analizar con KALU';}
   }
+}
+function mostrarVeredicto(actId){
+  const r=res[herrActual+'_'+actId]||{};
+  let cls='',txt='<b>🤖 KALU:</b> sin devolución todavía.';
+  if(r.kalu_veredicto==='cumple'){cls='cumple';txt='<b>🤖 KALU:</b> ✓ '+esc(r.kalu_detalle||'Cumple los criterios.');}
+  else if(r.kalu_veredicto==='desviacion'){cls='desv';txt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación / incompleto.');}
+  const el=$('mkver-txt'); el.className='mkkalu '+cls; el.innerHTML=txt;
+  $('mkver').classList.add('on');
+}
+function cerrarModalVer(salir){
+  $('mkver').classList.remove('on');
+  if(salir){ expandedAct=null; }
+  renderCheck(); window.scrollTo(0,0);
 }
 
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});

@@ -60,6 +60,11 @@
   .aprob{display:flex;align-items:center;gap:8px;margin:12px 0 0 36px;font-size:13.5px;font-weight:700;cursor:pointer;user-select:none;color:var(--muted)}
   .aprob input{width:18px;height:18px;accent-color:var(--green);cursor:pointer}
   .aprob.on{color:var(--green)}
+  .rb{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:20px;border:1px solid var(--border);margin-left:6px;vertical-align:middle}
+  .rb-c{color:var(--green);border-color:rgba(52,211,153,.4)} .rb-d{color:var(--red);border-color:rgba(248,113,113,.4)}
+  .rb-n{color:var(--gray)} .rb-p{color:var(--muted)}
+  .revobs{margin:10px 0 0 36px;font-size:14px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .nodata{color:var(--muted);font-style:italic;font-size:12.5px}
   .efbadge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:20px;border:1px solid var(--border);margin-left:6px;vertical-align:middle}
   .efbadge.ef-no{color:var(--muted)} .efbadge.ef-cur{color:var(--cyan);border-color:rgba(79,195,247,.4)}
   .efbadge.ef-pau{color:var(--amber);border-color:rgba(245,166,35,.4)} .efbadge.ef-cer{color:var(--green);border-color:rgba(52,211,153,.4)}
@@ -216,39 +221,25 @@ function renderCheck(){
     const r=res[herrActual+'_'+a.id]||{};
     const val=r.resultado||'pendiente';
     const cls=(r.aprobado?'apr ':'')+(val==='desviacion'?'dev':(val==='conforme'||val==='na'?'done':''));
-    // veredicto KALU (placeholder hasta enchufar la IA)
-    let kaluCls='',kaluTxt='<b>🤖 KALU:</b> sin analizar aún (se llena con la capa de IA)';
+    const rbMap={conforme:['Conforme','rb-c'],desviacion:['Desviación','rb-d'],na:['N-A','rb-n'],pendiente:['sin capturar','rb-p']};
+    const rb=rbMap[val]||rbMap.pendiente;
+    let kaluCls='',kaluTxt='<b>🤖 KALU:</b> sin analizar aún';
     if(r.kalu_veredicto==='cumple'){kaluCls='cumple';kaluTxt='<b>🤖 KALU:</b> ✓ Cumple los criterios';}
     else if(r.kalu_veredicto==='desviacion'){kaluCls='desv';kaluTxt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación detectada');}
-    const thumbs=(evid[a.id]||[]).map(e=>`<div class="te"><img src="${e.url||''}" onclick="verFoto('${e.url||''}')"></div>`).join('');
-    const ef=r.estado_flujo||'no_iniciada';
-    const efMap={no_iniciada:['sin iniciar','ef-no'],en_curso:['en curso','ef-cur'],pausada:['en pausa','ef-pau'],cerrada:['cerrada','ef-cer']};
-    const cerrada=ef==='cerrada';
+    const thumbs=(evid[a.id]||[]).map(e=>`<div class="te"><img src="${e.url||''}" onclick="verFoto('${e.url||''}')"></div>`).join('')||'<span class="nodata">sin evidencia</span>';
     return `
     <div class="act ${cls}">
       <div class="top">
         <div class="num">${a.orden}</div>
         <div style="flex:1">
-          <div class="ti">${esc(a.actividad)} <span class="efbadge ${efMap[ef][1]}">${efMap[ef][0]}</span></div>
+          <div class="ti">${esc(a.actividad)} <span class="rb ${rb[1]}">${rb[0]}</span></div>
           ${a.norma_ref?`<div class="norma">${esc(a.norma_ref)}</div>`:''}
           <div class="kalu ${kaluCls}">${kaluTxt}</div>
         </div>
       </div>
-      <div class="flow">${flowBtns(a.id,ef)}</div>
-      <div class="states">
-        <span class="st c ${val==='conforme'?'on':''}" onclick="setRes(${a.id},'conforme')">Conforme</span>
-        <span class="st d ${val==='desviacion'?'on':''}" onclick="setRes(${a.id},'desviacion')">Desviación</span>
-        <span class="st n ${val==='na'?'on':''}" onclick="setRes(${a.id},'na')">N-A</span>
-      </div>
-      <div class="row2 obsrow">
-        <input class="obs" id="obs-${a.id}" placeholder="Comentario / medida…" value="${esc(r.observacion)}" onchange="setObs(${a.id},this.value)">
-        <button class="mic ${recAct===a.id?'on':''}" onclick="dictar(${a.id})" title="Dictar por voz">🎤</button>
-      </div>
-      <div class="evid">
-        ${thumbs}
-        <label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="attachFoto(${a.id},this.files)"></label>
-      </div>
-      <label class="aprob ${r.aprobado?'on':''}"><input type="checkbox" ${r.aprobado?'checked':''} ${cerrada?'':''} onchange="toggleAprob(${a.id},this.checked)"> Aprobar para informe</label>
+      <div class="revobs">${r.observacion?esc(r.observacion):'<span class="nodata">sin comentario</span>'}</div>
+      <div class="evid">${thumbs}</div>
+      <label class="aprob ${r.aprobado?'on':''}"><input type="checkbox" ${r.aprobado?'checked':''} onchange="toggleAprob(${a.id},this.checked)"> Aprobar para informe</label>
     </div>`;
   }).join('');
 }

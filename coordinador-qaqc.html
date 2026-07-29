@@ -63,6 +63,32 @@
     padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
   .toast.ok{border-color:rgba(52,211,153,.5)} .toast.bad{border-color:rgba(248,113,113,.5)}
+  /* panel de progreso */
+  .card.wide{max-width:720px}
+  .presum{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:4px 0 14px;font-size:13.5px;color:var(--text);line-height:1.5}
+  .pstats{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 16px}
+  .pstat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:9px 13px;min-width:88px}
+  .pstat .n{font-size:19px;font-weight:800} .pstat .l{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+  .pstat.desv .n{color:var(--red)} .pstat.cerr .n{color:var(--green)}
+  .ptool{border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .ptool-h{padding:12px 14px;background:var(--panel2)}
+  .ptool-h .nm{font-weight:700;font-size:14.5px} .ptool-h .tp{color:var(--muted);font-size:12px}
+  .pbadges{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .pb{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+  .pb.azul{color:var(--cyan);border-color:rgba(79,195,247,.4)} .pb.amar{color:var(--amber);border-color:rgba(245,166,35,.4)}
+  .pb.verde{color:var(--green);border-color:rgba(52,211,153,.4)} .pb.rojo{color:var(--red);border-color:rgba(248,113,113,.4)}
+  .pbar{height:7px;background:var(--bg);border:1px solid var(--border);border-radius:20px;overflow:hidden;margin-top:10px}
+  .pbar i{display:block;height:100%;background:var(--green)}
+  .ptime{color:var(--muted);font-size:12px;margin-top:9px}
+  .ptime b{color:var(--text)}
+  details.pacts{border-top:1px solid var(--border)}
+  details.pacts>summary{cursor:pointer;color:var(--orange);font-size:12.5px;font-weight:700;padding:9px 14px;list-style:none}
+  details.pacts>summary::-webkit-details-marker{display:none}
+  .pact{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border);font-size:13px}
+  .pact .pnm{flex:1;min-width:0} .pact .pt{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pchip{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid var(--border);white-space:nowrap;color:var(--muted)}
+  .pchip.azul{color:var(--cyan);border-color:rgba(79,195,247,.4)} .pchip.amar{color:var(--amber);border-color:rgba(245,166,35,.4)}
+  .pchip.verde{color:var(--green);border-color:rgba(52,211,153,.4)} .pchip.rojo{color:var(--red);border-color:rgba(248,113,113,.4)}
 </style>
 </head>
 <body>
@@ -173,6 +199,16 @@
   </div>
 </div>
 
+<!-- MODAL: progreso de la OIT -->
+<div class="modal" id="mProg">
+  <div class="card wide">
+    <h2 id="prog_ttl">Progreso</h2>
+    <div class="csub">Estado y tiempos al momento — base del resumen ejecutivo.</div>
+    <div id="prog_body"></div>
+    <div class="modactions"><button class="btn ghost" onclick="cerrar('mProg')">Cerrar</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Supabase como script CLÁSICO (UMD) -> expone el global `supabase` -->
@@ -241,6 +277,108 @@
     render();
   }
 
+  // ===================== PROGRESO DE LA OIT =====================
+  function fmtDur(seg){
+    seg=Math.round(seg||0);
+    if(seg<60) return seg+' s';
+    const h=Math.floor(seg/3600), m=Math.floor((seg%3600)/60);
+    if(h&&m) return h+' h '+m+' m';
+    if(h)    return h+' h';
+    return m+' m';
+  }
+  function estInfo(ef,resu){
+    if(ef==='pausada')  return {k:'pausada',    lbl:'en pausa',   cls:'amar'};
+    if(ef==='cerrada')  return resu==='desviacion'
+                          ? {k:'cerrada',lbl:'cerrada ✗',cls:'rojo'}
+                          : {k:'cerrada',lbl:'cerrada ✓',cls:'verde'};
+    if(ef==='en_curso') return {k:'en_curso',   lbl:'en curso',   cls:'azul'};
+    return                     {k:'no_iniciada',lbl:'sin iniciar',cls:'gris'};
+  }
+  // tiempos activo/pausa por actividad, desde la bitácora (incluye el intervalo abierto hasta ahora)
+  function calcTiempos(eventos){
+    const g={}; (eventos||[]).forEach(e=>{const k=e.herramienta_id+'_'+e.actividad_id;(g[k]=g[k]||[]).push(e);});
+    const out={}; const now=Date.now();
+    Object.entries(g).forEach(([k,list])=>{
+      list.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+      let act=0,pau=0;
+      for(let i=0;i<list.length;i++){
+        const t0=new Date(list[i].ts).getTime();
+        const t1=(i<list.length-1)?new Date(list[i+1].ts).getTime():now;
+        const dt=Math.max(0,(t1-t0)/1000);
+        if(list[i].evento==='inicio'||list[i].evento==='reinicio') act+=dt;
+        else if(list[i].evento==='pausa') pau+=dt;
+      }
+      out[k]={act,pau};
+    });
+    return out;
+  }
+  async function verProgreso(otId){
+    const ot=ordenes.find(o=>o.id===otId); if(!ot)return;
+    const hs=ot.herramienta||[];
+    $('prog_ttl').textContent='Progreso · '+ot.codigo;
+    $('prog_body').innerHTML='<div class="empty">Cargando…</div>';
+    abrir('mProg');
+    const hids=hs.map(h=>h.id);
+    if(!hids.length){ $('prog_body').innerHTML='<div class="empty">Esta OIT no tiene herramientas todavía.</div>'; return; }
+    const [cat,resu,ev]=await Promise.all([
+      sb.from('catalogo_actividad').select('id,herramienta_tipo,orden,actividad').order('orden'),
+      sb.from('resultado_actividad').select('herramienta_id,actividad_id,estado_flujo,resultado').in('herramienta_id',hids),
+      sb.from('actividad_evento').select('herramienta_id,actividad_id,evento,ts').in('herramienta_id',hids)
+    ]);
+    const catByTipo={}; (cat.data||[]).forEach(a=>{(catByTipo[a.herramienta_tipo]=catByTipo[a.herramienta_tipo]||[]).push(a);});
+    const resMap={}; (resu.data||[]).forEach(r=>{resMap[r.herramienta_id+'_'+r.actividad_id]=r;});
+    const tiempos=calcTiempos(ev.data||[]);
+
+    let Ttot=0,Tcerr=0,Tencurso=0,Tpausa=0,Tsin=0,Tdesv=0,TactS=0,TpauS=0;
+    const bloques=hs.map(h=>{
+      const acts=(catByTipo[h.tipo]||[]).slice().sort((a,b)=>a.orden-b.orden);
+      const cnt={no_iniciada:0,en_curso:0,pausada:0,cerrada:0}; let desv=0,actS=0,pauS=0;
+      const rows=acts.map(a=>{
+        const r=resMap[h.id+'_'+a.id]||{}; const ef=r.estado_flujo||'no_iniciada';
+        const info=estInfo(ef,r.resultado); cnt[info.k]++;
+        if(info.cls==='rojo') desv++;
+        const t=tiempos[h.id+'_'+a.id]||{act:0,pau:0}; actS+=t.act; pauS+=t.pau;
+        return `<div class="pact">
+          <span class="pchip ${info.cls}">${info.lbl}</span>
+          <span class="pnm">${esc(a.actividad)}</span>
+          <span class="pt">▶ ${fmtDur(t.act)}${t.pau?' · ⏸ '+fmtDur(t.pau):''}</span>
+        </div>`;
+      }).join('');
+      const total=acts.length; const pct=total?Math.round(cnt.cerrada/total*100):0;
+      Ttot+=total; Tcerr+=cnt.cerrada; Tencurso+=cnt.en_curso; Tpausa+=cnt.pausada; Tsin+=cnt.no_iniciada; Tdesv+=desv; TactS+=actS; TpauS+=pauS;
+      const badge=(n,lbl,cls)=>n?`<span class="pb ${cls}">${lbl}: ${n}</span>`:'';
+      return `<div class="ptool">
+        <div class="ptool-h">
+          <div class="nm">${esc(h.nombre)}</div><div class="tp">${esc(h.tipo||'—')} · ${esc(h.rol||'')}</div>
+          <div class="pbadges">
+            ${badge(cnt.en_curso,'en curso','azul')}${badge(cnt.pausada,'en pausa','amar')}
+            ${badge(cnt.no_iniciada,'sin iniciar','')}${badge(cnt.cerrada,'cerradas','verde')}${badge(desv,'desviación','rojo')}
+          </div>
+          <div class="pbar"><i style="width:${pct}%"></i></div>
+          <div class="ptime"><b>${cnt.cerrada}/${total}</b> cerradas (${pct}%) · activo <b>${fmtDur(actS)}</b> · pausa <b>${fmtDur(pauS)}</b></div>
+        </div>
+        ${total?`<details class="pacts"><summary>Ver ${total} actividades</summary>${rows}</details>`:''}
+      </div>`;
+    }).join('');
+
+    const pctG=Ttot?Math.round(Tcerr/Ttot*100):0;
+    const resumen=`Al momento: <b>${hs.length}</b> herramienta(s), <b>${Tcerr}/${Ttot}</b> actividades cerradas (${pctG}%).`
+      + ` En curso <b>${Tencurso}</b>, en pausa <b>${Tpausa}</b>, sin iniciar <b>${Tsin}</b>.`
+      + (Tdesv?` <span style="color:var(--red)">Hallazgos (desviación): <b>${Tdesv}</b>.</span>`:` Sin desviaciones hasta ahora.`)
+      + ` Tiempo activo total <b>${fmtDur(TactS)}</b>, en pausa <b>${fmtDur(TpauS)}</b>.`;
+    const stats=`<div class="pstats">
+      <div class="pstat"><div class="n">${hs.length}</div><div class="l">Herramientas</div></div>
+      <div class="pstat cerr"><div class="n">${Tcerr}/${Ttot}</div><div class="l">Cerradas</div></div>
+      <div class="pstat"><div class="n">${Tencurso}</div><div class="l">En curso</div></div>
+      <div class="pstat"><div class="n">${Tpausa}</div><div class="l">En pausa</div></div>
+      <div class="pstat"><div class="n">${Tsin}</div><div class="l">Sin iniciar</div></div>
+      <div class="pstat desv"><div class="n">${Tdesv}</div><div class="l">Desviación</div></div>
+      <div class="pstat"><div class="n">${fmtDur(TactS)}</div><div class="l">T. activo</div></div>
+      <div class="pstat"><div class="n">${fmtDur(TpauS)}</div><div class="l">T. pausa</div></div>
+    </div>`;
+    $('prog_body').innerHTML=`<div class="presum">${resumen}</div>${stats}${bloques}`;
+  }
+
   function opcionesAsig(sel){
     let o = `<option value="">— sin asignar —</option>`;
     o += aseguradores.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.nombre)}</option>`).join('');
@@ -272,6 +410,7 @@
           <span class="m">${esc(ot.pozo||'')}${ot.cliente?' · '+esc(ot.cliente):''}${ot.seccion?' · Sec '+esc(ot.seccion):''}${ot.compania?' · '+esc(ot.compania):''}</span>
           <span class="count">${hs.length} herr.</span>
           <span class="spacer"></span>
+          <button class="btn sm ghost" onclick="verProgreso(${ot.id})">📊 Progreso</button>
           <button class="btn sm" onclick="abrirHerr(${ot.id}, '${esc(ot.codigo)}')">＋ Herramienta</button>
         </div>
         <div class="herrs">${herrs}</div>

@@ -372,7 +372,7 @@ function renderCheck(){
         <span class="st n ${val==='na'?'on':''}" ${editable?`onclick="setRes(${a.id},'na')"`:''}>N-A</span>
       </div>
       <div class="evid">${thumbs}
-        ${editable?`<label class="foto">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="fotoElegida(${a.id},this.files)"></label>
+        ${editable?`<label class="foto">＋ Foto<input type="file" accept="image/*" onchange="fotoElegida(${a.id},this.files)"></label>
         <button class="foto" onclick="abrirDibujo(${a.id})">✏️ Nota / dibujo</button>`:''}
       </div>`;
     window.scrollTo(0,0); return;

@@ -70,6 +70,11 @@
   .pstat{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:9px 13px;min-width:88px}
   .pstat .n{font-size:19px;font-weight:800} .pstat .l{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
   .pstat.desv .n{color:var(--red)} .pstat.cerr .n{color:var(--green)}
+  .pstat.click{cursor:pointer} .pstat.click:hover{border-color:var(--orange)}
+  .pstat.sel{border-color:var(--orange);background:var(--panel2)}
+  .pdet{border:1px solid var(--orange);border-radius:12px;margin:0 0 14px;overflow:hidden}
+  .pdet-h{background:rgba(245,166,35,.08);padding:9px 14px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:10px}
+  .pdet-x{margin-left:auto;color:var(--muted);cursor:pointer;font-weight:600}
   .ptool{border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden}
   .ptool-h{padding:12px 14px;background:var(--panel2)}
   .ptool-h .nm{font-weight:700;font-size:14.5px} .ptool-h .tp{color:var(--muted);font-size:12px}
@@ -270,7 +275,7 @@
     const cont = $('lista');
     cont.innerHTML = '<div class="empty">Cargando…</div>';
     const { data, error } = await sb.from('orden_de_trabajo')
-      .select('id,codigo,despacho,pozo,cliente,contrato,service_ticket,compania,seccion,solicitado_por,fecha,estado, herramienta(id,nombre,tipo,rol,asegurador_id,desasignado_de,desasignado_motivo)')
+      .select('id,codigo,despacho,pozo,cliente,contrato,service_ticket,compania,seccion,solicitado_por,fecha,estado,created_at, herramienta(id,nombre,tipo,rol,asegurador_id,asignado_at,desasignado_de,desasignado_motivo)')
       .order('id',{ ascending:false });
     if (error){ cont.innerHTML = '<div class="empty">Error al cargar.</div>'; return; }
     ordenes = data || [];
@@ -312,71 +317,125 @@
     });
     return out;
   }
+  function fmtSince(iso){ if(!iso)return '—'; const s=(Date.now()-new Date(iso).getTime())/1000; return s<0?'recién':fmtDur(s); }
+  function ultimaPausaMotivo(eventos){
+    const g={}; (eventos||[]).forEach(e=>{ if(e.evento==='pausa'){ const k=e.herramienta_id+'_'+e.actividad_id; if(!g[k]||new Date(e.ts)>new Date(g[k].ts)) g[k]=e; } });
+    const out={}; Object.entries(g).forEach(([k,e])=>out[k]=e.motivo||null); return out;
+  }
+  let progData=null, progFiltro=null;
   async function verProgreso(otId){
     const ot=ordenes.find(o=>o.id===otId); if(!ot)return;
     const hs=ot.herramienta||[];
     $('prog_ttl').textContent='Progreso · '+ot.codigo;
     $('prog_body').innerHTML='<div class="empty">Cargando…</div>';
-    abrir('mProg');
+    progFiltro=null; abrir('mProg');
     const hids=hs.map(h=>h.id);
     if(!hids.length){ $('prog_body').innerHTML='<div class="empty">Esta OIT no tiene herramientas todavía.</div>'; return; }
     const [cat,resu,ev]=await Promise.all([
       sb.from('catalogo_actividad').select('id,herramienta_tipo,orden,actividad').order('orden'),
       sb.from('resultado_actividad').select('herramienta_id,actividad_id,estado_flujo,resultado').in('herramienta_id',hids),
-      sb.from('actividad_evento').select('herramienta_id,actividad_id,evento,ts').in('herramienta_id',hids)
+      sb.from('actividad_evento').select('herramienta_id,actividad_id,evento,ts,motivo').in('herramienta_id',hids)
     ]);
     const catByTipo={}; (cat.data||[]).forEach(a=>{(catByTipo[a.herramienta_tipo]=catByTipo[a.herramienta_tipo]||[]).push(a);});
     const resMap={}; (resu.data||[]).forEach(r=>{resMap[r.herramienta_id+'_'+r.actividad_id]=r;});
     const tiempos=calcTiempos(ev.data||[]);
+    const pausaMot=ultimaPausaMotivo(ev.data||[]);
 
-    let Ttot=0,Tcerr=0,Tencurso=0,Tpausa=0,Tsin=0,Tdesv=0,TactS=0,TpauS=0;
-    const bloques=hs.map(h=>{
-      const acts=(catByTipo[h.tipo]||[]).slice().sort((a,b)=>a.orden-b.orden);
-      const cnt={no_iniciada:0,en_curso:0,pausada:0,cerrada:0}; let desv=0,actS=0,pauS=0;
-      const rows=acts.map(a=>{
+    const tot={tools:hs.length,total:0,cerrada:0,en_curso:0,pausada:0,no_iniciada:0,desv:0,actS:0,pauS:0};
+    const tools=hs.map(h=>{
+      const asignada=!!h.asegurador_id;
+      const acts=(catByTipo[h.tipo]||[]).slice().sort((a,b)=>a.orden-b.orden).map(a=>{
         const r=resMap[h.id+'_'+a.id]||{}; const ef=r.estado_flujo||'no_iniciada';
-        const info=estInfo(ef,r.resultado); cnt[info.k]++;
-        if(info.cls==='rojo') desv++;
-        const t=tiempos[h.id+'_'+a.id]||{act:0,pau:0}; actS+=t.act; pauS+=t.pau;
-        return `<div class="pact">
-          <span class="pchip ${info.cls}">${info.lbl}</span>
-          <span class="pnm">${esc(a.actividad)}</span>
-          <span class="pt">▶ ${fmtDur(t.act)}${t.pau?' · ⏸ '+fmtDur(t.pau):''}</span>
-        </div>`;
-      }).join('');
-      const total=acts.length; const pct=total?Math.round(cnt.cerrada/total*100):0;
-      Ttot+=total; Tcerr+=cnt.cerrada; Tencurso+=cnt.en_curso; Tpausa+=cnt.pausada; Tsin+=cnt.no_iniciada; Tdesv+=desv; TactS+=actS; TpauS+=pauS;
-      const badge=(n,lbl,cls)=>n?`<span class="pb ${cls}">${lbl}: ${n}</span>`:'';
-      return `<div class="ptool">
-        <div class="ptool-h">
+        const info=estInfo(ef,r.resultado);
+        const t=asignada?(tiempos[h.id+'_'+a.id]||{act:0,pau:0}):{act:0,pau:0};
+        const esDesv=info.cls==='rojo';
+        const motivo=info.k==='pausada'?(pausaMot[h.id+'_'+a.id]||null):null;
+        return {a,info,k:info.k,esDesv,t,motivo};
+      });
+      const cnt={no_iniciada:0,en_curso:0,pausada:0,cerrada:0}; let desv=0,actS=0,pauS=0;
+      acts.forEach(x=>{cnt[x.k]++; if(x.esDesv)desv++; actS+=x.t.act; pauS+=x.t.pau;});
+      tot.total+=acts.length; tot.cerrada+=cnt.cerrada; tot.en_curso+=cnt.en_curso; tot.pausada+=cnt.pausada; tot.no_iniciada+=cnt.no_iniciada; tot.desv+=desv; tot.actS+=actS; tot.pauS+=pauS;
+      return {h,asignada,acts,cnt,desv,actS,pauS,total:acts.length};
+    });
+    progData={ot,tools,tot};
+    renderProg();
+  }
+  function setFProg(k){ progFiltro=(progFiltro===k?null:k); renderProg(); }
+  function renderProg(){
+    if(!progData)return;
+    const {ot,tools,tot}=progData;
+    const pctG=tot.total?Math.round(tot.cerrada/tot.total*100):0;
+
+    // General de la OIT (desde su creación)
+    const general=`<div class="presum">
+      <b>OIT ${esc(ot.codigo)}</b> · creada hace <b>${fmtSince(ot.created_at)}</b>.
+      <b>${tot.cerrada}/${tot.total}</b> actividades cerradas (${pctG}%) en ${tot.tools} herramienta(s).
+      En curso <b>${tot.en_curso}</b>, en pausa <b>${tot.pausada}</b>, sin iniciar <b>${tot.no_iniciada}</b>.
+      ${tot.desv?`<span style="color:var(--red)">Hallazgos: <b>${tot.desv}</b>.</span>`:'Sin desviaciones hasta ahora.'}
+      Trabajo acumulado: activo <b>${fmtDur(tot.actS)}</b> · pausa <b>${fmtDur(tot.pauS)}</b>.</div>`;
+
+    // Tarjetas (las de estado son clickeables)
+    const card=(k,n,lbl,extra)=>`<div class="pstat ${extra||''} ${k?'click':''} ${progFiltro===k?'sel':''}" ${k?`onclick="setFProg('${k}')"`:''}><div class="n">${n}</div><div class="l">${lbl}</div></div>`;
+    const stats=`<div class="pstats">
+      ${card('',tot.tools,'Herramientas')}
+      ${card('cerrada',tot.cerrada+'/'+tot.total,'Cerradas','cerr')}
+      ${card('en_curso',tot.en_curso,'En curso')}
+      ${card('pausada',tot.pausada,'En pausa')}
+      ${card('no_iniciada',tot.no_iniciada,'Sin iniciar')}
+      ${card('desviacion',tot.desv,'Desviación','desv')}
+      ${card('',fmtDur(tot.actS),'T. activo')}
+      ${card('',fmtDur(tot.pauS),'T. pausa')}
+    </div>`;
+
+    // Detalle filtrado al clickear una tarjeta
+    let detalle='';
+    if(progFiltro){
+      const lblF={cerrada:'cerradas',en_curso:'en curso',pausada:'en pausa',no_iniciada:'sin iniciar',desviacion:'con desviación'}[progFiltro]||progFiltro;
+      const filas=[];
+      tools.forEach(tb=>tb.acts.forEach(x=>{
+        const match = progFiltro==='desviacion' ? x.esDesv : x.k===progFiltro;
+        if(match) filas.push(`<div class="pact">
+          <span class="pchip ${x.info.cls}">${x.info.lbl}</span>
+          <span class="pnm">${esc(tb.h.nombre)} · ${esc(x.a.actividad)}${x.motivo?`<br><span style="color:var(--muted);font-size:11.5px">⏸ ${esc(x.motivo)}</span>`:''}</span>
+          <span class="pt">▶ ${fmtDur(x.t.act)}${x.t.pau?' · ⏸ '+fmtDur(x.t.pau):''}</span>
+        </div>`);
+      }));
+      detalle=`<div class="pdet">
+        <div class="pdet-h">Detalle: ${lblF} (${filas.length}) <span class="pdet-x" onclick="setFProg('${progFiltro}')">✕ quitar filtro</span></div>
+        ${filas.join('')||'<div class="pact" style="color:var(--muted)">Ninguna en este estado.</div>'}
+      </div>`;
+    }
+
+    // Por herramienta (desde su asignación)
+    const bloques=tools.map(tb=>{
+      const h=tb.h;
+      if(!tb.asignada){
+        return `<div class="ptool"><div class="ptool-h">
           <div class="nm">${esc(h.nombre)}</div><div class="tp">${esc(h.tipo||'—')} · ${esc(h.rol||'')}</div>
-          <div class="pbadges">
-            ${badge(cnt.en_curso,'en curso','azul')}${badge(cnt.pausada,'en pausa','amar')}
-            ${badge(cnt.no_iniciada,'sin iniciar','')}${badge(cnt.cerrada,'cerradas','verde')}${badge(desv,'desviación','rojo')}
-          </div>
-          <div class="pbar"><i style="width:${pct}%"></i></div>
-          <div class="ptime"><b>${cnt.cerrada}/${total}</b> cerradas (${pct}%) · activo <b>${fmtDur(actS)}</b> · pausa <b>${fmtDur(pauS)}</b></div>
+          <div class="ptime">Sin asignar — no computa tiempos.</div>
+        </div></div>`;
+      }
+      const pct=tb.total?Math.round(tb.cnt.cerrada/tb.total*100):0;
+      const badge=(n,lbl,cls)=>n?`<span class="pb ${cls}">${lbl}: ${n}</span>`:'';
+      const rows=tb.acts.map(x=>`<div class="pact">
+        <span class="pchip ${x.info.cls}">${x.info.lbl}</span>
+        <span class="pnm">${esc(x.a.actividad)}${x.motivo?`<br><span style="color:var(--muted);font-size:11.5px">⏸ ${esc(x.motivo)}</span>`:''}</span>
+        <span class="pt">▶ ${fmtDur(x.t.act)}${x.t.pau?' · ⏸ '+fmtDur(x.t.pau):''}</span>
+      </div>`).join('');
+      return `<div class="ptool"><div class="ptool-h">
+        <div class="nm">${esc(h.nombre)}</div><div class="tp">${esc(h.tipo||'—')} · ${esc(h.rol||'')} · asignada hace ${fmtSince(h.asignado_at)}</div>
+        <div class="pbadges">
+          ${badge(tb.cnt.en_curso,'en curso','azul')}${badge(tb.cnt.pausada,'en pausa','amar')}
+          ${badge(tb.cnt.no_iniciada,'sin iniciar','')}${badge(tb.cnt.cerrada,'cerradas','verde')}${badge(tb.desv,'desviación','rojo')}
         </div>
-        ${total?`<details class="pacts"><summary>Ver ${total} actividades</summary>${rows}</details>`:''}
+        <div class="pbar"><i style="width:${pct}%"></i></div>
+        <div class="ptime"><b>${tb.cnt.cerrada}/${tb.total}</b> cerradas (${pct}%) · activo <b>${fmtDur(tb.actS)}</b> · pausa <b>${fmtDur(tb.pauS)}</b></div>
+      </div>
+      ${tb.total?`<details class="pacts"><summary>Ver ${tb.total} actividades</summary>${rows}</details>`:''}
       </div>`;
     }).join('');
 
-    const pctG=Ttot?Math.round(Tcerr/Ttot*100):0;
-    const resumen=`Al momento: <b>${hs.length}</b> herramienta(s), <b>${Tcerr}/${Ttot}</b> actividades cerradas (${pctG}%).`
-      + ` En curso <b>${Tencurso}</b>, en pausa <b>${Tpausa}</b>, sin iniciar <b>${Tsin}</b>.`
-      + (Tdesv?` <span style="color:var(--red)">Hallazgos (desviación): <b>${Tdesv}</b>.</span>`:` Sin desviaciones hasta ahora.`)
-      + ` Tiempo activo total <b>${fmtDur(TactS)}</b>, en pausa <b>${fmtDur(TpauS)}</b>.`;
-    const stats=`<div class="pstats">
-      <div class="pstat"><div class="n">${hs.length}</div><div class="l">Herramientas</div></div>
-      <div class="pstat cerr"><div class="n">${Tcerr}/${Ttot}</div><div class="l">Cerradas</div></div>
-      <div class="pstat"><div class="n">${Tencurso}</div><div class="l">En curso</div></div>
-      <div class="pstat"><div class="n">${Tpausa}</div><div class="l">En pausa</div></div>
-      <div class="pstat"><div class="n">${Tsin}</div><div class="l">Sin iniciar</div></div>
-      <div class="pstat desv"><div class="n">${Tdesv}</div><div class="l">Desviación</div></div>
-      <div class="pstat"><div class="n">${fmtDur(TactS)}</div><div class="l">T. activo</div></div>
-      <div class="pstat"><div class="n">${fmtDur(TpauS)}</div><div class="l">T. pausa</div></div>
-    </div>`;
-    $('prog_body').innerHTML=`<div class="presum">${resumen}</div>${stats}${bloques}`;
+    $('prog_body').innerHTML=general+stats+detalle+bloques;
   }
 
   function opcionesAsig(sel){
@@ -475,14 +534,16 @@
     await aplicarAsignacion(hid, nuevo, null, null);
   }
   async function aplicarAsignacion(hid, nuevo, desDe, motivo){
+    const nowISO = new Date().toISOString();
+    const asignadoAt = nuevo ? nowISO : null;   // sin asignar -> sin tiempo
     const upd = desDe
-      ? { asegurador_id: nuevo, desasignado_de: desDe, desasignado_motivo: motivo, desasignado_at: new Date().toISOString() }
-      : { asegurador_id: nuevo, desasignado_de: null, desasignado_motivo: null, desasignado_at: null };
+      ? { asegurador_id: nuevo, asignado_at: asignadoAt, desasignado_de: desDe, desasignado_motivo: motivo, desasignado_at: nowISO }
+      : { asegurador_id: nuevo, asignado_at: asignadoAt, desasignado_de: null, desasignado_motivo: null, desasignado_at: null };
     const { error } = await sb.from('herramienta').update(upd).eq('id', hid);
     if (error){ toast('No se pudo asignar','bad'); return; }
     toast(nuevo ? 'Asignada' : 'Desasignada','ok');
     const h = ordenes.flatMap(o=>o.herramienta||[]).find(x=>String(x.id)===String(hid));
-    if (h){ h.asegurador_id = nuevo; h.desasignado_de = desDe||null; h.desasignado_motivo = motivo||null; render(); }
+    if (h){ h.asegurador_id = nuevo; h.asignado_at = asignadoAt; h.desasignado_de = desDe||null; h.desasignado_motivo = motivo||null; render(); }
   }
   async function confirmarDesasig(){
     const motivo = $('des_motivo').value.trim();

@@ -175,7 +175,6 @@
         <div class="m" id="h-meta"></div>
         <div class="bar"><i id="h-bar" style="width:0%"></i></div>
         <div class="m" id="h-prog" style="margin-top:8px"></div>
-        <button class="btn" id="btn-kalu" style="margin-top:12px;width:100%" onclick="analizarKalu()">🤖 Analizar con KALU</button>
       </div>
       <div id="filtros"></div>
       <div id="lista-check"></div>
@@ -621,7 +620,8 @@ async function analizarKalu(actId){
   if(btn&&!actId){btn.disabled=true;btn.textContent='🤖 Analizando…';}
   if(actId) $('mkespera').classList.add('on');
   try{
-    const resp=await fetch(KALU_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({herramienta_id:herrActual})});
+    const payload=actId?{herramienta_id:herrActual,actividad_id:actId}:{herramienta_id:herrActual};
+    const resp=await fetch(KALU_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     await cargarDatos();
     $('mkespera').classList.remove('on');

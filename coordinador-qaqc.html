@@ -167,6 +167,10 @@
       <div><label>Sección / Fase</label><input id="ot_seccion" placeholder="8.5"></div>
     </div>
     <div class="grid2">
+      <div><label>Rig</label><input id="ot_rig" placeholder="PETROWORKS 147"></div>
+      <div><label>Origen</label><input id="ot_origen" placeholder="FALLA EN OPERACIÓN"></div>
+    </div>
+    <div class="grid2">
       <div><label>Solicitado por</label><input id="ot_solicita" placeholder="Andrés Restrepo"></div>
       <div><label>Fecha</label><input id="ot_fecha" type="date"></div>
     </div>
@@ -187,10 +191,14 @@
     <div class="csub" id="mHerr_ot"></div>
     <label>Tipo *</label>
     <select id="h_tipo"></select>
-    <label>Nombre *</label>
-    <input id="h_nombre" placeholder="String Stabilizer 14.750">
-    <label>Rol</label>
-    <select id="h_rol"><option value="main">main (principal)</option><option value="backup">backup</option></select>
+    <label>Nombre / apodo *</label>
+    <input id="h_nombre" placeholder="Misil 7 1/2">
+    <div class="grid2">
+      <div><label>Serial</label><input id="h_serial" placeholder="957-YC74"></div>
+      <div><label>Rol</label><select id="h_rol"><option value="main">main (principal)</option><option value="backup">backup</option></select></div>
+    </div>
+    <label>Descripción (para el informe)</label>
+    <input id="h_descripcion" placeholder='6.75 ECOSCOPE - SSTAB 8.375"'>
     <div class="err" id="h_err"></div>
     <div class="modactions">
       <button class="btn ghost" onclick="cerrar('mHerr')">Cancelar</button>
@@ -237,6 +245,10 @@
       <div class="grid2">
         <div><label>Compañía</label><input id="ed_compania"></div>
         <div><label>Sección / Fase</label><input id="ed_seccion"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Rig</label><input id="ed_rig"></div>
+        <div><label>Origen</label><input id="ed_origen"></div>
       </div>
       <div class="grid2">
         <div><label>Solicitado por</label><input id="ed_solicita"></div>
@@ -330,7 +342,7 @@
     const cont = $('lista');
     cont.innerHTML = '<div class="empty">Cargando…</div>';
     const { data, error } = await sb.from('orden_de_trabajo')
-      .select('id,codigo,despacho,pozo,cliente,contrato,service_ticket,compania,seccion,solicitado_por,fecha,estado,created_at, herramienta(id,nombre,tipo,rol,asegurador_id,asignado_at,desasignado_de,desasignado_motivo)')
+      .select('id,codigo,despacho,pozo,cliente,contrato,service_ticket,compania,seccion,solicitado_por,rig,origen,fecha,estado,created_at, herramienta(id,nombre,tipo,rol,serial,descripcion,asegurador_id,asignado_at,desasignado_de,desasignado_motivo)')
       .order('id',{ ascending:false });
     if (error){ cont.innerHTML = '<div class="empty">Error al cargar.</div>'; return; }
     ordenes = data || [];
@@ -534,7 +546,7 @@
   }
 
   // ---- crear OT ----
-  function abrirOT(){ ['ot_codigo','ot_contrato','ot_ticket','ot_cliente','ot_pozo','ot_compania','ot_seccion','ot_solicita','ot_despacho','ot_fecha'].forEach(i=>$(i).value=''); $('ot_err').textContent=''; abrir('mOT'); }
+  function abrirOT(){ ['ot_codigo','ot_contrato','ot_ticket','ot_cliente','ot_pozo','ot_compania','ot_seccion','ot_rig','ot_origen','ot_solicita','ot_despacho','ot_fecha'].forEach(i=>$(i).value=''); $('ot_err').textContent=''; abrir('mOT'); }
   async function crearOT(){
     const codigo = $('ot_codigo').value.trim();
     if (!codigo){ $('ot_err').textContent='El código es obligatorio.'; return; }
@@ -546,6 +558,8 @@
       service_ticket: $('ot_ticket').value.trim() || null,
       compania: $('ot_compania').value.trim() || null,
       seccion: $('ot_seccion').value.trim() || null,
+      rig: $('ot_rig').value.trim() || null,
+      origen: $('ot_origen').value.trim() || null,
       solicitado_por: $('ot_solicita').value.trim() || null,
       despacho: $('ot_despacho').value.trim() || null,
       fecha: $('ot_fecha').value || null,
@@ -558,8 +572,8 @@
 
   // ---- editar OIT (todo menos el código) + auditoría ----
   let edOT=null, edOrig=null;
-  const ED_FIELDS=[['contrato','Contrato'],['service_ticket','Service Ticket'],['cliente','Cliente'],['pozo','Pozo'],['compania','Compañía'],['seccion','Sección/Fase'],['solicitado_por','Solicitado por'],['fecha','Fecha'],['despacho','Despacho']];
-  const ED_MAP={contrato:'ed_contrato',service_ticket:'ed_ticket',cliente:'ed_cliente',pozo:'ed_pozo',compania:'ed_compania',seccion:'ed_seccion',solicitado_por:'ed_solicita',fecha:'ed_fecha',despacho:'ed_despacho'};
+  const ED_FIELDS=[['contrato','Contrato'],['service_ticket','Service Ticket'],['cliente','Cliente'],['pozo','Pozo'],['compania','Compañía'],['seccion','Sección/Fase'],['rig','Rig'],['origen','Origen'],['solicitado_por','Solicitado por'],['fecha','Fecha'],['despacho','Despacho']];
+  const ED_MAP={contrato:'ed_contrato',service_ticket:'ed_ticket',cliente:'ed_cliente',pozo:'ed_pozo',compania:'ed_compania',seccion:'ed_seccion',rig:'ed_rig',origen:'ed_origen',solicitado_por:'ed_solicita',fecha:'ed_fecha',despacho:'ed_despacho'};
   function edTab(k){
     $('tab_datos').classList.toggle('on',k==='datos'); $('tab_aud').classList.toggle('on',k==='aud');
     $('ed_datos').style.display=k==='datos'?'':'none'; $('ed_aud').style.display=k==='aud'?'':'none';
@@ -660,7 +674,7 @@
       doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Por Servicio',L+34,BANNER_Y+12); }
     function footer(i,total){ doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
       doc.text('Página '+i+' de '+total,Rr,H-8,{align:'right'});
-      doc.setTextColor(190,190,190);doc.setFontSize(7);doc.text('POWERED BY FLOTECH · KALU',W/2,H-8,{align:'center'}); }
+      doc.setTextColor(190,190,190);doc.setFontSize(7);doc.text('POWERED by KALU a Dinamho Intelligence Div.',W/2,H-8,{align:'center'}); }
     banner();
     let y=TOP+2;
     doc.setTextColor(INK[0],INK[1],INK[2]);doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text('Información General',L,y+4);
@@ -686,7 +700,7 @@
     field(0,y+4*rh,'Herramienta con Hallazgo',d.pct+'%');field(1,y+4*rh,'Días de Operación',d.dias);mini(2,y+4*rh,['Inicio','Fin'],[d.inicio,d.fin]);
     y=y+5*rh+2;
     doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,60,60);
-    const evid=doc.splitTextToSize('Registro de evidencia fotográfica de las actividades verificadas, disponible a través de ingreso en la plataforma: https://flotech.com.co  Solicitar acceso previa autorización del representante del cliente. Mail to: coordtaller.ecp@totalqcsas.com / admincontrato.ecp@totalqcsas.com',colW*2+gap);
+    const evid=doc.splitTextToSize('Registro de evidencia fotográfica de las actividades verificadas, disponible a través de ingreso en la plataforma KALU: https://getkalu.com  Solicitar acceso previa autorización del representante del cliente. Mail to: coordtaller.ecp@totalqcsas.com / admincontrato.ecp@totalqcsas.com',colW*2+gap);
     doc.text(evid,colX[0],y+4);
     doc.autoTable({startY:y,margin:{left:colX[2]},tableWidth:colW,head:[['Fechas Operativas']],body:(d.fechasOp.length?d.fechasOp:['—']).map(f=>[f]),theme:'grid',headStyles:{fillColor:NAVY,textColor:255,halign:'center',fontSize:9},bodyStyles:{fontSize:8.5,textColor:INK},alternateRowStyles:{fillColor:ZEBRA},styles:{lineColor:LINE,lineWidth:0.1,cellPadding:1.6}});
     const yAfter=Math.max(y+evid.length*4.5+4,doc.lastAutoTable.finalY+3);
@@ -764,7 +778,7 @@
           <div class="fld" style="border-top:0;padding-top:0"><table class="mini"><tr><th>Inicio</th><th>Fin</th></tr><tr><td>${esc(d.inicio)}</td><td>${esc(d.fin)}</td></tr></table></div>
         </div>
         <div class="ig" style="grid-template-columns:2fr 1fr;margin-top:14px">
-          <div class="evid">Registro de evidencia fotográfica de las actividades verificadas, disponible a través de ingreso en la plataforma:<br><a href="https://flotech.com.co">https://flotech.com.co</a><br>Solicitar acceso previa autorización del representante del cliente<br>Mail to: coordtaller.ecp@totalqcsas.com / admincontrato.ecp@totalqcsas.com</div>
+          <div class="evid">Registro de evidencia fotográfica de las actividades verificadas, disponible a través de ingreso en la plataforma KALU:<br><a href="https://getkalu.com">https://getkalu.com</a><br>Solicitar acceso previa autorización del representante del cliente<br>Mail to: coordtaller.ecp@totalqcsas.com / admincontrato.ecp@totalqcsas.com</div>
           <table class="mini fechas"><tr><th>Fechas Operativas</th></tr>${fechasOp}</table>
         </div>
         <div class="secband">Inventario de Herramientas Principales Verificadas</div>
@@ -780,13 +794,15 @@
   }
 
   // ---- crear herramienta ----
-  function abrirHerr(otId, cod){ herrOT=otId; $('mHerr_ot').textContent='Orden '+cod; $('h_nombre').value=''; $('h_rol').value='main'; $('h_err').textContent=''; abrir('mHerr'); }
+  function abrirHerr(otId, cod){ herrOT=otId; $('mHerr_ot').textContent='Orden '+cod; $('h_nombre').value=''; $('h_serial').value=''; $('h_descripcion').value=''; $('h_rol').value='main'; $('h_err').textContent=''; abrir('mHerr'); }
   async function crearHerr(){
     const nombre = $('h_nombre').value.trim();
     if (!nombre){ $('h_err').textContent='El nombre es obligatorio.'; return; }
     const payload = {
       empresa_id: me.empresa_id, orden_id: herrOT,
-      tipo: $('h_tipo').value, nombre, rol: $('h_rol').value, estado:'en_proceso'
+      tipo: $('h_tipo').value, nombre, rol: $('h_rol').value, estado:'en_proceso',
+      serial: $('h_serial').value.trim() || null,
+      descripcion: $('h_descripcion').value.trim() || null
     };
     const { error } = await sb.from('herramienta').insert(payload);
     if (error){ $('h_err').textContent = 'Error: '+error.message; return; }

@@ -614,8 +614,10 @@ function flowBtns(actId,ef){
   const rc=res[herrActual+'_'+actId]||{};
   const reabrir=b('↻ Reabrir','reinicio');
   if(rc.kalu_veredicto && !rc.kalu_revisado) return `<button class="fb go" onclick="marcarRevisado(${actId})">✓ Revisado</button>`+reabrir;
+  if(!rc.kalu_veredicto && !rc.kalu_revisado) return `<button class="fb" onclick="reintentarKalu(${actId})">↻ Reintentar KALU</button>`+reabrir;
   return reabrir;
 }
+function reintentarKalu(actId){ toast('Reintentando con KALU…'); analizarKalu(actId); }
 async function evento(actId,ev,extra){
   const map={inicio:'en_curso',reinicio:'en_curso',pausa:'pausada',cierre:'cerrada'};
   const k=herrActual+'_'+actId; res[k]=res[k]||{}; res[k].estado_flujo=map[ev];

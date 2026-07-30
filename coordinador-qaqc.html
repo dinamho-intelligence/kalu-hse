@@ -653,7 +653,7 @@
     </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#888">Sin actividades verificadas todavía.</td></tr>';
     const fechasOp=d.fechasOp.length? d.fechasOp.map(f=>`<tr><td>${esc(f)}</td></tr>`).join('') : '<tr><td>—</td></tr>';
     const css=`*{box-sizing:border-box;margin:0;padding:0}
-      @page{ size:A4; margin:30mm 12mm 16mm;
+      @page{ size:Letter; margin:17mm 11mm 12mm;
         @top-center{ content: element(rhead); }
         @bottom-right{ content:"Página " counter(page) " de " counter(pages); font-family:Arial,sans-serif; font-size:10px; color:#666; } }
       html,body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;background:#fff}
@@ -680,7 +680,7 @@
       .firmas .l{font-size:12.5px;font-weight:700;margin-top:12px}
       @media print{ .noprint{display:none!important} }`;
     const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe Ejecutivo ${esc(d.codigo)}</title><style>${css}</style>
-      <script>window.__addPrint=function(){if(document.getElementById('pbtn'))return;var b=document.createElement('button');b.id='pbtn';b.className='noprint';b.textContent='🖨 Imprimir / Guardar PDF';b.onclick=function(){window.print()};b.style.cssText='position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;background:#f5a623;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:14px;font-family:Arial';document.body.appendChild(b);};window.PagedConfig={auto:true,after:function(){window.__addPrint();}};setTimeout(function(){if(!window.PagedPolyfill)window.__addPrint();},4000);<\/script>
+      <script>window.__addPrint=function(){if(document.getElementById('pbtn'))return;var b=document.createElement('button');b.id='pbtn';b.className='noprint';b.textContent='🖨 Imprimir / Guardar PDF';b.onclick=function(){window.print()};b.style.cssText='position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;background:#f5a623;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:14px;font-family:Arial';document.body.appendChild(b);};window.PagedConfig={auto:true,after:function(){window.__addPrint();}};window.addEventListener('load',function(){setTimeout(window.__addPrint,1500);});setTimeout(window.__addPrint,3500);<\/script>
       <script src="https://cdn.jsdelivr.net/npm/pagedjs/dist/paged.polyfill.js"><\/script>
       </head><body>
         <div class="rhead"><div class="logo"><b>TOTAL</b><span>QC</span></div><div class="ttl">Informe General de Aseguramiento de Calidad<small>Por Servicio</small></div></div>

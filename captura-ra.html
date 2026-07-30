@@ -123,8 +123,8 @@
   <div class="wrap">
     <!-- LISTA DE INSPECCIONES -->
     <div id="v-lista">
-      <div class="row"><h1>Mis inspecciones</h1><div class="sp"></div><button class="btn sm" onclick="nuevaInspeccion()">+ Nueva</button></div>
-      <div class="crumb">Elegí una inspección abierta o empezá una nueva.</div>
+      <div class="row"><h1>Mis inspecciones</h1></div>
+      <div class="crumb">Estas son las inspecciones que te asignó el coordinador.</div>
       <div id="lista-unidades"><div class="empty">Cargando…</div></div>
     </div>
     <!-- ACTIVIDADES DE LA UNIDAD -->
@@ -201,10 +201,10 @@ function verLista(){ $('v-acts').style.display='none';$('v-act').style.display='
 async function cargarLista(){
   const {data:t}=await sb.from('ra_tipo').select('id,nombre').eq('activo',true).order('nombre');
   tipos=t||[];
-  const {data,error}=await sb.from('ra_unidad').select('id,nombre,serial,estado,tipo_id, ra_tipo(nombre)').eq('estado','abierta').order('creado',{ascending:false});
+  const {data,error}=await sb.from('ra_unidad').select('id,nombre,serial,estado,tipo_id, ra_tipo(nombre)').eq('estado','abierta').eq('asignado_a',me.id).order('creado',{ascending:false});
   if(error){$('lista-unidades').innerHTML='<div class="empty">Error al cargar.</div>';return;}
   unidades=data||[];
-  if(!unidades.length){$('lista-unidades').innerHTML='<div class="empty">No hay inspecciones abiertas. Tocá "+ Nueva" para empezar.</div>';return;}
+  if(!unidades.length){$('lista-unidades').innerHTML='<div class="empty">No tenés inspecciones asignadas todavía.<br>El coordinador te las asigna desde la consola.</div>';return;}
   $('lista-unidades').innerHTML=unidades.map(u=>`
     <div class="card" onclick="abrirUnidad(${u.id})">
       <div><div class="t">${esc(u.nombre)}</div><div class="m">${esc(u.ra_tipo&&u.ra_tipo.nombre)||'—'}</div></div>

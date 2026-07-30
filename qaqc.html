@@ -92,6 +92,15 @@
   .chip{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap}
   .ch-gris{color:var(--muted)} .ch-azul{color:var(--cyan);border-color:rgba(79,195,247,.4)}
   .ch-amar{color:var(--amber);border-color:rgba(245,166,35,.4)} .ch-verde{color:var(--green);border-color:rgba(52,211,153,.4)} .ch-rojo{color:var(--red);border-color:rgba(248,113,113,.4)}
+  .ch-viol{color:#a78bfa;border-color:rgba(167,139,250,.45)}
+  .accbar.b-viol,.acthead.b-viol{border-left-color:#a78bfa} .acc.b-viol{border-left-color:#a78bfa}
+  /* devolución flotante de KALU (no bloqueante) */
+  .kalunotif{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(20px);width:calc(100% - 28px);max-width:460px;z-index:75;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+  .kalunotif.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  .kn-body{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--cyan);border-radius:14px;padding:14px 16px;box-shadow:0 12px 34px rgba(0,0,0,.55)}
+  .kn-body.cumple{border-left-color:var(--green)} .kn-body.desv{border-left-color:var(--red)}
+  .kn-ttl{font-size:14px} .kn-txt{font-size:13px;color:var(--muted);line-height:1.5;max-height:120px;overflow-y:auto;margin-top:5px}
+  .kn-acts{display:flex;gap:8px;margin-top:12px} .kn-acts .btn{flex:1;padding:10px}
   #filtros{margin:2px 0 6px} .acc-body{}
   .fchip{display:inline-block;font-size:12px;font-weight:700;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;margin:0 6px 8px 0;user-select:none}
   .fchip.on{background:var(--orange);color:#141414;border-color:var(--orange)} .fchip b{font-weight:800}
@@ -191,6 +200,18 @@
 <div class="toast" id="toast"></div>
 <div class="lb" id="lb" onclick="this.classList.remove('on')"><img id="lbimg"></div>
 
+<!-- devolución flotante de KALU (no bloqueante) -->
+<div class="kalunotif" id="kalunotif">
+  <div class="kn-body" id="kn-body">
+    <div class="kn-ttl" id="kn-ttl"></div>
+    <div class="kn-txt" id="kn-txt"></div>
+    <div class="kn-acts">
+      <button class="btn ghost" onclick="salirNotif()">Salir</button>
+      <button class="btn" onclick="verNotif()">Ver actividad</button>
+    </div>
+  </div>
+</div>
+
 <!-- esperando a KALU -->
 <div class="modalk" id="mkespera"><div class="mkcard"><div class="spin"></div><div class="mkw">Esperando la devolución de KALU…</div></div></div>
 <!-- motivo de desasignación -->
@@ -270,12 +291,12 @@ async function cargarDatos(){
   const [cat,herr,resu,pa]=await Promise.all([
     sb.from('catalogo_actividad').select('id, herramienta_tipo, orden, actividad, norma_ref').order('orden'),
     sb.from('herramienta').select('id, nombre, tipo, rol, orden_id, asegurador_id, desasignado_de, desasignado_motivo, orden_de_trabajo(codigo,pozo,cliente)'),
-    sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, hallazgo, memorias, kalu_veredicto, kalu_detalle, aprobado, estado_flujo, pasos'),
+    sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, hallazgo, memorias, kalu_veredicto, kalu_detalle, kalu_revisado, aprobado, estado_flujo, pasos'),
     sb.from('paso_actividad').select('id, actividad_id, orden, paso, tipo, criterio').order('orden')
   ]);
   catalogo=cat.data||[]; herramientas=herr.data||[]; res={}; pasosDef={};
   (pa.data||[]).forEach(p=>{(pasosDef[p.actividad_id]=pasosDef[p.actividad_id]||[]).push(p);});
-  (resu.data||[]).forEach(r=>{res[r.herramienta_id+'_'+r.actividad_id]={resultado:r.resultado,observacion:r.observacion,hallazgo:r.hallazgo,memorias:r.memorias,kalu_veredicto:r.kalu_veredicto,kalu_detalle:r.kalu_detalle,aprobado:r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',pasos:r.pasos||{}};});
+  (resu.data||[]).forEach(r=>{res[r.herramienta_id+'_'+r.actividad_id]={resultado:r.resultado,observacion:r.observacion,hallazgo:r.hallazgo,memorias:r.memorias,kalu_veredicto:r.kalu_veredicto,kalu_detalle:r.kalu_detalle,kalu_revisado:r.kalu_revisado,aprobado:r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',pasos:r.pasos||{}};});
 }
 
 function actsDe(t){return catalogo.filter(a=>a.herramienta_tipo===t).sort((a,b)=>a.orden-b.orden);}
@@ -326,9 +347,13 @@ function volver(){mostrarTrabajos();}
 function estadoInfo(r){
   const ef=(r&&r.estado_flujo)||'no_iniciada'; const val=(r&&r.resultado)||'pendiente';
   if(ef==='pausada')  return {k:'pausada',  label:'en pausa',  col:'b-amar', chip:'ch-amar'};
-  if(ef==='cerrada')  return val==='desviacion'
-                        ? {k:'cerrada',label:'cerrada ✗',col:'b-rojo', chip:'ch-rojo'}
-                        : {k:'cerrada',label:'cerrada ✓',col:'b-verde',chip:'ch-verde'};
+  if(ef==='cerrada'){
+    if(r&&!r.kalu_revisado&&!r.kalu_veredicto) return {k:'cerrada',label:'esperando KALU',col:'b-amar',chip:'ch-amar'};
+    if(r&&!r.kalu_revisado&&r.kalu_veredicto)  return {k:'cerrada',label:'revisar KALU',  col:'b-viol',chip:'ch-viol'};
+    return val==='desviacion'
+      ? {k:'cerrada',label:'cerrada ✗',col:'b-rojo', chip:'ch-rojo'}
+      : {k:'cerrada',label:'cerrada ✓',col:'b-verde',chip:'ch-verde'};
+  }
   if(ef==='en_curso') return {k:'en_curso',   label:'en curso',  col:'b-azul', chip:'ch-azul'};
   return                     {k:'no_iniciada',label:'sin iniciar',col:'b-azul', chip:'ch-gris'};
 }
@@ -451,7 +476,7 @@ async function upsertRes(actId){
   const row={empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,
     resultado:r.resultado||'pendiente',observacion:r.observacion||null,
     hallazgo:r.hallazgo||null,memorias:r.memorias||null,
-    kalu_veredicto:r.kalu_veredicto||null,kalu_detalle:r.kalu_detalle||null,
+    kalu_veredicto:r.kalu_veredicto||null,kalu_detalle:r.kalu_detalle||null,kalu_revisado:!!r.kalu_revisado,
     aprobado:!!r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',pasos:r.pasos||{},
     asegurador_id:me.id,updated_at:new Date().toISOString()};
   const {error}=await sb.from('resultado_actividad').upsert(row,{onConflict:'herramienta_id,actividad_id'});
@@ -585,19 +610,25 @@ function flowBtns(actId,ef){
   if(ef==='no_iniciada') return b('▶ Iniciar','inicio','go');
   if(ef==='en_curso')    return `<button class="fb" onclick="pausar(${actId})">⏸ Pausar</button>`+b('■ Cerrar','cierre','end');
   if(ef==='pausada')     return b('▶ Reanudar','reinicio','go')+b('■ Cerrar','cierre','end');
-  return b('↻ Reabrir','reinicio');   // cerrada
+  // cerrada
+  const rc=res[herrActual+'_'+actId]||{};
+  const reabrir=b('↻ Reabrir','reinicio');
+  if(rc.kalu_veredicto && !rc.kalu_revisado) return `<button class="fb go" onclick="marcarRevisado(${actId})">✓ Revisado</button>`+reabrir;
+  return reabrir;
 }
 async function evento(actId,ev,extra){
   const map={inicio:'en_curso',reinicio:'en_curso',pausa:'pausada',cierre:'cerrada'};
   const k=herrActual+'_'+actId; res[k]=res[k]||{}; res[k].estado_flujo=map[ev];
   if(!res[k].resultado) res[k].resultado='pendiente';
+  // al cerrar: nueva devolución de KALU pendiente (no bloquea)
+  if(ev==='cierre'){ res[k].kalu_veredicto=null; res[k].kalu_detalle=null; res[k].kalu_revisado=false; }
   const row={empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,asegurador_id:me.id,evento:ev};
   if(extra&&extra.motivo) row.motivo=extra.motivo;
   if(extra&&extra.detenido_seg!=null) row.detenido_seg=extra.detenido_seg;
   await sb.from('actividad_evento').insert(row);
   await upsertRes(actId);
   renderCheck();
-  const t={inicio:'Actividad iniciada',reinicio:'Actividad reanudada',pausa:'En pausa',cierre:'Cerrada — analizando con KALU…'};
+  const t={inicio:'Actividad iniciada',reinicio:'Actividad reanudada',pausa:'En pausa',cierre:'Cerrada — KALU analiza en segundo plano, seguí tranquilo'};
   toast(t[ev]);
   if(ev==='cierre') analizarKalu(actId);
 }
@@ -635,39 +666,46 @@ function dictar(actId){
   recog.start(); renderCheck(); toast('🎤 Dictando… tocá el micrófono para parar');
 }
 
+// KALU corre EN SEGUNDO PLANO: no bloquea, el asegurador puede esperar o irse.
 async function analizarKalu(actId){
-  if(!herrActual)return;
-  const btn=$('btn-kalu');
-  if(btn&&!actId){btn.disabled=true;btn.textContent='🤖 Analizando…';}
-  if(actId) $('mkespera').classList.add('on');
+  if(!herrActual||!actId)return;
+  const hid=herrActual;
   try{
-    const payload=actId?{herramienta_id:herrActual,actividad_id:actId}:{herramienta_id:herrActual};
-    const resp=await fetch(KALU_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const resp=await fetch(KALU_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({herramienta_id:hid,actividad_id:actId})});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
-    await cargarDatos();
-    $('mkespera').classList.remove('on');
-    renderCheck();
-    if(actId) mostrarVeredicto(actId); else toast('KALU analizó ✓');
-  }catch(e){
-    $('mkespera').classList.remove('on');
-    console.error(e);
-    toast('No se pudo analizar. ¿Workflow activo? ¿CORS?');
-  }finally{
-    if(btn&&!actId){btn.disabled=false;btn.textContent='🤖 Analizar con KALU';}
-  }
+    // traigo solo el veredicto de esa actividad (sin recargar todo ni interrumpir lo que esté haciendo)
+    const {data}=await sb.from('resultado_actividad').select('kalu_veredicto,kalu_detalle')
+      .eq('herramienta_id',hid).eq('actividad_id',actId).maybeSingle();
+    if(data){ const k=hid+'_'+actId; res[k]=res[k]||{}; res[k].kalu_veredicto=data.kalu_veredicto; res[k].kalu_detalle=data.kalu_detalle; }
+    // refresco la vista solo si estoy en la lista o en esa misma actividad (no molesto si estoy capturando otra)
+    if(herrActual===hid && (!expandedAct || expandedAct===actId)) renderCheck();
+    notifKalu(hid,actId);
+  }catch(e){ console.error(e); toast('KALU no pudo analizar esa actividad'); }
 }
-function mostrarVeredicto(actId){
-  const r=res[herrActual+'_'+actId]||{};
-  let cls='',txt='<b>🤖 KALU:</b> sin devolución todavía.';
-  if(r.kalu_veredicto==='cumple'){cls='cumple';txt='<b>🤖 KALU:</b> ✓ '+esc(r.kalu_detalle||'Cumple los criterios.');}
-  else if(r.kalu_veredicto==='desviacion'){cls='desv';txt='<b>🤖 KALU:</b> ⚠ '+esc(r.kalu_detalle||'Desviación / incompleto.');}
-  const el=$('mkver-txt'); el.className='mkkalu '+cls; el.innerHTML=txt;
-  $('mkver').classList.add('on');
+// devolución flotante (no bloqueante): Ver o Salir. La actividad queda pendiente de revisión.
+function notifKalu(hid,actId){
+  const h=herramientas.find(x=>x.id===hid); const a=(catalogo.find(c=>c.id===actId)||{});
+  const r=res[hid+'_'+actId]||{};
+  let cls='',ico='🤖',resumen='sin devolución';
+  if(r.kalu_veredicto==='cumple'){cls='cumple';ico='✓';resumen='Cumple los criterios';}
+  else if(r.kalu_veredicto==='desviacion'){cls='desv';ico='⚠';resumen=(r.kalu_detalle||'Desviación / incompleto');}
+  notifCtx={hid,actId};
+  $('kn-body').className='kn-body '+cls;
+  $('kn-ttl').innerHTML=`${ico} <b>KALU · ${esc(a.actividad||'actividad')}</b>`;
+  $('kn-txt').textContent=resumen;
+  $('kalunotif').classList.add('on');
 }
-function cerrarModalVer(salir){
-  $('mkver').classList.remove('on');
-  if(salir){ expandedAct=null; }
-  renderCheck(); window.scrollTo(0,0);
+let notifCtx=null;
+function salirNotif(){ $('kalunotif').classList.remove('on'); notifCtx=null; }   // solo cierra la devolución; queda pendiente de revisar
+function verNotif(){
+  if(!notifCtx)return; const {hid,actId}=notifCtx; salirNotif();
+  if(herrActual!==hid){ abrir(hid).then(()=>{ expandedAct=actId; renderCheck(); window.scrollTo(0,0); }); return; }
+  expandedAct=actId; renderCheck(); window.scrollTo(0,0);
+}
+// el asegurador revisó la devolución -> la actividad queda cerrada-lista
+async function marcarRevisado(actId){
+  const k=herrActual+'_'+actId; res[k]=res[k]||{}; res[k].kalu_revisado=true;
+  await upsertRes(actId); renderCheck(); toast('KALU revisado ✓');
 }
 
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});

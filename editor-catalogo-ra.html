@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KALU · Editor de catálogo (RA)</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0b0e13;--panel:#12161c;--panel2:#1b222c;--border:#242b35;--text:#e8edf2;
+    --muted:#8a909c;--amber:#F28C00;--cyan:#00d4ff;--green:#2fa36b;--red:#ff5a4d}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+  .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:30px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px}
+  .brand svg{width:30px;height:33px;flex-shrink:0}
+  .sub{color:var(--muted);font-size:13.5px;margin:5px 0 20px}
+  label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;font-weight:700}
+  input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px;font-size:14.5px;font-family:inherit}
+  .btn{border:0;border-radius:10px;padding:11px 15px;font-size:14px;font-weight:700;cursor:pointer;background:var(--amber);color:#1a1200}
+  .btn.full{width:100%;margin-top:16px}
+  .btn.sm{padding:7px 11px;font-size:12.5px}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .btn.ghost:hover{border-color:var(--amber)}
+  .btn.mini{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:5px 9px;font-size:12px;border-radius:8px}
+  .btn.danger{color:var(--red);border-color:rgba(255,90,77,.4)}
+  .err{color:var(--red);font-size:13px;margin-top:12px;min-height:16px}
+  #app{display:none}
+  header{position:sticky;top:0;z-index:10;background:rgba(11,14,19,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);
+    padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .who{color:var(--muted);font-size:12.5px;border-left:1px solid var(--border);padding-left:10px}
+  .wrap{max-width:820px;margin:0 auto;padding:20px}
+  h1{font-size:20px;font-weight:800;margin-bottom:3px}
+  .crumb{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .crumb b{color:var(--text)}
+  .back{color:var(--muted);font-size:13.5px;background:none;border:0;cursor:pointer;margin-bottom:12px;padding:4px 0}
+  .row{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .row h1{margin:0}
+  .sp{flex:1}
+  .item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 15px;margin-bottom:9px;display:flex;align-items:center;gap:12px}
+  .item .num{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--muted)}
+  .item .main{flex:1;min-width:0}
+  .item .t{font-weight:700;font-size:15px}
+  .item .m{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .item.click{cursor:pointer}
+  .item.click:hover{border-color:var(--amber)}
+  .item.off{opacity:.5}
+  .acts{display:flex;gap:5px;flex-shrink:0}
+  .chip{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+  .chip.on{color:var(--green);border-color:rgba(47,163,107,.4)}
+  .addbox{background:var(--panel);border:1px dashed var(--border);border-radius:12px;padding:14px;margin-top:12px}
+  .addbox .grid{display:grid;grid-template-columns:1fr;gap:9px}
+  .addbox .g2{display:grid;grid-template-columns:1fr 160px;gap:9px}
+  @media(max-width:560px){.addbox .g2{grid-template-columns:1fr}}
+  .empty{color:var(--muted);text-align:center;padding:34px 0;font-size:14px;border:2px dashed var(--border);border-radius:12px}
+  .edit-inline{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 10px;font-size:14.5px;font-family:inherit;width:100%}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:10px 16px;font-size:13px;z-index:60;opacity:0;transition:opacity .3s}
+  .toast.on{opacity:1}
+  .hex{}
+</style>
+</head>
+<body>
+<!-- LOGIN -->
+<div id="login" class="center">
+  <div class="login">
+    <div class="brand">
+      <svg viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="none" stroke="#F28C00" stroke-width="2.5"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Arial">DI</text></svg>
+      KALU · Editor de catálogo
+    </div>
+    <div class="sub">Armá los tipos de inspección, sus actividades y pasos — para los lentes.</div>
+    <label>Email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="tu correo">
+    <label>Contraseña</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn full" onclick="entrar()">Ingresar →</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="brand" style="font-size:15px"><svg viewBox="0 0 46 50" style="width:24px;height:26px"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="none" stroke="#F28C00" stroke-width="2.5"/></svg>Editor de catálogo <span class="who" id="who"></span></div>
+    <button class="btn ghost sm" onclick="salir()">Salir</button>
+  </header>
+  <div class="wrap">
+    <!-- NIVEL 1: TIPOS -->
+    <div id="v-tipos">
+      <div class="row"><h1>Tipos de inspección</h1><div class="sp"></div><button class="btn sm" onclick="toggleAddTipo()">+ Nuevo tipo</button></div>
+      <div class="crumb">Cada tipo es un "qué se inspecciona": un equipo, una herramienta, o un área (ej. <b>revisar área de trabajo</b>).</div>
+      <div id="addTipo" class="addbox" style="display:none">
+        <div class="grid">
+          <input id="nt-nombre" placeholder="Nombre del tipo (ej. Motor de generador)">
+          <input id="nt-desc" placeholder="Descripción (opcional)">
+          <button class="btn sm" onclick="crearTipo()">Crear tipo</button>
+        </div>
+      </div>
+      <div id="lista-tipos" style="margin-top:14px"><div class="empty">Cargando…</div></div>
+    </div>
+    <!-- NIVEL 2: ACTIVIDADES DE UN TIPO -->
+    <div id="v-acts" style="display:none">
+      <button class="back" onclick="verTipos()">← Tipos de inspección</button>
+      <div class="row"><h1 id="tipo-nombre"></h1><div class="sp"></div><button class="btn sm" onclick="toggleAddAct()">+ Agregar actividad</button></div>
+      <div class="crumb" id="tipo-desc"></div>
+      <div id="addAct" class="addbox" style="display:none">
+        <div class="grid">
+          <input id="na-nombre" placeholder="Nombre de la actividad (ej. Inspección visual del estator)">
+          <input id="na-ref" placeholder="Referencia / norma (opcional)">
+          <button class="btn sm" onclick="crearActividad()">Agregar</button>
+        </div>
+      </div>
+      <div id="lista-acts" style="margin-top:14px"></div>
+    </div>
+    <!-- NIVEL 3: PASOS DE UNA ACTIVIDAD -->
+    <div id="v-pasos" style="display:none">
+      <button class="back" onclick="verActs()">← Actividades</button>
+      <div class="row"><h1 id="act-nombre"></h1><div class="sp"></div><button class="btn sm" onclick="toggleAddPaso()">+ Agregar paso</button></div>
+      <div class="crumb" id="act-crumb"></div>
+      <div id="addPaso" class="addbox" style="display:none">
+        <div class="g2">
+          <input id="np-nombre" placeholder="Nombre del paso (ej. Resistencia de aislamiento)">
+          <select id="np-tipo">
+            <option value="texto">Texto</option>
+            <option value="numero">Número</option>
+            <option value="si_no">Sí / No</option>
+            <option value="foto">Foto</option>
+            <option value="fecha">Fecha</option>
+          </select>
+        </div>
+        <div class="grid" style="margin-top:9px">
+          <input id="np-crit" placeholder="Criterio (opcional, ej. ≥ 1 MΩ)">
+          <button class="btn sm" onclick="crearPaso()">Agregar</button>
+        </div>
+      </div>
+      <div id="lista-pasos" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ====== CONFIG · SANDBOX UNIFICADO (kalu-plataforma) ======
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_KEY='sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const $=(id)=>document.getElementById(id);
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),1800);}
+function esc(s){return (s==null?'':String(s)).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+let me={id:null,empresa_id:null,nombre:'',rol:'',super:false};
+let tipos=[], tipoActual=null, acts=[], actActual=null, pasos=[];
+
+async function entrar(){
+  $('err').textContent='';
+  const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('pass').value});
+  if(error){$('err').textContent='Credenciales inválidas o usuario sin perfil.';return;}
+  iniciar();
+}
+async function salir(){await sb.auth.signOut();location.reload();}
+async function iniciar(){
+  const {data:{user}}=await sb.auth.getUser();
+  const {data:p}=await sb.from('perfiles').select('nombre, empresa_id, rol, es_super, acceso_consola').eq('id',user.id).maybeSingle();
+  if(!p){$('err').textContent='Tu usuario no tiene perfil.';return;}
+  const puede = p.es_super || p.acceso_consola || ['admin','editor','coordinador','hse'].includes(p.rol);
+  if(!puede){$('err').textContent='Tu usuario no tiene permiso para editar el catálogo.';return;}
+  me={id:user.id,empresa_id:p.empresa_id,nombre:p.nombre||'Editor',rol:p.rol,super:!!p.es_super};
+  $('who').textContent=me.nombre;
+  $('login').style.display='none';$('app').style.display='block';
+  cargarTipos();
+}
+
+/* ---------------- NIVEL 1 · TIPOS ---------------- */
+function verTipos(){ $('v-acts').style.display='none';$('v-pasos').style.display='none';$('v-tipos').style.display='block'; cargarTipos(); }
+function toggleAddTipo(){ const b=$('addTipo'); b.style.display=b.style.display==='none'?'block':'none'; if(b.style.display==='block')$('nt-nombre').focus(); }
+async function cargarTipos(){
+  const {data,error}=await sb.from('ra_tipo').select('id,nombre,descripcion,activo').order('nombre');
+  if(error){$('lista-tipos').innerHTML='<div class="empty">Error al cargar.</div>';return;}
+  tipos=data||[];
+  if(!tipos.length){$('lista-tipos').innerHTML='<div class="empty">Todavía no hay tipos. Creá el primero con "+ Nuevo tipo".</div>';return;}
+  $('lista-tipos').innerHTML=tipos.map(t=>`
+    <div class="item click ${t.activo?'':'off'}">
+      <div class="main" onclick="abrirTipo(${t.id})">
+        <div class="t">${esc(t.nombre)} ${t.activo?'':'<span class="chip">inactivo</span>'}</div>
+        ${t.descripcion?`<div class="m">${esc(t.descripcion)}</div>`:''}
+      </div>
+      <div class="acts">
+        <button class="btn mini" onclick="renTipo(${t.id})">✎</button>
+        <button class="btn mini" onclick="toggleTipo(${t.id},${t.activo})">${t.activo?'Ocultar':'Activar'}</button>
+        <button class="btn mini danger" onclick="delTipo(${t.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+async function crearTipo(){
+  const nombre=$('nt-nombre').value.trim(); if(!nombre){toast('Poné un nombre');return;}
+  const desc=$('nt-desc').value.trim()||null;
+  const {error}=await sb.from('ra_tipo').insert({empresa_id:me.empresa_id,nombre,descripcion:desc});
+  if(error){toast('No se pudo crear');console.error(error);return;}
+  $('nt-nombre').value='';$('nt-desc').value='';$('addTipo').style.display='none';
+  toast('Tipo creado ✓');cargarTipos();
+}
+async function renTipo(id){
+  const t=tipos.find(x=>x.id===id); const nombre=prompt('Nombre del tipo:',t.nombre); if(nombre==null)return;
+  const {error}=await sb.from('ra_tipo').update({nombre:nombre.trim()}).eq('id',id);
+  if(error){toast('No se pudo guardar');return;} toast('Guardado ✓');cargarTipos();
+}
+async function toggleTipo(id,activo){
+  await sb.from('ra_tipo').update({activo:!activo}).eq('id',id); cargarTipos();
+}
+async function delTipo(id){
+  if(!confirm('¿Borrar este tipo y todas sus actividades y pasos?'))return;
+  const {error}=await sb.from('ra_tipo').delete().eq('id',id);
+  if(error){toast('No se pudo borrar');return;} toast('Tipo borrado');cargarTipos();
+}
+
+/* ---------------- NIVEL 2 · ACTIVIDADES ---------------- */
+async function abrirTipo(id){
+  tipoActual=tipos.find(x=>x.id===id);
+  $('tipo-nombre').textContent=tipoActual.nombre;
+  $('tipo-desc').textContent=tipoActual.descripcion||'';
+  $('v-tipos').style.display='none';$('v-pasos').style.display='none';$('v-acts').style.display='block';
+  window.scrollTo(0,0); cargarActs();
+}
+function verActs(){ $('v-pasos').style.display='none';$('v-acts').style.display='block'; cargarActs(); }
+function toggleAddAct(){ const b=$('addAct'); b.style.display=b.style.display==='none'?'block':'none'; if(b.style.display==='block')$('na-nombre').focus(); }
+async function cargarActs(){
+  const {data,error}=await sb.from('ra_actividad').select('id,orden,nombre,referencia').eq('tipo_id',tipoActual.id).order('orden');
+  if(error){$('lista-acts').innerHTML='<div class="empty">Error al cargar.</div>';return;}
+  acts=data||[];
+  if(!acts.length){$('lista-acts').innerHTML='<div class="empty">Sin actividades. Agregá la primera.</div>';return;}
+  $('lista-acts').innerHTML=acts.map((a,i)=>`
+    <div class="item">
+      <div class="num">${a.orden}</div>
+      <div class="main">
+        <input class="edit-inline" value="${esc(a.nombre)}" onchange="renAct(${a.id},this.value)">
+        ${a.referencia?`<div class="m">ref: ${esc(a.referencia)}</div>`:''}
+      </div>
+      <div class="acts">
+        <button class="btn mini" onclick="moveAct(${i},-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="btn mini" onclick="moveAct(${i},1)" ${i===acts.length-1?'disabled':''}>↓</button>
+        <button class="btn mini" onclick="abrirActividad(${a.id})">Pasos ▸</button>
+        <button class="btn mini danger" onclick="delAct(${a.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+async function crearActividad(){
+  const nombre=$('na-nombre').value.trim(); if(!nombre){toast('Poné un nombre');return;}
+  const ref=$('na-ref').value.trim()||null;
+  const orden=(acts.length?Math.max(...acts.map(a=>a.orden)):0)+1;
+  const {error}=await sb.from('ra_actividad').insert({empresa_id:me.empresa_id,tipo_id:tipoActual.id,orden,nombre,referencia:ref});
+  if(error){toast('No se pudo agregar');console.error(error);return;}
+  $('na-nombre').value='';$('na-ref').value='';$('addAct').style.display='none';
+  toast('Actividad agregada ✓');cargarActs();
+}
+async function renAct(id,val){
+  const {error}=await sb.from('ra_actividad').update({nombre:val.trim()}).eq('id',id);
+  if(error){toast('No se pudo guardar');return;} toast('Guardado ✓');
+}
+async function moveAct(i,dir){
+  const j=i+dir; if(j<0||j>=acts.length)return;
+  const a=acts[i], b=acts[j];
+  await sb.from('ra_actividad').update({orden:b.orden}).eq('id',a.id);
+  await sb.from('ra_actividad').update({orden:a.orden}).eq('id',b.id);
+  cargarActs();
+}
+async function delAct(id){
+  if(!confirm('¿Borrar esta actividad y sus pasos?'))return;
+  const {error}=await sb.from('ra_actividad').delete().eq('id',id);
+  if(error){toast('No se pudo borrar');return;} toast('Borrada');cargarActs();
+}
+
+/* ---------------- NIVEL 3 · PASOS ---------------- */
+async function abrirActividad(id){
+  actActual=acts.find(x=>x.id===id);
+  $('act-nombre').textContent=actActual.nombre;
+  $('act-crumb').innerHTML='de <b>'+esc(tipoActual.nombre)+'</b>';
+  $('v-acts').style.display='none';$('v-pasos').style.display='block';
+  window.scrollTo(0,0); cargarPasos();
+}
+function toggleAddPaso(){ const b=$('addPaso'); b.style.display=b.style.display==='none'?'block':'none'; if(b.style.display==='block')$('np-nombre').focus(); }
+const TD={texto:'Texto',numero:'Número',si_no:'Sí/No',foto:'Foto',fecha:'Fecha'};
+async function cargarPasos(){
+  const {data,error}=await sb.from('ra_paso').select('id,orden,nombre,tipo_dato,criterio').eq('actividad_id',actActual.id).order('orden');
+  if(error){$('lista-pasos').innerHTML='<div class="empty">Error al cargar.</div>';return;}
+  pasos=data||[];
+  if(!pasos.length){$('lista-pasos').innerHTML='<div class="empty">Sin pasos. Agregá el primero.</div>';return;}
+  $('lista-pasos').innerHTML=pasos.map((p,i)=>`
+    <div class="item">
+      <div class="num">${p.orden}</div>
+      <div class="main">
+        <input class="edit-inline" value="${esc(p.nombre)}" onchange="renPaso(${p.id},this.value)">
+        <div class="m"><span class="chip">${TD[p.tipo_dato]||p.tipo_dato}</span> ${p.criterio?'· criterio: '+esc(p.criterio):''}</div>
+      </div>
+      <div class="acts">
+        <button class="btn mini" onclick="movePaso(${i},-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="btn mini" onclick="movePaso(${i},1)" ${i===pasos.length-1?'disabled':''}>↓</button>
+        <button class="btn mini danger" onclick="delPaso(${p.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+async function crearPaso(){
+  const nombre=$('np-nombre').value.trim(); if(!nombre){toast('Poné un nombre');return;}
+  const tipo_dato=$('np-tipo').value; const criterio=$('np-crit').value.trim()||null;
+  const orden=(pasos.length?Math.max(...pasos.map(p=>p.orden)):0)+1;
+  const {error}=await sb.from('ra_paso').insert({empresa_id:me.empresa_id,actividad_id:actActual.id,orden,nombre,tipo_dato,criterio});
+  if(error){toast('No se pudo agregar');console.error(error);return;}
+  $('np-nombre').value='';$('np-crit').value='';$('addPaso').style.display='none';
+  toast('Paso agregado ✓');cargarPasos();
+}
+async function renPaso(id,val){
+  const {error}=await sb.from('ra_paso').update({nombre:val.trim()}).eq('id',id);
+  if(error){toast('No se pudo guardar');return;} toast('Guardado ✓');
+}
+async function movePaso(i,dir){
+  const j=i+dir; if(j<0||j>=pasos.length)return;
+  const a=pasos[i], b=pasos[j];
+  await sb.from('ra_paso').update({orden:b.orden}).eq('id',a.id);
+  await sb.from('ra_paso').update({orden:a.orden}).eq('id',b.id);
+  cargarPasos();
+}
+async function delPaso(id){
+  if(!confirm('¿Borrar este paso?'))return;
+  const {error}=await sb.from('ra_paso').delete().eq('id',id);
+  if(error){toast('No se pudo borrar');return;} toast('Borrado');cargarPasos();
+}
+/* sesión persistente */
+sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
+</script>
+</body>
+</html>

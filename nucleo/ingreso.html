@@ -72,7 +72,7 @@
 <div class="stage">
   <!-- LOGIN -->
   <div class="login" id="loginView">
-    <a class="logo" href="index.html" title="Volver al inicio">
+    <a class="logo" href="/index.html" title="Volver al inicio">
       <svg viewBox="0 0 40 40" fill="none" style="width:36px;height:36px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
       <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
     </a>
@@ -91,7 +91,7 @@
   <!-- PORTAL -->
   <div class="portal" id="portalView">
     <div class="phead">
-      <a class="logo" href="index.html" style="justify-content:center">
+      <a class="logo" href="/index.html" style="justify-content:center">
         <svg viewBox="0 0 40 40" fill="none" style="width:34px;height:34px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
         <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
       </a>
@@ -114,8 +114,8 @@ const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false;
 /* Catálogo del portal. live = anda por esta puerta hoy; soon = se une pronto. */
 const PORTAL=[
-  {href:"app.html", ic:"🛡️", cls:"g", nombre:"KALU HSE",     desc:"Validación, ATS e investigación de accidentes bajo norma."},
-  {href:"hse.html", ic:"📊", cls:"c", nombre:"Consola HSE",   desc:"Tablero, expedientes, tarjetas, usuarios y auditoría."},
+  {href:"/nucleo/app.html", ic:"🛡️", cls:"g", nombre:"KALU HSE",     desc:"Validación, ATS e investigación de accidentes bajo norma."},
+  {href:"/nucleo/hse.html", ic:"📊", cls:"c", nombre:"Consola HSE",   desc:"Tablero, expedientes, tarjetas, usuarios y auditoría."},
   {href:"#",        ic:"🥽", cls:"c", nombre:"Realidad Asistida", desc:"Editor, lente y consola de flujos. Se une al acceso único pronto.", soon:true},
   {href:"#",        ic:"📐", cls:"g", nombre:"QA/QC",         desc:"Aseguramiento de calidad.", soon:true},
   {href:"#",        ic:"🔬", cls:"c", nombre:"NDT",           desc:"Ensayos no destructivos.", soon:true}
@@ -169,7 +169,7 @@ function mostrarPortal(){
       (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
   });
   if(SB_SUPER || SB_ROL==="admin" || SB_ROL==="hse"){
-    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":SB_ROL)+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
+    cards.push('<a class="mod g" href="/nucleo/admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":SB_ROL)+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
   }
   $("#mods").innerHTML = cards.join("");
 }

@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0A0C0F" />
-  <link rel="manifest" href="/manifest.json" />
+  <link rel="manifest" href="/nucleo/manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="KALU" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/icon-192.png" />
   <script>
     // Acceso solo por getkalu.com: si abren la .vercel.app u otro host, rebota al dominio propio.
     (function(){try{var h=location.hostname||'';if(h.indexOf('vercel.app')!==-1){location.replace('https://getkalu.com'+location.pathname+location.search+location.hash);}}catch(e){}})();
@@ -363,7 +363,7 @@
     <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
     <div class="login-error" id="login-error"></div>
     <div class="login-foot">Acceso exclusivo para empresas registradas.<br><a href="#" onclick="verRegistro();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">Crear cuenta nueva</a></div>
-    <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
+    <div style="text-align:center;margin-top:16px;"><a href="/index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
   </div>
 </div>
 <!-- REGISTRO -->
@@ -383,7 +383,7 @@
     <button class="login-btn" id="reg-btn" onclick="registrarse()">Registrarme</button>
     <div class="login-error" id="reg-msg"></div>
     <div class="login-foot"><a href="#" onclick="verLogin();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">← Ya tengo cuenta, ingresar</a></div>
-    <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
+    <div style="text-align:center;margin-top:16px;"><a href="/index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
   </div>
 </div>
 <header>
@@ -443,7 +443,7 @@
 <div id="pantalla-home">
   <div class="home-avatar-wrap">
     <span class="kalu-foto-halo"></span>
-    <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
+    <img src="/assets/kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
   </div>
   <div class="home-titulo">KALU IA</div>
   <div class="home-sub">// SELECCIONÁ UN MÓDULO PARA CONTINUAR</div>
@@ -462,14 +462,14 @@
       <div class="modulo-desc">Investigación de incidentes en campo. Árbol de Causas, declaraciones, alerta inmediata y 4 documentos al supervisor HSE.</div>
       <div class="modulo-flecha">→</div>
     </div>
-    <div class="modulo-card" onclick="location.href='tarjetas.html'">
+    <div class="modulo-card" onclick="location.href='/tarjetas/tarjetas.html'">
       <div class="modulo-icon">📋</div>
       <div class="modulo-tag activo">● ACTIVO</div>
       <div class="modulo-nombre">KALU Tarjetas</div>
       <div class="modulo-desc">Tarjetas de actos y condiciones inseguras. Observás, adjuntás foto, firmás y queda registrado para el HSE.</div>
       <div class="modulo-flecha">→</div>
     </div>
-    <div class="modulo-card" onclick="location.href='hse.html'">
+    <div class="modulo-card" onclick="location.href='/nucleo/hse.html'">
       <div class="modulo-icon">📊</div>
       <div class="modulo-tag activo">● HSE</div>
       <div class="modulo-nombre">Consola HSE</div>
@@ -491,7 +491,7 @@
   <div class="inicio-avatar-col">
     <div class="kalu-avatar-inicio" id="avatar-inicio">
       <span class="kalu-foto-halo"></span>
-      <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
+      <img src="/assets/kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
     </div>
     <div class="inicio-kalu-titulo">KALU HSE</div>
     <div class="inicio-kalu-sub">Validación pre-turno<br>Dinamho Intelligence v4</div>
@@ -553,7 +553,7 @@
   <div class="inv-avatar-col">
     <div class="kalu-avatar-inv">
       <span class="kalu-foto-halo"></span>
-      <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
+      <img src="/assets/kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
     </div>
     <div class="alerta-badge"><div class="alerta-dot"></div>INVESTIGACIÓN ACTIVA</div>
     <div class="inv-kalu-titulo">KALU INVESTIGADOR</div>
@@ -596,7 +596,7 @@
   <div class="inv-chat-layout">
     <div class="inv-panel">
       <div class="kalu-cara-wrap estado-alerta" id="inv-cara-wrap">
-        <img src="kalu-avatar.png" alt="KALU" class="kalu-foto-chat" onerror="this.style.visibility='hidden'"/>
+        <img src="/assets/kalu-avatar.png" alt="KALU" class="kalu-foto-chat" onerror="this.style.visibility='hidden'"/>
       </div>
       <div class="inv-nombre">KALU INV.</div>
       <div class="inv-estado-label" id="inv-estado-label">// investigando</div>
@@ -637,7 +637,7 @@
   <div class="chat-layout">
     <div class="kalu-panel">
       <div class="kalu-cara-wrap estado-idle" id="kalu-cara-wrap">
-        <img src="kalu-avatar.png" alt="KALU" class="kalu-foto-chat" onerror="this.style.visibility='hidden'"/>
+        <img src="/assets/kalu-avatar.png" alt="KALU" class="kalu-foto-chat" onerror="this.style.visibility='hidden'"/>
       </div>
       <div class="voz-onda" id="voz-onda">
         <span id="vb0"></span><span id="vb1"></span><span id="vb2"></span>
@@ -1394,7 +1394,7 @@ async function iniciarSesion(){
     // 1) La tarjeta de Consola HSE se muestra a managers o a quien tenga acceso a consola
     document.querySelectorAll('.modulo-card').forEach(function(c){
       const oc=c.getAttribute('onclick')||'';
-      if(oc.indexOf('hse.html')!==-1){ c.style.display=puedeConsola?'':'none'; }
+      if(oc.indexOf('/nucleo/hse.html')!==-1){ c.style.display=puedeConsola?'':'none'; }
     });
     // 2) Mostrar "Nombre · Empresa" arriba a la derecha
     let empresa='';

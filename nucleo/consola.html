@@ -85,7 +85,7 @@
     <div class="gfld"><label>Contraseña</label><input id="g_pass" type="password" onkeydown="if(event.key==='Enter')doLoginGate()" /></div>
     <div class="gerr" id="g_err"></div>
     <button class="btn btn-amber" id="g_btn" style="width:100%;justify-content:center" onclick="doLoginGate()">Ingresar →</button>
-    <div style="margin-top:16px"><a href="index.html" style="color:#8a93a3;font-size:12px;text-decoration:none">← Volver al inicio</a></div>
+    <div style="margin-top:16px"><a href="/index.html" style="color:#8a93a3;font-size:12px;text-decoration:none">← Volver al inicio</a></div>
   </div>
 </div>
 
@@ -114,9 +114,8 @@
 
 <script>
 const $ = s => document.querySelector(s);
-/* SANDBOX (kalu plataforma) — copia de prueba */
-const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
-const SB_ANON = "sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl";
+const SB_URL  = "https://jwqgvlcktzhyddrofqqg.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3cWd2bGNrdHpoeWRkcm9mcXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NDM0NzYsImV4cCI6MjEwMDMxOTQ3Nn0.MJ-6sgJ72EaRQ_Z_ZznG9j5-FXbTDJPPXmog-_7fYH0";
 let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null;
 let EJECS=[], filtro="todas", selId=null;
 
@@ -145,7 +144,7 @@ async function doLoginGate(){
   catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
-function salir(){ if(!confirm("¿Cerrar sesión?"))return; SB_TOKEN=null;SB_EMPRESA=null;SB_EMAIL=null; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} window.location.href="ingreso.html"; }
+function salir(){ if(!confirm("¿Cerrar sesión?"))return; SB_TOKEN=null;SB_EMPRESA=null;SB_EMAIL=null; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} window.location.href="/nucleo/ingreso.html"; }
 
 function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function fFecha(s){ if(!s)return "—"; try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return "—"; } }
@@ -229,7 +228,5 @@ function ssoAuto(){ try{ var s=JSON.parse(sessionStorage.getItem("kalu_ses")||"n
     document.getElementById("gate").style.display="none"; $("#userChip").textContent="👤 "+SB_EMAIL; cargar(); } }catch(e){} }
 ssoAuto();
 </script>
-
-<div style="position:fixed;bottom:14px;left:14px;z-index:99999;background:linear-gradient(135deg,#F28C00,#FF9F1C);color:#141414;font:800 12px/1 monospace;padding:9px 14px;border-radius:20px;box-shadow:0 8px 24px rgba(0,0,0,.5);letter-spacing:1px;pointer-events:none;border:2px solid #141414">🧪 SANDBOX · base de pruebas</div>
 </body>
 </html>

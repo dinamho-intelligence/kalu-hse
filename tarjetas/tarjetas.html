@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="KALU HSE Tarjetas">
-<link rel="manifest" href="/manifest-tarjetas.json">
-<link rel="apple-touch-icon" href="/icon-tarjetas-192.png">
+<link rel="manifest" href="/tarjetas/manifest-tarjetas.json">
+<link rel="apple-touch-icon" href="/tarjetas/icon-tarjetas-192.png">
 <title>KALU · Tarjeta de observación</title>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
@@ -514,7 +514,7 @@ function descargarPDF(){
   buildTarjetaPdf(r, last.ts, last.empresa, last.firmaDataUrl, last.fotoDataUrls).save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
 }
 
-function salirTarjetas(){ var st=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true; if(st){ location.reload(); } else { location.href='/app.html'; } }
+function salirTarjetas(){ var st=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true; if(st){ location.reload(); } else { location.href='/nucleo/app.html'; } }
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(()=>{});
   // Cuando entra una versión nueva del SW, refrescar solo (sin desinstalar) — una sola vez.

@@ -2,14 +2,14 @@
   "name": "KALU · Realidad Asistida",
   "short_name": "KALU RA",
   "description": "Asistencia manos libres para lentes RealWear — flujos de trabajo por voz.",
-  "start_url": "realidad-asistida.html",
-  "scope": "realidad-asistida.html",
+  "start_url": "/ra/realidad-asistida.html",
+  "scope": "/ra/realidad-asistida.html",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#0b1220",
   "theme_color": "#1f4e79",
   "icons": [
-    { "src": "icon-ra-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-ra-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    { "src": "/ra/icon-ra-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/ra/icon-ra-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }

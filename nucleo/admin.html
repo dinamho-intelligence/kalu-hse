@@ -71,7 +71,7 @@
     <div class="gfld"><label>Contraseña</label><input id="g_pass" type="password" onkeydown="if(event.key==='Enter')doLoginGate()" /></div>
     <div class="gerr" id="g_err"></div>
     <button class="btn btn-amber" id="g_btn" style="width:100%;justify-content:center" onclick="doLoginGate()">Ingresar →</button>
-    <div style="margin-top:16px"><a href="ingreso.html" style="color:#8a93a3;font-size:12px;text-decoration:none">← Volver al portal</a></div>
+    <div style="margin-top:16px"><a href="/nucleo/ingreso.html" style="color:#8a93a3;font-size:12px;text-decoration:none">← Volver al portal</a></div>
   </div>
 </div>
 
@@ -132,7 +132,7 @@ async function doLoginGate(){
   catch(e){ err.textContent=(e&&e.message)||"Error"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
-function salir(){ if(!confirm("¿Cerrar sesión?"))return; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} SB_TOKEN=null; window.location.href="ingreso.html"; }
+function salir(){ if(!confirm("¿Cerrar sesión?"))return; try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} SB_TOKEN=null; window.location.href="/nucleo/ingreso.html"; }
 
 /* ---------- Tabs ---------- */
 function construirTabs(){

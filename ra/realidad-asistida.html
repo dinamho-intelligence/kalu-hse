@@ -4,13 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>KALU · Realidad Asistida</title>
-<link rel="manifest" href="manifest-ra.webmanifest" />
+<link rel="manifest" href="/ra/manifest-ra.webmanifest" />
 <meta name="theme-color" content="#1f4e79" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="apple-touch-icon" href="icon-ra-192.png" />
-<link rel="icon" type="image/png" href="icon-ra-192.png" />
+<link rel="apple-touch-icon" href="/ra/icon-ra-192.png" />
+<link rel="icon" type="image/png" href="/ra/icon-ra-192.png" />
 <!--
   APP DEL LENTE v3.0 · RealWear (apaisado ~854x480)
   Nivel 2 · Etapa 1: HUB + Flujos ONLINE/OFFLINE desde Supabase.
@@ -575,9 +575,9 @@ function boot(){
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
 
 /* PWA: registra el service worker con SCOPE PROPIO (solo esta página),
-   para convivir con el sw.js de la app principal. Solo activa por HTTPS. */
+   para convivir con el /sw.js de la app principal. Solo activa por HTTPS. */
 if('serviceWorker' in navigator){
-  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw-ra.js', { scope: 'realidad-asistida.html' }).catch(function(){}); });
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('/ra/sw-ra.js', { scope: '/ra/realidad-asistida.html' }).catch(function(){}); });
 }
 </script>
 </body>

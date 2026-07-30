@@ -1,0 +1,209 @@
+{
+  "redirects": [
+    {
+      "source": "/KALU_MAESTRO.html",
+      "destination": "/nucleo/KALU_MAESTRO.html",
+      "permanent": true
+    },
+    {
+      "source": "/admin-sb.html",
+      "destination": "/sandbox/admin-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/admin.html",
+      "destination": "/nucleo/admin.html",
+      "permanent": true
+    },
+    {
+      "source": "/app.html",
+      "destination": "/nucleo/app.html",
+      "permanent": true
+    },
+    {
+      "source": "/asegurador-qaqc-sb.html",
+      "destination": "/sandbox/asegurador-qaqc-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/asegurador-qaqc.html",
+      "destination": "/qaqc/asegurador-qaqc.html",
+      "permanent": true
+    },
+    {
+      "source": "/captura-ra.html",
+      "destination": "/ra/captura-ra.html",
+      "permanent": true
+    },
+    {
+      "source": "/consola-qaqc-sb.html",
+      "destination": "/sandbox/consola-qaqc-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/consola-qaqc.html",
+      "destination": "/qaqc/consola-qaqc.html",
+      "permanent": true
+    },
+    {
+      "source": "/consola-sb.html",
+      "destination": "/sandbox/consola-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/consola.html",
+      "destination": "/nucleo/consola.html",
+      "permanent": true
+    },
+    {
+      "source": "/coordinador-qaqc.html",
+      "destination": "/qaqc/coordinador-qaqc.html",
+      "permanent": true
+    },
+    {
+      "source": "/editor-catalogo-ra.html",
+      "destination": "/ra/editor-catalogo-ra.html",
+      "permanent": true
+    },
+    {
+      "source": "/editor-sb.html",
+      "destination": "/sandbox/editor-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/editor.html",
+      "destination": "/nucleo/editor.html",
+      "permanent": true
+    },
+    {
+      "source": "/firmas.html",
+      "destination": "/nucleo/firmas.html",
+      "permanent": true
+    },
+    {
+      "source": "/hse.html",
+      "destination": "/nucleo/hse.html",
+      "permanent": true
+    },
+    {
+      "source": "/icon-192.png",
+      "destination": "/assets/icon-192.png",
+      "permanent": true
+    },
+    {
+      "source": "/icon-512.png",
+      "destination": "/assets/icon-512.png",
+      "permanent": true
+    },
+    {
+      "source": "/icon-ra-192.png",
+      "destination": "/ra/icon-ra-192.png",
+      "permanent": true
+    },
+    {
+      "source": "/icon-ra-512.png",
+      "destination": "/ra/icon-ra-512.png",
+      "permanent": true
+    },
+    {
+      "source": "/icon-tarjetas-192.png",
+      "destination": "/tarjetas/icon-tarjetas-192.png",
+      "permanent": true
+    },
+    {
+      "source": "/icon-tarjetas-512.png",
+      "destination": "/tarjetas/icon-tarjetas-512.png",
+      "permanent": true
+    },
+    {
+      "source": "/ingreso-sb.html",
+      "destination": "/sandbox/ingreso-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/ingreso.html",
+      "destination": "/nucleo/ingreso.html",
+      "permanent": true
+    },
+    {
+      "source": "/kalu-avatar.png",
+      "destination": "/assets/kalu-avatar.png",
+      "permanent": true
+    },
+    {
+      "source": "/kalu-lentes.png",
+      "destination": "/assets/kalu-lentes.png",
+      "permanent": true
+    },
+    {
+      "source": "/kalu-portada-mock.html",
+      "destination": "/nucleo/kalu-portada-mock.html",
+      "permanent": true
+    },
+    {
+      "source": "/kalu-sherlock.png",
+      "destination": "/assets/kalu-sherlock.png",
+      "permanent": true
+    },
+    {
+      "source": "/manifest-qaqc.json",
+      "destination": "/qaqc/manifest-qaqc.json",
+      "permanent": true
+    },
+    {
+      "source": "/manifest-ra.webmanifest",
+      "destination": "/ra/manifest-ra.webmanifest",
+      "permanent": true
+    },
+    {
+      "source": "/manifest-tarjetas.json",
+      "destination": "/tarjetas/manifest-tarjetas.json",
+      "permanent": true
+    },
+    {
+      "source": "/manifest.json",
+      "destination": "/nucleo/manifest.json",
+      "permanent": true
+    },
+    {
+      "source": "/qaqc-sb.html",
+      "destination": "/sandbox/qaqc-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/qaqc.html",
+      "destination": "/qaqc/qaqc.html",
+      "permanent": true
+    },
+    {
+      "source": "/realidad-asistida-landing.html",
+      "destination": "/ra/realidad-asistida-landing.html",
+      "permanent": true
+    },
+    {
+      "source": "/realidad-asistida-sb.html",
+      "destination": "/sandbox/realidad-asistida-sb.html",
+      "permanent": true
+    },
+    {
+      "source": "/realidad-asistida.html",
+      "destination": "/ra/realidad-asistida.html",
+      "permanent": true
+    },
+    {
+      "source": "/sw-qaqc.js",
+      "destination": "/qaqc/sw-qaqc.js",
+      "permanent": true
+    },
+    {
+      "source": "/sw-ra.js",
+      "destination": "/ra/sw-ra.js",
+      "permanent": true
+    },
+    {
+      "source": "/tarjetas.html",
+      "destination": "/tarjetas/tarjetas.html",
+      "permanent": true
+    }
+  ]
+}

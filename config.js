@@ -7,7 +7,7 @@
  *  hse, firmas) quedan apuntando al proyecto definitivo.
  *
  *  Cómo usarlo en cada app: agregá esta línea ANTES de tu <script>
- *      <script src="config.js"></script>
+ *      <script src="/config.js"></script>
  *  y reemplazá los SB_URL/SB_ANON hardcodeados por window.KALU.*
  * ============================================================ */
 window.KALU = window.KALU || {};

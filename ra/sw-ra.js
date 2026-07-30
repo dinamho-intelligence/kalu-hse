@@ -1,13 +1,13 @@
 /* KALU · Realidad Asistida — Service Worker (namespaced -ra)
-   Convive con el sw.js de la app principal: se registra con scope propio
-   (solo la página realidad-asistida.html), así no pelean entre sí.
+   Convive con el /sw.js de la app principal: se registra con scope propio
+   (solo la página /ra/realidad-asistida.html), así no pelean entre sí.
    Al publicar una versión nueva de la app del lente, subí el número de CACHE. */
 const CACHE = 'kalu-ra-v6';
 const SHELL = [
-  'realidad-asistida.html',
-  'manifest-ra.webmanifest',
-  'icon-ra-192.png',
-  'icon-ra-512.png'
+  '/ra/realidad-asistida.html',
+  '/ra/manifest-ra.webmanifest',
+  '/ra/icon-ra-192.png',
+  '/ra/icon-ra-512.png'
 ];
 
 self.addEventListener('install', function(e){
@@ -35,7 +35,7 @@ self.addEventListener('fetch', function(e){
       fetch(req).then(function(r){
         var cp = r.clone(); caches.open(CACHE).then(function(c){ c.put(req, cp); }); return r;
       }).catch(function(){
-        return caches.match(req).then(function(m){ return m || caches.match('realidad-asistida.html'); });
+        return caches.match(req).then(function(m){ return m || caches.match('/ra/realidad-asistida.html'); });
       })
     );
     return;

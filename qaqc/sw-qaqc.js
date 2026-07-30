@@ -1,7 +1,7 @@
 // KALU QA/QC · Service Worker
 // Cachea solo el app-shell de qaqc (network-first). No toca otras apps ni Supabase.
 const CACHE = 'kalu-qaqc-v1';
-const SHELL = ['/qaqc.html', '/manifest-qaqc.json', '/icon-192.png', '/icon-512.png'];
+const SHELL = ['/qaqc/qaqc.html', '/qaqc/manifest-qaqc.json', '/assets/icon-192.png', '/assets/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -21,12 +21,12 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // Solo el mismo origen y solo el shell de qaqc. Todo lo demás (Supabase, otras apps) pasa directo.
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  if (url.pathname !== '/qaqc.html' && !SHELL.includes(url.pathname)) return;
+  if (url.pathname !== '/qaqc/qaqc.html' && !SHELL.includes(url.pathname)) return;
 
   // network-first: online trae lo último y actualiza el cache; offline sirve lo guardado.
   e.respondWith(
     fetch(e.request)
       .then((r) => { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copia)); return r; })
-      .catch(() => caches.match(e.request).then((r) => r || caches.match('/qaqc.html')))
+      .catch(() => caches.match(e.request).then((r) => r || caches.match('/qaqc/qaqc.html')))
   );
 });

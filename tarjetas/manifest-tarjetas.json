@@ -1,0 +1,26 @@
+{
+  "name": "KALU HSE Tarjetas",
+  "short_name": "Tarjetas",
+  "description": "Tarjetas de actos y condiciones inseguras — KALU HSE",
+  "id": "/tarjetas.html",
+  "start_url": "/tarjetas/tarjetas.html",
+  "scope": "/tarjetas/tarjetas.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0C0F",
+  "theme_color": "#0A0C0F",
+  "icons": [
+    {
+      "src": "/tarjetas/icon-tarjetas-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/tarjetas/icon-tarjetas-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

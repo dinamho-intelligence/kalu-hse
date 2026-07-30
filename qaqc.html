@@ -99,6 +99,12 @@
   .card.desasig{opacity:.45;filter:grayscale(.3)}
   .desbadge{margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--red);border:1px solid rgba(248,113,113,.4);border-radius:20px;padding:3px 10px}
   .paso.lock{opacity:.55} .states.lock{opacity:.5;pointer-events:none}
+  .cap-box{margin:14px 0 0 36px} .cap-box.lock{opacity:.6}
+  .cap-box .cl{font-size:13px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .cap-box .tagcli{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:20px;border:1px solid rgba(52,211,153,.4);color:var(--green)}
+  .cap-box .tagint{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:20px;border:1px solid rgba(167,139,250,.45);color:#a78bfa}
+  textarea.cap{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px;font-family:inherit;resize:vertical;min-height:52px}
+  .cap-box.interno .cl{color:#a78bfa} .cap-box.interno textarea.cap{border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.05)}
   /* modales flotantes de KALU */
   .modalk{position:fixed;inset:0;background:rgba(0,0,0,.74);display:none;align-items:center;justify-content:center;z-index:90;padding:22px}
   .modalk.on{display:flex}
@@ -264,12 +270,12 @@ async function cargarDatos(){
   const [cat,herr,resu,pa]=await Promise.all([
     sb.from('catalogo_actividad').select('id, herramienta_tipo, orden, actividad, norma_ref').order('orden'),
     sb.from('herramienta').select('id, nombre, tipo, rol, orden_id, asegurador_id, desasignado_de, desasignado_motivo, orden_de_trabajo(codigo,pozo,cliente)'),
-    sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, kalu_veredicto, kalu_detalle, aprobado, estado_flujo, pasos'),
+    sb.from('resultado_actividad').select('herramienta_id, actividad_id, resultado, observacion, hallazgo, memorias, kalu_veredicto, kalu_detalle, aprobado, estado_flujo, pasos'),
     sb.from('paso_actividad').select('id, actividad_id, orden, paso, tipo, criterio').order('orden')
   ]);
   catalogo=cat.data||[]; herramientas=herr.data||[]; res={}; pasosDef={};
   (pa.data||[]).forEach(p=>{(pasosDef[p.actividad_id]=pasosDef[p.actividad_id]||[]).push(p);});
-  (resu.data||[]).forEach(r=>{res[r.herramienta_id+'_'+r.actividad_id]={resultado:r.resultado,observacion:r.observacion,kalu_veredicto:r.kalu_veredicto,kalu_detalle:r.kalu_detalle,aprobado:r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',pasos:r.pasos||{}};});
+  (resu.data||[]).forEach(r=>{res[r.herramienta_id+'_'+r.actividad_id]={resultado:r.resultado,observacion:r.observacion,hallazgo:r.hallazgo,memorias:r.memorias,kalu_veredicto:r.kalu_veredicto,kalu_detalle:r.kalu_detalle,aprobado:r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',pasos:r.pasos||{}};});
 }
 
 function actsDe(t){return catalogo.filter(a=>a.herramienta_tipo===t).sort((a,b)=>a.orden-b.orden);}
@@ -371,6 +377,18 @@ function renderCheck(){
         <span class="st d ${val==='desviacion'?'on':''}" ${editable?`onclick="setRes(${a.id},'desviacion')"`:''}>Desviación</span>
         <span class="st n ${val==='na'?'on':''}" ${editable?`onclick="setRes(${a.id},'na')"`:''}>N-A</span>
       </div>
+      <div class="cap-box ${editable?'':'lock'}">
+        <div class="cl">Hallazgo <span class="tagcli">va al cliente</span></div>
+        <textarea class="cap" id="hall-${a.id}" ${dis} placeholder="Describí el hallazgo (si presenta)…" onchange="setHallazgo(${a.id},this.value)">${esc(r.hallazgo||'')}</textarea>
+      </div>
+      <div class="cap-box ${editable?'':'lock'}">
+        <div class="cl">Observaciones <span class="tagcli">va al cliente</span></div>
+        <textarea class="cap" id="obs-${a.id}" ${dis} onchange="setObs(${a.id},this.value)">${esc(r.observacion||'Sin observaciones')}</textarea>
+      </div>
+      <div class="cap-box interno ${editable?'':'lock'}">
+        <div class="cl">Memorias <span class="tagint">interno · no va al cliente</span></div>
+        <textarea class="cap" id="mem-${a.id}" ${dis} placeholder="Notas internas de ejecución…" onchange="setMemorias(${a.id},this.value)">${esc(r.memorias||'')}</textarea>
+      </div>
       <div class="evid">${thumbs}
         ${editable?`<label class="foto">＋ Foto<input type="file" accept="image/*" onchange="fotoElegida(${a.id},this.files)"></label>
         <button class="foto" onclick="abrirDibujo(${a.id})">✏️ Nota / dibujo</button>`:''}
@@ -432,6 +450,7 @@ async function upsertRes(actId){
   const key=herrActual+'_'+actId; const r=res[key]||{};
   const row={empresa_id:me.empresa_id,herramienta_id:herrActual,actividad_id:actId,
     resultado:r.resultado||'pendiente',observacion:r.observacion||null,
+    hallazgo:r.hallazgo||null,memorias:r.memorias||null,
     kalu_veredicto:r.kalu_veredicto||null,kalu_detalle:r.kalu_detalle||null,
     aprobado:!!r.aprobado,estado_flujo:r.estado_flujo||'no_iniciada',pasos:r.pasos||{},
     asegurador_id:me.id,updated_at:new Date().toISOString()};
@@ -439,7 +458,9 @@ async function upsertRes(actId){
   if(error){toast('No se pudo guardar');console.error(error);}
 }
 async function setRes(actId,val){const k=herrActual+'_'+actId;res[k]=res[k]||{};res[k].resultado=val;await upsertRes(actId);renderCheck();}
-async function setObs(actId,val){const k=herrActual+'_'+actId;res[k]=res[k]||{};res[k].observacion=val;if(!res[k].resultado)res[k].resultado='pendiente';await upsertRes(actId);toast('Comentario guardado');}
+async function setObs(actId,val){const k=herrActual+'_'+actId;res[k]=res[k]||{};res[k].observacion=val;if(!res[k].resultado)res[k].resultado='pendiente';await upsertRes(actId);toast('Observaciones guardadas');}
+async function setHallazgo(actId,val){const k=herrActual+'_'+actId;res[k]=res[k]||{};res[k].hallazgo=val;if(!res[k].resultado)res[k].resultado='pendiente';await upsertRes(actId);toast('Hallazgo guardado');}
+async function setMemorias(actId,val){const k=herrActual+'_'+actId;res[k]=res[k]||{};res[k].memorias=val;if(!res[k].resultado)res[k].resultado='pendiente';await upsertRes(actId);toast('Memoria guardada (interno)');}
 async function toggleAprob(actId,val){const k=herrActual+'_'+actId;res[k]=res[k]||{};res[k].aprobado=val;if(!res[k].resultado)res[k].resultado='pendiente';await upsertRes(actId);renderCheck();toast(val?'Aprobada para informe ✓':'Quitada del informe');}
 // ---- subida genérica de una imagen (foto, foto anotada, o nota a mano) ----
 async function subirCaptura(actId,blob,ext){

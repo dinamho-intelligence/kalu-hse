@@ -608,7 +608,7 @@
     const hids=hs.map(h=>h.id);
     const [cat,resu,ev]=await Promise.all([
       sb.from('catalogo_actividad').select('id,herramienta_tipo,orden,actividad,norma_ref').order('orden'),
-      sb.from('resultado_actividad').select('herramienta_id,actividad_id,estado_flujo,resultado,observacion,kalu_veredicto,kalu_detalle').in('herramienta_id',hids),
+      sb.from('resultado_actividad').select('herramienta_id,actividad_id,estado_flujo,resultado,observacion,hallazgo').in('herramienta_id',hids),
       sb.from('actividad_evento').select('herramienta_id,actividad_id,evento,ts').in('herramienta_id',hids)
     ]);
     const catById={}; (cat.data||[]).forEach(c=>catById[c.id]=c);
@@ -622,18 +622,19 @@
     const lastEv={}; (ev.data||[]).forEach(e=>{const k=e.herramienta_id+'_'+e.actividad_id; if(!lastEv[k]||new Date(e.ts)>new Date(lastEv[k])) lastEv[k]=e.ts;});
     // totales
     const totalSer=hs.length; const toolsDesv=new Set(); let numHall=0;
-    (resu.data||[]).forEach(r=>{ if(r.resultado==='desviacion'||r.kalu_veredicto==='desviacion'){ toolsDesv.add(r.herramienta_id); numHall++; } });
+    (resu.data||[]).forEach(r=>{ if(r.resultado==='desviacion'){ toolsDesv.add(r.herramienta_id); numHall++; } });
     const conHall=toolsDesv.size, pct=totalSer?Math.round(conHall/totalSer*100):0;
     const aseg=[...new Set(hs.map(h=>h.asegurador_id).filter(Boolean).map(id=>(aseguradores.find(a=>a.id===id)||{}).nombre).filter(Boolean))].join(', ')||'—';
     // detalle
     const rows=(resu.data||[]).filter(r=>r.estado_flujo&&r.estado_flujo!=='no_iniciada').map(r=>{
       const h=hs.find(x=>x.id===r.herramienta_id)||{}; const c=catById[r.actividad_id]||{};
-      const esDesv=r.resultado==='desviacion'||r.kalu_veredicto==='desviacion';
+      const esDesv=r.resultado==='desviacion';   // solo el asegurador; KALU es interno
+      const obs=(r.observacion||'').trim();
       return {orden:c.orden||999, fecha:fFecha(lastEv[r.herramienta_id+'_'+r.actividad_id]),
         serial:h.serial||h.nombre||'—', desc:h.descripcion||h.tipo||'—',
-        actividad:(c.actividad||'actividad')+(r.observacion?(' - '+r.observacion):''),
+        actividad:(c.actividad||'actividad')+((obs&&obs!=='Sin observaciones')?(' - '+obs):''),
         hallazgo:esDesv?'DISCREPANCIA CON REQUERIMIENTO':'No Presenta',
-        descH:esDesv?(r.kalu_detalle||r.observacion||'Ver detalle'):'No Aplica'};
+        descH:esDesv?((r.hallazgo||'').trim()||obs||'Ver detalle'):'No Aplica'};
     }).sort((a,b)=>a.orden-b.orden);
     const d={
       codigo:ot.codigo, cliente:ot.cliente||'—', contrato:ot.contrato||'—', servicio:ot.service_ticket||'—',

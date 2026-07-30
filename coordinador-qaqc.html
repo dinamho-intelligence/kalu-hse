@@ -600,50 +600,28 @@
 
   // ===================== GENERAR INFORME EJECUTIVO =====================
   function fFecha(x){ if(!x)return '—'; const d=(x instanceof Date)?x:new Date(x); if(isNaN(d.getTime()))return '—'; const p=n=>String(n).padStart(2,'0'); return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear(); }
+  // El PDF lo arma la Edge Function de Supabase y se descarga directo (sin Ctrl+P).
+  const EDGE_INFORME = SB_URL + '/functions/v1/generar-informe';
   async function generarInforme(otId){
     const ot=ordenes.find(o=>o.id===otId); if(!ot)return;
     const hs=ot.herramienta||[];
     if(!hs.length){ toast('La OIT no tiene herramientas','bad'); return; }
     toast('Generando informe…');
-    const hids=hs.map(h=>h.id);
-    const [cat,resu,ev]=await Promise.all([
-      sb.from('catalogo_actividad').select('id,herramienta_tipo,orden,actividad,norma_ref').order('orden'),
-      sb.from('resultado_actividad').select('herramienta_id,actividad_id,estado_flujo,resultado,observacion,hallazgo').in('herramienta_id',hids),
-      sb.from('actividad_evento').select('herramienta_id,actividad_id,evento,ts').in('herramienta_id',hids)
-    ]);
-    const catById={}; (cat.data||[]).forEach(c=>catById[c.id]=c);
-    // fechas operativas
-    const dset=new Map();
-    (ev.data||[]).forEach(e=>{const d=new Date(e.ts); if(!isNaN(d.getTime())) dset.set(d.toISOString().slice(0,10),1);});
-    const dias=[...dset.keys()].sort();
-    const fechasOp=dias.map(k=>fFecha(k));
-    const inicio=dias.length?fFecha(dias[0]):'—', fin=dias.length?fFecha(dias[dias.length-1]):'—';
-    // última fecha por actividad
-    const lastEv={}; (ev.data||[]).forEach(e=>{const k=e.herramienta_id+'_'+e.actividad_id; if(!lastEv[k]||new Date(e.ts)>new Date(lastEv[k])) lastEv[k]=e.ts;});
-    // totales
-    const totalSer=hs.length; const toolsDesv=new Set(); let numHall=0;
-    (resu.data||[]).forEach(r=>{ if(r.resultado==='desviacion'){ toolsDesv.add(r.herramienta_id); numHall++; } });
-    const conHall=toolsDesv.size, pct=totalSer?Math.round(conHall/totalSer*100):0;
-    const aseg=[...new Set(hs.map(h=>h.asegurador_id).filter(Boolean).map(id=>(aseguradores.find(a=>a.id===id)||{}).nombre).filter(Boolean))].join(', ')||'—';
-    // detalle
-    const rows=(resu.data||[]).filter(r=>r.estado_flujo&&r.estado_flujo!=='no_iniciada').map(r=>{
-      const h=hs.find(x=>x.id===r.herramienta_id)||{}; const c=catById[r.actividad_id]||{};
-      const esDesv=r.resultado==='desviacion';   // solo el asegurador; KALU es interno
-      const obs=(r.observacion||'').trim();
-      return {orden:c.orden||999, fecha:fFecha(lastEv[r.herramienta_id+'_'+r.actividad_id]),
-        serial:h.serial||h.nombre||'—', desc:h.descripcion||h.tipo||'—',
-        actividad:(c.actividad||'actividad')+((obs&&obs!=='Sin observaciones')?(' - '+obs):''),
-        hallazgo:esDesv?'DISCREPANCIA CON REQUERIMIENTO':'No Presenta',
-        descH:esDesv?((r.hallazgo||'').trim()||obs||'Ver detalle'):'No Aplica'};
-    }).sort((a,b)=>a.orden-b.orden);
-    const d={
-      codigo:ot.codigo, cliente:ot.cliente||'—', contrato:ot.contrato||'—', servicio:ot.service_ticket||'—',
-      pozo:ot.pozo||'—', rig:ot.rig||'—', origen:ot.origen||'—', compania:ot.compania||'—',
-      seccion:ot.seccion||'—', qaqc:aseg, fechaInicio:inicio, inicio, fin, fechasOp,
-      dias:fechasOp.length, totalSer, conHall, pct, numHall,
-      inv:hs, rows, impresion:fFecha(new Date())
-    };
-    abrirInforme(d);
+    try{
+      const { data:{ session } } = await sb.auth.getSession();
+      const resp=await fetch(EDGE_INFORME,{ method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY,
+                  'Authorization':'Bearer '+((session&&session.access_token)||SB_KEY) },
+        body:JSON.stringify({ orden_id:otId }) });
+      if(!resp.ok){ let m=''; try{ m=(await resp.json()).error||''; }catch(_){} toast('No se pudo generar'+(m?': '+m:''),'bad'); return; }
+      const blob=await resp.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url;
+      a.download='Informe_'+String(ot.codigo||'OIT').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      toast('Informe descargado ✓','ok');
+    }catch(e){ console.error(e); toast('Error al generar el informe','bad'); }
   }
   function abrirInforme(d){
     const inv=d.inv.map(h=>`<tr><td>${esc(h.serial||h.nombre||'—')}</td><td>${esc(h.descripcion||h.tipo||'—')}</td></tr>`).join('');
@@ -661,21 +639,21 @@
       .rhead .logo{background:#fff;color:#232577;font-weight:900;font-style:italic;line-height:.9;text-align:center;padding:5px 9px;border-radius:3px}
       .rhead .logo b{display:block;font-size:13px}.rhead .logo span{display:block;font-size:17px;letter-spacing:2px}
       .rhead .ttl{font-size:17px;font-weight:700}.rhead .ttl small{display:block;font-size:11px;font-weight:400;opacity:.9}
-      .h2row{display:flex;align-items:flex-end;justify-content:space-between;margin:2px 2px 14px}.h2row h2{font-size:22px}
-      .ig{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 26px;break-inside:avoid}
-      .fld{padding:7px 0 6px;border-top:1px solid #c9c9c9}.fld .lbl{font-size:13px;font-weight:700}.fld .val{font-size:13px;color:#333;margin-top:2px;min-height:16px}
+      .h2row{display:flex;align-items:flex-end;justify-content:space-between;margin:2px 2px 8px}.h2row h2{font-size:21px}
+      .ig{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px 26px;break-inside:avoid}
+      .fld{padding:5px 0 4px;border-top:1px solid #c9c9c9}.fld .lbl{font-size:12.5px;font-weight:700}.fld .val{font-size:12.5px;color:#333;margin-top:1px;min-height:15px}
       .mini{border-collapse:collapse;width:100%}.mini th{background:#232577;color:#fff;font-size:13px;padding:6px 8px;text-align:center}
       .mini td{font-size:12.5px;padding:6px 8px;text-align:center;border-bottom:1px solid #c9c9c9}
       .fechas td{text-align:left}.fechas tr:nth-child(even) td{background:#eef0f4}
       .evid{font-size:12.5px;color:#333;line-height:1.5}.evid a{color:#2a5db0}
-      .secband{background:#232577;color:#fff;text-align:center;font-size:16px;font-weight:700;padding:8px;margin:22px 0 0;break-after:avoid}
+      .secband{background:#232577;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:6px;margin:14px 0 0;break-after:avoid}
       table.big{border-collapse:collapse;width:100%}
       table.big thead{display:table-header-group}
-      table.big th{background:#2e3192;color:#fff;font-size:12.5px;padding:8px 6px;text-align:center}
-      table.big td{font-size:11.5px;padding:8px 6px;vertical-align:top;border-bottom:1px solid #c9c9c9;color:#222}
+      table.big th{background:#2e3192;color:#fff;font-size:12px;padding:6px 6px;text-align:center}
+      table.big td{font-size:11px;padding:5px 6px;vertical-align:top;border-bottom:1px solid #c9c9c9;color:#222}
       table.big tbody tr{break-inside:avoid}
       table.big tbody tr:nth-child(even) td{background:#eef0f4}
-      .firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:34px;break-inside:avoid}
+      .firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:20px;break-inside:avoid}
       .firmas b{display:block;border-bottom:1.5px solid #000;padding-bottom:4px;margin-bottom:10px;font-size:13.5px}
       .firmas .l{font-size:12.5px;font-weight:700;margin-top:12px}
       @media print{ .noprint{display:none!important} }`;

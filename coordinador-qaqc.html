@@ -271,6 +271,8 @@
 
 <!-- Supabase como script CLÁSICO (UMD) -> expone el global `supabase` -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
 <script>
   const SB_URL = 'https://tytjurhxdwwytagcjxji.supabase.co';
   const SB_KEY = 'sb_publishable_vMJSHRPHEI-LU7A5GG6EUg_8Q69q5x0';
@@ -600,28 +602,109 @@
 
   // ===================== GENERAR INFORME EJECUTIVO =====================
   function fFecha(x){ if(!x)return '—'; const d=(x instanceof Date)?x:new Date(x); if(isNaN(d.getTime()))return '—'; const p=n=>String(n).padStart(2,'0'); return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear(); }
-  // El PDF lo arma la Edge Function de Supabase y se descarga directo (sin Ctrl+P).
-  const EDGE_INFORME = SB_URL + '/functions/v1/generar-informe';
+  // El PDF se arma en el navegador con jsPDF (como en HSE) y se descarga directo. Sin servidor, sin Ctrl+P.
   async function generarInforme(otId){
     const ot=ordenes.find(o=>o.id===otId); if(!ot)return;
     const hs=ot.herramienta||[];
     if(!hs.length){ toast('La OIT no tiene herramientas','bad'); return; }
+    if(!(window.jspdf&&window.jspdf.jsPDF)){ toast('No cargó la librería PDF, recargá la página','bad'); return; }
     toast('Generando informe…');
-    try{
-      const { data:{ session } } = await sb.auth.getSession();
-      const resp=await fetch(EDGE_INFORME,{ method:'POST',
-        headers:{ 'Content-Type':'application/json', 'apikey':SB_KEY,
-                  'Authorization':'Bearer '+((session&&session.access_token)||SB_KEY) },
-        body:JSON.stringify({ orden_id:otId }) });
-      if(!resp.ok){ let m=''; try{ m=(await resp.json()).error||''; }catch(_){} toast('No se pudo generar'+(m?': '+m:''),'bad'); return; }
-      const blob=await resp.blob();
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url;
-      a.download='Informe_'+String(ot.codigo||'OIT').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),4000);
-      toast('Informe descargado ✓','ok');
-    }catch(e){ console.error(e); toast('Error al generar el informe','bad'); }
+    const hids=hs.map(h=>h.id);
+    const [cat,resu,ev]=await Promise.all([
+      sb.from('catalogo_actividad').select('id,herramienta_tipo,orden,actividad').order('orden'),
+      sb.from('resultado_actividad').select('herramienta_id,actividad_id,estado_flujo,resultado,observacion,hallazgo').in('herramienta_id',hids),
+      sb.from('actividad_evento').select('herramienta_id,actividad_id,evento,ts').in('herramienta_id',hids)
+    ]);
+    const catById={}; (cat.data||[]).forEach(c=>catById[c.id]=c);
+    const dset=new Set();
+    (ev.data||[]).forEach(e=>{const dd=new Date(e.ts); if(!isNaN(dd.getTime())) dset.add(dd.toISOString().slice(0,10));});
+    const dias=[...dset].sort();
+    const lastEv={}; (ev.data||[]).forEach(e=>{const k=e.herramienta_id+'_'+e.actividad_id; if(!lastEv[k]||new Date(e.ts)>new Date(lastEv[k])) lastEv[k]=e.ts;});
+    const totalSer=hs.length; const toolsDesv=new Set(); let numHall=0;
+    (resu.data||[]).forEach(r=>{ if(r.resultado==='desviacion'){ toolsDesv.add(r.herramienta_id); numHall++; } });
+    const conHall=toolsDesv.size, pct=totalSer?Math.round(conHall/totalSer*100):0;
+    const aseg=[...new Set(hs.map(h=>h.asegurador_id).filter(Boolean).map(id=>(aseguradores.find(a=>a.id===id)||{}).nombre).filter(Boolean))].join(', ')||'—';
+    const rows=(resu.data||[]).filter(r=>r.estado_flujo&&r.estado_flujo!=='no_iniciada').map(r=>{
+      const h=hs.find(x=>x.id===r.herramienta_id)||{}; const c=catById[r.actividad_id]||{};
+      const esDesv=r.resultado==='desviacion'; const obs=(r.observacion||'').trim();
+      return {orden:c.orden||999, fecha:fFecha(lastEv[r.herramienta_id+'_'+r.actividad_id]),
+        serial:h.serial||h.nombre||'—', desc:h.descripcion||h.tipo||'—',
+        actividad:(c.actividad||'actividad')+((obs&&obs!=='Sin observaciones')?(' - '+obs):''),
+        hallazgo:esDesv?'DISCREPANCIA CON REQUERIMIENTO':'No Presenta',
+        descH:esDesv?((r.hallazgo||'').trim()||obs||'Ver detalle'):'No Aplica'};
+    }).sort((a,b)=>a.orden-b.orden);
+    const d={ codigo:ot.codigo, impresion:fFecha(new Date()), fechaInicio:dias.length?fFecha(dias[0]):'—',
+      cliente:ot.cliente||'—', servicio:ot.service_ticket||'—', contrato:ot.contrato||'—',
+      pozo:ot.pozo||'—', rig:ot.rig||'—', origen:ot.origen||'—', compania:ot.compania||'—',
+      seccion:ot.seccion||'—', qaqc:aseg, totalSer, conHall, pct, numHall, dias:dias.length,
+      inicio:dias.length?fFecha(dias[0]):'—', fin:dias.length?fFecha(dias[dias.length-1]):'—',
+      fechasOp:dias.map(k=>fFecha(k)),
+      inv:hs.map(h=>({serial:h.serial||h.nombre||'—', desc:h.descripcion||h.tipo||'—'})),
+      rows };
+    try{ descargarPDF(d); toast('Informe descargado ✓','ok'); }
+    catch(e){ console.error(e); toast('Error al armar el PDF: '+(e&&e.message||e),'bad'); }
+  }
+  function descargarPDF(d){
+    const { jsPDF }=window.jspdf;
+    const NAVY=[35,37,119],NAVY2=[46,49,146],ZEBRA=[238,240,244],LINE=[201,201,201],INK=[34,34,34],MUT=[102,102,102];
+    const doc=new jsPDF({unit:'mm',format:'letter'});
+    const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+    const L=12,Rr=W-12,CW=Rr-L,BANNER_Y=9,BANNER_H=14,TOP=BANNER_Y+BANNER_H+4;
+    function banner(){ doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);doc.rect(L,BANNER_Y,CW,BANNER_H,'F');
+      doc.setFillColor(255,255,255);doc.rect(L+3,BANNER_Y+2.5,26,BANNER_H-5,'F');
+      doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);doc.setFont('helvetica','bolditalic');
+      doc.setFontSize(8);doc.text('TOTAL',L+16,BANNER_Y+6.2,{align:'center'});
+      doc.setFontSize(11);doc.text('QC',L+16,BANNER_Y+11,{align:'center'});
+      doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(14);
+      doc.text('Informe General de Aseguramiento de Calidad',L+34,BANNER_Y+7.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Por Servicio',L+34,BANNER_Y+12); }
+    function footer(i,total){ doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+      doc.text('Página '+i+' de '+total,Rr,H-8,{align:'right'});
+      doc.setTextColor(190,190,190);doc.setFontSize(7);doc.text('POWERED BY FLOTECH · KALU',W/2,H-8,{align:'center'}); }
+    banner();
+    let y=TOP+2;
+    doc.setTextColor(INK[0],INK[1],INK[2]);doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text('Información General',L,y+4);
+    doc.setFontSize(9.5);doc.text('Fecha impresión: '+(d.impresion||'—'),Rr,y+3,{align:'right'});
+    y+=10;
+    const gap=8,colW=(CW-2*gap)/3,colX=[L,L+colW+gap,L+2*(colW+gap)];
+    function field(ci,ry,lbl,val){ const x=colX[ci];
+      doc.setDrawColor(LINE[0],LINE[1],LINE[2]);doc.setLineWidth(0.2);doc.line(x,ry,x+colW,ry);
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(INK[0],INK[1],INK[2]);doc.text(lbl,x,ry+4);
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,60,60);doc.text(String(val==null?'—':val),x,ry+8.6); }
+    function mini(ci,ry,cols,vals){ const x=colX[ci],cw=colW/2,hh=7;
+      doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);doc.rect(x,ry,colW,hh,'F');
+      doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
+      doc.text(cols[0],x+cw/2,ry+4.7,{align:'center'});doc.text(cols[1],x+cw+cw/2,ry+4.7,{align:'center'});
+      doc.setDrawColor(LINE[0],LINE[1],LINE[2]);doc.setLineWidth(0.2);doc.line(x,ry+hh+7,x+colW,ry+hh+7);
+      doc.setTextColor(INK[0],INK[1],INK[2]);doc.setFont('helvetica','normal');
+      doc.text(String(vals[0]),x+cw/2,ry+hh+4.8,{align:'center'});doc.text(String(vals[1]),x+cw+cw/2,ry+hh+4.8,{align:'center'}); }
+    const rh=13;
+    field(0,y,'Fecha Inicio',d.fechaInicio);field(1,y,'Cliente',d.cliente);field(2,y,'N° Servicio',d.servicio);
+    field(0,y+rh,'N° Contrato',d.contrato);field(1,y+rh,'Pozo',d.pozo);field(2,y+rh,'Rig',d.rig);
+    field(0,y+2*rh,'QAQC',d.qaqc);field(1,y+2*rh,'Origen',d.origen);field(2,y+2*rh,'Cía/Base Ejecución',d.compania);
+    field(0,y+3*rh,'Total Seriales',d.totalSer);field(1,y+3*rh,'Total Seriales con Hallazgo',d.conHall);mini(2,y+3*rh,['Sección','# Hallazgos'],[d.seccion,d.numHall]);
+    field(0,y+4*rh,'Herramienta con Hallazgo',d.pct+'%');field(1,y+4*rh,'Días de Operación',d.dias);mini(2,y+4*rh,['Inicio','Fin'],[d.inicio,d.fin]);
+    y=y+5*rh+2;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,60,60);
+    const evid=doc.splitTextToSize('Registro de evidencia fotográfica de las actividades verificadas, disponible a través de ingreso en la plataforma: https://flotech.com.co  Solicitar acceso previa autorización del representante del cliente. Mail to: coordtaller.ecp@totalqcsas.com / admincontrato.ecp@totalqcsas.com',colW*2+gap);
+    doc.text(evid,colX[0],y+4);
+    doc.autoTable({startY:y,margin:{left:colX[2]},tableWidth:colW,head:[['Fechas Operativas']],body:(d.fechasOp.length?d.fechasOp:['—']).map(f=>[f]),theme:'grid',headStyles:{fillColor:NAVY,textColor:255,halign:'center',fontSize:9},bodyStyles:{fontSize:8.5,textColor:INK},alternateRowStyles:{fillColor:ZEBRA},styles:{lineColor:LINE,lineWidth:0.1,cellPadding:1.6}});
+    const yAfter=Math.max(y+evid.length*4.5+4,doc.lastAutoTable.finalY+3);
+    doc.autoTable({startY:yAfter+2,margin:{left:L,right:12,top:TOP},head:[['Inventario de Herramientas Principales Verificadas']],body:[],theme:'plain',headStyles:{fillColor:NAVY,textColor:255,halign:'center',fontStyle:'bold',fontSize:11,cellPadding:2}});
+    doc.autoTable({startY:doc.lastAutoTable.finalY,margin:{left:L,right:12,top:TOP},head:[['Seriales','Descripción']],body:d.inv.map(h=>[h.serial,h.desc]),theme:'grid',headStyles:{fillColor:NAVY2,textColor:255,fontSize:11},columnStyles:{0:{cellWidth:CW*0.28}},bodyStyles:{fontSize:10,textColor:INK},alternateRowStyles:{fillColor:ZEBRA},styles:{lineColor:LINE,lineWidth:0.1,cellPadding:2}});
+    doc.autoTable({startY:doc.lastAutoTable.finalY+4,margin:{left:L,right:12,top:TOP},head:[['Detalles del Servicio']],body:[],theme:'plain',headStyles:{fillColor:NAVY,textColor:255,halign:'center',fontStyle:'bold',fontSize:11,cellPadding:2}});
+    doc.autoTable({startY:doc.lastAutoTable.finalY,margin:{left:L,right:12,top:TOP},head:[['Fecha','Serial','Descripción Hta','Actividad','Hallazgo','Descripción Hallazgo']],body:(d.rows.length?d.rows:[{fecha:'',serial:'',desc:'',actividad:'Sin actividades verificadas todavía.',hallazgo:'',descH:''}]).map(r=>[r.fecha,r.serial,r.desc,r.actividad,r.hallazgo,r.descH]),theme:'grid',headStyles:{fillColor:NAVY2,textColor:255,fontSize:9.5,halign:'center'},bodyStyles:{fontSize:8.5,textColor:INK,valign:'top'},alternateRowStyles:{fillColor:ZEBRA},styles:{lineColor:LINE,lineWidth:0.1,cellPadding:2,overflow:'linebreak'},columnStyles:{0:{cellWidth:20},1:{cellWidth:16},2:{cellWidth:26},4:{cellWidth:24},5:{cellWidth:36}}});
+    let fy=doc.lastAutoTable.finalY+12; if(fy>H-45){doc.addPage();fy=TOP+6;}
+    const c1=L,c2=L+CW/2+6;
+    doc.setDrawColor(0,0,0);doc.setLineWidth(0.4);doc.line(c1,fy,c1+CW/2-6,fy);doc.line(c2,fy,c2+CW/2-6,fy);
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(INK[0],INK[1],INK[2]);
+    doc.text('Representante TOTAL QC SAS',c1,fy+5);doc.text('Representante del Cliente',c2,fy+5);
+    doc.setFontSize(10);doc.text('Elaborado por',c1,fy+13);doc.setFont('helvetica','normal');doc.text(d.qaqc||'',c1,fy+17.5);
+    doc.setFont('helvetica','bold');doc.text('Especialista/Asegurador QAQC',c1,fy+24);doc.text('Fecha:',c1,fy+31);
+    doc.text('Recibido por:',c2,fy+13);doc.text('Identificación:',c2,fy+20);doc.text('Cargo:',c2,fy+27);doc.text('Fecha:',c2,fy+34);
+    const total=doc.getNumberOfPages();
+    for(let i=1;i<=total;i++){doc.setPage(i);if(i>1)banner();footer(i,total);}
+    doc.save('Informe_'+String(d.codigo||'OIT').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf');
   }
   function abrirInforme(d){
     const inv=d.inv.map(h=>`<tr><td>${esc(h.serial||h.nombre||'—')}</td><td>${esc(h.descripcion||h.tipo||'—')}</td></tr>`).join('');

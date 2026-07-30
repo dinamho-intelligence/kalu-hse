@@ -75,6 +75,16 @@
   .pdet{border:1px solid var(--orange);border-radius:12px;margin:0 0 14px;overflow:hidden}
   .pdet-h{background:rgba(245,166,35,.08);padding:9px 14px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:10px}
   .pdet-x{margin-left:auto;color:var(--muted);cursor:pointer;font-weight:600}
+  /* editar OIT + auditoría */
+  .cod.edit{cursor:pointer} .cod.edit:hover{color:var(--orange)}
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin:6px 0 16px}
+  .tab{padding:8px 14px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;user-select:none}
+  .tab.on{color:var(--orange);border-bottom-color:var(--orange)}
+  input.locked{opacity:.55;cursor:not-allowed}
+  .aud-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+  .aud-item .h{font-size:11.5px;color:var(--muted);margin-bottom:6px}
+  .aud-chg{display:block;font-size:12.5px;margin-top:3px}
+  .aud-chg b{color:var(--text)} .aud-chg .old{color:var(--red);text-decoration:line-through} .aud-chg .new{color:var(--green)}
   .ptool{border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden}
   .ptool-h{padding:12px 14px;background:var(--panel2)}
   .ptool-h .nm{font-weight:700;font-size:14.5px} .ptool-h .tp{color:var(--muted);font-size:12px}
@@ -200,6 +210,49 @@
     <div class="modactions">
       <button class="btn ghost" onclick="cerrar('mDes')">Cancelar</button>
       <button class="btn" onclick="confirmarDesasig()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: editar OIT + auditoría -->
+<div class="modal" id="mEdit">
+  <div class="card">
+    <h2 id="ed_ttl">Editar OIT</h2>
+    <div class="tabs">
+      <div class="tab on" id="tab_datos" onclick="edTab('datos')">Datos</div>
+      <div class="tab" id="tab_aud" onclick="edTab('aud')">Auditoría</div>
+    </div>
+    <div id="ed_datos">
+      <label>Código interno (OIT)</label>
+      <input id="ed_codigo" class="locked" readonly>
+      <div class="hint" style="padding:4px 2px 0">El código no se puede cambiar.</div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Contrato</label><input id="ed_contrato"></div>
+        <div><label>Service Ticket</label><input id="ed_ticket"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Cliente</label><input id="ed_cliente"></div>
+        <div><label>Pozo</label><input id="ed_pozo"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Compañía</label><input id="ed_compania"></div>
+        <div><label>Sección / Fase</label><input id="ed_seccion"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Solicitado por</label><input id="ed_solicita"></div>
+        <div><label>Fecha</label><input id="ed_fecha" type="date"></div>
+      </div>
+      <label>Despacho</label>
+      <input id="ed_despacho">
+      <div class="err" id="ed_err"></div>
+      <div class="modactions">
+        <button class="btn ghost" onclick="cerrar('mEdit')">Cancelar</button>
+        <button class="btn" onclick="guardarEdicionOT()">Guardar cambios</button>
+      </div>
+    </div>
+    <div id="ed_aud" style="display:none">
+      <div id="ed_aud_list"><div class="hint">Cargando…</div></div>
+      <div class="modactions"><button class="btn ghost" onclick="cerrar('mEdit')">Cerrar</button></div>
     </div>
   </div>
 </div>
@@ -465,7 +518,7 @@
       }).join('') : '<div class="hint" style="padding:12px 2px 2px">Sin herramientas todavía.</div>';
       return `<div class="ot">
         <div class="ot-h">
-          <span class="cod">${esc(ot.codigo)}</span>
+          <span class="cod edit" title="Editar datos de la OIT" onclick="editarOT(${ot.id})">${esc(ot.codigo)} ✎</span>
           <span class="m">${esc(ot.pozo||'')}${ot.cliente?' · '+esc(ot.cliente):''}${ot.seccion?' · Sec '+esc(ot.seccion):''}${ot.compania?' · '+esc(ot.compania):''}</span>
           <span class="count">${hs.length} herr.</span>
           <span class="spacer"></span>
@@ -498,6 +551,50 @@
     const { error } = await sb.from('orden_de_trabajo').insert(payload);
     if (error){ $('ot_err').textContent = /duplicate|unique/i.test(error.message) ? 'Ya existe una OT con ese código.' : ('Error: '+error.message); return; }
     cerrar('mOT'); toast('OT '+codigo+' creada','ok'); cargar();
+  }
+
+  // ---- editar OIT (todo menos el código) + auditoría ----
+  let edOT=null, edOrig=null;
+  const ED_FIELDS=[['contrato','Contrato'],['service_ticket','Service Ticket'],['cliente','Cliente'],['pozo','Pozo'],['compania','Compañía'],['seccion','Sección/Fase'],['solicitado_por','Solicitado por'],['fecha','Fecha'],['despacho','Despacho']];
+  const ED_MAP={contrato:'ed_contrato',service_ticket:'ed_ticket',cliente:'ed_cliente',pozo:'ed_pozo',compania:'ed_compania',seccion:'ed_seccion',solicitado_por:'ed_solicita',fecha:'ed_fecha',despacho:'ed_despacho'};
+  function edTab(k){
+    $('tab_datos').classList.toggle('on',k==='datos'); $('tab_aud').classList.toggle('on',k==='aud');
+    $('ed_datos').style.display=k==='datos'?'':'none'; $('ed_aud').style.display=k==='aud'?'':'none';
+  }
+  function editarOT(otId){
+    const ot=ordenes.find(o=>o.id===otId); if(!ot)return;
+    edOT=ot.id; edOrig={};
+    $('ed_ttl').textContent='Editar OIT · '+ot.codigo;
+    $('ed_codigo').value=ot.codigo||'';
+    ED_FIELDS.forEach(([f])=>{
+      const el=$(ED_MAP[f]); if(!el)return;
+      el.value=(f==='fecha') ? (ot.fecha?String(ot.fecha).slice(0,10):'') : (ot[f]==null?'':String(ot[f]));
+      edOrig[f]=el.value;
+    });
+    $('ed_err').textContent=''; edTab('datos'); abrir('mEdit'); cargarAuditoria(otId);
+  }
+  async function guardarEdicionOT(){
+    if(!edOT)return;
+    const cambios=[], upd={};
+    ED_FIELDS.forEach(([f,lbl])=>{
+      const nv=($(ED_MAP[f]).value||'').trim(), ov=(edOrig[f]||'').trim();
+      if(nv!==ov){ cambios.push({campo:lbl,antes:ov||'—',despues:nv||'—'}); upd[f]=nv||null; }
+    });
+    if(!cambios.length){ $('ed_err').textContent='No hay cambios para guardar.'; return; }
+    const { error } = await sb.from('orden_de_trabajo').update(upd).eq('id',edOT);
+    if(error){ $('ed_err').textContent='Error al guardar: '+error.message; return; }
+    await sb.from('oit_auditoria').insert({empresa_id:me.empresa_id,orden_id:edOT,usuario_id:me.id,usuario_nombre:me.nombre,cambios});
+    toast('Cambios guardados','ok'); cerrar('mEdit'); cargar();
+  }
+  async function cargarAuditoria(otId){
+    const cont=$('ed_aud_list'); cont.innerHTML='<div class="hint">Cargando…</div>';
+    const { data } = await sb.from('oit_auditoria').select('usuario_nombre,cambios,ts').eq('orden_id',otId).order('ts',{ascending:false});
+    if(!data||!data.length){ cont.innerHTML='<div class="hint">Sin cambios registrados todavía.</div>'; return; }
+    cont.innerHTML=data.map(a=>{
+      const d=new Date(a.ts); const fecha=isNaN(d.getTime())?'':d.toLocaleString('es-CO');
+      const chgs=(a.cambios||[]).map(c=>`<span class="aud-chg"><b>${esc(c.campo)}:</b> <span class="old">${esc(c.antes)}</span> → <span class="new">${esc(c.despues)}</span></span>`).join('');
+      return `<div class="aud-item"><div class="h">✎ ${esc(a.usuario_nombre||'—')} · ${esc(fecha)}</div>${chgs}</div>`;
+    }).join('');
   }
 
   // ---- crear herramienta ----

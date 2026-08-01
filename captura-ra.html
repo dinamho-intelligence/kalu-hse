@@ -95,6 +95,22 @@
   .toast.on{opacity:1}
   .lb{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:110;padding:20px;cursor:zoom-out}
   .lb.on{display:flex}.lb img{max-width:100%;max-height:100%;border-radius:8px}
+  /* lienzo de dibujo */
+  .draw{position:fixed;inset:0;background:#0b0b0b;display:none;flex-direction:column;z-index:200}
+  .draw.on{display:flex}
+  .dtop{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .dtop .dtitle{flex:1;text-align:center;font-weight:700;font-size:14px}
+  .dtop .btn{padding:9px 14px}
+  .dstage{flex:1;position:relative;overflow:hidden;background:#111}
+  #dcanvas{position:absolute;inset:0;touch-action:none;cursor:crosshair}
+  .dtools{display:flex;align-items:center;gap:16px;padding:12px 14px;border-top:1px solid var(--border);flex-wrap:wrap;justify-content:center}
+  .swatches{display:flex;gap:9px}
+  .sw{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer}
+  .sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--amber)}
+  .sizes{display:flex;gap:8px}
+  .szb{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--panel2)}
+  .szb.on{border-color:var(--amber)} .szb i{background:#fff;border-radius:50%;display:block}
+  .dtl{font-size:12.5px;font-weight:700;padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer}
 </style>
 </head>
 <body>
@@ -163,6 +179,21 @@
   <div class="mkerr" id="mkpausa-err"></div>
   <div class="mkacts"><button class="btn ghost" onclick="$('mkpausa').classList.remove('on')">Cancelar</button><button class="btn" onclick="confirmarPausa()">⏸ Pausar</button></div>
 </div></div>
+<!-- lienzo de dibujo / notas a mano -->
+<div class="draw" id="draw">
+  <div class="dtop">
+    <button class="btn ghost" onclick="cerrarDibujo()">✕ Cancelar</button>
+    <div class="dtitle" id="draw-title">Dibujo</div>
+    <button class="btn" onclick="guardarDibujo()">Guardar</button>
+  </div>
+  <div class="dstage" id="dstage"><canvas id="dcanvas"></canvas></div>
+  <div class="dtools">
+    <div class="swatches" id="draw-sw"></div>
+    <div class="sizes" id="draw-sz"></div>
+    <button class="dtl" onclick="dibDeshacer()">↶ Deshacer</button>
+    <button class="dtl" onclick="dibLimpiar()">Limpiar</button>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ====== CONFIG · plataforma unificada ======
@@ -320,15 +351,18 @@ function renderAct(){
       <span class="st d ${val==='desviacion'?'on':''}" ${editable?`onclick="setRes(${a.id},'desviacion')"`:''}>Desviación</span>
       <span class="st n ${val==='na'?'on':''}" ${editable?`onclick="setRes(${a.id},'na')"`:''}>N-A</span>
     </div>
-    <div class="cap-box ${editable?'':'lock'}"><div class="cl">Hallazgo <span class="tagcli">va al cliente</span></div>
+    <div class="cap-box ${editable?'':'lock'}"><div class="cl">Hallazgo <span class="tagcli">va al cliente</span>
+      <button class="mic ${recKey==='hallazgo'+a.id?'on':''}" style="width:34px;height:34px;font-size:15px;margin-left:auto" ${editable?`onclick="dictarCampo(${a.id},'hallazgo','hall-${a.id}')"`:''}>🎤</button></div>
       <textarea id="hall-${a.id}" placeholder="Describí el hallazgo (si presenta)…" onchange="setCampo(${a.id},'hallazgo',this.value)">${esc(r.hallazgo||'')}</textarea></div>
     <div class="cap-box ${editable?'':'lock'}"><div class="cl">Observaciones <span class="tagcli">va al cliente</span>
-      <button class="mic ${recKey==='obs'+a.id?'on':''}" style="width:34px;height:34px;font-size:15px;margin-left:auto" onclick="dictarCampo(${a.id},'observacion','obs-${a.id}')">🎤</button></div>
+      <button class="mic ${recKey==='observacion'+a.id?'on':''}" style="width:34px;height:34px;font-size:15px;margin-left:auto" ${editable?`onclick="dictarCampo(${a.id},'observacion','obs-${a.id}')"`:''}>🎤</button></div>
       <textarea id="obs-${a.id}" onchange="setCampo(${a.id},'observacion',this.value)">${esc(r.observacion||'')}</textarea></div>
-    <div class="cap-box interno ${editable?'':'lock'}"><div class="cl">Memorias <span class="tagint">interno</span></div>
+    <div class="cap-box interno ${editable?'':'lock'}"><div class="cl">Memorias <span class="tagint">interno</span>
+      <button class="mic ${recKey==='memorias'+a.id?'on':''}" style="width:34px;height:34px;font-size:15px;margin-left:auto" ${editable?`onclick="dictarCampo(${a.id},'memorias','mem-${a.id}')"`:''}>🎤</button></div>
       <textarea id="mem-${a.id}" placeholder="Notas internas…" onchange="setCampo(${a.id},'memorias',this.value)">${esc(r.memorias||'')}</textarea></div>
     <div class="evid">${thumbs}
-      ${editable?`<label class="fotobtn">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="fotoEvidencia(${a.id},this.files)"></label>`:''}
+      ${editable?`<label class="fotobtn">＋ Foto<input type="file" accept="image/*" capture="environment" onchange="fotoElegida(${a.id},this.files)"></label>
+      <button class="fotobtn" onclick="abrirDibujo(${a.id})">✏️ Nota / dibujo</button>`:''}
     </div>`;
   window.scrollTo(0,0);
 }
@@ -422,6 +456,42 @@ function dictarCampo(actId,campo,inputId){
   startRec(campo+actId,(t)=>{const r=ensure(actId);r[campo]=((r[campo]||'')+' '+t).trim();const inp=$(inputId);if(inp)inp.value=r[campo];upsertRes(actId);});
 }
 function verFoto(u){if(!u)return;$('lbimg').src=u;$('lb').classList.add('on');}
+/* ============ LIENZO DE DIBUJO (dibujar sobre foto / nota a mano) ============ */
+async function subirCaptura(actId,blob,ext){
+  const path=me.empresa_id+'/'+unidadActual.id+'/'+uuid()+'.'+ext;
+  toast('Subiendo…');
+  const up=await sb.storage.from('capturas').upload(path,blob,{upsert:false,contentType:blob.type||'image/png'});
+  if(up.error){toast('Error subiendo');console.error(up.error);return;}
+  await sb.from('ra_captura').insert({empresa_id:me.empresa_id,unidad_id:unidadActual.id,actividad_id:actId,storage_path:path,tipo:'foto',hash:fnv(path)});
+  const {data:signed}=await sb.storage.from('capturas').createSignedUrl(path,3600);
+  (evid[actId]=evid[actId]||[]).push({url:signed&&signed.signedUrl});
+  renderAct();toast('Evidencia adjuntada ✓');
+}
+let dib={actId:null,ctx:null,canvas:null,drawing:false,color:'#111',size:4,bg:'#f8f7f2',img:null,W:0,H:0,lx:0,ly:0,undo:[]};
+function abrirDibujo(actId){ dib.actId=actId; dib.img=null; dib.bg='#f8f7f2'; $('draw-title').textContent='Nota / dibujo a mano'; prepararTools(['#111111','#d21f1f','#1f6dd2','#F28C00']); mostrarDraw(); }
+function fotoElegida(actId,files){ const f=files&&files[0]; if(!f)return; const inp=document.querySelector('.evid .fotobtn input'); if(inp)inp.value='';
+  const img=new Image(); img.onload=()=>{ dib.actId=actId; dib.img=img; dib.bg='#111'; $('draw-title').textContent='Dibujar sobre la foto'; prepararTools(['#ff3b30','#F28C00','#ffffff','#111111']); mostrarDraw(); };
+  img.onerror=()=>toast('No se pudo abrir la foto'); img.src=URL.createObjectURL(f); }
+function prepararTools(cols){ $('draw-sw').innerHTML=cols.map((c,i)=>`<span class="sw ${i===0?'on':''}" style="background:${c}" onclick="dibColor('${c}',this)"></span>`).join(''); $('draw-sz').innerHTML=[2,4,8].map((s,i)=>`<span class="szb ${i===1?'on':''}" onclick="dibSize(${s},this)"><i style="width:${s+3}px;height:${s+3}px"></i></span>`).join(''); dib.color=cols[0]; dib.size=4; }
+function dibColor(c,el){ dib.color=c; document.querySelectorAll('#draw-sw .sw').forEach(x=>x.classList.remove('on')); el.classList.add('on'); }
+function dibSize(s,el){ dib.size=s; document.querySelectorAll('#draw-sz .szb').forEach(x=>x.classList.remove('on')); el.classList.add('on'); }
+function drawContain(ctx,img,W,H){ const r=Math.min(W/img.width,H/img.height); const w=img.width*r,h=img.height*r,x=(W-w)/2,y=(H-h)/2; ctx.drawImage(img,x,y,w,h); }
+function mostrarDraw(){ $('draw').classList.add('on'); document.body.style.overflow='hidden';
+  setTimeout(()=>{ const c=$('dcanvas'),stage=$('dstage'),rect=stage.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+    c.width=Math.round(rect.width*dpr); c.height=Math.round(rect.height*dpr); c.style.width=rect.width+'px'; c.style.height=rect.height+'px';
+    const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.lineCap='round'; ctx.lineJoin='round';
+    dib.ctx=ctx; dib.canvas=c; dib.W=rect.width; dib.H=rect.height; dib.undo=[];
+    ctx.fillStyle=dib.bg; ctx.fillRect(0,0,rect.width,rect.height); if(dib.img)drawContain(ctx,dib.img,rect.width,rect.height); dibSnapshot(); },30); }
+function dibSnapshot(){ try{ dib.undo.push(dib.ctx.getImageData(0,0,dib.canvas.width,dib.canvas.height)); if(dib.undo.length>8)dib.undo.shift(); }catch(e){} }
+function dibDeshacer(){ if(dib.undo.length>1)dib.undo.pop(); if(dib.undo.length)dib.ctx.putImageData(dib.undo[dib.undo.length-1],0,0); }
+function dibLimpiar(){ const ctx=dib.ctx; ctx.fillStyle=dib.bg; ctx.fillRect(0,0,dib.W,dib.H); if(dib.img)drawContain(ctx,dib.img,dib.W,dib.H); dib.undo=[]; dibSnapshot(); }
+function dibPos(e){ const r=dib.canvas.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+function dibStart(e){ if(!$('draw').classList.contains('on'))return; e.preventDefault(); dib.drawing=true; const p=dibPos(e); dib.lx=p.x; dib.ly=p.y; try{dib.canvas.setPointerCapture(e.pointerId);}catch(_){} const ctx=dib.ctx; ctx.strokeStyle=dib.color; ctx.lineWidth=dib.size; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+0.1,p.y+0.1); ctx.stroke(); }
+function dibMove(e){ if(!dib.drawing)return; e.preventDefault(); const p=dibPos(e),ctx=dib.ctx; ctx.strokeStyle=dib.color; ctx.lineWidth=dib.size; ctx.beginPath(); ctx.moveTo(dib.lx,dib.ly); ctx.lineTo(p.x,p.y); ctx.stroke(); dib.lx=p.x; dib.ly=p.y; }
+function dibEnd(){ if(!dib.drawing)return; dib.drawing=false; dibSnapshot(); }
+function cerrarDibujo(){ $('draw').classList.remove('on'); document.body.style.overflow=''; }
+function guardarDibujo(){ const actId=dib.actId; dib.canvas.toBlob(async(blob)=>{ cerrarDibujo(); if(blob)await subirCaptura(actId,blob,'png'); },'image/png'); }
+(function(){ const c=$('dcanvas'); c.addEventListener('pointerdown',dibStart); c.addEventListener('pointermove',dibMove); window.addEventListener('pointerup',dibEnd); window.addEventListener('pointercancel',dibEnd); })();
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>
 </body>

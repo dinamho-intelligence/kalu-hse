@@ -111,6 +111,17 @@
   .szb{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--panel2)}
   .szb.on{border-color:var(--amber)} .szb i{background:#fff;border-radius:50%;display:block}
   .dtl{font-size:12.5px;font-weight:700;padding:9px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer}
+  /* asistencia */
+  .asfab{position:fixed;right:16px;bottom:16px;z-index:150;width:58px;height:58px;border-radius:50%;border:0;background:var(--amber);color:#1a1200;font-size:24px;box-shadow:0 4px 16px #000a;cursor:pointer;display:none;align-items:center;justify-content:center}
+  .aspanel{position:fixed;right:12px;bottom:84px;z-index:160;width:230px;background:#05070a;border:1px solid var(--border);border-radius:14px;overflow:hidden;display:none;box-shadow:0 10px 30px #000c}
+  .aspanel.on{display:block}
+  .aspanel .ah{display:flex;align-items:center;gap:6px;padding:8px 11px;font-size:12px;font-weight:700;background:var(--panel2)}
+  .aspanel .ah .dot{color:var(--green);font-weight:900}
+  .aspanel video{width:100%;height:150px;object-fit:cover;background:#000;display:block}
+  .aspanel .ac{display:flex;gap:8px;padding:9px;justify-content:center}
+  .aspanel .ac button{width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:17px;cursor:pointer}
+  .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
+  .aspanel .ac button.hang{background:var(--red);color:#fff;border-color:var(--red)}
 </style>
 </head>
 <body>
@@ -179,6 +190,17 @@
   <div class="mkerr" id="mkpausa-err"></div>
   <div class="mkacts"><button class="btn ghost" onclick="$('mkpausa').classList.remove('on')">Cancelar</button><button class="btn" onclick="confirmarPausa()">⏸ Pausar</button></div>
 </div></div>
+<!-- asistencia (operario) -->
+<button class="asfab" id="asFab" onclick="pedirAsistencia()" title="Pedir asistencia">📹</button>
+<div class="aspanel" id="aspanel">
+  <div class="ah"><span class="dot">●</span><span id="as-status">…</span></div>
+  <video id="as-localv" autoplay playsinline muted></video>
+  <audio id="as-remotea" autoplay></audio>
+  <div class="ac">
+    <button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button>
+    <button class="hang" onclick="colgarAsistencia()" title="Colgar">✕</button>
+  </div>
+</div>
 <!-- lienzo de dibujo / notas a mano -->
 <div class="draw" id="draw">
   <div class="dtop">
@@ -229,7 +251,7 @@ async function iniciar(){
 }
 
 /* ---------- LISTA DE UNIDADES ---------- */
-function verLista(){ capUnsub(); $('v-acts').style.display='none';$('v-act').style.display='none';$('v-lista').style.display='block'; cargarLista(); }
+function verLista(){ capUnsub(); $('asFab').style.display='none'; $('v-acts').style.display='none';$('v-act').style.display='none';$('v-lista').style.display='block'; cargarLista(); }
 async function cargarLista(){
   const {data:t}=await sb.from('ra_tipo').select('id,nombre').eq('activo',true).order('nombre');
   tipos=t||[];
@@ -284,6 +306,7 @@ async function abrirUnidad(id){
   actAbierta=null; filtroEstado='todos';
   $('v-lista').style.display='none';$('v-act').style.display='none';$('v-acts').style.display='block';
   capSubscribe(u.id);
+  $('asFab').style.display='flex';
   window.scrollTo(0,0); renderActs();
 }
 /* sincronización en vivo (Realtime): mismo trabajo en lentes y celu */
@@ -513,6 +536,40 @@ function dibEnd(){ if(!dib.drawing)return; dib.drawing=false; dibSnapshot(); }
 function cerrarDibujo(){ $('draw').classList.remove('on'); document.body.style.overflow=''; }
 function guardarDibujo(){ const actId=dib.actId; dib.canvas.toBlob(async(blob)=>{ cerrarDibujo(); if(blob)await subirCaptura(actId,blob,'png'); },'image/png'); }
 (function(){ const c=$('dcanvas'); c.addEventListener('pointerdown',dibStart); c.addEventListener('pointermove',dibMove); window.addEventListener('pointerup',dibEnd); window.addEventListener('pointercancel',dibEnd); })();
+/* ============ ASISTENCIA (operario pide y muestra su cámara) ============ */
+const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+let asCh=null, asPc=null, asStream=null;
+async function pedirAsistencia(){
+  if(!unidadActual){ toast('Entrá a una inspección primero'); return; }
+  if(asStream) return;
+  try{ asStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:true}); }
+  catch(e){ toast('No pude acceder a la cámara/micrófono'); return; }
+  $('aspanel').classList.add('on'); $('as-localv').srcObject=asStream; $('as-status').textContent='avisando al coordinador…';
+  const lobby=sb.channel('asist-lobby-'+me.empresa_id);
+  lobby.subscribe((s)=>{ if(s==='SUBSCRIBED'){ lobby.send({type:'broadcast',event:'req',payload:{unidad_id:unidadActual.id,nombre:unidadActual.nombre,quien:me.nombre}}); setTimeout(()=>sb.removeChannel(lobby),1500); } });
+  asCh=sb.channel('asist-u'+unidadActual.id,{config:{broadcast:{self:false}}});
+  asCh.on('broadcast',{event:'sig'},({payload})=>asSignal(payload));
+  asCh.subscribe((s)=>{ if(s==='SUBSCRIBED'){ $('as-status').textContent='esperando al coordinador…'; asBcast({t:'hello'}); } });
+}
+function asBcast(m){ asCh&&asCh.send({type:'broadcast',event:'sig',payload:m}); }
+function asNewPC(){
+  asPc=new RTCPeerConnection(ICE);
+  asStream.getTracks().forEach(t=>asPc.addTrack(t,asStream));
+  asPc.onicecandidate=e=>{ if(e.candidate) asBcast({t:'ice',c:e.candidate}); };
+  asPc.ontrack=e=>{ $('as-remotea').srcObject=e.streams[0]; $('as-status').textContent='● en vivo con coordinador'; };
+}
+async function asSignal(m){
+  if(m.t==='hello'){ if(asPc)return; asNewPC(); const o=await asPc.createOffer(); await asPc.setLocalDescription(o); asBcast({t:'offer',sdp:o}); }
+  else if(m.t==='answer'){ if(asPc&&!asPc.currentRemoteDescription) await asPc.setRemoteDescription(m.sdp); }
+  else if(m.t==='ice'){ try{ if(asPc) await asPc.addIceCandidate(m.c); }catch(e){} }
+  else if(m.t==='bye'){ $('as-status').textContent='el coordinador colgó'; }
+}
+function asMic(){ const t=asStream&&asStream.getAudioTracks()[0]; if(!t)return; t.enabled=!t.enabled; $('as-mic').classList.toggle('on',t.enabled); }
+function colgarAsistencia(){ try{asBcast({t:'bye'});}catch(e){}
+  if(asPc){asPc.close();asPc=null;} if(asCh){sb.removeChannel(asCh);asCh=null;}
+  if(asStream){asStream.getTracks().forEach(t=>t.stop());asStream=null;}
+  $('aspanel').classList.remove('on');
+}
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>
 </body>

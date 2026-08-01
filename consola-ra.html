@@ -530,8 +530,9 @@ function prevActHtml(id){
       <span class="pv-st d ${val==='desviacion'?'on':''}" ${editable?`onclick="prevSetRes(${id},'desviacion')"`:''}>Desviación</span>
       <span class="pv-st n ${val==='na'?'on':''}" ${editable?`onclick="prevSetRes(${id},'na')"`:''}>N-A</span>
     </div>
-    <div class="pv-campo"><div class="pv-cl">Hallazgo <span style="font-size:9px;color:var(--green)">va al cliente</span></div><textarea class="pv-in" ${editable?'':'disabled'} placeholder="Describí el hallazgo…" onchange="prevSetCampo(${id},'hallazgo',this.value)">${esc(s.hallazgo||'')}</textarea></div>
-    <div class="pv-campo"><div class="pv-cl">Observaciones</div><textarea class="pv-in" ${editable?'':'disabled'} onchange="prevSetCampo(${id},'obs',this.value)">${esc(s.obs||'')}</textarea></div>`;
+    <div class="pv-campo"><div class="pv-cl" style="display:flex;align-items:center;gap:8px">Hallazgo <span style="font-size:9px;color:var(--green)">va al cliente</span><span class="pv-mic ${prevRecKey==='hallazgo'?'on':''}" style="width:34px;height:34px;font-size:15px;margin-left:auto" ${editable?`onclick="prevDictarCampo(${id},'hallazgo')"`:''}>🎤</span></div><textarea class="pv-in" ${editable?'':'disabled'} placeholder="Describí el hallazgo… (o dictá)" onchange="prevSetCampo(${id},'hallazgo',this.value)">${esc(s.hallazgo||'')}</textarea></div>
+    <div class="pv-campo"><div class="pv-cl" style="display:flex;align-items:center;gap:8px">Observaciones<span class="pv-mic ${prevRecKey==='obs'?'on':''}" style="width:34px;height:34px;font-size:15px;margin-left:auto" ${editable?`onclick="prevDictarCampo(${id},'obs')"`:''}>🎤</span></div><textarea class="pv-in" ${editable?'':'disabled'} onchange="prevSetCampo(${id},'obs',this.value)">${esc(s.obs||'')}</textarea></div>
+    <div class="pv-hint" style="margin-top:12px">📷 ＋ Foto &nbsp;·&nbsp; ✏️ Nota / dibujo — en el lente se dibuja y anota sobre la foto</div>`;
 }
 function prevPasoHtml(id,d,editable){
   const v=(prevState[id].pasos[d.id]&&prevState[id].pasos[d.id].valor)||'';
@@ -539,12 +540,21 @@ function prevPasoHtml(id,d,editable){
   if(d.tipo_dato==='si_no'){
     input=`<div class="pv-sino"><b class="si ${v==='Sí'?'on':''}" ${editable?`onclick="prevSetPaso(${id},${d.id},'Sí')"`:''}>Sí</b><b class="no ${v==='No'?'on':''}" ${editable?`onclick="prevSetPaso(${id},${d.id},'No')"`:''}>No</b></div>`;
   } else if(d.tipo_dato==='foto'){
-    input=`<div class="pv-hint" style="margin:8px 0 0">📷 Acá el operario toma una foto${v?' ✓':''}</div>`;
+    input=`<div class="pv-hint" style="margin:8px 0 0">📷 Foto${v?' ✓':''} — en el lente se puede dibujar/anotar encima</div>`;
   } else {
     const it=d.tipo_dato==='numero'?'number':(d.tipo_dato==='fecha'?'date':'text');
     input=`<div style="display:flex;gap:8px;align-items:center"><input class="pv-in" style="margin-top:0" type="${it}" value="${esc(v)}" ${editable?'':'disabled'} onchange="prevSetPaso(${id},${d.id},this.value)">${d.tipo_dato!=='fecha'?`<span class="pv-mic ${prevRecKey==='p'+d.id?'on':''}" ${editable?`onclick="prevDictar(${id},${d.id})"`:''}>🎤</span>`:''}</div>`;
   }
   return `<div class="pv-paso"><div class="pv-pt">${d.orden}. ${esc(d.nombre)}</div>${d.criterio?`<div class="pv-crit">Criterio: ${esc(d.criterio)}</div>`:''}${input}</div>`;
+}
+function prevDictarCampo(id,campo){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Tu navegador no soporta dictado');return;}
+  if(prevRecog){prevRecog.stop();return;}
+  prevRecog=new SR();prevRecog.lang='es-CO';prevRecog.continuous=false;prevRecog.interimResults=false;prevRecKey=campo;
+  prevRecog.onresult=(e)=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;prevState[id][campo]=((prevState[id][campo]||'')+' '+t).trim();};
+  prevRecog.onend=()=>{prevRecog=null;prevRecKey=null;prevRender();};
+  prevRecog.start();prevRender();toast('🎤 Dictando…');
 }
 function prevDictar(id,pid){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;

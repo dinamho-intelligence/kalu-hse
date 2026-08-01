@@ -221,6 +221,16 @@
   <div class="mks">Así lo ve el operario. No se guarda nada — es para probar el paso y el dictado antes de asignar.</div>
   <div id="prev-frame" class="devframe cel"></div>
 </div></div>
+<!-- Monitor en vivo -->
+<div class="modalk" id="mkmon"><div class="mkcard" style="max-width:640px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+    <div class="mkt" style="margin:0;flex:1" id="mon-title">🔴 En vivo</div>
+    <span id="mon-dot" style="font-size:11px;font-weight:800">● …</span>
+    <button class="btn mini" onclick="cerrarMonitor()">✕</button>
+  </div>
+  <div class="mks">Se actualiza solo mientras el operario trabaja — no hace falta refrescar.</div>
+  <div id="mon-body"><div class="empty">Cargando…</div></div>
+</div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
@@ -293,6 +303,7 @@ async function cargarOrdenes(){
         return `<div class="unidad">
           <div class="main"><div class="t">${esc(u.nombre)}</div><div class="m">${esc(u.ra_tipo&&u.ra_tipo.nombre)||'—'}</div></div>
           <span class="miniprog">${cer}/${tot} cerradas</span>
+          <button class="btn mini" onclick="abrirMonitor(${u.id})">🔴 En vivo</button>
           <div class="asig"><span class="lb ${asignado?'ok':'no'}">${asignado?'✓ operador':'sin asignar'}</span>
             <select onchange="asignar(${u.id},this.value)">${opts(u.asignado_a)}</select></div>
         </div>`;}).join(''):'<div class="unidad"><span class="m" style="color:var(--muted)">Sin unidades. Agregá una con "+ Unidad".</span></div>'}
@@ -564,6 +575,65 @@ function prevDictar(id,pid){
   prevRecog.onresult=(e)=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;const pr=(prevState[id].pasos[pid]&&prevState[id].pasos[pid].valor)||'';prevState[id].pasos[pid]={valor:(pr+' '+t).trim()};};
   prevRecog.onend=()=>{prevRecog=null;prevRecKey=null;prevRender();};
   prevRecog.start();prevRender();toast('🎤 Dictando… (probá decir un valor)');
+}
+/* ============ MONITOR EN VIVO (Realtime) ============ */
+let monCh=null, monUnidad=null, monTimer=null;
+async function abrirMonitor(unidadId){
+  monUnidad=unidadId; $('mon-dot').textContent='● conectando…'; $('mon-dot').style.color='var(--amb)';
+  $('mkmon').classList.add('on'); await monRender();
+  if(monCh){sb.removeChannel(monCh);monCh=null;}
+  monCh=sb.channel('mon-'+unidadId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ra_resultado',filter:'unidad_id=eq.'+unidadId},monPing)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ra_evento',filter:'unidad_id=eq.'+unidadId},monPing)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ra_captura',filter:'unidad_id=eq.'+unidadId},monPing)
+    .subscribe((st)=>{ if(st==='SUBSCRIBED'){$('mon-dot').textContent='● en vivo';$('mon-dot').style.color='var(--green)';} });
+}
+function monPing(){ if(monTimer)clearTimeout(monTimer); monTimer=setTimeout(monRender,400); }
+function cerrarMonitor(){ if(monCh){sb.removeChannel(monCh);monCh=null;} if(monTimer){clearTimeout(monTimer);monTimer=null;} monUnidad=null; $('mkmon').classList.remove('on'); }
+function monChip(r){
+  const ef=r?(r.estado_flujo||'no_iniciada'):'no_iniciada', v=r&&r.resultado;
+  const c=(t,col)=>`<span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:3px 9px;border-radius:20px;border:1px solid ${col};color:${col}">${t}</span>`;
+  if(ef==='cerrada') return v==='desviacion'?c('cerrada ✗','#ff5a4d'):c('cerrada ✓','#2fa36b');
+  if(ef==='en_curso') return c('en curso','#00d4ff');
+  if(ef==='pausada') return c('en pausa','#f0b04a');
+  return c('sin iniciar','#8a909c');
+}
+async function monRender(){
+  if(!monUnidad)return;
+  const {data:u}=await sb.from('ra_unidad').select('nombre,tipo_id,asignado_a, ra_tipo(nombre)').eq('id',monUnidad).maybeSingle();
+  if(!u){$('mon-body').innerHTML='<div class="empty">Sin datos.</div>';return;}
+  $('mon-title').textContent='🔴 En vivo · '+u.nombre;
+  const {data:acts}=await sb.from('ra_actividad').select('id,orden,nombre').eq('tipo_id',u.tipo_id).order('orden');
+  const aids=(acts||[]).map(a=>a.id);
+  let pasos=[],res=[],caps=[];
+  if(aids.length){
+    const [pp,rr]=await Promise.all([
+      sb.from('ra_paso').select('id,actividad_id,orden,nombre,tipo_dato').in('actividad_id',aids).order('orden'),
+      sb.from('ra_resultado').select('actividad_id,resultado,estado_flujo,observacion,hallazgo,pasos').eq('unidad_id',monUnidad)
+    ]);
+    pasos=pp.data||[];res=rr.data||[];
+  }
+  const {data:cp}=await sb.from('ra_captura').select('actividad_id,storage_path').eq('unidad_id',monUnidad).not('actividad_id','is',null);
+  caps=cp||[];
+  const paths=caps.filter(c=>c.storage_path).map(c=>c.storage_path); let sig={};
+  if(paths.length){const {data:s}=await sb.storage.from('capturas').createSignedUrls(paths,3600);(s||[]).forEach(x=>{if(x.path)sig[x.path]=x.signedUrl;});}
+  const ppa={}; pasos.forEach(p=>{(ppa[p.actividad_id]=ppa[p.actividad_id]||[]).push(p);});
+  const rba={}; res.forEach(r=>{rba[r.actividad_id]=r;});
+  const cba={}; caps.forEach(c=>{(cba[c.actividad_id]=cba[c.actividad_id]||[]).push(c);});
+  const total=(acts||[]).length, cerr=(acts||[]).filter(a=>rba[a.id]&&rba[a.id].estado_flujo==='cerrada').length;
+  const cuerpo=(acts||[]).map(a=>{
+    const r=rba[a.id]; const defs=ppa[a.id]||[];
+    const pasosHtml=defs.map(d=>{const val=(r&&r.pasos&&r.pasos[d.id]&&r.pasos[d.id].valor)||'—';
+      return `<div style="font-size:12.5px;color:var(--muted);margin-top:2px">${d.orden}. ${esc(d.nombre)}: <b style="color:var(--text)">${esc(val)}</b></div>`;}).join('');
+    const fotos=(cba[a.id]||[]).map(c=>sig[c.storage_path]?`<img src="${sig[c.storage_path]}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`:'').join('');
+    return `<div class="ubar"><div style="display:flex;align-items:center;gap:8px"><b>${a.orden}. ${esc(a.nombre)}</b><span style="margin-left:auto">${monChip(r)}</span></div>
+      ${pasosHtml}
+      ${r&&r.hallazgo?`<div style="font-size:12.5px;margin-top:4px"><span style="color:#2fa36b;font-weight:700">Hallazgo:</span> ${esc(r.hallazgo)}</div>`:''}
+      ${r&&r.observacion?`<div style="font-size:12.5px;color:var(--muted);margin-top:2px">Obs: ${esc(r.observacion)}</div>`:''}
+      ${fotos?`<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${fotos}</div>`:''}
+    </div>`;
+  }).join('') || '<div class="empty">Este tipo no tiene actividades.</div>';
+  $('mon-body').innerHTML=`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${esc(u.ra_tipo&&u.ra_tipo.nombre)||''} · operario: ${u.asignado_a?esc(opName(u.asignado_a)||'asignado'):'sin asignar'} · <b style="color:var(--text)">${cerr}/${total} cerradas</b></div>`+cuerpo;
 }
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>

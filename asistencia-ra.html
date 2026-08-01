@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>KALU · Asistencia remota (PoC)</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  :root{--bg:#0b0e13;--panel:#12161c;--panel2:#1b222c;--border:#242b35;--text:#e8edf2;--muted:#8a909c;--amber:#F28C00;--cyan:#00d4ff;--green:#2fa36b;--red:#ff5a4d}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
+  .card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;margin-bottom:4px}
+  .brand svg{width:30px;height:33px}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:20px}
+  label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;font-weight:700}
+  input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:12px;font-size:15px}
+  .roles{display:flex;gap:10px;margin-top:6px}
+  .rl{flex:1;text-align:center;padding:14px 8px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg);cursor:pointer;font-weight:700}
+  .rl.on{border-color:var(--amber);background:rgba(242,140,0,.12);color:var(--amber)}
+  .rl .e{font-size:22px;display:block;margin-bottom:4px}
+  .rl small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:3px}
+  .btn{border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;background:var(--amber);color:#1a1200;width:100%;margin-top:18px}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .btn.red{background:var(--red);color:#fff}
+  .btn:disabled{opacity:.5}
+  .err{color:var(--red);font-size:13px;margin-top:12px;min-height:16px}
+  /* call */
+  #call{display:none;position:fixed;inset:0;background:#05070a;flex-direction:column}
+  #call.on{display:flex}
+  .stage{flex:1;position:relative;overflow:hidden;background:#000}
+  #remoteV{width:100%;height:100%;object-fit:contain;background:#000}
+  .waiting{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:12px;text-align:center;padding:20px}
+  .spin{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #localV{position:absolute;right:12px;bottom:88px;width:110px;height:150px;object-fit:cover;border-radius:12px;border:2px solid var(--border);background:#111;z-index:5}
+  .topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(#000a,transparent);z-index:6}
+  .st{font-size:12px;font-weight:800;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:#0009}
+  .st.live{color:var(--green);border-color:rgba(47,163,107,.5)}
+  .st.wait{color:var(--amber);border-color:rgba(242,140,0,.5)}
+  .rec-dot{color:var(--red);font-weight:800;font-size:12px;display:none;align-items:center;gap:5px}
+  .rec-dot.on{display:inline-flex;animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.4}}
+  .controls{display:flex;gap:10px;justify-content:center;padding:14px;background:#05070a;flex-wrap:wrap}
+  .cbtn{width:56px;height:56px;border-radius:50%;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .cbtn.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
+  .cbtn.rec.on{background:var(--red);color:#fff;border-color:var(--red)}
+  .cbtn.hang{background:var(--red);color:#fff;border-color:var(--red)}
+  .clab{font-size:10px;color:var(--muted);text-align:center;margin-top:3px}
+  .cwrap{display:flex;flex-direction:column;align-items:center}
+  .sbadge{position:fixed;left:10px;bottom:10px;z-index:9999;background:rgba(242,140,0,.15);border:1px solid rgba(242,140,0,.5);color:#F28C00;font:700 11px/1 'Segoe UI',sans-serif;padding:6px 10px;border-radius:20px;pointer-events:none}
+  audio{display:none}
+</style>
+</head>
+<body>
+<!-- SETUP -->
+<div id="setup" class="center">
+  <div class="card">
+    <div class="brand"><svg viewBox="0 0 46 50"><polygon points="23,2 44,13.5 44,36.5 23,48 2,36.5 2,13.5" fill="none" stroke="#F28C00" stroke-width="2.5"/><text x="23" y="31" text-anchor="middle" fill="#F28C00" font-size="15" font-weight="900" font-family="Arial">DI</text></svg>Asistencia remota</div>
+    <div class="sub">Prueba de concepto — video en vivo + audio. Abrí esta página en dos aparatos, elegí un rol en cada uno y la misma sala.</div>
+    <label>Soy…</label>
+    <div class="roles">
+      <div class="rl" id="rl-op" onclick="pickRole('op')"><span class="e">📷</span>Operario<small>manda la cámara</small></div>
+      <div class="rl" id="rl-sup" onclick="pickRole('sup')"><span class="e">🖥️</span>Supervisor<small>ve y habla</small></div>
+    </div>
+    <label>Sala</label>
+    <input id="room" value="sala-1" placeholder="nombre de la sala (igual en los dos)">
+    <button class="btn" id="go" onclick="conectar()" disabled>Conectar →</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+<!-- CALL -->
+<div id="call">
+  <div class="stage">
+    <video id="remoteV" autoplay playsinline></video>
+    <video id="localV" autoplay playsinline muted></video>
+    <div class="waiting" id="waiting"><div class="spin"></div><div id="wtxt">Esperando a la otra persona…</div></div>
+    <div class="topbar">
+      <span class="st wait" id="callst">conectando…</span>
+      <span class="rec-dot" id="recdot">● REC</span>
+      <span style="flex:1"></span>
+      <span class="st" id="roomlab"></span>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="cwrap"><button class="cbtn on" id="btnMic" onclick="toggleMic()">🎤</button><div class="clab">Mic</div></div>
+    <div class="cwrap" id="wrapCam"><button class="cbtn on" id="btnCam" onclick="toggleCam()">📷</button><div class="clab">Cámara</div></div>
+    <div class="cwrap" id="wrapRec" style="display:none"><button class="cbtn rec" id="btnRec" onclick="toggleRec()">⏺</button><div class="clab">Grabar</div></div>
+    <div class="cwrap" id="wrapShot" style="display:none"><button class="cbtn" id="btnShot" onclick="captura()">📸</button><div class="clab">Foto</div></div>
+    <div class="cwrap"><button class="cbtn hang" onclick="colgar()">✕</button><div class="clab">Colgar</div></div>
+  </div>
+</div>
+<div class="sbadge">🧪 PoC · asistencia</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_KEY='sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const $=(id)=>document.getElementById(id);
+const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+let role=null, room=null, pc=null, localStream=null, ch=null, offered=false, remoteStream=null;
+let rec=null, recChunks=[];
+
+function pickRole(r){ role=r; $('rl-op').classList.toggle('on',r==='op'); $('rl-sup').classList.toggle('on',r==='sup'); $('go').disabled=false; }
+
+async function conectar(){
+  room=$('room').value.trim()||'sala-1'; $('err').textContent='';
+  try{
+    const constraints = role==='op' ? {video:{facingMode:'environment',width:{ideal:1280}},audio:true} : {video:false,audio:true};
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  }catch(e){ $('err').textContent='No pude acceder a la cámara/micrófono. Dale permiso y probá de nuevo.'; console.error(e); return; }
+  $('setup').style.display='none'; $('call').classList.add('on');
+  $('roomlab').textContent=(role==='op'?'📷 Operario':'🖥️ Supervisor')+' · '+room;
+  if(role==='op'){ $('localV').srcObject=localStream; $('wrapCam').style.display='flex'; }
+  else { $('localV').style.display='none'; $('wrapCam').style.display='none'; $('wrapRec').style.display='flex'; $('wrapShot').style.display='flex'; }
+  // señalización por Supabase Realtime (broadcast)
+  ch = sb.channel('asist-'+room,{config:{broadcast:{self:false}}});
+  ch.on('broadcast',{event:'sig'}, ({payload})=>onSignal(payload));
+  ch.subscribe((s)=>{ if(s==='SUBSCRIBED'){ send({t:'hello',role}); } });
+}
+function send(m){ m.role=role; ch && ch.send({type:'broadcast',event:'sig',payload:m}); }
+
+function newPC(){
+  pc=new RTCPeerConnection(ICE);
+  localStream.getTracks().forEach(tr=>pc.addTrack(tr,localStream));
+  pc.onicecandidate=e=>{ if(e.candidate) send({t:'ice',c:e.candidate}); };
+  pc.ontrack=e=>{ remoteStream=e.streams[0]; $('remoteV').srcObject=remoteStream; $('waiting').style.display='none'; };
+  pc.onconnectionstatechange=()=>{
+    const st=pc.connectionState;
+    const el=$('callst');
+    if(st==='connected'){ el.textContent='● en vivo'; el.className='st live'; }
+    else if(st==='connecting'||st==='new'){ el.textContent='conectando…'; el.className='st wait'; }
+    else if(st==='failed'||st==='disconnected'){ el.textContent='se cortó'; el.className='st wait'; $('waiting').style.display='flex'; $('wtxt').textContent='Se perdió la conexión. (En el campo esto lo resuelve el TURN de LiveKit.)'; }
+  };
+}
+async function startOffer(){
+  if(offered||pc) return; offered=true; newPC();
+  const off=await pc.createOffer(); await pc.setLocalDescription(off); send({t:'offer',sdp:off});
+}
+async function onSignal(m){
+  if(!m||m.role===role) return;
+  if(m.t==='hello'){
+    // el operario es el que ofrece cuando sabe que hay supervisor, y viceversa avisamos presencia
+    if(role==='op'){ startOffer(); } else { send({t:'hello',role}); }
+  } else if(m.t==='offer'){
+    if(!pc) newPC();
+    await pc.setRemoteDescription(m.sdp);
+    const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); send({t:'answer',sdp:ans});
+  } else if(m.t==='answer'){
+    if(pc && !pc.currentRemoteDescription) await pc.setRemoteDescription(m.sdp);
+  } else if(m.t==='ice'){
+    try{ if(pc) await pc.addIceCandidate(m.c); }catch(e){}
+  } else if(m.t==='bye'){
+    $('waiting').style.display='flex'; $('wtxt').textContent='La otra persona colgó.';
+  }
+}
+function toggleMic(){ const t=localStream.getAudioTracks()[0]; if(!t)return; t.enabled=!t.enabled; $('btnMic').classList.toggle('on',t.enabled); }
+function toggleCam(){ const t=localStream.getVideoTracks()[0]; if(!t)return; t.enabled=!t.enabled; $('btnCam').classList.toggle('on',t.enabled); }
+function toggleRec(){
+  if(!remoteStream){ alert('Todavía no hay video para grabar.'); return; }
+  if(rec && rec.state!=='inactive'){ rec.stop(); return; }
+  recChunks=[];
+  let mime='video/webm;codecs=vp8,opus'; if(!MediaRecorder.isTypeSupported(mime)) mime='video/webm';
+  try{ rec=new MediaRecorder(remoteStream,{mimeType:mime}); }catch(e){ alert('Este navegador no soporta grabar.'); return; }
+  rec.ondataavailable=e=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
+  rec.onstop=()=>{ const blob=new Blob(recChunks,{type:'video/webm'}); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='asistencia-'+room+'-'+Date.now()+'.webm'; a.click();
+    $('btnRec').classList.remove('on'); $('recdot').classList.remove('on'); };
+  rec.start(); $('btnRec').classList.add('on'); $('recdot').classList.add('on');
+}
+function captura(){
+  if(!remoteStream){ alert('Todavía no hay video.'); return; }
+  const v=$('remoteV'); const c=document.createElement('canvas');
+  c.width=v.videoWidth||1280; c.height=v.videoHeight||720;
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  const a=document.createElement('a'); a.href=c.toDataURL('image/png'); a.download='captura-'+room+'-'+Date.now()+'.png'; a.click();
+}
+function colgar(){ try{ send({t:'bye'}); }catch(e){}
+  if(rec&&rec.state!=='inactive'){try{rec.stop();}catch(e){}}
+  if(pc){pc.close();pc=null;} if(ch){sb.removeChannel(ch);ch=null;}
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());}
+  location.reload();
+}
+</script>
+</body>
+</html>

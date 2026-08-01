@@ -113,6 +113,19 @@
   .pv-st.n.on{background:#8a8f88;color:#111;border-color:#8a8f88}
   .pv-campo{margin-top:12px}.pv-cl{font-size:12.5px;font-weight:700;margin-bottom:5px}
   .pv-hint{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;color:var(--muted);font-size:12.5px;margin-bottom:10px}
+  /* asistencia (coordinador) */
+  .asbanner{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;display:none;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--amber);border-radius:12px;padding:10px 14px;box-shadow:0 8px 24px #000b}
+  .asbanner.on{display:flex}
+  .asbanner span{font-size:13.5px;font-weight:700}
+  .aspanel{position:fixed;right:14px;bottom:14px;z-index:200;width:290px;background:#05070a;border:1px solid var(--border);border-radius:14px;overflow:hidden;display:none;box-shadow:0 10px 30px #000c}
+  .aspanel.on{display:block}
+  .aspanel .ah{display:flex;align-items:center;gap:6px;padding:9px 12px;font-size:12.5px;font-weight:700;background:var(--panel2)}
+  .aspanel .ah .dot{color:var(--green);font-weight:900}
+  .aspanel video{width:100%;height:205px;object-fit:cover;background:#000;display:block}
+  .aspanel .ac{display:flex;gap:8px;padding:10px;justify-content:center}
+  .aspanel .ac button{width:44px;height:44px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:18px;cursor:pointer}
+  .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
+  .aspanel .ac button.hang{background:var(--red);color:#fff;border-color:var(--red)}
 </style>
 </head>
 <body>
@@ -231,6 +244,13 @@
   <div class="mks">Se actualiza solo mientras el operario trabaja — no hace falta refrescar.</div>
   <div id="mon-body"><div class="empty">Cargando…</div></div>
 </div></div>
+<!-- asistencia (coordinador) -->
+<div class="asbanner" id="asbanner"><span id="asbanner-txt"></span><button class="btn sm" onclick="unirAsistencia()">Unirme</button><button class="btn mini" onclick="$('asbanner').classList.remove('on')">✕</button></div>
+<div class="aspanel" id="aspanel">
+  <div class="ah"><span class="dot">●</span><span id="as-status">…</span></div>
+  <video id="as-remotev" autoplay playsinline></video>
+  <div class="ac"><button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button><button class="hang" onclick="colgarAsistencia()" title="Colgar">✕</button></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
@@ -263,6 +283,7 @@ async function iniciar(){
   const {data:ops}=await sb.from('perfiles').select('id,nombre,email').eq('empresa_id',me.empresa_id);
   operadores=ops||[];
   await fetchTipos();
+  asListenLobby();
   cargarOrdenes();
 }
 function tab(n){
@@ -634,6 +655,47 @@ async function monRender(){
     </div>`;
   }).join('') || '<div class="empty">Este tipo no tiene actividades.</div>';
   $('mon-body').innerHTML=`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${esc(u.ra_tipo&&u.ra_tipo.nombre)||''} · operario: ${u.asignado_a?esc(opName(u.asignado_a)||'asignado'):'sin asignar'} · <b style="color:var(--text)">${cerr}/${total} cerradas</b></div>`+cuerpo;
+}
+/* ============ ASISTENCIA (coordinador ve y habla) ============ */
+const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+let asCh=null, asPc=null, asStream=null, asLobby=null;
+function asListenLobby(){
+  if(asLobby) return;
+  asLobby=sb.channel('asist-lobby-'+me.empresa_id);
+  asLobby.on('broadcast',{event:'req'},({payload})=>asShowBanner(payload));
+  asLobby.subscribe();
+}
+function asShowBanner(p){
+  $('asbanner-txt').textContent='🔔 '+(p.quien||'Operario')+' pide asistencia · '+(p.nombre||'');
+  $('asbanner').dataset.unidad=p.unidad_id; $('asbanner').classList.add('on');
+}
+async function unirAsistencia(){
+  const uid=$('asbanner').dataset.unidad; $('asbanner').classList.remove('on');
+  if(!uid||asStream) return;
+  try{ asStream=await navigator.mediaDevices.getUserMedia({video:false,audio:true}); }
+  catch(e){ toast('No pude acceder al micrófono'); return; }
+  $('aspanel').classList.add('on'); $('as-status').textContent='conectando…';
+  asCh=sb.channel('asist-u'+uid,{config:{broadcast:{self:false}}});
+  asCh.on('broadcast',{event:'sig'},({payload})=>asSignal(payload));
+  asCh.subscribe((s)=>{ if(s==='SUBSCRIBED'){ asBcast({t:'hello'}); } });
+}
+function asBcast(m){ asCh&&asCh.send({type:'broadcast',event:'sig',payload:m}); }
+function asNewPC(){
+  asPc=new RTCPeerConnection(ICE);
+  asStream.getTracks().forEach(t=>asPc.addTrack(t,asStream));
+  asPc.onicecandidate=e=>{ if(e.candidate) asBcast({t:'ice',c:e.candidate}); };
+  asPc.ontrack=e=>{ $('as-remotev').srcObject=e.streams[0]; $('as-status').textContent='● en vivo'; };
+}
+async function asSignal(m){
+  if(m.t==='offer'){ if(!asPc)asNewPC(); await asPc.setRemoteDescription(m.sdp); const a=await asPc.createAnswer(); await asPc.setLocalDescription(a); asBcast({t:'answer',sdp:a}); }
+  else if(m.t==='ice'){ try{ if(asPc) await asPc.addIceCandidate(m.c); }catch(e){} }
+  else if(m.t==='bye'){ $('as-status').textContent='el operario colgó'; }
+}
+function asMic(){ const t=asStream&&asStream.getAudioTracks()[0]; if(!t)return; t.enabled=!t.enabled; $('as-mic').classList.toggle('on',t.enabled); }
+function colgarAsistencia(){ try{asBcast({t:'bye'});}catch(e){}
+  if(asPc){asPc.close();asPc=null;} if(asCh){sb.removeChannel(asCh);asCh=null;}
+  if(asStream){asStream.getTracks().forEach(t=>t.stop());asStream=null;}
+  $('aspanel').classList.remove('on');
 }
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>

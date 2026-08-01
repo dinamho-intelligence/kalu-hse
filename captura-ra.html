@@ -209,6 +209,7 @@ let me={id:null,empresa_id:null,nombre:''};
 let tipos=[], unidades=[], unidadActual=null;
 let acts=[], pasosDef={}, res={}, evid={}, actAbierta=null, filtroEstado='todos';
 let recog=null, recKey=null;
+let capCh=null, capSyncTimer=null;
 
 async function entrar(){
   $('err').textContent='';
@@ -228,7 +229,7 @@ async function iniciar(){
 }
 
 /* ---------- LISTA DE UNIDADES ---------- */
-function verLista(){ $('v-acts').style.display='none';$('v-act').style.display='none';$('v-lista').style.display='block'; cargarLista(); }
+function verLista(){ capUnsub(); $('v-acts').style.display='none';$('v-act').style.display='none';$('v-lista').style.display='block'; cargarLista(); }
 async function cargarLista(){
   const {data:t}=await sb.from('ra_tipo').select('id,nombre').eq('activo',true).order('nombre');
   tipos=t||[];
@@ -282,7 +283,27 @@ async function abrirUnidad(id){
     (caps||[]).forEach(c=>{(evid[c.actividad_id]=evid[c.actividad_id]||[]).push({url:map[c.storage_path]});});}
   actAbierta=null; filtroEstado='todos';
   $('v-lista').style.display='none';$('v-act').style.display='none';$('v-acts').style.display='block';
+  capSubscribe(u.id);
   window.scrollTo(0,0); renderActs();
+}
+/* sincronización en vivo (Realtime): mismo trabajo en lentes y celu */
+function capSubscribe(uid){
+  if(capCh){sb.removeChannel(capCh);capCh=null;}
+  capCh=sb.channel('cap-'+uid)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ra_resultado',filter:'unidad_id=eq.'+uid},capPing)
+    .on('postgres_changes',{event:'*',schema:'public',table:'ra_captura',filter:'unidad_id=eq.'+uid},capPing)
+    .subscribe();
+}
+function capUnsub(){ if(capCh){sb.removeChannel(capCh);capCh=null;} if(capSyncTimer){clearTimeout(capSyncTimer);capSyncTimer=null;} }
+function capPing(){ if(capSyncTimer)clearTimeout(capSyncTimer); capSyncTimer=setTimeout(capSync,600); }
+async function capSync(){
+  if(!unidadActual || actAbierta!=null) return;   // no interrumpe si está editando una actividad
+  const {data:rr}=await sb.from('ra_resultado').select('actividad_id,resultado,estado_flujo,observacion,hallazgo,memorias,pasos').eq('unidad_id',unidadActual.id);
+  res={}; (rr||[]).forEach(r=>{res[r.actividad_id]={resultado:r.resultado,estado_flujo:r.estado_flujo||'no_iniciada',observacion:r.observacion,hallazgo:r.hallazgo,memorias:r.memorias,pasos:r.pasos||{}};});
+  const {data:caps}=await sb.from('ra_captura').select('actividad_id,storage_path').eq('unidad_id',unidadActual.id).not('actividad_id','is',null);
+  evid={}; const paths=(caps||[]).filter(c=>c.storage_path).map(c=>c.storage_path);
+  if(paths.length){const {data:signed}=await sb.storage.from('capturas').createSignedUrls(paths,3600);const map={};(signed||[]).forEach(s=>{if(s.path)map[s.path]=s.signedUrl;});(caps||[]).forEach(c=>{(evid[c.actividad_id]=evid[c.actividad_id]||[]).push({url:map[c.storage_path]});});}
+  renderActs();
 }
 function estadoInfo(r){
   const ef=(r&&r.estado_flujo)||'no_iniciada'; const val=(r&&r.resultado)||'pendiente';

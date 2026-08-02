@@ -217,6 +217,7 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <script>
 // ====== CONFIG · plataforma unificada ======
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
@@ -536,38 +537,43 @@ function dibEnd(){ if(!dib.drawing)return; dib.drawing=false; dibSnapshot(); }
 function cerrarDibujo(){ $('draw').classList.remove('on'); document.body.style.overflow=''; }
 function guardarDibujo(){ const actId=dib.actId; dib.canvas.toBlob(async(blob)=>{ cerrarDibujo(); if(blob)await subirCaptura(actId,blob,'png'); },'image/png'); }
 (function(){ const c=$('dcanvas'); c.addEventListener('pointerdown',dibStart); c.addEventListener('pointermove',dibMove); window.addEventListener('pointerup',dibEnd); window.addEventListener('pointercancel',dibEnd); })();
-/* ============ ASISTENCIA (operario pide y muestra su cámara) ============ */
-const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
-let asCh=null, asPc=null, asStream=null;
+/* ============ ASISTENCIA (operario · LiveKit) ============ */
+const LK_URL='wss://kalu-hse-14rl7gqw.livekit.cloud';
+const LK_TOKEN_URL='https://dnmintell.app.n8n.cloud/webhook/livekit-token';
+function LKlib(){ return window.LivekitClient||window.LiveKitClient; }
+let lkRoom=null, asMicOn=true;
+async function lkFetchToken(room,identity,nombre){
+  const r=await fetch(LK_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room,identity,name:nombre})});
+  if(!r.ok) throw new Error('token '+r.status);
+  const j=await r.json(); if(!j||!j.token) throw new Error('sin token'); return j;
+}
 async function pedirAsistencia(){
   if(!unidadActual){ toast('Entrá a una inspección primero'); return; }
-  if(asStream) return;
-  try{ asStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:true}); }
-  catch(e){ toast('No pude acceder a la cámara/micrófono'); return; }
-  $('aspanel').classList.add('on'); $('as-localv').srcObject=asStream; $('as-status').textContent='avisando al coordinador…';
+  if(lkRoom) return;
+  const LK=LKlib(); if(!LK){ toast('No cargó el motor de video'); return; }
+  $('aspanel').classList.add('on'); $('as-status').textContent='avisando al coordinador…';
+  // aviso al coordinador por Supabase Realtime (lobby)
   const lobby=sb.channel('asist-lobby-'+me.empresa_id);
   lobby.subscribe((s)=>{ if(s==='SUBSCRIBED'){ lobby.send({type:'broadcast',event:'req',payload:{unidad_id:unidadActual.id,nombre:unidadActual.nombre,quien:me.nombre}}); setTimeout(()=>sb.removeChannel(lobby),1500); } });
-  asCh=sb.channel('asist-u'+unidadActual.id,{config:{broadcast:{self:false}}});
-  asCh.on('broadcast',{event:'sig'},({payload})=>asSignal(payload));
-  asCh.subscribe((s)=>{ if(s==='SUBSCRIBED'){ $('as-status').textContent='esperando al coordinador…'; asBcast({t:'hello'}); } });
+  try{
+    const {token,url}=await lkFetchToken('asist-u'+unidadActual.id,'op-'+me.id,me.nombre);
+    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
+    lkRoom.on(LK.RoomEvent.LocalTrackPublished,(pub)=>{ if(pub.track&&pub.track.kind==='video') pub.track.attach($('as-localv')); });
+    lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{ if(track.kind==='audio') track.attach($('as-remotea')); });
+    lkRoom.on(LK.RoomEvent.ParticipantConnected,()=>{ $('as-status').textContent='● en vivo con coordinador'; });
+    lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
+    $('as-status').textContent='conectando…';
+    await lkRoom.connect(url||LK_URL,token);
+    await lkRoom.localParticipant.setMicrophoneEnabled(true);
+    await lkRoom.localParticipant.setCameraEnabled(true,{facingMode:'environment'});
+    asMicOn=true; $('as-mic').classList.add('on');
+    $('as-status').textContent=lkRoom.numParticipants>0?'● en vivo con coordinador':'esperando al coordinador…';
+  }catch(e){ console.error(e); toast('No pude conectar la asistencia'); colgarAsistencia(true); }
 }
-function asBcast(m){ asCh&&asCh.send({type:'broadcast',event:'sig',payload:m}); }
-function asNewPC(){
-  asPc=new RTCPeerConnection(ICE);
-  asStream.getTracks().forEach(t=>asPc.addTrack(t,asStream));
-  asPc.onicecandidate=e=>{ if(e.candidate) asBcast({t:'ice',c:e.candidate}); };
-  asPc.ontrack=e=>{ $('as-remotea').srcObject=e.streams[0]; $('as-status').textContent='● en vivo con coordinador'; };
-}
-async function asSignal(m){
-  if(m.t==='hello'){ if(asPc)return; asNewPC(); const o=await asPc.createOffer(); await asPc.setLocalDescription(o); asBcast({t:'offer',sdp:o}); }
-  else if(m.t==='answer'){ if(asPc&&!asPc.currentRemoteDescription) await asPc.setRemoteDescription(m.sdp); }
-  else if(m.t==='ice'){ try{ if(asPc) await asPc.addIceCandidate(m.c); }catch(e){} }
-  else if(m.t==='bye'){ $('as-status').textContent='el coordinador colgó'; }
-}
-function asMic(){ const t=asStream&&asStream.getAudioTracks()[0]; if(!t)return; t.enabled=!t.enabled; $('as-mic').classList.toggle('on',t.enabled); }
-function colgarAsistencia(){ try{asBcast({t:'bye'});}catch(e){}
-  if(asPc){asPc.close();asPc=null;} if(asCh){sb.removeChannel(asCh);asCh=null;}
-  if(asStream){asStream.getTracks().forEach(t=>t.stop());asStream=null;}
+function asMic(){ if(!lkRoom)return; asMicOn=!asMicOn; lkRoom.localParticipant.setMicrophoneEnabled(asMicOn); $('as-mic').classList.toggle('on',asMicOn); }
+function colgarAsistencia(silent){
+  if(lkRoom){ try{lkRoom.disconnect();}catch(e){} lkRoom=null; }
+  const v=$('as-localv'); if(v)v.srcObject=null;
   $('aspanel').classList.remove('on');
 }
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});

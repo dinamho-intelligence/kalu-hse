@@ -122,6 +122,12 @@
   .aspanel .ac button{width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:17px;cursor:pointer}
   .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
   .aspanel .ac button.hang{background:var(--red);color:#fff;border-color:var(--red)}
+  .callbanner{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:210;display:none;flex-direction:column;gap:10px;
+    background:var(--panel);border:1px solid var(--amber);border-radius:14px;padding:14px 16px;box-shadow:0 8px 28px #000c;width:min(340px,92vw);animation:ring 1s infinite}
+  .callbanner.on{display:flex}
+  @keyframes ring{0%,100%{box-shadow:0 8px 28px #000c}50%{box-shadow:0 0 0 3px rgba(242,140,0,.5),0 8px 28px #000c}}
+  .callbanner .ct{font-size:15px;font-weight:800;text-align:center}
+  .callbanner .cbtns{display:flex;gap:10px}.callbanner .cbtns .btn{flex:1}
 </style>
 </head>
 <body>
@@ -194,12 +200,18 @@
 <button class="asfab" id="asFab" onclick="pedirAsistencia()" title="Pedir asistencia">📹</button>
 <div class="aspanel" id="aspanel">
   <div class="ah"><span class="dot">●</span><span id="as-status">…</span></div>
+  <video id="as-remotev" autoplay playsinline style="display:none"></video>
   <video id="as-localv" autoplay playsinline muted></video>
   <audio id="as-remotea" autoplay></audio>
   <div class="ac">
     <button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button>
     <button class="hang" onclick="colgarAsistencia()" title="Colgar">✕</button>
   </div>
+</div>
+<!-- llamada entrante (coordinador → operario) -->
+<div class="callbanner" id="callbanner">
+  <div class="ct" id="callbanner-txt">📞 …</div>
+  <div class="cbtns"><button class="btn" onclick="aceptarLlamada()">Aceptar</button><button class="btn ghost" onclick="rechazarLlamada()">Rechazar</button></div>
 </div>
 <!-- lienzo de dibujo / notas a mano -->
 <div class="draw" id="draw">
@@ -248,6 +260,7 @@ async function iniciar(){
   me={id:user.id,empresa_id:p.empresa_id,nombre:p.nombre||'Operador'};
   $('who').textContent=me.nombre;
   $('login').style.display='none';$('app').style.display='block';
+  escucharLlamadas();
   cargarLista();
 }
 
@@ -541,28 +554,28 @@ function guardarDibujo(){ const actId=dib.actId; dib.canvas.toBlob(async(blob)=>
 const LK_URL='wss://kalu-hse-14rl7gqw.livekit.cloud';
 const LK_TOKEN_URL='https://dnmintell.app.n8n.cloud/webhook/livekit-token';
 function LKlib(){ return window.LivekitClient||window.LiveKitClient; }
-let lkRoom=null, asMicOn=true;
+let lkRoom=null, asMicOn=true, callCh=null;
 async function lkFetchToken(room,identity,nombre){
   const r=await fetch(LK_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room,identity,name:nombre})});
   if(!r.ok) throw new Error('token '+r.status);
   const j=await r.json(); if(!j||!j.token) throw new Error('sin token'); return j;
 }
-async function pedirAsistencia(){
-  if(!unidadActual){ toast('Entrá a una inspección primero'); return; }
+// conexión a la sala (sirve para pedir asistencia y para aceptar una llamada)
+async function asConnect(unidadId){
   if(lkRoom) return;
   const LK=LKlib(); if(!LK){ toast('No cargó el motor de video'); return; }
-  $('aspanel').classList.add('on'); $('as-status').textContent='avisando al coordinador…';
-  // aviso al coordinador por Supabase Realtime (lobby)
-  const lobby=sb.channel('asist-lobby-'+me.empresa_id);
-  lobby.subscribe((s)=>{ if(s==='SUBSCRIBED'){ lobby.send({type:'broadcast',event:'req',payload:{unidad_id:unidadActual.id,nombre:unidadActual.nombre,quien:me.nombre}}); setTimeout(()=>sb.removeChannel(lobby),1500); } });
+  $('aspanel').classList.add('on'); $('as-status').textContent='conectando…';
   try{
-    const {token,url}=await lkFetchToken('asist-u'+unidadActual.id,'op-'+me.id,me.nombre);
+    const {token,url}=await lkFetchToken('asist-u'+unidadId,'op-'+me.id,me.nombre);
     lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
     lkRoom.on(LK.RoomEvent.LocalTrackPublished,(pub)=>{ if(pub.track&&pub.track.kind==='video') pub.track.attach($('as-localv')); });
-    lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{ if(track.kind==='audio') track.attach($('as-remotea')); });
+    lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{
+      if(track.kind==='audio'){ track.attach($('as-remotea')); }
+      else if(track.kind==='video'){ const rv=$('as-remotev'); track.attach(rv); rv.style.display='block'; $('as-status').textContent='● en vivo con coordinador'; }
+    });
+    lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track.kind==='video'){ const rv=$('as-remotev'); rv.style.display='none'; rv.srcObject=null; } });
     lkRoom.on(LK.RoomEvent.ParticipantConnected,()=>{ $('as-status').textContent='● en vivo con coordinador'; });
     lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
-    $('as-status').textContent='conectando…';
     await lkRoom.connect(url||LK_URL,token);
     await lkRoom.localParticipant.setMicrophoneEnabled(true);
     await lkRoom.localParticipant.setCameraEnabled(true,{facingMode:'environment'});
@@ -570,10 +583,34 @@ async function pedirAsistencia(){
     $('as-status').textContent=lkRoom.numParticipants>0?'● en vivo con coordinador':'esperando al coordinador…';
   }catch(e){ console.error(e); toast('No pude conectar la asistencia'); colgarAsistencia(true); }
 }
+async function pedirAsistencia(){
+  if(!unidadActual){ toast('Entrá a una inspección primero'); return; }
+  if(lkRoom) return;
+  $('aspanel').classList.add('on'); $('as-status').textContent='avisando al coordinador…';
+  // aviso al coordinador por Supabase Realtime (lobby)
+  const lobby=sb.channel('asist-lobby-'+me.empresa_id);
+  lobby.subscribe((s)=>{ if(s==='SUBSCRIBED'){ lobby.send({type:'broadcast',event:'req',payload:{unidad_id:unidadActual.id,nombre:unidadActual.nombre,quien:me.nombre}}); setTimeout(()=>sb.removeChannel(lobby),1500); } });
+  asConnect(unidadActual.id);
+}
+// llamada entrante: el coordinador llama al operario
+function escucharLlamadas(){
+  if(callCh) return;
+  callCh=sb.channel('asist-call-'+me.id);
+  callCh.on('broadcast',{event:'call'},({payload})=>mostrarLlamada(payload));
+  callCh.subscribe();
+}
+function mostrarLlamada(p){
+  $('callbanner-txt').textContent=(p.video?'📹':'📞')+' '+(p.quien||'Coordinador')+' te llama'+(p.video?' (con video)':'')+(p.nombre?' · '+p.nombre:'');
+  $('callbanner').dataset.unidad=p.unidad_id; $('callbanner').classList.add('on');
+  try{ if(navigator.vibrate) navigator.vibrate([200,120,200]); }catch(e){}
+}
+function aceptarLlamada(){ const uid=$('callbanner').dataset.unidad; $('callbanner').classList.remove('on'); if(uid&&!lkRoom) asConnect(uid); }
+function rechazarLlamada(){ $('callbanner').classList.remove('on'); }
 function asMic(){ if(!lkRoom)return; asMicOn=!asMicOn; lkRoom.localParticipant.setMicrophoneEnabled(asMicOn); $('as-mic').classList.toggle('on',asMicOn); }
 function colgarAsistencia(silent){
   if(lkRoom){ try{lkRoom.disconnect();}catch(e){} lkRoom=null; }
   const v=$('as-localv'); if(v)v.srcObject=null;
+  const rv=$('as-remotev'); if(rv){ rv.style.display='none'; rv.srcObject=null; }
   $('aspanel').classList.remove('on');
 }
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});

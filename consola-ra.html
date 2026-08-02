@@ -251,9 +251,20 @@
 <div class="aspanel" id="aspanel">
   <div class="ah"><span class="dot">●</span><span id="as-status">…</span></div>
   <video id="as-remotev" autoplay playsinline></video>
+  <video id="as-localv" autoplay playsinline muted style="display:none;height:92px;border-top:1px solid var(--border)"></video>
   <audio id="as-remotea" autoplay></audio>
-  <div class="ac"><button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button><button id="as-rec" onclick="toggleRec()" title="Grabar la asistencia">⏺</button><button class="hang" onclick="colgarAsistencia()" title="Colgar">✕</button></div>
+  <div class="ac"><button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button><button id="as-cam" onclick="asCam()" title="Mi cámara">📹</button><button id="as-rec" onclick="toggleRec()" title="Grabar la asistencia">⏺</button><button class="hang" onclick="colgarAsistencia()" title="Colgar">✕</button></div>
 </div>
+<!-- elegir tipo de llamada -->
+<div class="modalk" id="mkcall"><div class="mkcard" style="max-width:340px">
+  <div class="mkt">Llamar al operario</div>
+  <div class="mks">Elegí cómo iniciar la llamada. Podés prender o apagar tu cámara después.</div>
+  <div class="mkacts" style="flex-direction:column;gap:9px">
+    <button class="btn" onclick="hacerLlamada(false)">📞 Solo voz</button>
+    <button class="btn" onclick="hacerLlamada(true)">📹 Voz y video</button>
+    <button class="btn ghost" onclick="$('mkcall').classList.remove('on')">Cancelar</button>
+  </div>
+</div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <script>
@@ -329,6 +340,7 @@ async function cargarOrdenes(){
           <div class="main"><div class="t">${esc(u.nombre)}</div><div class="m">${esc(u.ra_tipo&&u.ra_tipo.nombre)||'—'}</div></div>
           <span class="miniprog">${cer}/${tot} cerradas</span>
           <button class="btn mini" onclick="abrirMonitor(${u.id})">🔴 En vivo</button>
+          <button class="btn mini" onclick="llamarOperador(${u.id})" ${u.asignado_a?'':'disabled'}>📞 Llamar</button>
           <div class="asig"><span class="lb ${asignado?'ok':'no'}">${asignado?'✓ operador':'sin asignar'}</span>
             <select onchange="asignar(${u.id},this.value)">${opts(u.asignado_a)}</select></div>
         </div>`;}).join(''):'<div class="unidad"><span class="m" style="color:var(--muted)">Sin unidades. Agregá una con "+ Unidad".</span></div>'}
@@ -667,6 +679,7 @@ function LKlib(){ return window.LivekitClient||window.LiveKitClient; }
 function fnv(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(16);}
 let asLobby=null, lkRoom=null, asMicOn=true;
 let remoteV=null, remoteA=null, recUnidad=null, recRec=null, recChunks=[];
+let camOn=false, pendingCallUnidad=null;
 function asListenLobby(){
   if(asLobby) return;
   asLobby=sb.channel('asist-lobby-'+me.empresa_id);
@@ -684,9 +697,28 @@ async function lkFetchToken(room,identity,nombre){
 }
 async function unirAsistencia(){
   const uid=$('asbanner').dataset.unidad; $('asbanner').classList.remove('on');
+  asJoin(uid);
+}
+// el coordinador llama al operario asignado a esa unidad → primero elige voz o video
+function llamarOperador(unidadId){
+  if(lkRoom){ toast('Ya estás en una asistencia'); return; }
+  pendingCallUnidad=unidadId; $('mkcall').classList.add('on');
+}
+async function hacerLlamada(conVideo){
+  $('mkcall').classList.remove('on');
+  const unidadId=pendingCallUnidad; pendingCallUnidad=null; if(!unidadId) return;
+  const {data:u}=await sb.from('ra_unidad').select('nombre,asignado_a').eq('id',unidadId).maybeSingle();
+  if(!u){ toast('No encontré la unidad'); return; }
+  if(!u.asignado_a){ toast('Asigná un operador primero'); return; }
+  const ch=sb.channel('asist-call-'+u.asignado_a);
+  ch.subscribe((s)=>{ if(s==='SUBSCRIBED'){ ch.send({type:'broadcast',event:'call',payload:{unidad_id:unidadId,nombre:u.nombre,quien:me.nombre,video:!!conVideo}}); setTimeout(()=>sb.removeChannel(ch),1500); } });
+  toast('📞 Llamando al operador…');
+  asJoin(unidadId,conVideo);
+}
+async function asJoin(uid,conVideo){
   if(!uid||lkRoom) return;
   const LK=LKlib(); if(!LK){ toast('No cargó el motor de video'); return; }
-  recUnidad=uid; remoteV=null; remoteA=null;
+  recUnidad=uid; remoteV=null; remoteA=null; camOn=false;
   $('aspanel').classList.add('on'); $('as-status').textContent='conectando…';
   try{
     const {token,url}=await lkFetchToken('asist-u'+uid,'coord-'+me.id,me.nombre);
@@ -696,12 +728,22 @@ async function unirAsistencia(){
       else if(track.kind==='audio'){ track.attach($('as-remotea')); remoteA=track; }
     });
     lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track===remoteV)remoteV=null; if(track===remoteA)remoteA=null; });
+    lkRoom.on(LK.RoomEvent.LocalTrackPublished,(pub)=>{ if(pub.track&&pub.track.kind==='video'){ pub.track.attach($('as-localv')); $('as-localv').style.display='block'; } });
     lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
     await lkRoom.connect(url||LK_URL,token);
     await lkRoom.localParticipant.setMicrophoneEnabled(true);
     asMicOn=true; $('as-mic').classList.add('on');
+    if(conVideo) await asCam(true);
     if($('as-status').textContent==='conectando…') $('as-status').textContent='esperando video del operario…';
   }catch(e){ console.error(e); toast('No pude conectar la asistencia'); colgarAsistencia(true); }
+}
+async function asCam(force){
+  if(!lkRoom) return;
+  const target=(force===true||force===false)?force:!camOn;
+  try{ await lkRoom.localParticipant.setCameraEnabled(target); }
+  catch(e){ console.error(e); toast('No pude usar tu cámara'); return; }
+  camOn=target; $('as-cam').classList.toggle('on',camOn);
+  if(!camOn){ const lv=$('as-localv'); lv.style.display='none'; lv.srcObject=null; }
 }
 /* --- grabación a botón: guarda la sesión como evidencia de la inspección --- */
 function toggleRec(){
@@ -736,8 +778,9 @@ function asMic(){ if(!lkRoom)return; asMicOn=!asMicOn; lkRoom.localParticipant.s
 function colgarAsistencia(silent){
   if(recRec){ try{recRec.stop();}catch(e){} }
   if(lkRoom){ try{lkRoom.disconnect();}catch(e){} lkRoom=null; }
-  remoteV=null; remoteA=null;
+  remoteV=null; remoteA=null; camOn=false; $('as-cam').classList.remove('on');
   const v=$('as-remotev'); if(v)v.srcObject=null;
+  const lv=$('as-localv'); if(lv){ lv.style.display='none'; lv.srcObject=null; }
   $('aspanel').classList.remove('on');
 }
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});

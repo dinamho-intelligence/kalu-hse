@@ -598,7 +598,7 @@ async function asConnect(unidadId){
     lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
     await lkRoom.connect(url||LK_URL,token);
     await lkRoom.localParticipant.setMicrophoneEnabled(true);
-    await lkRoom.localParticipant.setCameraEnabled(true,{facingMode:'environment'});
+    await lkRoom.localParticipant.setCameraEnabled(true,{facingMode:'environment',resolution:{width:1280,height:720,frameRate:24}});
     asMicOn=true; $('as-mic').classList.add('on');
     $('as-status').textContent=lkRoom.numParticipants>0?'● en vivo con coordinador':'esperando al coordinador…';
   }catch(e){ console.error(e); toast('No pude conectar la asistencia'); colgarAsistencia(true); }

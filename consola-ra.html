@@ -769,7 +769,7 @@ async function asJoin(uid,conVideo){
   $('aspanel').classList.add('on'); $('as-status').textContent='conectando…';
   try{
     const {token,url}=await lkFetchToken('asist-u'+uid,'coord-'+me.id,me.nombre);
-    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
+    lkRoom=new LK.Room({adaptiveStream:false,dynacast:false});
     lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{
       if(track.kind==='video'){ track.attach($('as-remotev')); remoteV=track; $('aspanel').classList.add('has-remote'); $('as-status').textContent='● en vivo'; }
       else if(track.kind==='audio'){ track.attach($('as-remotea')); remoteA=track; }
@@ -829,8 +829,12 @@ function toggleRec(){
   const cands=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
   let mime=''; for(const c of cands){ if(MediaRecorder.isTypeSupported(c)){ mime=c; break; } }
   const stream=buildRecStream();
-  try{ recRec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream); }
-  catch(e){ console.error(e); toast('No se pudo iniciar la grabación'); recRec=null; if(recAudioCtx){try{recAudioCtx.close();}catch(_){}recAudioCtx=null;} return; }
+  const recOpts={videoBitsPerSecond:2500000,audioBitsPerSecond:128000}; if(mime)recOpts.mimeType=mime;
+  try{ recRec=new MediaRecorder(stream,recOpts); }
+  catch(e0){
+    try{ recRec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream); }
+    catch(e){ console.error(e); toast('No se pudo iniciar la grabación'); recRec=null; if(recAudioCtx){try{recAudioCtx.close();}catch(_){}recAudioCtx=null;} return; }
+  }
   recMime=recRec.mimeType||mime||'video/webm'; recChunks=[];
   recRec.ondataavailable=(e)=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
   recRec.onstop=subirGrabacion;

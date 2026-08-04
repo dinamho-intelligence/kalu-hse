@@ -122,6 +122,15 @@
   .aspanel .ac button{width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:17px;cursor:pointer}
   .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
   .aspanel .ac button.hang{background:var(--red);color:#fff;border-color:var(--red)}
+  .aspanel .ah{cursor:grab;touch-action:none;user-select:none}
+  .aspanel .ah .sp{flex:1}
+  .aspanel .ah .win{width:26px;height:26px;flex:0 0 auto;border-radius:7px;border:1px solid var(--border);background:#05070a;color:var(--text);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .aspanel.drag,.aspanel.drag .ah{cursor:grabbing}
+  .aspanel.min video,.aspanel.min audio,.aspanel.min .ac{display:none}
+  .aspanel.min{width:auto;max-width:240px}
+  .aspanel.max{width:min(94vw,760px)}
+  .aspanel.max video#as-remotev{height:min(66vh,520px)}
+  .aspanel.max video#as-localv{height:140px}
   .callbanner{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:210;display:none;flex-direction:column;gap:10px;
     background:var(--panel);border:1px solid var(--amber);border-radius:14px;padding:14px 16px;box-shadow:0 8px 28px #000c;width:min(340px,92vw);animation:ring 1s infinite}
   .callbanner.on{display:flex}
@@ -199,7 +208,7 @@
 <!-- asistencia (operario) -->
 <button class="asfab" id="asFab" onclick="pedirAsistencia()" title="Pedir asistencia">📹</button>
 <div class="aspanel" id="aspanel">
-  <div class="ah"><span class="dot">●</span><span id="as-status">…</span></div>
+  <div class="ah"><span class="dot">●</span><span id="as-status">…</span><span class="sp"></span><button class="win" id="as-min" onclick="asMin()" title="Minimizar">▁</button><button class="win" id="as-max" onclick="asMax()" title="Maximizar">⤢</button></div>
   <video id="as-remotev" autoplay playsinline style="display:none"></video>
   <video id="as-localv" autoplay playsinline muted></video>
   <audio id="as-remotea" autoplay></audio>
@@ -611,8 +620,41 @@ function colgarAsistencia(silent){
   if(lkRoom){ try{lkRoom.disconnect();}catch(e){} lkRoom=null; }
   const v=$('as-localv'); if(v)v.srcObject=null;
   const rv=$('as-remotev'); if(rv){ rv.style.display='none'; rv.srcObject=null; }
-  $('aspanel').classList.remove('on');
+  const p=$('aspanel'); p.classList.remove('on','min','max');
+  p.style.left=p.style.top=p.style.right=p.style.bottom='';
+  $('as-min').textContent='▁'; $('as-max').textContent='⤢';
 }
+/* --- ventana del panel: arrastrar / minimizar / maximizar --- */
+function asClampView(p){
+  const r=p.getBoundingClientRect();
+  let nx=Math.max(4,Math.min(window.innerWidth-r.width-4,r.left));
+  let ny=Math.max(4,Math.min(window.innerHeight-r.height-4,r.top));
+  p.style.left=nx+'px'; p.style.top=ny+'px'; p.style.right='auto'; p.style.bottom='auto';
+}
+function asMin(){ const p=$('aspanel'); p.classList.remove('max'); p.classList.toggle('min'); $('as-min').textContent=p.classList.contains('min')?'⤢':'▁'; setTimeout(()=>asClampView(p),0); }
+function asMax(){ const p=$('aspanel'); p.classList.remove('min'); $('as-min').textContent='▁'; p.classList.toggle('max'); $('as-max').textContent=p.classList.contains('max')?'⤡':'⤢'; setTimeout(()=>asClampView(p),0); }
+function asDraggable(){
+  const p=$('aspanel'), h=p&&p.querySelector('.ah'); if(!h) return;
+  let drag=false,sx,sy,ox,oy;
+  h.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.win')) return;
+    drag=true; p.classList.add('drag');
+    const r=p.getBoundingClientRect();
+    p.style.left=r.left+'px'; p.style.top=r.top+'px'; p.style.right='auto'; p.style.bottom='auto';
+    sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top;
+    try{ h.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  h.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const r=p.getBoundingClientRect();
+    let nx=Math.max(4,Math.min(window.innerWidth-r.width-4,ox+(e.clientX-sx)));
+    let ny=Math.max(4,Math.min(window.innerHeight-r.height-4,oy+(e.clientY-sy)));
+    p.style.left=nx+'px'; p.style.top=ny+'px';
+  });
+  const end=()=>{ drag=false; p.classList.remove('drag'); };
+  h.addEventListener('pointerup',end); h.addEventListener('pointercancel',end);
+}
+asDraggable();
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>
 </body>

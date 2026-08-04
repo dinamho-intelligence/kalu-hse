@@ -127,6 +127,15 @@
   .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
   .aspanel .ac button.hang{background:var(--red);color:#fff;border-color:var(--red)}
   .aspanel .ac button.rec{background:var(--red);color:#fff;border-color:var(--red);animation:pulse 1s infinite}
+  .aspanel .ah{cursor:grab;touch-action:none;user-select:none}
+  .aspanel .ah .sp{flex:1}
+  .aspanel .ah .win{width:26px;height:26px;flex:0 0 auto;border-radius:7px;border:1px solid var(--border);background:#05070a;color:var(--text);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .aspanel.drag,.aspanel.drag .ah{cursor:grabbing}
+  .aspanel.min video,.aspanel.min audio,.aspanel.min .ac{display:none}
+  .aspanel.min{width:auto;max-width:260px}
+  .aspanel.max{width:min(90vw,860px)}
+  .aspanel.max video#as-remotev{height:min(72vh,600px)}
+  .aspanel.max video#as-localv{height:130px}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
 </style>
 </head>
@@ -249,7 +258,7 @@
 <!-- asistencia (coordinador) -->
 <div class="asbanner" id="asbanner"><span id="asbanner-txt"></span><button class="btn sm" onclick="unirAsistencia()">Unirme</button><button class="btn mini" onclick="$('asbanner').classList.remove('on')">✕</button></div>
 <div class="aspanel" id="aspanel">
-  <div class="ah"><span class="dot">●</span><span id="as-status">…</span></div>
+  <div class="ah"><span class="dot">●</span><span id="as-status">…</span><span class="sp"></span><button class="win" id="as-min" onclick="asMin()" title="Minimizar">▁</button><button class="win" id="as-max" onclick="asMax()" title="Maximizar">⤢</button></div>
   <video id="as-remotev" autoplay playsinline></video>
   <video id="as-localv" autoplay playsinline muted style="display:none;height:92px;border-top:1px solid var(--border)"></video>
   <audio id="as-remotea" autoplay></audio>
@@ -781,8 +790,41 @@ function colgarAsistencia(silent){
   remoteV=null; remoteA=null; camOn=false; $('as-cam').classList.remove('on');
   const v=$('as-remotev'); if(v)v.srcObject=null;
   const lv=$('as-localv'); if(lv){ lv.style.display='none'; lv.srcObject=null; }
-  $('aspanel').classList.remove('on');
+  const p=$('aspanel'); p.classList.remove('on','min','max');
+  p.style.left=p.style.top=p.style.right=p.style.bottom='';
+  $('as-min').textContent='▁'; $('as-max').textContent='⤢';
 }
+/* --- ventana del panel: arrastrar / minimizar / maximizar --- */
+function asClampView(p){
+  const r=p.getBoundingClientRect();
+  let nx=Math.max(4,Math.min(window.innerWidth-r.width-4,r.left));
+  let ny=Math.max(4,Math.min(window.innerHeight-r.height-4,r.top));
+  p.style.left=nx+'px'; p.style.top=ny+'px'; p.style.right='auto'; p.style.bottom='auto';
+}
+function asMin(){ const p=$('aspanel'); p.classList.remove('max'); p.classList.toggle('min'); $('as-min').textContent=p.classList.contains('min')?'⤢':'▁'; setTimeout(()=>asClampView(p),0); }
+function asMax(){ const p=$('aspanel'); p.classList.remove('min'); $('as-min').textContent='▁'; p.classList.toggle('max'); $('as-max').textContent=p.classList.contains('max')?'⤡':'⤢'; setTimeout(()=>asClampView(p),0); }
+function asDraggable(){
+  const p=$('aspanel'), h=p&&p.querySelector('.ah'); if(!h) return;
+  let drag=false,sx,sy,ox,oy;
+  h.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.win')) return;
+    drag=true; p.classList.add('drag');
+    const r=p.getBoundingClientRect();
+    p.style.left=r.left+'px'; p.style.top=r.top+'px'; p.style.right='auto'; p.style.bottom='auto';
+    sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top;
+    try{ h.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  h.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const r=p.getBoundingClientRect();
+    let nx=Math.max(4,Math.min(window.innerWidth-r.width-4,ox+(e.clientX-sx)));
+    let ny=Math.max(4,Math.min(window.innerHeight-r.height-4,oy+(e.clientY-sy)));
+    p.style.left=nx+'px'; p.style.top=ny+'px';
+  });
+  const end=()=>{ drag=false; p.classList.remove('drag'); };
+  h.addEventListener('pointerup',end); h.addEventListener('pointercancel',end);
+}
+asDraggable();
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>
 </body>

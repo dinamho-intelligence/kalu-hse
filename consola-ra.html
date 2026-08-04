@@ -121,7 +121,11 @@
   .aspanel.on{display:block}
   .aspanel .ah{display:flex;align-items:center;gap:6px;padding:9px 12px;font-size:12.5px;font-weight:700;background:var(--panel2)}
   .aspanel .ah .dot{color:var(--green);font-weight:900}
-  .aspanel video{width:100%;height:205px;object-fit:contain;background:#000;display:block;touch-action:none}
+  .aspanel .asstage{position:relative;width:100%;height:200px;background:#000;overflow:hidden}
+  .aspanel .asstage video{position:absolute;inset:0;width:100%;height:100%;background:#000;object-fit:cover;touch-action:none;display:block}
+  .aspanel #as-remotev{display:none}
+  .aspanel.has-remote #as-remotev{display:block}
+  .aspanel.has-remote #as-localv{inset:auto;right:8px;bottom:8px;width:84px;height:112px;border:1px solid var(--border);border-radius:9px;z-index:3;box-shadow:0 4px 12px #0008}
   .aspanel .ac{display:flex;gap:8px;padding:10px;justify-content:center}
   .aspanel .ac button{width:44px;height:44px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:18px;cursor:pointer}
   .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
@@ -131,16 +135,14 @@
   .aspanel .ah .sp{flex:1}
   .aspanel .ah .win{width:26px;height:26px;flex:0 0 auto;border-radius:7px;border:1px solid var(--border);background:#05070a;color:var(--text);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
   .aspanel.drag,.aspanel.drag .ah{cursor:grabbing}
-  .aspanel.min video,.aspanel.min audio,.aspanel.min .ac{display:none}
+  .aspanel.min .asstage,.aspanel.min audio,.aspanel.min .ac{display:none}
   .aspanel.min{width:auto;max-width:260px}
   .aspanel.max{width:min(90vw,860px)}
-  .aspanel.max video#as-remotev{height:min(72vh,600px)}
-  .aspanel.max video#as-localv{height:130px}
+  .aspanel.max .asstage{height:min(72vh,600px)}
+  .aspanel.max.has-remote #as-localv{width:120px;height:160px}
   .aspanel.solo-remote #as-localv{display:none!important}
   .aspanel.solo-local #as-remotev{display:none!important}
-  .aspanel.solo-local #as-localv{display:block!important}
-  .aspanel.solo-remote #as-remotev,.aspanel.solo-local #as-localv{height:320px}
-  .aspanel.max.solo-remote #as-remotev,.aspanel.max.solo-local #as-localv{height:min(74vh,620px)}
+  .aspanel.solo-local #as-localv{display:block!important;inset:0!important;width:100%!important;height:100%!important;right:auto;bottom:auto;border:0;border-radius:0;z-index:1}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
 </style>
 </head>
@@ -273,8 +275,10 @@
 <div class="asbanner" id="asbanner"><span id="asbanner-txt"></span><button class="btn sm" onclick="unirAsistencia()">Unirme</button><button class="btn mini" onclick="$('asbanner').classList.remove('on')">✕</button></div>
 <div class="aspanel" id="aspanel">
   <div class="ah"><span class="dot">●</span><span id="as-status">…</span><span class="sp"></span><button class="win" id="as-min" onclick="asMin()" title="Minimizar">▁</button><button class="win" id="as-max" onclick="asMax()" title="Maximizar">⤢</button></div>
-  <video id="as-remotev" autoplay playsinline></video>
-  <video id="as-localv" autoplay playsinline muted style="display:none;height:92px;border-top:1px solid var(--border)"></video>
+  <div class="asstage">
+    <video id="as-remotev" autoplay playsinline></video>
+    <video id="as-localv" autoplay playsinline muted style="display:none"></video>
+  </div>
   <audio id="as-remotea" autoplay></audio>
   <div class="ac"><button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button><button id="as-cam" onclick="asCam()" title="Mi cámara">📹</button><button id="as-rec" onclick="toggleRec()" title="Grabar la asistencia">⏺</button><button class="hang" onclick="colgarAsistencia()" title="Colgar">✕</button></div>
 </div>
@@ -767,12 +771,12 @@ async function asJoin(uid,conVideo){
     const {token,url}=await lkFetchToken('asist-u'+uid,'coord-'+me.id,me.nombre);
     lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
     lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{
-      if(track.kind==='video'){ track.attach($('as-remotev')); remoteV=track; $('as-status').textContent='● en vivo'; }
+      if(track.kind==='video'){ track.attach($('as-remotev')); remoteV=track; $('aspanel').classList.add('has-remote'); $('as-status').textContent='● en vivo'; }
       else if(track.kind==='audio'){ track.attach($('as-remotea')); remoteA=track; }
     });
-    lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track===remoteV)remoteV=null; if(track===remoteA)remoteA=null; });
+    lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track===remoteV){remoteV=null; $('aspanel').classList.remove('has-remote','solo-remote','solo-local');} if(track===remoteA)remoteA=null; });
     lkRoom.on(LK.RoomEvent.LocalTrackPublished,(pub)=>{ if(pub.track&&pub.track.kind==='video'){ pub.track.attach($('as-localv')); $('as-localv').style.display='block'; } });
-    lkRoom.on(LK.RoomEvent.ParticipantDisconnected,()=>{ if(!lkRoom||!lkRoom.remoteParticipants||lkRoom.remoteParticipants.size===0){ toast('El operario cerró la asistencia'); colgarAsistencia(true); } });
+    lkRoom.on(LK.RoomEvent.ParticipantDisconnected,()=>{ toast('El operario cerró la asistencia'); colgarAsistencia(true); });
     lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
     await lkRoom.connect(url||LK_URL,token);
     await lkRoom.localParticipant.setMicrophoneEnabled(true);
@@ -855,7 +859,7 @@ function colgarAsistencia(silent){
   remoteV=null; remoteA=null; camOn=false; $('as-cam').classList.remove('on');
   const v=$('as-remotev'); if(v)v.srcObject=null;
   const lv=$('as-localv'); if(lv){ lv.style.display='none'; lv.srcObject=null; }
-  const p=$('aspanel'); p.classList.remove('on','min','max','solo-remote','solo-local');
+  const p=$('aspanel'); p.classList.remove('on','min','max','solo-remote','solo-local','has-remote');
   p.style.left=p.style.top=p.style.right=p.style.bottom='';
   $('as-min').textContent='▁'; $('as-max').textContent='⤢';
   if(typeof asResetZoom==='function') asResetZoom();

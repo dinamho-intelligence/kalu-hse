@@ -769,7 +769,7 @@ async function asJoin(uid,conVideo){
   $('aspanel').classList.add('on'); $('as-status').textContent='conectando…';
   try{
     const {token,url}=await lkFetchToken('asist-u'+uid,'coord-'+me.id,me.nombre);
-    lkRoom=new LK.Room({adaptiveStream:false,dynacast:false});
+    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
     lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{
       if(track.kind==='video'){ track.attach($('as-remotev')); remoteV=track; $('aspanel').classList.add('has-remote'); $('as-status').textContent='● en vivo'; }
       else if(track.kind==='audio'){ track.attach($('as-remotea')); remoteA=track; }

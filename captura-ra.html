@@ -117,7 +117,11 @@
   .aspanel.on{display:block}
   .aspanel .ah{display:flex;align-items:center;gap:6px;padding:8px 11px;font-size:12px;font-weight:700;background:var(--panel2)}
   .aspanel .ah .dot{color:var(--green);font-weight:900}
-  .aspanel video{width:100%;height:150px;object-fit:contain;background:#000;display:block;touch-action:none}
+  .aspanel .asstage{position:relative;width:100%;height:190px;background:#000;overflow:hidden}
+  .aspanel .asstage video{position:absolute;inset:0;width:100%;height:100%;background:#000;object-fit:cover;touch-action:none;display:block}
+  .aspanel #as-remotev{display:none}
+  .aspanel.has-remote #as-remotev{display:block}
+  .aspanel.has-remote #as-localv{inset:auto;right:8px;bottom:8px;width:80px;height:108px;border:1px solid var(--border);border-radius:9px;z-index:3;box-shadow:0 4px 12px #0008}
   .aspanel .ac{display:flex;gap:8px;padding:9px;justify-content:center}
   .aspanel .ac button{width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:17px;cursor:pointer}
   .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
@@ -126,17 +130,15 @@
   .aspanel .ah .sp{flex:1}
   .aspanel .ah .win{width:26px;height:26px;flex:0 0 auto;border-radius:7px;border:1px solid var(--border);background:#05070a;color:var(--text);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
   .aspanel.drag,.aspanel.drag .ah{cursor:grabbing}
-  .aspanel.min video,.aspanel.min audio,.aspanel.min .ac{display:none}
+  .aspanel.min .asstage,.aspanel.min audio,.aspanel.min .ac{display:none}
   .aspanel.min{width:auto;max-width:240px}
   .aspanel.max{width:min(94vw,760px)}
-  .aspanel.max video#as-remotev{height:min(66vh,520px)}
-  .aspanel.max video#as-localv{height:140px}
+  .aspanel.max .asstage{height:min(66vh,520px)}
+  .aspanel.max.has-remote #as-localv{width:116px;height:154px}
   /* solo: doble toque deja un solo video */
   .aspanel.solo-remote #as-localv{display:none!important}
   .aspanel.solo-local #as-remotev{display:none!important}
-  .aspanel.solo-local #as-localv{display:block!important}
-  .aspanel.solo-remote #as-remotev,.aspanel.solo-local #as-localv{height:300px}
-  .aspanel.max.solo-remote #as-remotev,.aspanel.max.solo-local #as-localv{height:min(70vh,560px)}
+  .aspanel.solo-local #as-localv{display:block!important;inset:0!important;width:100%!important;height:100%!important;right:auto;bottom:auto;border:0;border-radius:0;z-index:1}
   .callbanner{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:210;display:none;flex-direction:column;gap:10px;
     background:var(--panel);border:1px solid var(--amber);border-radius:14px;padding:14px 16px;box-shadow:0 8px 28px #000c;width:min(340px,92vw);animation:ring 1s infinite}
   .callbanner.on{display:flex}
@@ -215,8 +217,10 @@
 <button class="asfab" id="asFab" onclick="pedirAsistencia()" title="Pedir asistencia">📹</button>
 <div class="aspanel" id="aspanel">
   <div class="ah"><span class="dot">●</span><span id="as-status">…</span><span class="sp"></span><button class="win" id="as-min" onclick="asMin()" title="Minimizar">▁</button><button class="win" id="as-max" onclick="asMax()" title="Maximizar">⤢</button></div>
-  <video id="as-remotev" autoplay playsinline style="display:none"></video>
-  <video id="as-localv" autoplay playsinline muted></video>
+  <div class="asstage">
+    <video id="as-remotev" autoplay playsinline></video>
+    <video id="as-localv" autoplay playsinline muted></video>
+  </div>
   <audio id="as-remotea" autoplay></audio>
   <div class="ac">
     <button id="as-mic" class="on" onclick="asMic()" title="Micrófono">🎤</button>
@@ -586,11 +590,11 @@ async function asConnect(unidadId){
     lkRoom.on(LK.RoomEvent.LocalTrackPublished,(pub)=>{ if(pub.track&&pub.track.kind==='video') pub.track.attach($('as-localv')); });
     lkRoom.on(LK.RoomEvent.TrackSubscribed,(track)=>{
       if(track.kind==='audio'){ track.attach($('as-remotea')); }
-      else if(track.kind==='video'){ const rv=$('as-remotev'); track.attach(rv); rv.style.display='block'; $('as-status').textContent='● en vivo con coordinador'; }
+      else if(track.kind==='video'){ track.attach($('as-remotev')); $('aspanel').classList.add('has-remote'); $('as-status').textContent='● en vivo con coordinador'; }
     });
-    lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track.kind==='video'){ const rv=$('as-remotev'); rv.style.display='none'; rv.srcObject=null; } });
+    lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track.kind==='video'){ $('aspanel').classList.remove('has-remote','solo-remote','solo-local'); } });
     lkRoom.on(LK.RoomEvent.ParticipantConnected,()=>{ $('as-status').textContent='● en vivo con coordinador'; });
-    lkRoom.on(LK.RoomEvent.ParticipantDisconnected,()=>{ if(!lkRoom||!lkRoom.remoteParticipants||lkRoom.remoteParticipants.size===0){ toast('El coordinador cerró la asistencia'); colgarAsistencia(true); } });
+    lkRoom.on(LK.RoomEvent.ParticipantDisconnected,()=>{ toast('El coordinador cerró la asistencia'); colgarAsistencia(true); });
     lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
     await lkRoom.connect(url||LK_URL,token);
     await lkRoom.localParticipant.setMicrophoneEnabled(true);
@@ -626,8 +630,8 @@ function asMic(){ if(!lkRoom)return; asMicOn=!asMicOn; lkRoom.localParticipant.s
 function colgarAsistencia(silent){
   if(lkRoom){ try{lkRoom.disconnect();}catch(e){} lkRoom=null; }
   const v=$('as-localv'); if(v)v.srcObject=null;
-  const rv=$('as-remotev'); if(rv){ rv.style.display='none'; rv.srcObject=null; }
-  const p=$('aspanel'); p.classList.remove('on','min','max','solo-remote','solo-local');
+  const rv=$('as-remotev'); if(rv){ rv.srcObject=null; }
+  const p=$('aspanel'); p.classList.remove('on','min','max','solo-remote','solo-local','has-remote');
   p.style.left=p.style.top=p.style.right=p.style.bottom='';
   $('as-min').textContent='▁'; $('as-max').textContent='⤢';
   if(typeof asResetZoom==='function') asResetZoom();

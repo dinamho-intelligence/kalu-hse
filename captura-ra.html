@@ -117,7 +117,7 @@
   .aspanel.on{display:block}
   .aspanel .ah{display:flex;align-items:center;gap:6px;padding:8px 11px;font-size:12px;font-weight:700;background:var(--panel2)}
   .aspanel .ah .dot{color:var(--green);font-weight:900}
-  .aspanel video{width:100%;height:150px;object-fit:cover;background:#000;display:block}
+  .aspanel video{width:100%;height:150px;object-fit:contain;background:#000;display:block;touch-action:none}
   .aspanel .ac{display:flex;gap:8px;padding:9px;justify-content:center}
   .aspanel .ac button{width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:17px;cursor:pointer}
   .aspanel .ac button.on{background:var(--amber);color:#1a1200;border-color:var(--amber)}
@@ -131,6 +131,12 @@
   .aspanel.max{width:min(94vw,760px)}
   .aspanel.max video#as-remotev{height:min(66vh,520px)}
   .aspanel.max video#as-localv{height:140px}
+  /* solo: doble toque deja un solo video */
+  .aspanel.solo-remote #as-localv{display:none!important}
+  .aspanel.solo-local #as-remotev{display:none!important}
+  .aspanel.solo-local #as-localv{display:block!important}
+  .aspanel.solo-remote #as-remotev,.aspanel.solo-local #as-localv{height:300px}
+  .aspanel.max.solo-remote #as-remotev,.aspanel.max.solo-local #as-localv{height:min(70vh,560px)}
   .callbanner{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:210;display:none;flex-direction:column;gap:10px;
     background:var(--panel);border:1px solid var(--amber);border-radius:14px;padding:14px 16px;box-shadow:0 8px 28px #000c;width:min(340px,92vw);animation:ring 1s infinite}
   .callbanner.on{display:flex}
@@ -584,6 +590,7 @@ async function asConnect(unidadId){
     });
     lkRoom.on(LK.RoomEvent.TrackUnsubscribed,(track)=>{ if(track.kind==='video'){ const rv=$('as-remotev'); rv.style.display='none'; rv.srcObject=null; } });
     lkRoom.on(LK.RoomEvent.ParticipantConnected,()=>{ $('as-status').textContent='● en vivo con coordinador'; });
+    lkRoom.on(LK.RoomEvent.ParticipantDisconnected,()=>{ if(!lkRoom||!lkRoom.remoteParticipants||lkRoom.remoteParticipants.size===0){ toast('El coordinador cerró la asistencia'); colgarAsistencia(true); } });
     lkRoom.on(LK.RoomEvent.Disconnected,()=>{ colgarAsistencia(true); });
     await lkRoom.connect(url||LK_URL,token);
     await lkRoom.localParticipant.setMicrophoneEnabled(true);
@@ -620,9 +627,10 @@ function colgarAsistencia(silent){
   if(lkRoom){ try{lkRoom.disconnect();}catch(e){} lkRoom=null; }
   const v=$('as-localv'); if(v)v.srcObject=null;
   const rv=$('as-remotev'); if(rv){ rv.style.display='none'; rv.srcObject=null; }
-  const p=$('aspanel'); p.classList.remove('on','min','max');
+  const p=$('aspanel'); p.classList.remove('on','min','max','solo-remote','solo-local');
   p.style.left=p.style.top=p.style.right=p.style.bottom='';
   $('as-min').textContent='▁'; $('as-max').textContent='⤢';
+  if(typeof asResetZoom==='function') asResetZoom();
 }
 /* --- ventana del panel: arrastrar / minimizar / maximizar --- */
 function asClampView(p){
@@ -654,7 +662,48 @@ function asDraggable(){
   const end=()=>{ drag=false; p.classList.remove('drag'); };
   h.addEventListener('pointerup',end); h.addEventListener('pointercancel',end);
 }
-asDraggable();
+/* --- gestos sobre el video: doble-toque = solo · pellizco/rueda = zoom · arrastre = mover el zoom --- */
+function asResetZoom(){ ['as-remotev','as-localv'].forEach(x=>{const v=document.getElementById(x); if(v&&v._reset)v._reset();}); }
+function asSolo(id){
+  const p=$('aspanel');
+  const cls=id==='as-remotev'?'solo-remote':'solo-local';
+  const other=id==='as-remotev'?'solo-local':'solo-remote';
+  p.classList.remove(other); p.classList.toggle(cls); asResetZoom();
+}
+function asGestures(){
+  ['as-remotev','as-localv'].forEach(id=>{
+    const v=document.getElementById(id); if(!v||v._z) return;
+    const st={s:1,tx:0,ty:0}; v._z=st;
+    v.style.transformOrigin='center center';
+    const apply=()=>{ v.style.transform='translate('+st.tx+'px,'+st.ty+'px) scale('+st.s+')'; };
+    v._reset=()=>{ st.s=1;st.tx=0;st.ty=0;apply(); };
+    const pts=new Map(); let d0=0,s0=1,lastTap=0,pan=null;
+    v.addEventListener('pointerdown',e=>{
+      pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(pts.size===1){
+        const now=Date.now();
+        if(now-lastTap<300){ lastTap=0; asSolo(id); return; }
+        lastTap=now;
+        if(st.s>1) pan={x:e.clientX,y:e.clientY,tx:st.tx,ty:st.ty};
+      } else if(pts.size===2){
+        const a=[...pts.values()]; d0=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); s0=st.s; pan=null;
+      }
+      try{v.setPointerCapture(e.pointerId);}catch(_){}
+    });
+    v.addEventListener('pointermove',e=>{
+      if(!pts.has(e.pointerId))return;
+      pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(pts.size>=2){
+        const a=[...pts.values()]; const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+        if(d0>0){ st.s=Math.max(1,Math.min(4,s0*(d/d0))); if(st.s===1){st.tx=0;st.ty=0;} apply(); }
+      } else if(pan&&st.s>1){ st.tx=pan.tx+(e.clientX-pan.x); st.ty=pan.ty+(e.clientY-pan.y); apply(); }
+    });
+    const up=e=>{ pts.delete(e.pointerId); if(pts.size<2)d0=0; if(pts.size===0)pan=null; };
+    v.addEventListener('pointerup',up); v.addEventListener('pointercancel',up);
+    v.addEventListener('wheel',e=>{ e.preventDefault(); st.s=Math.max(1,Math.min(4,st.s+(e.deltaY>0?-0.2:0.2))); if(st.s===1){st.tx=0;st.ty=0;} apply(); },{passive:false});
+  });
+}
+asDraggable(); asGestures();
 sb.auth.getSession().then(({data})=>{if(data.session)iniciar();});
 </script>
 </body>

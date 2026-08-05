@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  :root{--ink:#0f1218;--amber:#F28C00;--amber2:#FF9F1C;--bg:#eef0f4;--panel:#fff;--line:#e2e5ec;--line2:#d7dbe4;--tx:#1c2230;--mut:#6b7385;--pri:#2e75b6;--ok:#2fa36b;--no:#d9534f}
+  :root{--ink:#0f1218;--amber:#F28C00;--amber2:#FF9F1C;--bg:#eef0f4;--panel:#fff;--line:#e2e5ec;--line2:#d7dbe4;--tx:#1c2230;--mut:#6b7385;--pri:#2e75b6;--ok:#2fa36b;--no:#d9534f;--cyan:#0aa2c0}
   html,body{height:100%}
   body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;height:100vh;overflow:hidden}
   header{background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:11px 20px;flex-shrink:0}
@@ -19,12 +19,13 @@
   .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
   .btn-sm{font-size:12px;padding:6px 11px;border-radius:8px}
   .btn-b{background:#fff;border:1.5px solid var(--line2);color:var(--tx)} .btn-b:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-cy{background:#e8f6fa;border:1.5px solid #b7e2ec;color:#0a7a94} .btn-cy:hover{background:#dff1f6}
   .btn-danger{background:#fff;border:1.5px solid #f0c9c6;color:var(--no)} .btn-danger:hover{background:#fdeeed}
   .tabs{display:flex;gap:2px;background:var(--ink);padding:0 20px;flex-shrink:0;flex-wrap:wrap}
   .tab{background:transparent;border:none;color:#9aa3b2;font-family:inherit;font-size:13px;font-weight:700;padding:11px 16px;cursor:pointer;border-bottom:3px solid transparent}
   .tab.active{color:#fff;border-bottom-color:var(--amber)}
   .body{flex:1;overflow-y:auto;padding:20px}
-  .wrap{max-width:920px;margin:0 auto}
+  .wrap{max-width:960px;margin:0 auto}
   h2.sec{font-size:14px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:0 0 14px}
   .row{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .row.off{opacity:.55}
@@ -32,20 +33,23 @@
   .row .meta{font-size:12.5px;color:var(--mut)}
   .grow{flex:1;min-width:0}
   .bdg{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px}
-  .bdg.a{background:#e4f4ec;color:#1c6b47}.bdg.i{background:#fdeeed;color:#b23b34}.bdg.r{background:#eef0f4;color:#3a4658}.bdg.s{background:#fff3e0;color:#8a5a12}
+  .bdg.a{background:#e4f4ec;color:#1c6b47}.bdg.i{background:#fdeeed;color:#b23b34}.bdg.r{background:#eef0f4;color:#3a4658}.bdg.s{background:#fff3e0;color:#8a5a12}.bdg.m{background:#e8f1fb;color:#245a91}
   .modchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
   .mchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;background:#f7f8fb;border:1.5px solid var(--line2);border-radius:20px;padding:5px 11px;cursor:pointer;user-select:none}
   .mchk.on{background:#fff3e0;border-color:var(--amber);color:#8a5a12}
   .card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
   .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
   .fld label{display:block;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
-  .fld input,.fld select{width:100%;font-family:inherit;font-size:14px;border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;outline:none}
+  .fld input,.fld select{width:100%;font-family:inherit;font-size:14px;border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;outline:none;background:#fff}
   .fld input:focus,.fld select:focus{border-color:var(--amber)}
   .empty{color:var(--mut);font-size:13px;text-align:center;padding:26px;border:2px dashed var(--line2);border-radius:12px}
   .note{font-size:12.5px;color:var(--mut);background:#f7f8fb;border:1px solid var(--line);border-radius:10px;padding:11px 13px;line-height:1.5}
   .note b{color:var(--tx)}
   .aud{font-size:12.5px;border-bottom:1px dashed var(--line);padding:8px 0;display:flex;gap:10px}
   .aud .t{color:var(--mut);white-space:nowrap}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .toolbar .fld{margin:0}
+  /* gate */
   #gate{position:fixed;inset:0;z-index:300;background:radial-gradient(1000px 520px at 50% -12%,#141a24,#0b0e13);display:flex;align-items:center;justify-content:center;padding:20px}
   #gate .gbox{width:100%;max-width:380px;text-align:center}
   #gate h1{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px}
@@ -56,8 +60,27 @@
   #gate input:focus{border-color:var(--amber)}
   #gate .gerr{color:#e0574a;font-size:13px;margin-bottom:10px;display:none}
   .spin{color:var(--mut);text-align:center;padding:30px}
-  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f1218;color:#fff;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:all .2s;z-index:400}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f1218;color:#fff;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:all .2s;z-index:500}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)} .toast.err{background:#c0392b}
+  /* modal */
+  .ov{position:fixed;inset:0;z-index:400;background:rgba(9,12,17,.55);display:none;align-items:center;justify-content:center;padding:20px}
+  .ov.show{display:flex}
+  .modal{background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.5)}
+  .modal .mh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+  .modal .mh b{font-size:16px;font-weight:800}
+  .modal .mh .sub{font-size:12px;color:var(--mut)}
+  .modal .mb{padding:16px 20px}
+  .modal .mf{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+  .modblk{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .modblk .top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .modblk .top .ic{font-size:18px}
+  .modblk .top b{font-size:14px}
+  .modblk select{margin-left:auto;width:auto;min-width:150px}
+  .perms{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .pchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;background:#f7f8fb;border:1.5px solid var(--line2);border-radius:8px;padding:5px 10px;cursor:pointer;user-select:none}
+  .pchk.on{background:#e4f4ec;border-color:#8fd3b0;color:#1c6b47}
+  .pchk.dis{opacity:.4;pointer-events:none}
+  .x{margin-left:auto;cursor:pointer;color:var(--mut);font-size:20px;line-height:1;background:none;border:none}
 </style>
 </head>
 <body>
@@ -86,14 +109,51 @@
 <div class="tabs" id="tabs"></div>
 <div class="body"><div class="wrap" id="view"><div class="spin">Cargando…</div></div></div>
 
+<!-- Modal de accesos -->
+<div class="ov" id="ov">
+  <div class="modal">
+    <div class="mh"><span style="font-size:20px">🎛️</span><div><b id="ov_t">Accesos</b><div class="sub" id="ov_s"></div></div><button class="x" onclick="cerrarAccesos()">×</button></div>
+    <div class="mb" id="ov_b"></div>
+    <div class="mf"><button class="btn btn-b" onclick="cerrarAccesos()">Cancelar</button><button class="btn btn-amber" id="ov_save" onclick="guardarAccesos()">Guardar accesos</button></div>
+  </div>
+</div>
+
 <script>
 const $ = s => document.querySelector(s);
-/* CASA = HSE */
-const SB_URL  = "https://mpozawfbtajsrfccqldw.supabase.co";
-const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE";
-let SB_TOKEN=null, ME=null, TAB="";
-const MODULOS=[{key:"hse",nombre:"KALU HSE",ic:"🛡️"},{key:"ra",nombre:"Realidad Asistida",ic:"🥽"},{key:"qaqc",nombre:"QA/QC",ic:"📐"},{key:"ndt",nombre:"NDT",ic:"🔬"}];
-const ROLES=["trabajador","supervisor","hse","admin"];
+/* CASA = plataforma unificada */
+const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
+/* Webhook de n8n para acciones con permisos de admin (invitar, resetear, crear super).
+   Cuando lo tengamos, se completa acá y los botones quedan vivos. */
+const N8N_HOOK = "";
+let SB_TOKEN=null, ME=null, TAB="", CTX_EMP=null, EMPRESAS=[];
+
+/* Catálogo de módulos → roles → permisos por defecto (editables) */
+const MODULOS=[
+  {key:"hse", nombre:"HSE", ic:"🛡️", roles:{
+     operador:["validacion","ats","tarjetas"],
+     investigador:["investigaciones"],
+     coordinador:["consola","expedientes","tarjetas","investigaciones"],
+     supervisor:["aprobar_ats","aprobar_tarjetas"]
+  }},
+  {key:"ra", nombre:"Realidad Asistida", ic:"🥽", roles:{
+     operador:["captura"],
+     coordinador:["consola","asiste"]
+  }},
+  {key:"qaqc", nombre:"QA/QC", ic:"📐", roles:{
+     asegurador:["captura","editor_informes"],
+     coordinador:["consola"]
+  }},
+  {key:"ndt", nombre:"NDT", ic:"🔬", roles:{}}
+];
+const PERM_LABEL={
+  validacion:"Validación", ats:"ATS", tarjetas:"Tarjetas",
+  investigaciones:"Investigaciones", expedientes:"Expedientes",
+  aprobar_ats:"Aprobar ATS", aprobar_tarjetas:"Aprobar tarjetas",
+  captura:"Captura", consola:"Consola", asiste:"Asistencia en vivo",
+  editor_informes:"Editor de informes"
+};
+function modDef(k){ return MODULOS.find(function(m){return m.key===k;}); }
 
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({apikey:SB_ANON,"Content-Type":"application/json"}, opts.headers||{});
@@ -106,8 +166,8 @@ async function sbFetch(path, opts){
 function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function fFecha(s){ try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return ""; } }
 let toastT=null;
-function toast(m,err){ let t=$(".toast"); if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t);} t.textContent=m; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){t.className="toast";},2800); }
-async function logAud(accion,entidad,entidad_id,detalle){ try{ await sbFetch("/rest/v1/auditoria",{method:"POST",body:JSON.stringify({empresa_id:ME.empresa_id,actor_id:ME.id,actor_nombre:ME.nombre||ME.email,accion:accion,entidad:entidad,entidad_id:String(entidad_id||""),detalle:detalle||null})}); }catch(e){} }
+function toast(m,err){ let t=$(".toast"); if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t);} t.textContent=m; t.className="toast show"+(err?" err":""); if(toastT)clearTimeout(toastT); toastT=setTimeout(function(){t.className="toast";},3000); }
+async function logAud(accion,entidad,entidad_id,detalle){ try{ await sbFetch("/rest/v1/auditoria",{method:"POST",body:JSON.stringify({empresa_id:CTX_EMP||ME.empresa_id,actor_id:ME.id,actor_nombre:ME.nombre||ME.email,accion:accion,entidad:entidad,entidad_id:String(entidad_id||""),detalle:detalle||null})}); }catch(e){} }
 
 /* ---------- Auth ---------- */
 async function sbLoginPass(email,password){
@@ -119,9 +179,11 @@ async function cargarMe(){
   const p=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=id,empresa_id,nombre,email,rol,es_super,estado,acceso_consola");
   if(!p||!p.length) throw new Error("Tu usuario no tiene perfil.");
   ME=p[0]; ME.email=ME.email||u.email;
-  if(!ME.es_super && ME.rol!=="admin" && ME.rol!=="hse") throw new Error("Necesitás ser admin, HSE o super-admin para entrar acá.");
-  $("#meChip").textContent="👤 "+(ME.nombre||ME.email)+(ME.es_super?" · super-admin":" · "+(ME.rol||"admin"));
+  if(!ME.es_super && ME.rol!=="admin") throw new Error("Necesitás ser admin o super-admin para entrar acá.");
+  CTX_EMP=ME.empresa_id;
+  $("#meChip").textContent="👤 "+(ME.nombre||ME.email)+(ME.es_super?" · super-admin":" · admin");
   $("#gate").style.display="none";
+  if(ME.es_super){ try{ EMPRESAS=await sbFetch("/rest/v1/empresas?select=id,razon_social,modulos,activa&order=razon_social.asc"); }catch(e){ EMPRESAS=[]; } if(EMPRESAS.length) CTX_EMP=EMPRESAS[0].id; }
   construirTabs();
 }
 async function doLoginGate(){
@@ -138,145 +200,253 @@ function salir(){ if(!confirm("¿Cerrar sesión?"))return; try{ sessionStorage.r
 function construirTabs(){
   const tabs=[];
   if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
-  tabs.push(["usuarios","👥 Usuarios (roles y acceso)"]);
-  tabs.push(["personal","🪪 Personal (cédulas)"]);
+  tabs.push(["usuarios","👥 Usuarios y accesos"]);
+  tabs.push(["padron","🪪 Padrón (cédulas)"]);
   tabs.push(["auditoria","📜 Auditoría"]);
   $("#tabs").innerHTML=tabs.map(function(t){return '<button class="tab" id="tab_'+t[0]+'" onclick="irTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("");
   irTab(tabs[0][0]);
 }
 function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
-  if(t==="empresas") viewEmpresas(); else if(t==="usuarios") viewUsuarios(); else if(t==="personal") viewPersonal(); else viewAuditoria(); }
+  if(t==="empresas") viewEmpresas(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else viewAuditoria(); }
+
+function selectorEmpresa(){
+  if(!ME.es_super) return "";
+  const opts=EMPRESAS.map(function(e){return '<option value="'+e.id+'"'+(e.id===CTX_EMP?" selected":"")+'>'+esc(e.razon_social)+'</option>';}).join("");
+  return '<div class="fld" style="margin:0"><label>Empresa</label><select onchange="CTX_EMP=this.value;irTab(TAB)">'+opts+'</select></div>';
+}
+function empModulos(id){ const e=EMPRESAS.find(function(x){return x.id===id;}); const m=e&&Array.isArray(e.modulos)?e.modulos:null; return m; }
 
 /* ---------- EMPRESAS + MÓDULOS (solo super) ---------- */
 async function viewEmpresas(){
   $("#view").innerHTML='<div class="spin">Cargando empresas…</div>';
-  let emps=[];
-  try{ emps=await sbFetch("/rest/v1/empresas_maestro?select=id,razon_social,modulos,activa&order=razon_social.asc"); }
+  try{ EMPRESAS=await sbFetch("/rest/v1/empresas?select=id,razon_social,modulos,activa&order=razon_social.asc"); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
   let h='<h2 class="sec">Empresas y módulos contratados</h2>';
-  h+='<div class="note" style="margin-bottom:14px">Marcá qué módulos tiene cada empresa. El portal le muestra a su gente solo los módulos habilitados.</div>';
-  if(!emps.length){ h+='<div class="empty">No hay empresas cargadas.</div>'; }
-  else h+=emps.map(function(e){
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Nueva empresa</h2><div class="fgrid"><div class="fld"><label>Razón social</label><input id="ne_rs" placeholder="Nombre de la empresa"/></div><div class="fld"><label>NIT (opcional)</label><input id="ne_nit" placeholder="NIT"/></div></div><button class="btn btn-amber btn-sm" onclick="crearEmpresa()">+ Crear empresa</button><div class="note" style="margin-top:10px">Al crearla podés invitar a su admin por correo (webhook n8n).</div></div>';
+  h+='<div class="note" style="margin-bottom:14px">Marcá qué módulos tiene cada empresa. El portal le muestra a su gente solo los módulos habilitados <b>y</b> donde tengan rol.</div>';
+  if(!EMPRESAS.length){ h+='<div class="empty">No hay empresas cargadas.</div>'; }
+  else h+=EMPRESAS.map(function(e){
     const mods=Array.isArray(e.modulos)?e.modulos:[];
     const chips=MODULOS.map(function(m){ const on=mods.indexOf(m.key)>=0; return '<span class="mchk '+(on?"on":"")+'" onclick="toggleModulo(\''+e.id+'\',\''+m.key+'\','+(on?"false":"true")+')">'+m.ic+' '+m.nombre+(on?' ✓':'')+'</span>'; }).join("");
-    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div></div>';
+    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-cy btn-sm" onclick="invitarAdmin(\''+e.id+'\',\''+esc(e.razon_social)+'\')">✉ Invitar admin</button><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div></div>';
   }).join("");
   $("#view").innerHTML=h;
 }
+async function crearEmpresa(){
+  const rs=$("#ne_rs").value.trim(), nit=$("#ne_nit").value.trim();
+  if(!rs){ toast("Poné la razón social.",true); return; }
+  try{ await sbFetch("/rest/v1/empresas",{method:"POST",body:JSON.stringify({razon_social:rs,nit:nit||null,modulos:[],activa:true})}); logAud("crear_empresa","empresa",rs,null); toast("Empresa creada"); viewEmpresas(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
 async function toggleModulo(empId,key,activar){
   try{
-    const cur=(await sbFetch("/rest/v1/empresas_maestro?id=eq."+empId+"&select=modulos"))[0].modulos||[];
+    const cur=(await sbFetch("/rest/v1/empresas?id=eq."+empId+"&select=modulos"))[0].modulos||[];
     let mods=Array.isArray(cur)?cur.slice():[];
     if(activar){ if(mods.indexOf(key)<0) mods.push(key); } else { mods=mods.filter(function(k){return k!==key;}); }
-    await sbFetch("/rest/v1/empresas_maestro?id=eq."+empId,{method:"PATCH",body:JSON.stringify({modulos:mods})});
+    await sbFetch("/rest/v1/empresas?id=eq."+empId,{method:"PATCH",body:JSON.stringify({modulos:mods})});
     logAud("set_modulos","empresa",empId,{modulos:mods}); toast("Módulos actualizados"); viewEmpresas();
   }catch(e){ toast("Error: "+e.message,true); }
 }
 async function toggleEmpresaActiva(id,activar){
-  try{ await sbFetch("/rest/v1/empresas_maestro?id=eq."+id,{method:"PATCH",body:JSON.stringify({activa:activar})}); logAud(activar?"reactivar_empresa":"desactivar_empresa","empresa",id,null); viewEmpresas(); }
+  try{ await sbFetch("/rest/v1/empresas?id=eq."+id,{method:"PATCH",body:JSON.stringify({activa:activar})}); logAud(activar?"reactivar_empresa":"desactivar_empresa","empresa",id,null); viewEmpresas(); }
   catch(e){ toast("Error: "+e.message,true); }
 }
 
-/* ---------- USUARIOS (perfiles · roles y acceso) ---------- */
+/* ---------- USUARIOS (perfiles registrados + accesos) ---------- */
 async function viewUsuarios(){
   $("#view").innerHTML='<div class="spin">Cargando usuarios…</div>';
-  let us=[];
-  try{ us=await sbFetch("/rest/v1/perfiles?select=id,nombre,email,rol,es_super,estado,acceso_consola&order=estado.asc,nombre.asc"); }
-  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
-  const mandos=us.filter(function(u){return u.estado==="activo"&&(u.rol==="admin"||u.rol==="hse"||u.es_super);}).length;
-  let h='<h2 class="sec">Usuarios · rol y acceso (correo + contraseña)</h2>';
-  h+='<div class="note" style="margin-bottom:14px"><b>Rol</b> = qué puede hacer. <b>Consola</b> = si entra a la Consola HSE. <b>Super</b> = manda en todo. Nada se borra: se desactiva (estado = baja) y se puede reactivar.</div>';
-  h+=us.map(function(u){
-    const yo=(u.id===ME.id);
-    const activo=(u.estado==="activo");
-    const rolSel=ROLES.map(function(r){return '<option value="'+r+'"'+(u.rol===r?" selected":"")+'>'+r+'</option>';}).join("");
-    let acc="";
-    if(yo){ acc='<span class="bdg r">vos</span>'; }
-    else {
-      acc+='<select class="fld" style="width:auto" onchange="cambiarRol(\''+u.id+'\',this.value)">'+rolSel+'</select>';
-      acc+='<button class="btn btn-b btn-sm" onclick="toggleConsola(\''+u.id+'\','+(u.acceso_consola?"false":"true")+')">'+(u.acceso_consola?"Quitar consola":"Dar consola")+'</button>';
-      if(ME.es_super) acc+='<button class="btn btn-b btn-sm" onclick="toggleSuper(\''+u.id+'\','+(u.es_super?"false":"true")+')">'+(u.es_super?"Quitar super":"Hacer super")+'</button>';
-      if(activo) acc+='<button class="btn btn-danger btn-sm" onclick="bajaUsuario(\''+u.id+'\','+mandos+','+(u.rol==="admin"||u.rol==="hse"||u.es_super)+')">Desactivar</button>';
-      else acc+='<button class="btn btn-b btn-sm" onclick="reactivarUsuario(\''+u.id+'\')">Reactivar</button>';
-    }
+  let us=[], acc=[];
+  try{
+    us=await sbFetch("/rest/v1/perfiles?empresa_id=eq."+CTX_EMP+"&select=id,nombre,email,rol,es_super,estado,acceso_consola&order=estado.asc,nombre.asc");
+    acc=await sbFetch("/rest/v1/accesos?empresa_id=eq."+CTX_EMP+"&select=usuario_id,modulo,rol,permisos,estado");
+  }catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  const byUser={}; acc.forEach(function(a){ (byUser[a.usuario_id]=byUser[a.usuario_id]||[]).push(a); });
+  let h='<div class="toolbar">'+selectorEmpresa()+(ME.es_super?'<button class="btn btn-cy btn-sm" style="align-self:flex-end" onclick="crearSuper()">＋ Crear super-admin</button>':'')+'</div>';
+  h+='<h2 class="sec">Usuarios registrados · rol y accesos</h2>';
+  h+='<div class="note" style="margin-bottom:14px"><b>Accesos</b> = a qué módulos entra y con qué rol (con permisos que podés destildar). <b>Consola</b> y <b>rol de empresa</b> son aparte. Nada se borra: se da de baja.</div>';
+  if(!us.length){ h+='<div class="empty">Todavía no hay usuarios registrados en esta empresa.</div>'; }
+  else h+=us.map(function(u){
+    const yo=(u.id===ME.id), activo=(u.estado==="activo");
+    const mias=(byUser[u.id]||[]);
+    const chips=mias.length?mias.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(a.rol)+'</span>';}).join(" "):'<span class="meta">sin accesos</span>';
+    let acts='<button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("user","'+u.id+'",'+JSON.stringify(esc(u.nombre||u.email))+')\'>🎛️ Accesos</button>';
+    if(!yo){
+      acts+='<button class="btn btn-b btn-sm" onclick="toggleConsola(\''+u.id+'\','+(u.acceso_consola?"false":"true")+')">'+(u.acceso_consola?"Quitar consola":"Dar consola")+'</button>';
+      if(ME.es_super) acts+='<button class="btn btn-b btn-sm" onclick="toggleSuper(\''+u.id+'\','+(u.es_super?"false":"true")+')">'+(u.es_super?"Quitar super":"Hacer super")+'</button>';
+      acts+='<button class="btn btn-cy btn-sm" onclick="resetPass(\''+u.id+'\')">🔑 Resetear clave</button>';
+      if(activo) acts+='<button class="btn btn-danger btn-sm" onclick="bajaUsuario(\''+u.id+'\')">Desactivar</button>';
+      else acts+='<button class="btn btn-b btn-sm" onclick="reactivarUsuario(\''+u.id+'\')">Reactivar</button>';
+    } else { acts+='<span class="bdg r">vos</span>'; }
     const badges=(activo?'<span class="bdg a">activo</span>':'<span class="bdg i">'+esc(u.estado||"inactivo")+'</span>')
-      +' <span class="bdg r">'+esc(u.rol||"—")+'</span>'
-      +(u.es_super?' <span class="bdg s">super</span>':'')
+      +(u.es_super?' <span class="bdg s">super</span>':' <span class="bdg r">'+esc(u.rol||"—")+'</span>')
       +(u.acceso_consola?' <span class="bdg r">consola</span>':'');
-    return '<div class="row '+(activo?"":"off")+'"><div class="grow"><div class="nm">'+esc(u.nombre||"(sin nombre)")+' '+badges+'</div><div class="meta">'+esc(u.email||"—")+'</div></div>'+acc+'</div>';
+    return '<div class="row '+(activo?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(u.nombre||"(sin nombre)")+'</span> '+badges+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">'+esc(u.email||"—")+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+acts+'</div></div>';
   }).join("");
   $("#view").innerHTML=h;
 }
-async function cambiarRol(id,rol){
-  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({rol:rol})}); logAud("cambiar_rol","perfil",id,{rol:rol}); toast("Rol actualizado → "+rol); }
-  catch(e){ toast("Error: "+e.message,true); viewUsuarios(); }
-}
-async function toggleConsola(id,val){
-  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({acceso_consola:val})}); logAud("acceso_consola","perfil",id,{acceso_consola:val}); toast(val?"Acceso a consola dado":"Acceso a consola quitado"); viewUsuarios(); }
-  catch(e){ toast("Error: "+e.message,true); }
-}
-async function toggleSuper(id,val){
-  if(val && !confirm("¿Hacer super-admin a esta persona? Va a poder administrar TODO.")) return;
-  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({es_super:val})}); logAud(val?"hacer_super":"quitar_super","perfil",id,null); toast(val?"Ahora es super-admin":"Ya no es super"); viewUsuarios(); }
-  catch(e){ toast("Error: "+e.message,true); }
-}
-async function bajaUsuario(id,mandos,esMando){
-  if(esMando && mandos<=1){ alert("No podés desactivar al último admin/super activo.\nDejá siempre al menos uno."); return; }
-  if(!confirm("¿Desactivar este usuario?\nNo va a poder entrar. Se puede reactivar (no se borra)."))return;
-  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"baja"})}); logAud("baja_usuario","perfil",id,null); toast("Usuario desactivado"); viewUsuarios(); }
-  catch(e){ toast("Error: "+e.message,true); }
-}
-async function reactivarUsuario(id){
-  try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"activo"})}); logAud("reactivar_usuario","perfil",id,null); toast("Usuario reactivado"); viewUsuarios(); }
-  catch(e){ toast("Error: "+e.message,true); }
-}
+async function toggleConsola(id,val){ try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({acceso_consola:val})}); logAud("acceso_consola","perfil",id,{acceso_consola:val}); toast(val?"Consola dada":"Consola quitada"); viewUsuarios(); }catch(e){ toast("Error: "+e.message,true); } }
+async function toggleSuper(id,val){ if(val&&!confirm("¿Hacer super-admin? Va a administrar TODO."))return; try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({es_super:val})}); logAud(val?"hacer_super":"quitar_super","perfil",id,null); toast(val?"Ahora es super":"Ya no es super"); viewUsuarios(); }catch(e){ toast("Error: "+e.message,true); } }
+async function bajaUsuario(id){ if(!confirm("¿Desactivar este usuario? No podrá entrar (se puede reactivar)."))return; try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"baja"})}); logAud("baja_usuario","perfil",id,null); toast("Usuario desactivado"); viewUsuarios(); }catch(e){ toast("Error: "+e.message,true); } }
+async function reactivarUsuario(id){ try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"activo"})}); logAud("reactivar_usuario","perfil",id,null); toast("Reactivado"); viewUsuarios(); }catch(e){ toast("Error: "+e.message,true); } }
 
-/* ---------- PERSONAL (trabajadores_maestro · cédulas) ---------- */
-async function viewPersonal(){
-  $("#view").innerHTML='<div class="spin">Cargando personal…</div>';
+/* ---------- PADRÓN (personas · cédulas + accesos previstos) ---------- */
+async function viewPadron(){
+  $("#view").innerHTML='<div class="spin">Cargando padrón…</div>';
   let ps=[];
-  try{ ps=await sbFetch("/rest/v1/trabajadores_maestro?select=id,cedula,nombre,cargo,vigente&order=vigente.desc,nombre.asc"); }
+  try{ ps=await sbFetch("/rest/v1/personas?empresa_id=eq."+CTX_EMP+"&select=id,cedula,nombre,celular,cargo,vigente,accesos_previstos&order=vigente.desc,nombre.asc"); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
-  let h='<h2 class="sec">Personal por cédula</h2>';
-  h+='<div class="note" style="margin-bottom:14px"><b>Importante:</b> para que alguien pueda crear su cuenta (app o consola), su cédula tiene que estar acá primero. Cargala y después la persona se registra con ese documento.</div>';
-  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Agregar persona</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="np_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula</label><input id="np_cedula" placeholder="12345678"/></div><div class="fld"><label>Cargo</label><input id="np_cargo" placeholder="Inspector (opcional)"/></div></div><button class="btn btn-amber btn-sm" onclick="crearPersona()">+ Agregar</button></div>';
+  let h='<div class="toolbar">'+selectorEmpresa()+'<button class="btn btn-b btn-sm" style="align-self:flex-end" onclick="descargarPlantilla()">⬇ Descargar plantilla CSV</button><label class="btn btn-cy btn-sm" style="align-self:flex-end;cursor:pointer">⬆ Cargar CSV<input type="file" accept=".csv" style="display:none" onchange="cargarCSV(this)"></label></div>';
+  h+='<h2 class="sec">Padrón por cédula</h2>';
+  h+='<div class="note" style="margin-bottom:14px"><b>Importante:</b> para que alguien cree su cuenta, su cédula tiene que estar acá primero. Podés dejarle los <b>accesos previstos</b> (módulos+roles) y cuando se registre los toma solos.</div>';
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Agregar persona</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="np_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula</label><input id="np_cedula" placeholder="12345678"/></div><div class="fld"><label>Celular</label><input id="np_celular" placeholder="opcional"/></div><div class="fld"><label>Cargo</label><input id="np_cargo" placeholder="opcional"/></div></div><button class="btn btn-amber btn-sm" onclick="crearPersona()">+ Agregar</button></div>';
   if(!ps.length){ h+='<div class="empty">Todavía no hay personal cargado.</div>'; }
   else h+=ps.map(function(p){
     const vig=(p.vigente!==false);
-    return '<div class="row '+(vig?"":"off")+'"><div class="grow"><div class="nm">'+esc(p.nombre||"(sin nombre)")+' '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'</div><div class="meta">C.C. '+esc(p.cedula||"—")+(p.cargo?' · '+esc(p.cargo):'')+'</div></div>'+
-      (vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div>';
+    const prev=Array.isArray(p.accesos_previstos)?p.accesos_previstos:[];
+    const chips=prev.length?prev.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(a.rol)+'</span>';}).join(" "):'<span class="meta">sin accesos previstos</span>';
+    return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("padron","'+p.id+'",'+JSON.stringify(esc(p.nombre||p.cedula))+')\'>🎛️ Accesos previstos</button>'+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
   }).join("");
   $("#view").innerHTML=h;
 }
 async function crearPersona(){
-  const nombre=$("#np_nombre").value.trim(), cedula=$("#np_cedula").value.trim(), cargo=$("#np_cargo").value.trim();
+  const nombre=$("#np_nombre").value.trim(), cedula=$("#np_cedula").value.trim(), celular=$("#np_celular").value.trim(), cargo=$("#np_cargo").value.trim();
   if(!nombre||!cedula){ toast("Nombre y cédula son obligatorios.",true); return; }
-  try{ await sbFetch("/rest/v1/trabajadores_maestro",{method:"POST",body:JSON.stringify({empresa_id:ME.empresa_id,nombre:nombre,cedula:cedula,cargo:cargo||null,vigente:true})}); logAud("crear_persona","trabajador",cedula,{nombre:nombre}); toast("Persona agregada"); viewPersonal(); }
+  try{ await sbFetch("/rest/v1/personas",{method:"POST",body:JSON.stringify({empresa_id:CTX_EMP,nombre:nombre,cedula:cedula,celular:celular||null,cargo:cargo||null,vigente:true,accesos_previstos:[]})}); logAud("crear_persona","persona",cedula,{nombre:nombre}); toast("Persona agregada"); viewPadron(); }
   catch(e){ toast((String(e.message).indexOf("duplicate")>=0?"Ya existe alguien con esa cédula.":"Error: "+e.message),true); }
 }
-async function bajaPersona(id){
-  if(!confirm("¿Dar de baja a esta persona? No podrá registrar tarjetas ni crear cuenta."))return;
-  try{ await sbFetch("/rest/v1/trabajadores_maestro?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:false})}); logAud("baja_persona","trabajador",id,null); toast("Dada de baja"); viewPersonal(); }
-  catch(e){ toast("Error: "+e.message,true); }
+async function bajaPersona(id){ if(!confirm("¿Dar de baja a esta persona?"))return; try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:false})}); logAud("baja_persona","persona",id,null); toast("Dada de baja"); viewPadron(); }catch(e){ toast("Error: "+e.message,true); } }
+async function altaPersona(id){ try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:true})}); logAud("alta_persona","persona",id,null); toast("Reactivada"); viewPadron(); }catch(e){ toast("Error: "+e.message,true); } }
+
+/* ---------- CSV ---------- */
+function descargarPlantilla(){
+  const cols=["nombre","cedula","celular","cargo","hse_rol","ra_rol","qaqc_rol"];
+  const ej=["Juan Perez","12345678","3001234567","Inspector","operador","","asegurador"];
+  const csv=cols.join(",")+"\n"+ej.join(",")+"\n";
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="plantilla_padron_kalu.csv"; a.click();
 }
-async function altaPersona(id){
-  try{ await sbFetch("/rest/v1/trabajadores_maestro?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:true})}); logAud("alta_persona","trabajador",id,null); toast("Reactivada"); viewPersonal(); }
-  catch(e){ toast("Error: "+e.message,true); }
+function parseCSV(txt){
+  const lines=txt.replace(/\r/g,"").split("\n").filter(function(l){return l.trim().length;});
+  if(!lines.length) return [];
+  const head=lines[0].split(",").map(function(s){return s.trim().toLowerCase();});
+  return lines.slice(1).map(function(l){ const c=l.split(","); const o={}; head.forEach(function(h,i){o[h]=(c[i]||"").trim();}); return o; });
+}
+function previstosDesde(row){
+  const out=[];
+  [["hse","hse_rol"],["ra","ra_rol"],["qaqc","qaqc_rol"]].forEach(function(m){
+    const rol=(row[m[1]]||"").trim(); if(!rol) return;
+    const d=modDef(m[0]); const perms=(d&&d.roles[rol])?d.roles[rol].slice():[];
+    out.push({modulo:m[0],rol:rol,permisos:perms});
+  });
+  return out;
+}
+async function cargarCSV(inp){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  const txt=await f.text(); const rows=parseCSV(txt); inp.value="";
+  if(!rows.length){ toast("El archivo está vacío.",true); return; }
+  let ok=0, err=0;
+  for(const r of rows){
+    if(!r.cedula||!r.nombre){ err++; continue; }
+    const body={empresa_id:CTX_EMP,nombre:r.nombre,cedula:r.cedula,celular:r.celular||null,cargo:r.cargo||null,vigente:true,accesos_previstos:previstosDesde(r)};
+    try{ await sbFetch("/rest/v1/personas",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(body)}); ok++; }catch(e){ err++; }
+  }
+  logAud("carga_csv","persona",CTX_EMP,{ok:ok,err:err});
+  toast("Cargadas "+ok+(err?" · "+err+" con error/omitidas":"")); viewPadron();
+}
+
+/* ---------- MODAL ACCESOS (usuarios y padrón) ---------- */
+let OV={};
+async function abrirAccesos(tipo,id,nombre){
+  let mods=empModulos(CTX_EMP);
+  if(mods===null){ try{ mods=(await sbFetch("/rest/v1/empresas?id=eq."+CTX_EMP+"&select=modulos"))[0].modulos||[]; }catch(e){ mods=[]; } }
+  let current=[];
+  try{
+    if(tipo==="user") current=await sbFetch("/rest/v1/accesos?usuario_id=eq."+id+"&select=modulo,rol,permisos");
+    else { const p=await sbFetch("/rest/v1/personas?id=eq."+id+"&select=accesos_previstos"); current=(p[0]&&Array.isArray(p[0].accesos_previstos))?p[0].accesos_previstos:[]; }
+  }catch(e){ current=[]; }
+  OV={tipo:tipo,id:id,mods:mods};
+  const curMap={}; current.forEach(function(a){ curMap[a.modulo]=a; });
+  $("#ov_t").textContent="Accesos"; $("#ov_s").textContent=nombre;
+  if(!mods.length){ $("#ov_b").innerHTML='<div class="empty">Esta empresa no tiene módulos habilitados. Prendé módulos en la pestaña Empresas primero.</div>'; }
+  else $("#ov_b").innerHTML=mods.map(function(k){
+    const d=modDef(k); if(!d) return "";
+    const roles=Object.keys(d.roles);
+    const cur=curMap[k];
+    const opts='<option value="">— sin acceso —</option>'+roles.map(function(r){return '<option value="'+r+'"'+(cur&&cur.rol===r?" selected":"")+'>'+r+'</option>';}).join("");
+    return '<div class="modblk" data-mod="'+k+'"><div class="top"><span class="ic">'+d.ic+'</span><b>'+esc(d.nombre)+'</b><select onchange="rolCambio(\''+k+'\',this.value)">'+opts+'</select></div><div class="perms" id="perms_'+k+'"></div></div>';
+  }).join("");
+  mods.forEach(function(k){ const cur=curMap[k]; if(cur&&cur.rol) pintarPerms(k,cur.rol,Array.isArray(cur.permisos)?cur.permisos:null); });
+  $("#ov").classList.add("show");
+}
+function pintarPerms(k,rol,sel){
+  const d=modDef(k); const box=$("#perms_"+k); if(!box||!d) return;
+  if(!rol){ box.innerHTML=""; return; }
+  const def=d.roles[rol]||[]; const chosen=sel||def.slice();
+  box.innerHTML=def.map(function(p){ const on=chosen.indexOf(p)>=0; return '<span class="pchk '+(on?"on":"")+'" data-p="'+p+'" onclick="this.classList.toggle(\'on\')">'+(PERM_LABEL[p]||p)+'</span>'; }).join("")||'<span class="meta">Este rol no tiene permisos configurables.</span>';
+}
+function rolCambio(k,rol){ pintarPerms(k,rol,null); }
+function cerrarAccesos(){ $("#ov").classList.remove("show"); OV={}; }
+function leerModal(){
+  const out=[];
+  OV.mods.forEach(function(k){
+    const blk=document.querySelector('.modblk[data-mod="'+k+'"]'); if(!blk) return;
+    const rol=blk.querySelector("select").value; if(!rol) return;
+    const perms=[]; blk.querySelectorAll(".pchk.on").forEach(function(el){ perms.push(el.getAttribute("data-p")); });
+    out.push({modulo:k,rol:rol,permisos:perms});
+  });
+  return out;
+}
+async function guardarAccesos(){
+  const arr=leerModal(); const btn=$("#ov_save"); btn.disabled=true; btn.textContent="Guardando…";
+  try{
+    if(OV.tipo==="padron"){
+      await sbFetch("/rest/v1/personas?id=eq."+OV.id,{method:"PATCH",body:JSON.stringify({accesos_previstos:arr})});
+      logAud("set_accesos_previstos","persona",OV.id,{n:arr.length});
+    } else {
+      await sbFetch("/rest/v1/accesos?usuario_id=eq."+OV.id,{method:"DELETE"});
+      if(arr.length){
+        const rows=arr.map(function(a){return {usuario_id:OV.id,empresa_id:CTX_EMP,modulo:a.modulo,rol:a.rol,permisos:a.permisos,estado:"activo"};});
+        await sbFetch("/rest/v1/accesos",{method:"POST",body:JSON.stringify(rows)});
+      }
+      logAud("set_accesos","perfil",OV.id,{n:arr.length});
+    }
+    toast("Accesos guardados"); cerrarAccesos();
+    if(TAB==="usuarios") viewUsuarios(); else viewPadron();
+  }catch(e){ toast("Error: "+e.message,true); }
+  finally{ btn.disabled=false; btn.textContent="Guardar accesos"; }
+}
+
+/* ---------- Acciones vía n8n (permisos de admin) ---------- */
+async function n8n(accion,payload){
+  if(!N8N_HOOK){ toast("Falta configurar el webhook de n8n para esta acción (próximo paso).",true); return false; }
+  try{ const r=await fetch(N8N_HOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({accion:accion,token:SB_TOKEN,empresa_id:CTX_EMP},payload))}); if(!r.ok) throw new Error("HTTP "+r.status); return true; }
+  catch(e){ toast("Error n8n: "+e.message,true); return false; }
+}
+async function invitarAdmin(empId,rs){
+  const email=prompt("Correo del admin de "+rs+":"); if(!email) return;
+  if(await n8n("invitar_admin",{empresa_id:empId,email:email.trim()})) toast("Invitación enviada a "+email);
+}
+async function resetPass(userId){
+  if(!confirm("¿Resetear la contraseña de este usuario? Se le genera una nueva."))return;
+  if(await n8n("reset_password",{usuario_id:userId})) toast("Contraseña reseteada");
+}
+async function crearSuper(){
+  const email=prompt("Correo del nuevo super-admin:"); if(!email) return;
+  if(await n8n("crear_super",{email:email.trim()})) toast("Super-admin creado");
 }
 
 /* ---------- AUDITORÍA ---------- */
 async function viewAuditoria(){
   $("#view").innerHTML='<div class="spin">Cargando…</div>';
   let a=[];
-  try{ a=await sbFetch("/rest/v1/auditoria?select=actor_nombre,accion,entidad,detalle,creado_en&order=creado_en.desc&limit=120"); }
+  try{ a=await sbFetch("/rest/v1/auditoria?empresa_id=eq."+CTX_EMP+"&select=actor_nombre,accion,entidad,detalle,creado&order=creado.desc&limit=120"); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
-  let h='<h2 class="sec">Auditoría · últimas acciones</h2>';
+  let h='<div class="toolbar">'+selectorEmpresa()+'</div><h2 class="sec">Auditoría · últimas acciones</h2>';
   if(!a.length){ h+='<div class="empty">Sin actividad registrada todavía.</div>'; }
-  else h+='<div class="card">'+a.map(function(x){ return '<div class="aud"><span class="t">'+esc(fFecha(x.creado_en))+'</span><span class="grow"><b>'+esc(x.actor_nombre||"—")+'</b> · '+esc(x.accion)+' <span style="color:var(--mut)">('+esc(x.entidad||"")+')</span></span></div>'; }).join("")+'</div>';
+  else h+='<div class="card">'+a.map(function(x){ return '<div class="aud"><span class="t">'+esc(fFecha(x.creado))+'</span><span class="grow"><b>'+esc(x.actor_nombre||"—")+'</b> · '+esc(x.accion)+' <span style="color:var(--mut)">('+esc(x.entidad||"")+')</span></span></div>'; }).join("")+'</div>';
   $("#view").innerHTML=h;
 }
 
-/* ---------- Init (SSO o gate) ---------- */
+/* ---------- Init ---------- */
 (function(){
   try{ const s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null");
     if(s&&s.token&&(Date.now()-s.ts)<55*60*1000){ SB_TOKEN=s.token; cargarMe().catch(function(){ $("#gate").style.display="flex"; }); return; } }catch(e){}

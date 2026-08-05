@@ -116,19 +116,13 @@ async function registrar(){
   if(pass.length<6){ m.className='msg err'; m.textContent='La contraseña necesita al menos 6 caracteres.'; return; }
   $('btn2').disabled=true; $('btn2').textContent='Creando…';
   try{
-    const {data,error}=await sb.auth.signUp({email:email,password:pass});
+    // la cédula viaja en el metadata; el trigger crea el perfil solo
+    const {data,error}=await sb.auth.signUp({email:email,password:pass,options:{data:{cedula:CED,nombre:NOMBRE}}});
     if(error) throw error;
-    // si el proyecto pide confirmación por correo, no hay sesión todavía
-    if(!data.session){
-      $('paso2').classList.add('hide'); $('paso3').classList.remove('hide');
-      $('okmsg').textContent='Te enviamos un correo para confirmar. Confirmalo y después ingresá — tu cuenta ya queda vinculada a tu empresa al primer ingreso.';
-      // guardamos la cédula para vincular al confirmar/ingresar
-      try{ localStorage.setItem('kalu_ced_pend', CED+'|'+email); }catch(_){}
-      return;
-    }
-    const {error:e2}=await sb.rpc('padron_vincular',{p_cedula:CED,p_email:email});
-    if(e2) throw e2;
     $('paso2').classList.add('hide'); $('paso3').classList.remove('hide');
+    if(!data.session){
+      $('okmsg').textContent='Te enviamos un correo para confirmar tu cuenta. Confirmalo y después ingresá con tu correo y contraseña.';
+    }
   }catch(e){
     m.className='msg err';
     const t=(e&&e.message)||'';

@@ -125,7 +125,7 @@ const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
 /* Webhook de n8n para acciones con permisos de admin (invitar, resetear, crear super).
    Cuando lo tengamos, se completa acá y los botones quedan vivos. */
-const N8N_HOOK = "";
+const N8N_HOOK = "https://dnmintell.app.n8n.cloud/webhook/kalu-admin";
 let SB_TOKEN=null, ME=null, TAB="", CTX_EMP=null, EMPRESAS=[];
 
 /* Catálogo de módulos → roles → permisos por defecto (editables) */
@@ -417,21 +417,27 @@ async function guardarAccesos(){
 
 /* ---------- Acciones vía n8n (permisos de admin) ---------- */
 async function n8n(accion,payload){
-  if(!N8N_HOOK){ toast("Falta configurar el webhook de n8n para esta acción (próximo paso).",true); return false; }
-  try{ const r=await fetch(N8N_HOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({accion:accion,token:SB_TOKEN,empresa_id:CTX_EMP},payload))}); if(!r.ok) throw new Error("HTTP "+r.status); return true; }
-  catch(e){ toast("Error n8n: "+e.message,true); return false; }
+  if(!N8N_HOOK){ toast("Falta configurar el webhook de n8n.",true); return null; }
+  try{
+    const r=await fetch(N8N_HOOK,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({accion:accion,token:SB_TOKEN,empresa_id:CTX_EMP},payload))});
+    let d=null; try{ d=await r.json(); }catch(e){}
+    if(!r.ok||(d&&d.ok===false)) throw new Error((d&&d.message)||("HTTP "+r.status));
+    return d||{ok:true};
+  }catch(e){ toast("Error: "+e.message,true); return null; }
 }
 async function invitarAdmin(empId,rs){
   const email=prompt("Correo del admin de "+rs+":"); if(!email) return;
-  if(await n8n("invitar_admin",{empresa_id:empId,email:email.trim()})) toast("Invitación enviada a "+email);
+  const d=await n8n("invitar_admin",{empresa_id:empId,email:email.trim()}); if(d) toast(d.message||("Invitación enviada a "+email));
 }
 async function resetPass(userId){
   if(!confirm("¿Resetear la contraseña de este usuario? Se le genera una nueva."))return;
-  if(await n8n("reset_password",{usuario_id:userId})) toast("Contraseña reseteada");
+  const d=await n8n("reset_password",{usuario_id:userId}); if(!d) return;
+  if(d.password) alert("Contraseña nueva:\n\n"+d.password+"\n\nDásela a la persona. Con eso entra y la puede seguir usando.");
+  else toast(d.message||"Contraseña reseteada");
 }
 async function crearSuper(){
   const email=prompt("Correo del nuevo super-admin:"); if(!email) return;
-  if(await n8n("crear_super",{email:email.trim()})) toast("Super-admin creado");
+  const d=await n8n("crear_super",{email:email.trim()}); if(d) toast(d.message||"Super-admin creado");
 }
 
 /* ---------- AUDITORÍA ---------- */

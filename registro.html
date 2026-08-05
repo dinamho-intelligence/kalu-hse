@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crear cuenta — KALU | Dinamho Intelligence</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--green:#2fa36b;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.35);--glow-c:rgba(0,212,255,.25);--red:#ff6b6b}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 20%,transparent 75%);opacity:.5}
+  .bg .glow1{position:absolute;top:-10%;right:-5%;width:640px;height:640px;background:radial-gradient(circle,var(--glow-o),transparent 62%);filter:blur(30px);opacity:.4}
+  .bg .glow2{position:absolute;bottom:-20%;left:-10%;width:560px;height:560px;background:radial-gradient(circle,var(--glow-c),transparent 62%);filter:blur(30px);opacity:.35}
+  .stage{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+  .box{width:100%;max-width:410px;text-align:center}
+  .logo{display:inline-flex;align-items:center;gap:11px;margin-bottom:22px}
+  .logo-txt{display:flex;flex-direction:column;line-height:1.05;text-align:left}
+  .logo-txt .b{font-weight:800;font-size:15px;letter-spacing:1px}
+  .logo-txt .s{font-family:ui-monospace,monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
+  .card{background:linear-gradient(180deg,rgba(22,26,34,.92),rgba(15,18,24,.92));border:1px solid var(--border);border-radius:22px;padding:32px 28px;backdrop-filter:blur(8px);box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
+  .eyebrow{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--orange)}
+  h1{font-size:22px;font-weight:800;letter-spacing:-.3px;margin:6px 0 4px}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:22px}
+  .fld{text-align:left;margin-bottom:14px}
+  .fld label{display:block;font-family:ui-monospace,monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .fld input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:inherit;font-size:15px;padding:12px 15px;outline:none;transition:border-color .2s}
+  .fld input:focus{border-color:var(--orange)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:inherit;font-weight:700;font-size:15px;padding:13px 20px;border-radius:12px;cursor:pointer;border:1px solid transparent;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;box-shadow:0 8px 30px -8px var(--glow-o);margin-top:6px}
+  .btn:hover{transform:translateY(-1px)} .btn:disabled{opacity:.6;cursor:default;transform:none}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text);box-shadow:none}
+  .msg{font-size:13.5px;margin:10px 0 0;min-height:18px;text-align:left}
+  .msg.err{color:var(--red)} .msg.ok{color:var(--green)}
+  .hello{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px;text-align:left;font-size:14px}
+  .hello b{color:var(--text)} .hello .e{color:var(--cyan);font-size:12.5px;display:block;margin-top:2px}
+  .foot{margin-top:18px;font-size:12px;color:var(--muted)}
+  .foot a{color:var(--cyan)}
+  .done{font-size:44px;margin-bottom:8px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
+<div class="stage">
+  <div class="box">
+    <a class="logo" href="index.html">
+      <svg viewBox="0 0 40 40" fill="none" style="width:36px;height:36px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial">DI</text></svg>
+      <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
+    </a>
+
+    <!-- PASO 1 · cédula -->
+    <div class="card" id="paso1">
+      <span class="eyebrow">Crear cuenta</span>
+      <h1>Ingresá tu cédula</h1>
+      <div class="sub">Con tu documento te reconocemos y te vinculamos a tu empresa.</div>
+      <div class="fld"><label>Cédula</label><input id="ced" inputmode="numeric" placeholder="Tu número de documento" onkeydown="if(event.key==='Enter')chequear()"></div>
+      <button class="btn" id="btn1" onclick="chequear()">Continuar →</button>
+      <div class="msg" id="msg1"></div>
+      <div class="foot">¿Ya tenés cuenta? <a href="ingreso.html">Ingresá acá</a></div>
+    </div>
+
+    <!-- PASO 2 · correo + contraseña -->
+    <div class="card hide" id="paso2">
+      <span class="eyebrow">Casi listo</span>
+      <h1>Creá tu acceso</h1>
+      <div class="hello" id="hello"></div>
+      <div class="fld"><label>Correo</label><input id="email" type="email" autocomplete="email" placeholder="tu@correo.com"></div>
+      <div class="fld"><label>Contraseña (mínimo 6)</label><input id="pass" type="password" autocomplete="new-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')registrar()"></div>
+      <button class="btn" id="btn2" onclick="registrar()">Crear mi cuenta</button>
+      <div class="msg" id="msg2"></div>
+      <div class="foot"><a href="#" onclick="volver();return false">← Cambiar cédula</a></div>
+    </div>
+
+    <!-- PASO 3 · listo -->
+    <div class="card hide" id="paso3">
+      <div class="done">✅</div>
+      <h1>¡Cuenta creada!</h1>
+      <div class="sub" id="okmsg">Ya podés ingresar a la plataforma.</div>
+      <a class="btn" href="ingreso.html">Ir a ingresar →</a>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const $=(id)=>document.getElementById(id);
+let CED='', NOMBRE='', EMPRESA='';
+
+async function chequear(){
+  const ced=$('ced').value.trim();
+  const m=$('msg1'); m.className='msg'; m.textContent='';
+  if(!ced){ m.className='msg err'; m.textContent='Poné tu cédula.'; return; }
+  $('btn1').disabled=true; $('btn1').textContent='Buscando…';
+  try{
+    const {data,error}=await sb.rpc('padron_check',{p_cedula:ced});
+    if(error) throw error;
+    const r=Array.isArray(data)?data[0]:data;
+    if(!r||!r.existe){ m.className='msg err'; m.textContent='Tu cédula no figura en el padrón. Pedile a tu empresa que te dé de alta.'; return; }
+    if(r.ya_registrado){ m.className='msg err'; m.innerHTML='Esa cédula ya tiene cuenta. <a href="ingreso.html" style="color:var(--cyan)">Ingresá acá</a>.'; return; }
+    CED=ced; NOMBRE=r.nombre||''; EMPRESA=r.empresa||'';
+    $('hello').innerHTML='Hola <b>'+esc(NOMBRE)+'</b><span class="e">'+esc(EMPRESA)+'</span>';
+    $('paso1').classList.add('hide'); $('paso2').classList.remove('hide'); $('email').focus();
+  }catch(e){ m.className='msg err'; m.textContent='No se pudo verificar. Probá de nuevo.'; console.error(e); }
+  finally{ $('btn1').disabled=false; $('btn1').textContent='Continuar →'; }
+}
+
+function volver(){ $('paso2').classList.add('hide'); $('paso1').classList.remove('hide'); }
+
+async function registrar(){
+  const email=$('email').value.trim(), pass=$('pass').value;
+  const m=$('msg2'); m.className='msg'; m.textContent='';
+  if(!email||!pass){ m.className='msg err'; m.textContent='Completá correo y contraseña.'; return; }
+  if(pass.length<6){ m.className='msg err'; m.textContent='La contraseña necesita al menos 6 caracteres.'; return; }
+  $('btn2').disabled=true; $('btn2').textContent='Creando…';
+  try{
+    const {data,error}=await sb.auth.signUp({email:email,password:pass});
+    if(error) throw error;
+    // si el proyecto pide confirmación por correo, no hay sesión todavía
+    if(!data.session){
+      $('paso2').classList.add('hide'); $('paso3').classList.remove('hide');
+      $('okmsg').textContent='Te enviamos un correo para confirmar. Confirmalo y después ingresá — tu cuenta ya queda vinculada a tu empresa al primer ingreso.';
+      // guardamos la cédula para vincular al confirmar/ingresar
+      try{ localStorage.setItem('kalu_ced_pend', CED+'|'+email); }catch(_){}
+      return;
+    }
+    const {error:e2}=await sb.rpc('padron_vincular',{p_cedula:CED,p_email:email});
+    if(e2) throw e2;
+    $('paso2').classList.add('hide'); $('paso3').classList.remove('hide');
+  }catch(e){
+    m.className='msg err';
+    const t=(e&&e.message)||'';
+    if(t.toLowerCase().indexOf('already')>=0||t.toLowerCase().indexOf('registered')>=0) m.innerHTML='Ese correo ya está en uso. <a href="ingreso.html" style="color:var(--cyan)">Ingresá</a>.';
+    else m.textContent='No se pudo crear la cuenta: '+t;
+    console.error(e);
+  }finally{ $('btn2').disabled=false; $('btn2').textContent='Crear mi cuenta'; }
+}
+function esc(s){return (s==null?'':String(s)).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+</script>
+</body>
+</html>

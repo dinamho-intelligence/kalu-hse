@@ -100,7 +100,7 @@
     </div>
     <div class="mods" id="mods"></div>
     <div class="ptools">
-      <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">La gestión de usuarios está dentro de la Consola HSE</span>
+      <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">La administración de empresas, módulos y usuarios está en el panel de Administración</span>
       <button class="btn btn-ghost" onclick="salir()">⎋ Cerrar sesión</button>
     </div>
   </div>
@@ -108,17 +108,22 @@
 
 <script>
 const $ = s => document.querySelector(s);
-/* CASA DE LOS USUARIOS = HSE. La puerta única pregunta acá. */
-const SB_URL  = "https://mpozawfbtajsrfccqldw.supabase.co";
-const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false;
-/* Catálogo del portal. live = anda por esta puerta hoy; soon = se une pronto. */
+function esc(s){return (s==null?"":String(s)).replace(/[<>&"]/g,function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];});}
+/* CASA DE LOS USUARIOS = plataforma unificada. La puerta única pregunta acá. */
+const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
+let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[], SB_EMPRESA_NOMBRE="";
+/* Catálogo del portal. Cada app declara a qué MÓDULO pertenece (mod). El portal
+   le muestra a cada empresa SOLO los módulos que tiene contratados en empresas.modulos. */
 const PORTAL=[
-  {href:"app.html", ic:"🛡️", cls:"g", nombre:"KALU HSE",     desc:"Validación, ATS e investigación de accidentes bajo norma."},
-  {href:"hse.html", ic:"📊", cls:"c", nombre:"Consola HSE",   desc:"Tablero, expedientes, tarjetas, usuarios y auditoría."},
-  {href:"#",        ic:"🥽", cls:"c", nombre:"Realidad Asistida", desc:"Editor, lente y consola de flujos. Se une al acceso único pronto.", soon:true},
-  {href:"#",        ic:"📐", cls:"g", nombre:"QA/QC",         desc:"Aseguramiento de calidad.", soon:true},
-  {href:"#",        ic:"🔬", cls:"c", nombre:"NDT",           desc:"Ensayos no destructivos.", soon:true}
+  {mod:"hse",  href:"app.html",              ic:"🛡️", cls:"g", nombre:"KALU HSE",                desc:"Validación, ATS e investigación de accidentes bajo norma."},
+  {mod:"hse",  href:"hse.html",              ic:"📊", cls:"c", nombre:"Consola HSE",              desc:"Tablero, expedientes, tarjetas y auditoría."},
+  {mod:"ra",   href:"captura-ra.html",       ic:"🥽", cls:"c", nombre:"RA · Captura",            desc:"Lente o celular del operador en terreno."},
+  {mod:"ra",   href:"consola-ra.html",       ic:"🎧", cls:"c", nombre:"RA · Consola",            desc:"El coordinador monitorea y asiste en vivo."},
+  {mod:"qaqc", href:"captura-qaqc.html",     ic:"📐", cls:"g", nombre:"QA/QC · Captura",         desc:"Inspección con tablet o teléfono en terreno."},
+  {mod:"qaqc", href:"consola-qaqc.html",     ic:"📋", cls:"g", nombre:"QA/QC · Consola",         desc:"Coordinación y seguimiento de inspecciones."},
+  {mod:"qaqc", href:"editor-informes-qaqc.html", ic:"📝", cls:"g", nombre:"QA/QC · Editor de informes", desc:"El asegurador arma su informe en la oficina."},
+  {mod:"ndt",  href:"#",                      ic:"🔬", cls:"c", nombre:"NDT",                     desc:"Ensayos no destructivos.", soon:true}
 ];
 
 async function sbFetch(path, opts){
@@ -142,10 +147,20 @@ async function cargarPerfilYPortal(){
   const u=await sbFetch("/auth/v1/user",{});
   if(u&&u.email) SB_EMAIL=u.email;
   const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado");
-  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil asignado. Contactá a Dinamho.");
+  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil asignado. Contactá a tu administrador.");
   const p=perf[0];
   if(p.estado && p.estado!=="activo") throw new Error("Tu cuenta está "+p.estado+". Contactá a tu administrador.");
   SB_EMPRESA=p.empresa_id; SB_NOMBRE=p.nombre||""; SB_ROL=p.rol||""; SB_SUPER=!!p.es_super;
+  /* módulos contratados por su empresa → el portal muestra solo esos */
+  SB_MODULOS=[]; SB_EMPRESA_NOMBRE="";
+  try{
+    const emp=await sbFetch("/rest/v1/empresas?id=eq."+SB_EMPRESA+"&select=razon_social,modulos,activa");
+    if(emp&&emp.length){
+      if(emp[0].activa===false) throw new Error("La empresa está inactiva. Contactá a Dinamho.");
+      SB_MODULOS=Array.isArray(emp[0].modulos)?emp[0].modulos:[];
+      SB_EMPRESA_NOMBRE=emp[0].razon_social||"";
+    }
+  }catch(e){ if(String(e.message).indexOf("inactiva")>=0) throw e; /* si RLS bloquea, queda sin módulos y avisamos abajo */ }
   guardarSesion(); mostrarPortal();
 }
 async function doLogin(){
@@ -160,16 +175,21 @@ function mostrarPortal(){
   $("#loginView").style.display="none";
   $("#portalView").style.display="block";
   $("#p_hola").textContent = "Hola" + (SB_NOMBRE ? ", "+SB_NOMBRE.split(" ")[0] : "");
-  $("#p_who").innerHTML = "Ingresaste como <b>"+(SB_EMAIL||"")+"</b>";
-  let cards=PORTAL.map(function(c){
+  $("#p_who").innerHTML = "Ingresaste como <b>"+esc(SB_EMAIL||"")+"</b>"+(SB_EMPRESA_NOMBRE?' · <b>'+esc(SB_EMPRESA_NOMBRE)+'</b>':'');
+  /* solo los módulos contratados por la empresa */
+  const contratados = PORTAL.filter(function(c){ return SB_MODULOS.indexOf(c.mod)>=0; });
+  let cards=contratados.map(function(c){
     const st=c.soon?'<span class="st st-soon">Próximo</span>':'<span class="st st-live">● En operación</span>';
     const href=c.soon?'#':c.href;
     return '<a class="mod '+c.cls+(c.soon?' disabled':'')+'" href="'+href+'">'+
-      '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+c.nombre+'</h3><p>'+c.desc+'</p>'+
+      '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+esc(c.nombre)+'</h3><p>'+esc(c.desc)+'</p>'+
       (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
   });
   if(SB_SUPER || SB_ROL==="admin" || SB_ROL==="hse"){
-    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":SB_ROL)+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
+    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":esc(SB_ROL))+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
+  }
+  if(!cards.length){
+    cards.push('<div class="empty" style="grid-column:1/-1;color:var(--muted);text-align:center;padding:34px;border:2px dashed var(--border);border-radius:16px">Tu empresa todavía no tiene módulos habilitados.<br>Contactá a tu administrador.</div>');
   }
   $("#mods").innerHTML = cards.join("");
 }

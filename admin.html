@@ -118,6 +118,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 /* CASA = plataforma unificada */
@@ -301,7 +302,10 @@ async function viewPadron(){
   let ps=[];
   try{ ps=await sbFetch("/rest/v1/personas?empresa_id=eq."+CTX_EMP+"&select=id,cedula,nombre,celular,cargo,vigente,accesos_previstos&order=vigente.desc,nombre.asc"); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
-  let h='<div class="toolbar">'+selectorEmpresa()+'<button class="btn btn-b btn-sm" style="align-self:flex-end" onclick="descargarPlantilla()">⬇ Descargar plantilla CSV</button><label class="btn btn-cy btn-sm" style="align-self:flex-end;cursor:pointer">⬆ Cargar CSV<input type="file" accept=".csv" style="display:none" onchange="cargarCSV(this)"></label></div>';
+  let h='<div class="toolbar">'+selectorEmpresa()+
+    '<button class="btn btn-b btn-sm" style="align-self:flex-end" onclick="descargarPlantilla()">⬇ Plantilla CSV</button>'+
+    '<button class="btn btn-b btn-sm" style="align-self:flex-end" onclick="descargarPlantillaXlsx()">⬇ Plantilla Excel</button>'+
+    '<label class="btn btn-cy btn-sm" style="align-self:flex-end;cursor:pointer">⬆ Cargar (CSV o Excel)<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="cargarArchivo(this)"></label></div>';
   h+='<h2 class="sec">Padrón por cédula</h2>';
   h+='<div class="note" style="margin-bottom:14px"><b>Importante:</b> para que alguien cree su cuenta, su cédula tiene que estar acá primero. Podés dejarle los <b>accesos previstos</b> (módulos+roles) y cuando se registre los toma solos.</div>';
   h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Agregar persona</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="np_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula</label><input id="np_cedula" placeholder="12345678"/></div><div class="fld"><label>Celular</label><input id="np_celular" placeholder="opcional"/></div><div class="fld"><label>Cargo</label><input id="np_cargo" placeholder="opcional"/></div></div><button class="btn btn-amber btn-sm" onclick="crearPersona()">+ Agregar</button></div>';
@@ -324,11 +328,18 @@ async function bajaPersona(id){ if(!confirm("¿Dar de baja a esta persona?"))ret
 async function altaPersona(id){ try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:true})}); logAud("alta_persona","persona",id,null); toast("Reactivada"); viewPadron(); }catch(e){ toast("Error: "+e.message,true); } }
 
 /* ---------- CSV ---------- */
+const PLANTILLA_COLS=["nombre","cedula","celular","cargo","hse_rol","ra_rol","qaqc_rol"];
+const PLANTILLA_EJ=["Juan Perez","12345678","3001234567","Inspector","operador","","asegurador"];
 function descargarPlantilla(){
-  const cols=["nombre","cedula","celular","cargo","hse_rol","ra_rol","qaqc_rol"];
-  const ej=["Juan Perez","12345678","3001234567","Inspector","operador","","asegurador"];
-  const csv=cols.join(",")+"\n"+ej.join(",")+"\n";
+  const csv=PLANTILLA_COLS.join(",")+"\n"+PLANTILLA_EJ.join(",")+"\n";
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="plantilla_padron_kalu.csv"; a.click();
+}
+function descargarPlantillaXlsx(){
+  if(typeof XLSX==="undefined"){ toast("Cargando Excel… probá de nuevo en un segundo.",true); return; }
+  const ws=XLSX.utils.aoa_to_sheet([PLANTILLA_COLS,PLANTILLA_EJ]);
+  ws["!cols"]=PLANTILLA_COLS.map(function(){return {wch:16};});
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Padron");
+  XLSX.writeFile(wb,"plantilla_padron_kalu.xlsx");
 }
 function parseCSV(txt){
   const lines=txt.replace(/\r/g,"").split("\n").filter(function(l){return l.trim().length;});
@@ -345,10 +356,28 @@ function previstosDesde(row){
   });
   return out;
 }
-async function cargarCSV(inp){
+function rowsDeExcel(buf){
+  const wb=XLSX.read(buf,{type:"array"});
+  const ws=wb.Sheets[wb.SheetNames[0]]; if(!ws) return [];
+  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  if(!arr.length) return [];
+  const head=arr[0].map(function(s){return String(s==null?"":s).trim().toLowerCase();});
+  return arr.slice(1).map(function(r){ const o={}; head.forEach(function(h,i){o[h]=String(r[i]==null?"":r[i]).trim();}); return o; })
+            .filter(function(o){return o.cedula||o.nombre;});
+}
+async function cargarArchivo(inp){
   const f=inp.files&&inp.files[0]; if(!f) return;
-  const txt=await f.text(); const rows=parseCSV(txt); inp.value="";
-  if(!rows.length){ toast("El archivo está vacío.",true); return; }
+  const name=(f.name||"").toLowerCase(); inp.value="";
+  let rows=[];
+  try{
+    if(name.endsWith(".xlsx")||name.endsWith(".xls")){
+      if(typeof XLSX==="undefined"){ toast("Cargando Excel… probá de nuevo en un segundo.",true); return; }
+      rows=rowsDeExcel(await f.arrayBuffer());
+    } else {
+      rows=parseCSV(await f.text());
+    }
+  }catch(e){ toast("No se pudo leer el archivo: "+e.message,true); return; }
+  if(!rows.length){ toast("El archivo está vacío o no tiene filas válidas.",true); return; }
   let ok=0, err=0;
   for(const r of rows){
     if(!r.cedula||!r.nombre){ err++; continue; }

@@ -300,7 +300,7 @@ async function reactivarUsuario(id){ try{ await sbFetch("/rest/v1/perfiles?id=eq
 async function viewPadron(){
   $("#view").innerHTML='<div class="spin">Cargando padrón…</div>';
   let ps=[];
-  try{ ps=await sbFetch("/rest/v1/personas?empresa_id=eq."+CTX_EMP+"&select=id,cedula,nombre,celular,cargo,vigente,accesos_previstos&order=vigente.desc,nombre.asc"); }
+  try{ ps=await sbFetch("/rest/v1/personas?empresa_id=eq."+CTX_EMP+"&select=id,cedula,nombre,correo,celular,cargo,vigente,accesos_previstos&order=vigente.desc,nombre.asc"); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
   let h='<div class="toolbar">'+selectorEmpresa()+
     '<button class="btn btn-b btn-sm" style="align-self:flex-end" onclick="descargarPlantilla()">⬇ Plantilla CSV</button>'+
@@ -308,28 +308,40 @@ async function viewPadron(){
     '<label class="btn btn-cy btn-sm" style="align-self:flex-end;cursor:pointer">⬆ Cargar (CSV o Excel)<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="cargarArchivo(this)"></label></div>';
   h+='<h2 class="sec">Padrón por cédula</h2>';
   h+='<div class="note" style="margin-bottom:14px"><b>Importante:</b> para que alguien cree su cuenta, su cédula tiene que estar acá primero. Podés dejarle los <b>accesos previstos</b> (módulos+roles) y cuando se registre los toma solos.</div>';
-  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Agregar persona</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="np_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula</label><input id="np_cedula" placeholder="12345678"/></div><div class="fld"><label>Celular</label><input id="np_celular" placeholder="opcional"/></div><div class="fld"><label>Cargo</label><input id="np_cargo" placeholder="opcional"/></div></div><button class="btn btn-amber btn-sm" onclick="crearPersona()">+ Agregar</button></div>';
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Agregar persona</h2><div class="fgrid"><div class="fld"><label>Nombre</label><input id="np_nombre" placeholder="Nombre Apellido"/></div><div class="fld"><label>Cédula / Doc.</label><input id="np_cedula" placeholder="12345678"/></div><div class="fld"><label>Correo</label><input id="np_correo" type="email" placeholder="para invitarlo"/></div><div class="fld"><label>Celular</label><input id="np_celular" placeholder="opcional"/></div><div class="fld"><label>Cargo</label><input id="np_cargo" placeholder="opcional"/></div></div><button class="btn btn-amber btn-sm" onclick="crearPersona()">+ Agregar</button></div>';
   if(!ps.length){ h+='<div class="empty">Todavía no hay personal cargado.</div>'; }
   else h+=ps.map(function(p){
     const vig=(p.vigente!==false);
     const prev=Array.isArray(p.accesos_previstos)?p.accesos_previstos:[];
     const chips=prev.length?prev.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(a.rol)+'</span>';}).join(" "):'<span class="meta">sin accesos previstos</span>';
-    return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("padron","'+p.id+'",'+JSON.stringify(esc(p.nombre||p.cedula))+')\'>🎛️ Accesos previstos</button>'+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
+    return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.correo?' · ✉ '+esc(p.correo):'')+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("padron","'+p.id+'",'+JSON.stringify(esc(p.nombre||p.cedula))+')\'>🎛️ Accesos previstos</button>'+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
   }).join("");
   $("#view").innerHTML=h;
 }
 async function crearPersona(){
-  const nombre=$("#np_nombre").value.trim(), cedula=$("#np_cedula").value.trim(), celular=$("#np_celular").value.trim(), cargo=$("#np_cargo").value.trim();
+  const nombre=$("#np_nombre").value.trim(), cedula=$("#np_cedula").value.trim(), correo=$("#np_correo").value.trim(), celular=$("#np_celular").value.trim(), cargo=$("#np_cargo").value.trim();
   if(!nombre||!cedula){ toast("Nombre y cédula son obligatorios.",true); return; }
-  try{ await sbFetch("/rest/v1/personas",{method:"POST",body:JSON.stringify({empresa_id:CTX_EMP,nombre:nombre,cedula:cedula,celular:celular||null,cargo:cargo||null,vigente:true,accesos_previstos:[]})}); logAud("crear_persona","persona",cedula,{nombre:nombre}); toast("Persona agregada"); viewPadron(); }
+  try{ await sbFetch("/rest/v1/personas",{method:"POST",body:JSON.stringify({empresa_id:CTX_EMP,nombre:nombre,cedula:cedula,correo:correo||null,celular:celular||null,cargo:cargo||null,vigente:true,accesos_previstos:[]})}); logAud("crear_persona","persona",cedula,{nombre:nombre}); toast("Persona agregada"); viewPadron(); }
   catch(e){ toast((String(e.message).indexOf("duplicate")>=0?"Ya existe alguien con esa cédula.":"Error: "+e.message),true); }
 }
 async function bajaPersona(id){ if(!confirm("¿Dar de baja a esta persona?"))return; try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:false})}); logAud("baja_persona","persona",id,null); toast("Dada de baja"); viewPadron(); }catch(e){ toast("Error: "+e.message,true); } }
 async function altaPersona(id){ try{ await sbFetch("/rest/v1/personas?id=eq."+id,{method:"PATCH",body:JSON.stringify({vigente:true})}); logAud("alta_persona","persona",id,null); toast("Reactivada"); viewPadron(); }catch(e){ toast("Error: "+e.message,true); } }
 
 /* ---------- CSV ---------- */
-const PLANTILLA_COLS=["nombre","cedula","celular","cargo","hse_rol","ra_rol","qaqc_rol"];
-const PLANTILLA_EJ=["Juan Perez","12345678","3001234567","Inspector","operador","","asegurador"];
+const PLANTILLA_COLS=["nombre","cedula","correo","celular","cargo","hse_rol","ra_rol","qaqc_rol"];
+const PLANTILLA_EJ=["Juan Perez","12345678","juan@empresa.com","3001234567","Inspector","operador","","asegurador"];
+/* alias de encabezados: para que reconozca la columna aunque la renombren */
+const COL_ALIAS={
+  "nombre":"nombre","nombres":"nombre","nombre completo":"nombre","nombre y apellido":"nombre",
+  "cedula":"cedula","cédula":"cedula","cc":"cedula","cc/ce/pas":"cedula","cc/ce/pas.":"cedula","documento":"cedula","doc":"cedula","identificacion":"cedula","identificación":"cedula","nro documento":"cedula",
+  "correo":"correo","correo electronico":"correo","correo electrónico":"correo","email":"correo","e-mail":"correo","mail":"correo",
+  "celular":"celular","telefono":"celular","teléfono":"celular","tel":"celular","movil":"celular","móvil":"celular","whatsapp":"celular",
+  "cargo":"cargo","puesto":"cargo","rol":"cargo",
+  "hse_rol":"hse_rol","hse":"hse_rol","rol_hse":"hse_rol",
+  "ra_rol":"ra_rol","ra":"ra_rol","rol_ra":"ra_rol",
+  "qaqc_rol":"qaqc_rol","qaqc":"qaqc_rol","qa/qc":"qaqc_rol","rol_qaqc":"qaqc_rol"
+};
+function canon(h){ h=String(h==null?"":h).trim().toLowerCase(); return COL_ALIAS[h]||h; }
 function descargarPlantilla(){
   const csv=PLANTILLA_COLS.join(",")+"\n"+PLANTILLA_EJ.join(",")+"\n";
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="plantilla_padron_kalu.csv"; a.click();
@@ -344,7 +356,7 @@ function descargarPlantillaXlsx(){
 function parseCSV(txt){
   const lines=txt.replace(/\r/g,"").split("\n").filter(function(l){return l.trim().length;});
   if(!lines.length) return [];
-  const head=lines[0].split(",").map(function(s){return s.trim().toLowerCase();});
+  const head=lines[0].split(",").map(canon);
   return lines.slice(1).map(function(l){ const c=l.split(","); const o={}; head.forEach(function(h,i){o[h]=(c[i]||"").trim();}); return o; });
 }
 function previstosDesde(row){
@@ -361,7 +373,7 @@ function rowsDeExcel(buf){
   const ws=wb.Sheets[wb.SheetNames[0]]; if(!ws) return [];
   const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
   if(!arr.length) return [];
-  const head=arr[0].map(function(s){return String(s==null?"":s).trim().toLowerCase();});
+  const head=arr[0].map(canon);
   return arr.slice(1).map(function(r){ const o={}; head.forEach(function(h,i){o[h]=String(r[i]==null?"":r[i]).trim();}); return o; })
             .filter(function(o){return o.cedula||o.nombre;});
 }
@@ -381,7 +393,7 @@ async function cargarArchivo(inp){
   let ok=0, err=0;
   for(const r of rows){
     if(!r.cedula||!r.nombre){ err++; continue; }
-    const body={empresa_id:CTX_EMP,nombre:r.nombre,cedula:r.cedula,celular:r.celular||null,cargo:r.cargo||null,vigente:true,accesos_previstos:previstosDesde(r)};
+    const body={empresa_id:CTX_EMP,nombre:r.nombre,cedula:r.cedula,correo:r.correo||null,celular:r.celular||null,cargo:r.cargo||null,vigente:true,accesos_previstos:previstosDesde(r)};
     try{ await sbFetch("/rest/v1/personas",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(body)}); ok++; }catch(e){ err++; }
   }
   logAud("carga_csv","persona",CTX_EMP,{ok:ok,err:err});

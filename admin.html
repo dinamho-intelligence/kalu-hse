@@ -314,7 +314,7 @@ async function viewPadron(){
     const vig=(p.vigente!==false);
     const prev=Array.isArray(p.accesos_previstos)?p.accesos_previstos:[];
     const chips=prev.length?prev.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(a.rol)+'</span>';}).join(" "):'<span class="meta">sin accesos previstos</span>';
-    return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.correo?' · ✉ '+esc(p.correo):'')+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("padron","'+p.id+'",'+JSON.stringify(esc(p.nombre||p.cedula))+')\'>🎛️ Accesos previstos</button>'+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
+    return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.correo?' · ✉ '+esc(p.correo):'')+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("padron","'+p.id+'",'+JSON.stringify(esc(p.nombre||p.cedula))+')\'>🎛️ Accesos previstos</button>'+(vig&&p.correo?'<button class="btn btn-cy btn-sm" onclick=\'invitarPersona("'+p.id+'",'+JSON.stringify(esc(p.correo))+')\'>✉ Invitar</button>':'')+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
   }).join("");
   $("#view").innerHTML=h;
 }
@@ -486,6 +486,10 @@ async function resetPass(userId){
 async function crearSuper(){
   const email=prompt("Correo del nuevo super-admin:"); if(!email) return;
   const d=await n8n("crear_super",{email:email.trim()}); if(d) toast(d.message||"Super-admin creado");
+}
+async function invitarPersona(id,correo){
+  if(!confirm("¿Enviar invitación por correo a "+correo+"?\nVa a poder poner su contraseña y entra con sus accesos ya cargados."))return;
+  const d=await n8n("invitar_persona",{persona_id:id}); if(d) toast(d.message||("Invitación enviada a "+correo));
 }
 
 /* ---------- AUDITORÍA ---------- */

@@ -104,9 +104,7 @@
     <div><h1>KALU · Tarjeta de observación</h1><span>Actos y condiciones · no busca culpables, busca la mejora</span> <span id="offPill" style="display:none;font-size:10px;font-weight:800;letter-spacing:.5px;color:var(--amber);background:rgba(232,147,12,.14);border:1px solid rgba(232,147,12,.4);border-radius:20px;padding:2px 8px;vertical-align:middle;">● SIN SEÑAL</span></div>
     <button onclick="salirTarjetas()" style="margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">Salir</button>
   </div>
-
   <div id="pendBar" onclick="syncCola()" style="display:none;align-items:center;gap:8px;justify-content:center;cursor:pointer;background:rgba(232,147,12,.12);border:1px solid rgba(232,147,12,.35);color:var(--amber);border-radius:11px;padding:10px 12px;font-size:12.5px;font-weight:700;margin-bottom:14px;">⇅ <span id="pendN">0</span> tarjeta(s) sin subir · tocá para sincronizar</div>
-
   <div class="card" id="scId">
     <h2><span class="dot">▸</span> Identificate</h2>
     <div class="msg" id="idErr"></div>
@@ -121,17 +119,14 @@
     </div>
     <button class="btn" id="btnId" onclick="identificar()">Continuar ▸</button>
   </div>
-
   <div class="card hide" id="scForm">
     <h2><span class="dot">▸</span> ¿Qué observaste?</h2>
     <div class="idlock" id="obsBox"></div>
     <div class="msg" id="fErr"></div>
-
     <div class="seg">
       <div class="opt" id="optSeg" onclick="setClase('seguro')">Acto seguro<small>reconocer / reforzar</small></div>
       <div class="opt" id="optIns" onclick="setClase('inseguro')">Acto/condición inseguro<small>corregir</small></div>
     </div>
-
     <div id="secIns">
       <div class="grid2">
         <div class="fld">
@@ -151,22 +146,18 @@
         </div>
       </div>
     </div>
-
     <div class="fld">
       <label>Categoría</label>
       <div class="chips" id="catChips"></div>
     </div>
-
     <div class="fld">
       <label>Lugar / área</label>
       <input type="text" id="lugar" placeholder="Ej: Taller 2, zona de corte" autocomplete="off">
     </div>
-
     <div class="fld">
       <label>¿Qué viste? (descripción)</label>
       <textarea id="desc" placeholder="Describí la observación de forma objetiva, sin señalar personas."></textarea>
     </div>
-
     <div id="secIns2">
       <div class="fld">
         <label>¿Se detuvo la tarea?</label>
@@ -180,7 +171,6 @@
         <input type="text" id="accion" placeholder="Qué se hizo en el momento" autocomplete="off">
       </div>
     </div>
-
     <div class="fld">
       <label>Compromiso de mejora <span style="color:var(--tx3)">(opcional)</span></label>
       <input type="text" id="compromiso" placeholder="Acción para que no se repita" autocomplete="off">
@@ -193,17 +183,14 @@
       <label>Persona observada <span style="color:var(--tx3)">(opcional · en tono de mejora)</span></label>
       <input type="text" id="observado" placeholder="Solo si aplica" autocomplete="off">
     </div>
-
     <div class="fld">
       <label>Fotos de evidencia <span style="color:var(--tx3)">(hasta 5, opcional)</span></label>
       <div id="fotosPrev" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
       <label class="pbtn" id="btnAddFoto" for="foto" style="display:block">📷 Agregar foto</label>
       <input type="file" id="foto" accept="image/*" capture="environment" class="hide" onchange="addFoto()">
     </div>
-
     <button class="btn" onclick="irFirma()">Continuar a la firma ▸</button>
   </div>
-
   <div class="card hide" id="scFirma">
     <h2><span class="dot">▸</span> Firmá tu observación</h2>
     <div class="sum" id="resumen"></div>
@@ -213,7 +200,6 @@
     <button class="btn" id="btnFirmar" onclick="registrar()">Firmo y registro ✍</button>
     <button class="btn btn2" style="margin-top:9px" onclick="volverForm()">◂ Volver</button>
   </div>
-
   <div class="card hide" id="scDone">
     <div class="big">🔒</div>
     <div class="doneT">Tarjeta registrada</div>
@@ -223,26 +209,23 @@
     <button class="btn btn2" style="margin-top:9px" onclick="location.reload()">+ Nueva tarjeta</button>
     <button class="btn btn2" style="margin-top:9px" onclick="salirTarjetas()">Salir</button>
   </div>
-
   <div class="foot"><span class="dlogo">D</span><span>Powered by <b>Dinamho Intelligence</b></span></div>
 </div>
-
 <script>
-const SB_URL='https://mpozawfbtajsrfccqldw.supabase.co';
-const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wb3phd2ZidGFqc3JmY2NxbGR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNzg4MTgsImV4cCI6MjA5ODk1NDgxOH0.YwogkHiUdhB351ylM0GYxJMijF7xYOlj-CLEHm5T-kE';
+/* PLATAFORMA unificada (Fase 4). Antes: proyecto HSE viejo. */
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const H={apikey:SB_ANON, Authorization:'Bearer '+SB_ANON};
 const CATS=['Uso de EPP','Posición de personas','Herramientas y equipos','Procedimientos','Orden y aseo','Reacción de las personas','Otro'];
-
 let obs=null, cands=[], clase='inseguro';
 const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
 let fotos=[], last=null;
-
 function $(id){return document.getElementById(id);}
 function show(id){['scId','scForm','scFirma','scDone'].forEach(s=>$(s).classList.toggle('hide',s!==id)); window.scrollTo(0,0);}
 function err(box,m){const e=$(box); if(!m){e.classList.remove('err'); e.textContent=''; return;} e.textContent=m; e.classList.add('err');}
-
 async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); if(!r.ok) throw new Error('GET '+r.status); return r.json();}
-async function sbInsert(table,row){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(row)}); if(!r.ok) throw new Error('INSERT '+r.status+' '+await r.text());}
+/* RPC seguro: el anónimo no toca tablas directo, llama funciones controladas. */
+async function sbRpc(fn,body){const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json'}),body:JSON.stringify(body||{})}); if(!r.ok) throw new Error('RPC '+fn+' '+r.status+' '+await r.text()); return r.json();}
 async function sbUp(bucket,path,blob,type,upsert){var hdr=Object.assign({},H,{'Content-Type':type}); if(upsert!==false) hdr['x-upsert']='true'; const r=await fetch(SB_URL+'/storage/v1/object/'+bucket+'/'+path,{method:'POST',headers:hdr,body:blob}); if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text()); return path;}
 async function sbUpload(path,blob,type){ return sbUp('tarjetas',path,blob,type); }
 // -- PDF de la tarjeta al archivo de Documentos (para la consola HSE) --
@@ -256,9 +239,9 @@ async function guardarPdfTarjeta(reg,ts,pdfBlob){
   var d=docDeTarjeta(reg,ts);
   try{ await sbUp('documentos',d.path,pdfBlob,'application/pdf',false); }  // sin upsert: el bucket documentos no da SELECT a anon
   catch(e){ if(!/already exists|Duplicate|resource already|409/i.test(e.message||'')) throw e; } // si ya estaba subido (reintento), seguir
-  await sbInsert('documentos',d.row);
+  // el row lo inserta un RPC (empresa derivada del server, no del cliente)
+  await sbRpc('registrar_doc_tarjeta',{d:{origen_id:reg.id,nombre:d.row.nombre,storage_path:d.path}});
 }
-
 // ============ OFFLINE: almacenamiento local (IndexedDB) + cola + sincronización ============
 const DB_NAME='kalu_tarjetas', DB_VER=1; let _db=null;
 function idb(){ return new Promise((res,rej)=>{ if(_db)return res(_db);
@@ -271,18 +254,10 @@ function idbPut(s,v){ return idb().then(db=>new Promise((res,rej)=>{const tx=db.
 function idbGet(s,k){ return idb().then(db=>new Promise((res,rej)=>{const r=db.transaction(s,'readonly').objectStore(s).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);})); }
 function idbAll(s){ return idb().then(db=>new Promise((res,rej)=>{const r=db.transaction(s,'readonly').objectStore(s).getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);})); }
 function idbDel(s,k){ return idb().then(db=>new Promise((res,rej)=>{const tx=db.transaction(s,'readwrite'); tx.objectStore(s).delete(k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);})); }
-
 // -- roster local (para identificar SIN señal) --
+// SEGURIDAD: solo cacheamos a la persona que YA se identificó (no el padrón entero).
 function cacheCands(ced,arr){ if(!arr||!arr.length)return; idbPut('roster',{cedula:ced,cands:arr,at:Date.now()}).catch(()=>{}); }
 async function localCands(ced){ try{ const r=await idbGet('roster',ced); return (r&&r.cands)||[]; }catch(e){ return []; } }
-async function cacheRoster(empId){ if(!empId||!navigator.onLine)return;
-  try{ const rows=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,vigente,empresas_maestro(razon_social)&empresa_id=eq.'+encodeURIComponent(empId)+'&vigente=eq.true');
-    const byCed={}; rows.forEach(r=>{ (byCed[r.cedula]=byCed[r.cedula]||[]).push(r); });
-    for(const ced in byCed){ const prev=await localCands(ced);
-      const merged=prev.filter(p=>String(p.empresa_id)!==String(empId)).concat(byCed[ced]); // conservar otras empresas
-      await idbPut('roster',{cedula:ced,cands:merged,at:Date.now()}); }
-  }catch(e){ /* silencioso: si falla, seguimos */ } }
-
 // -- cola de tarjetas sin subir --
 function encolar(reg,fotosArr,firmaBlob,ts,empresa,pdfBlob){
   return idbPut('cola',{id:reg.id,reg:reg,fotos:fotosArr||[],firmaBlob:firmaBlob,pdfBlob:pdfBlob||null,ts:ts,empresa:empresa,reintentos:0,at:Date.now()}); }
@@ -295,7 +270,7 @@ async function syncCola(){ if(_syncing||!navigator.onLine)return; _syncing=true;
         for(let fi=0; fi<_fs.length; fi++){ if(_fs[fi]&&_fs[fi].blob){ _paths.push(await sbUpload(reg.id+'/foto'+(fi+1)+'.jpg', _fs[fi].blob, _fs[fi].type||'image/jpeg')); } }
         reg.foto_paths = _paths.length?_paths:null; reg.foto_path = _paths.length?_paths[0]:null;
         reg.firma_path=await sbUpload(reg.id+'/firma.png', it.firmaBlob, 'image/png');
-        await sbInsert('tarjetas', reg);
+        await sbRpc('registrar_tarjeta',{t:reg});
         if(it.pdfBlob){ await guardarPdfTarjeta(reg, it.ts, it.pdfBlob); }
         await idbDel('cola', it.id);
       }catch(e){ if(!navigator.onLine || /Failed to fetch|NetworkError/i.test(e.message||'')){ break; } // sin señal: cortar y reintentar luego
@@ -305,7 +280,6 @@ async function actualizarPendientes(){ let n=0; try{ n=(await idbAll('cola')).le
   const bar=$('pendBar'); if(!bar)return; if(n>0){ $('pendN').textContent=n; bar.style.display='flex'; } else bar.style.display='none'; }
 function pintarConexion(){ const p=$('offPill'); if(p) p.style.display=navigator.onLine?'none':'inline-block'; }
 // ==========================================================================================
-
 async function identificar(){
   err('idErr','');
   const ced=$('ced').value.trim();
@@ -315,32 +289,30 @@ async function identificar(){
     if(!obs){
       let got=null;
       if(navigator.onLine){
-        try{ got=await sbGet('trabajadores_maestro?select=id,nombre,cedula,empresa_id,vigente,empresas_maestro(razon_social)&cedula=eq.'+encodeURIComponent(ced)); }
+        try{ got=await sbRpc('persona_por_cedula',{ced:ced}); }
         catch(e){ got=null; } // se cayó la red en el intento -> caemos a la copia local
         if(got){ if(got.length){ cands=got; cacheCands(ced,got); }
           else { err('idErr','No encontramos ese documento en el registro. Revisá el número o avisá a tu HSE.'); return; } }
       }
-      if(!got){ // offline o sin respuesta -> copia local del equipo
+      if(!got){ // offline o sin respuesta -> copia local (solo de quien se identificó antes en este equipo)
         cands=await localCands(ced);
-        if(!cands.length){ err('idErr','Sin señal y ese documento no está en la copia local del equipo. Conectá el celular a internet una vez para descargar el registro de tu empresa.'); return; }
+        if(!cands.length){ err('idErr','Sin señal y ese documento no está en la copia local del equipo. Conectá el celular a internet una vez para identificarte.'); return; }
       }
       if(cands.length>1){ pintarEmp(); return; }
       obs=norm(cands[0]);
     }
     if(obs && obs.vigente===false){ err('idErr','Tu registro fue dado de baja por tu empresa. No podés registrar tarjetas. Hablá con tu HSE.'); return; }
-    if(navigator.onLine) cacheRoster(obs.empresa_id); // guardar el roster para poder identificar sin señal después
     entrarForm();
   }catch(e){ err('idErr','No se pudo continuar. Intentá de nuevo.'); }
   finally{ $('btnId').disabled=false; $('btnId').textContent='Continuar ▸'; }
 }
-function norm(r){return {id:r.id,nombre:r.nombre,cedula:r.cedula,empresa_id:r.empresa_id,vigente:(r.vigente!==false),empresa:(r.empresas_maestro&&r.empresas_maestro.razon_social)||'—'};}
+function norm(r){return {id:r.id,nombre:r.nombre,cedula:r.cedula,empresa_id:r.empresa_id,vigente:(r.vigente!==false),empresa:(r.empresa)||'—'};}
 function pintarEmp(){
   $('empPick').classList.remove('hide');
-  $('empChips').innerHTML=cands.map((c,i)=>'<div class="chip" onclick="pickEmp('+i+',this)">'+((c.empresas_maestro&&c.empresas_maestro.razon_social)||'—')+'</div>').join('');
+  $('empChips').innerHTML=cands.map((c,i)=>'<div class="chip" onclick="pickEmp('+i+',this)">'+((c.empresa)||'—')+'</div>').join('');
   err('idErr','Ese documento está en más de una empresa. Elegí cuál.');
 }
 function pickEmp(i,el){ [...$('empChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); obs=norm(cands[i]); err('idErr',''); }
-
 function entrarForm(){
   $('obsBox').innerHTML='<div class="who">'+obs.nombre+'</div><small>C.C. '+obs.cedula+' · '+obs.empresa+'</small>'
     +'<span class="src">Identidad tomada del <b>registro de la empresa</b> · no editable.</span>';
@@ -348,7 +320,6 @@ function entrarForm(){
   setClase('inseguro');
   show('scForm');
 }
-
 function setClase(c){
   clase=c;
   $('optSeg').classList.toggle('on-seg',c==='seguro');
@@ -362,7 +333,6 @@ function pickCat(el){ [...$('catChips').children].forEach(c=>c.classList.remove(
 function addFoto(){ const f=$('foto').files[0]; $('foto').value=''; if(!f) return; if(fotos.length>=5){ alert('Máximo 5 fotos.'); return; } const rd=new FileReader(); rd.onload=e=>{ fotos.push({file:f, dataUrl:e.target.result, type:(f.type||'image/jpeg')}); renderFotos(); }; rd.readAsDataURL(f); }
 function renderFotos(){ const c=$('fotosPrev'); if(!c) return; c.innerHTML=fotos.map(function(ft,i){ return '<div style="position:relative;width:66px;height:66px"><img src="'+ft.dataUrl+'" style="width:66px;height:66px;object-fit:cover;border-radius:10px;border:1px solid var(--line)"><button type="button" onclick="quitarFoto('+i+')" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--rojo,#e23b3b);color:#fff;border:2px solid #fff;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button></div>'; }).join(''); const b=$('btnAddFoto'); if(b) b.style.display=(fotos.length>=5)?'none':'block'; }
 function quitarFoto(i){ fotos.splice(i,1); renderFotos(); }
-
 function irFirma(){
   err('fErr','');
   if(!pickVal.categoria){err('fErr','Elegí una categoría.'); return;}
@@ -381,7 +351,6 @@ function irFirma(){
   show('scFirma'); setTimeout(initPad,60);
 }
 function volverForm(){ show('scForm'); }
-
 let cv,cx,drawing=false,hasInk=false;
 function initPad(){
   cv=$('pad'); if(!cv) return; cx=cv.getContext('2d');
@@ -396,12 +365,10 @@ function start(e){drawing=true; const p=pos(e); cx.beginPath(); cx.moveTo(p.x,p.
 function move(e){if(!drawing)return; const p=pos(e); cx.lineTo(p.x,p.y); cx.stroke(); hasInk=true; e.preventDefault();}
 function end(){drawing=false;}
 function limpiarPad(){if(!cx)return; cx.clearRect(0,0,cv.width,cv.height); hasInk=false; const h=$('padhint'); if(h)h.style.display='block';}
-
 function hashStr(s){let h=0x811c9dc5; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i); h=(h*0x01000193)>>>0;} return h.toString(16).padStart(8,'0');}
 function ahora(){const d=new Date(); return d.toLocaleDateString('es-CO')+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});}
 function uuid(){ if(crypto&&crypto.randomUUID) return crypto.randomUUID(); return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
 function dataURLtoBlob(u){const a=u.split(','); const m=a[0].match(/:(.*?);/)[1]; const b=atob(a[1]); let n=b.length; const arr=new Uint8Array(n); while(n--)arr[n]=b.charCodeAt(n); return new Blob([arr],{type:m});}
-
 async function registrar(){
   err('sErr','');
   if(!hasInk){err('sErr','Falta tu firma en el recuadro.'); return;}
@@ -427,7 +394,7 @@ async function registrar(){
     for(let fi=0; fi<fotos.length; fi++){ paths.push(await sbUpload(id+'/foto'+(fi+1)+'.jpg', fotos[fi].file, fotos[fi].type||'image/jpeg')); }
     const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
     reg.foto_paths = paths.length?paths:null; reg.foto_path = paths.length?paths[0]:null; reg.firma_path=firmaPath;
-    await sbInsert('tarjetas', reg);
+    await sbRpc('registrar_tarjeta',{t:reg});
     await guardarPdfTarjeta(reg, ts, pdfBlob);
     last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrls:fotoUrls, empresa:obs.empresa, pendiente:false};
     mostrarHecho(false);
@@ -461,7 +428,6 @@ function mostrarHecho(pendiente){
     +'<span class="lref">Conforme a la Ley 527 de 1999. Registro inalterable — cualquier cambio invalida el hash.</span>';
   show('scDone');
 }
-
 function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
   const W=doc.internal.pageSize.getWidth(); let y=54;
@@ -471,13 +437,11 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
   doc.text('Actos y condiciones inseguras · '+r.id, 40, y); y+=22;
   doc.setDrawColor(220,220,220); doc.line(40,y,W-40,y); y+=20;
-
   const tag=r.clase==='seguro'?'ACTO SEGURO (refuerzo)':('INSEGURO · '+String(r.tipo||'').toUpperCase());
   doc.setFont('helvetica','bold'); doc.setFontSize(11);
   if(r.clase==='seguro') doc.setTextColor(37,150,90); else doc.setTextColor(200,50,45);
   doc.text(tag, 40, y); y+=20;
   doc.setTextColor(30,30,30); doc.setFontSize(10.5);
-
   const row=(k,v)=>{ if(!v && v!==false) return; doc.setFont('helvetica','bold'); doc.text(k, 40, y);
     doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(String(v), W-190); doc.text(lines, 170, y); y+=Math.max(16, lines.length*14); };
   row('Observador', r.observador_nombre+'  (C.C. '+r.observador_cedula+')');
@@ -490,7 +454,6 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   if(r.accion_inmediata) row('Acción inmediata', r.accion_inmediata);
   if(r.compromiso) row('Compromiso', r.compromiso+(r.responsable?('  ('+r.responsable+')'):''));
   if(r.observado_nombre) row('Persona observada', r.observado_nombre);
-
   y+=6;
   var _fu = Array.isArray(fotoDataUrls)?fotoDataUrls:(fotoDataUrls?[fotoDataUrls]:[]);
   if(_fu.length){
@@ -513,7 +476,6 @@ function descargarPDF(){
   const r=last.reg;
   buildTarjetaPdf(r, last.ts, last.empresa, last.firmaDataUrl, last.fotoDataUrls).save('Tarjeta_'+r.observador_cedula+'_'+r.id.slice(0,8)+'.pdf');
 }
-
 function salirTarjetas(){ var st=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true; if(st){ location.reload(); } else { location.href='/app.html'; } }
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(()=>{});
@@ -521,7 +483,6 @@ if('serviceWorker' in navigator){
   let _swReloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_swReloaded)return; _swReloaded=true; location.reload(); });
 }
-
 // -- arranque + reacción a la conexión --
 pintarConexion(); actualizarPendientes(); if(navigator.onLine) syncCola();
 window.addEventListener('online', ()=>{ pintarConexion(); syncCola(); });

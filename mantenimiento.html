@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KALU · Estamos mejorando | Dinamho Intelligence</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--green:#2fa36b;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.35);--glow-c:rgba(0,212,255,.25)}
+  html,body{height:100%}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px}
+  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .bg .grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 60% at 50% 35%,#000 20%,transparent 75%);opacity:.5}
+  .bg .glow1{position:absolute;top:-10%;right:-5%;width:640px;height:640px;background:radial-gradient(circle,var(--glow-o),transparent 62%);filter:blur(34px);opacity:.4}
+  .bg .glow2{position:absolute;bottom:-20%;left:-10%;width:560px;height:560px;background:radial-gradient(circle,var(--glow-c),transparent 62%);filter:blur(34px);opacity:.35}
+  .box{position:relative;z-index:1;max-width:520px}
+  .logo{display:inline-flex;align-items:center;gap:13px;margin-bottom:30px}
+  .logo-txt{display:flex;flex-direction:column;line-height:1.05;text-align:left}
+  .logo-txt .b{font-weight:800;font-size:18px;letter-spacing:1px}
+  .logo-txt .s{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:2px;color:var(--muted)}
+  .ico{font-size:52px;margin-bottom:14px;filter:drop-shadow(0 6px 20px rgba(242,140,0,.35))}
+  h1{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.4px;margin-bottom:14px}
+  p{color:var(--muted);font-size:15.5px;line-height:1.65;margin-bottom:10px}
+  p b{color:var(--text)}
+  .pill{display:inline-flex;align-items:center;gap:9px;margin-top:22px;background:var(--bg3);border:1px solid var(--border);border-radius:30px;padding:10px 18px;font-size:13.5px;color:var(--text)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 0 rgba(242,140,0,.6);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,140,0,.55)}70%{box-shadow:0 0 0 12px rgba(242,140,0,0)}100%{box-shadow:0 0 0 0 rgba(242,140,0,0)}}
+  .foot{margin-top:30px;font-size:13px;color:var(--muted)}
+  .foot a{color:var(--cyan);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
+<div class="box">
+  <div class="logo">
+    <svg viewBox="0 0 40 40" fill="none" style="width:42px;height:42px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial">DI</text></svg>
+    <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
+  </div>
+  <div class="ico">🛠️</div>
+  <h1>Estamos mejorando la plataforma</h1>
+  <p>Estamos haciendo una actualización importante para unificar todos los módulos en un solo acceso.</p>
+  <p><b>Volvemos mañana</b>, con todo funcionando mejor.</p>
+  <div class="pill"><span class="dot"></span> Mantenimiento en curso</div>
+  <div class="foot">¿Necesitás algo urgente? Escribinos a <a href="mailto:info@dinamho.co">info@dinamho.co</a></div>
+</div>
+</body>
+</html>

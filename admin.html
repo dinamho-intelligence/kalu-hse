@@ -130,21 +130,27 @@ let SB_TOKEN=null, ME=null, TAB="", CTX_EMP=null, EMPRESAS=[];
 
 /* Catálogo de módulos → roles → permisos por defecto (editables) */
 const MODULOS=[
-  {key:"hse", nombre:"HSE", ic:"🛡️", roles:{
+  {key:"hse", nombre:"HSE", ic:"🛡️",
+   perms:["validacion","ats","tarjetas","investigaciones","expedientes","aprobar_ats","aprobar_tarjetas","consola"],
+   roles:{
      operador:["validacion","ats","tarjetas"],
      investigador:["investigaciones"],
      coordinador:["consola","expedientes","tarjetas","investigaciones"],
      supervisor:["aprobar_ats","aprobar_tarjetas"]
   }},
-  {key:"ra", nombre:"Realidad Asistida", ic:"🥽", roles:{
+  {key:"ra", nombre:"Realidad Asistida", ic:"🥽",
+   perms:["captura","consola","asiste"],
+   roles:{
      operador:["captura"],
      coordinador:["consola","asiste"]
   }},
-  {key:"qaqc", nombre:"QA/QC", ic:"📐", roles:{
+  {key:"qaqc", nombre:"QA/QC", ic:"📐",
+   perms:["captura","editor_informes","consola"],
+   roles:{
      asegurador:["captura","editor_informes"],
      coordinador:["consola"]
   }},
-  {key:"ndt", nombre:"NDT", ic:"🔬", roles:{}}
+  {key:"ndt", nombre:"NDT", ic:"🔬", perms:[], roles:{}}
 ];
 const PERM_LABEL={
   validacion:"Validación", ats:"ATS", tarjetas:"Tarjetas",
@@ -380,8 +386,9 @@ async function abrirAccesos(tipo,id,nombre){
 function pintarPerms(k,rol,sel){
   const d=modDef(k); const box=$("#perms_"+k); if(!box||!d) return;
   if(!rol){ box.innerHTML=""; return; }
-  const def=d.roles[rol]||[]; const chosen=sel||def.slice();
-  box.innerHTML=def.map(function(p){ const on=chosen.indexOf(p)>=0; return '<span class="pchk '+(on?"on":"")+'" data-p="'+p+'" onclick="this.classList.toggle(\'on\')">'+(PERM_LABEL[p]||p)+'</span>'; }).join("")||'<span class="meta">Este rol no tiene permisos configurables.</span>';
+  const all=(d.perms&&d.perms.length)?d.perms:(d.roles[rol]||[]);  // TODOS los permisos del módulo
+  const def=d.roles[rol]||[]; const chosen=sel||def.slice();        // pre-tildados según el rol (o lo guardado)
+  box.innerHTML=all.map(function(p){ const on=chosen.indexOf(p)>=0; return '<span class="pchk '+(on?"on":"")+'" data-p="'+p+'" onclick="this.classList.toggle(\'on\')">'+(PERM_LABEL[p]||p)+'</span>'; }).join("")||'<span class="meta">Sin permisos configurables.</span>';
 }
 function rolCambio(k,rol){ pintarPerms(k,rol,null); }
 function cerrarAccesos(){ $("#ov").classList.remove("show"); OV={}; }

@@ -331,7 +331,11 @@ function setClase(c){
 function pick(k,el){ const box=el.parentElement; [...box.children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal[k]=el.dataset.v; }
 function pickCat(el){ [...$('catChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal.categoria=el.dataset.v; }
 function addFoto(){ const f=$('foto').files[0]; $('foto').value=''; if(!f) return; if(fotos.length>=5){ alert('Máximo 5 fotos.'); return; } const rd=new FileReader(); rd.onload=e=>{ fotos.push({file:f, dataUrl:e.target.result, type:(f.type||'image/jpeg')}); renderFotos(); }; rd.readAsDataURL(f); }
-function renderFotos(){ const c=$('fotosPrev'); if(!c) return; c.innerHTML=fotos.map(function(ft,i){ return '<div style="position:relative;width:66px;height:66px"><img src="'+ft.dataUrl+'" style="width:66px;height:66px;object-fit:cover;border-radius:10px;border:1px solid var(--line)"><button type="button" onclick="quitarFoto('+i+')" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--rojo,#e23b3b);color:#fff;border:2px solid #fff;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button></div>'; }).join(''); const b=$('btnAddFoto'); if(b) b.style.display=(fotos.length>=5)?'none':'block'; }
+function renderFotos(){ const c=$('fotosPrev'); if(!c) return; c.innerHTML=fotos.map(function(ft,i){ return '<div style="position:relative;width:84px;height:84px">'
+  +'<img src="'+ft.dataUrl+'" onclick="abrirEditor('+i+')" title="Marcar" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:pointer">'
+  +'<button type="button" onclick="quitarFoto('+i+')" title="Quitar" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--rojo,#e23b3b);color:#fff;border:2px solid #fff;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button>'
+  +'<button type="button" onclick="abrirEditor('+i+')" title="Marcar" style="position:absolute;bottom:-7px;right:-7px;width:24px;height:24px;border-radius:50%;background:#F28C00;color:#141414;border:2px solid #fff;font-size:12px;line-height:1;cursor:pointer;padding:0">✎</button>'
+  +'</div>'; }).join(''); const b=$('btnAddFoto'); if(b) b.style.display=(fotos.length>=5)?'none':'block'; }
 function quitarFoto(i){ fotos.splice(i,1); renderFotos(); }
 function irFirma(){
   err('fErr','');
@@ -458,7 +462,7 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   var _fu = Array.isArray(fotoDataUrls)?fotoDataUrls:(fotoDataUrls?[fotoDataUrls]:[]);
   if(_fu.length){
     doc.setFont('helvetica','bold'); doc.text('Evidencia'+(_fu.length>1?' ('+_fu.length+' fotos)':''), 40, y); y+=8;
-    var _fx=40, _fw=95, _fh=72, _gap=8, _yy=y;
+    var _fx=40, _fw=175, _fh=132, _gap=8, _yy=y;
     _fu.forEach(function(u){ if(_fx+_fw>W-40){ _fx=40; _yy+=_fh+_gap; } try{ doc.addImage(u,'JPEG',_fx,_yy,_fw,_fh); }catch(e){} _fx+=_fw+_gap; });
     y=_yy+_fh+10;
   }
@@ -487,6 +491,55 @@ if('serviceWorker' in navigator){
 pintarConexion(); actualizarPendientes(); if(navigator.onLine) syncCola();
 window.addEventListener('online', ()=>{ pintarConexion(); syncCola(); });
 window.addEventListener('offline', pintarConexion);
+</script>
+<script>
+/* ===== Editor de foto: pincel para resaltar (rojo) ===== */
+(function(){
+  var ov=document.createElement('div');
+  ov.id='fotoEditor';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(6,8,11,.94);display:none;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:12px;font-family:inherit';
+  ov.innerHTML=''
+   +'<div style="color:#EDEFF2;font-size:14px">Marcá con el dedo lo que quieras resaltar</div>'
+   +'<div style="max-width:100%;max-height:62vh;overflow:auto;border-radius:12px;border:1px solid rgba(255,255,255,.15)"><canvas id="feCanvas" style="display:block;max-width:100%;touch-action:none;background:#111"></canvas></div>'
+   +'<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">'
+   +'<button type="button" id="feUndo" style="padding:11px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#161A22;color:#EDEFF2;font-size:14px;cursor:pointer">&#8617; Deshacer</button>'
+   +'<button type="button" id="feClear" style="padding:11px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#161A22;color:#EDEFF2;font-size:14px;cursor:pointer">Borrar marcas</button>'
+   +'<button type="button" id="feCancel" style="padding:11px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#161A22;color:#EDEFF2;font-size:14px;cursor:pointer">Cancelar</button>'
+   +'<button type="button" id="feOk" style="padding:11px 20px;border-radius:10px;border:none;background:linear-gradient(135deg,#F28C00,#FF9F1C);color:#141414;font-weight:700;font-size:14px;cursor:pointer">Listo &#10003;</button>'
+   +'</div>';
+  document.body.appendChild(ov);
+  var ecv=ov.querySelector('#feCanvas'), ectx=ecv.getContext('2d');
+  var img=new Image(), strokes=[], cur=null, drawingE=false, brush=6, idx=-1;
+  function redraw(){
+    ectx.clearRect(0,0,ecv.width,ecv.height);
+    ectx.drawImage(img,0,0,ecv.width,ecv.height);
+    ectx.lineCap='round'; ectx.lineJoin='round'; ectx.strokeStyle='#ff2d2d';
+    strokes.forEach(function(s){ if(!s.length)return; ectx.lineWidth=brush; ectx.beginPath(); ectx.moveTo(s[0].x,s[0].y); for(var i=1;i<s.length;i++)ectx.lineTo(s[i].x,s[i].y); if(s.length===1)ectx.lineTo(s[0].x+0.1,s[0].y+0.1); ectx.stroke(); });
+  }
+  function ep(e){var r=ecv.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:(t.clientX-r.left)*(ecv.width/r.width), y:(t.clientY-r.top)*(ecv.height/r.height)};}
+  function eStart(e){drawingE=true; cur=[ep(e)]; strokes.push(cur); redraw(); e.preventDefault();}
+  function eMove(e){if(!drawingE)return; cur.push(ep(e)); redraw(); e.preventDefault();}
+  function eEnd(){drawingE=false;}
+  ecv.addEventListener('mousedown',eStart); ecv.addEventListener('mousemove',eMove); window.addEventListener('mouseup',eEnd);
+  ecv.addEventListener('touchstart',eStart,{passive:false}); ecv.addEventListener('touchmove',eMove,{passive:false}); ecv.addEventListener('touchend',eEnd);
+  ov.querySelector('#feUndo').onclick=function(){ strokes.pop(); redraw(); };
+  ov.querySelector('#feClear').onclick=function(){ strokes=[]; redraw(); };
+  ov.querySelector('#feCancel').onclick=function(){ ov.style.display='none'; };
+  ov.querySelector('#feOk').onclick=function(){
+    var url=ecv.toDataURL('image/jpeg',0.9);
+    if(fotos[idx]){ fotos[idx].dataUrl=url; fotos[idx].file=dataURLtoBlob(url); fotos[idx].type='image/jpeg'; }
+    ov.style.display='none'; renderFotos();
+  };
+  window.abrirEditor=function(i){
+    if(!fotos[i])return; idx=i; strokes=[]; img=new Image();
+    img.onload=function(){
+      var maxD=1400, w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+      var sc=Math.min(1, maxD/Math.max(w,h)); ecv.width=Math.round(w*sc); ecv.height=Math.round(h*sc);
+      brush=Math.max(5, Math.round(ecv.width/110)); redraw(); ov.style.display='flex';
+    };
+    img.src=fotos[i].dataUrl;
+  };
+})();
 </script>
 </body>
 </html>

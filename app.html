@@ -1,47 +1,1512 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KALU · Estamos mejorando | Dinamho Intelligence</title>
-<style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--green:#2fa36b;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.35);--glow-c:rgba(0,212,255,.25)}
-  html,body{height:100%}
-  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px}
-  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
-  .bg .grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 60% at 50% 35%,#000 20%,transparent 75%);opacity:.5}
-  .bg .glow1{position:absolute;top:-10%;right:-5%;width:640px;height:640px;background:radial-gradient(circle,var(--glow-o),transparent 62%);filter:blur(34px);opacity:.4}
-  .bg .glow2{position:absolute;bottom:-20%;left:-10%;width:560px;height:560px;background:radial-gradient(circle,var(--glow-c),transparent 62%);filter:blur(34px);opacity:.35}
-  .box{position:relative;z-index:1;max-width:520px}
-  .logo{display:inline-flex;align-items:center;gap:13px;margin-bottom:30px}
-  .logo-txt{display:flex;flex-direction:column;line-height:1.05;text-align:left}
-  .logo-txt .b{font-weight:800;font-size:18px;letter-spacing:1px}
-  .logo-txt .s{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:2px;color:var(--muted)}
-  .ico{font-size:52px;margin-bottom:14px;filter:drop-shadow(0 6px 20px rgba(242,140,0,.35))}
-  h1{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.4px;margin-bottom:14px}
-  p{color:var(--muted);font-size:15.5px;line-height:1.65;margin-bottom:10px}
-  p b{color:var(--text)}
-  .pill{display:inline-flex;align-items:center;gap:9px;margin-top:22px;background:var(--bg3);border:1px solid var(--border);border-radius:30px;padding:10px 18px;font-size:13.5px;color:var(--text)}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 0 rgba(242,140,0,.6);animation:pulse 1.8s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,140,0,.55)}70%{box-shadow:0 0 0 12px rgba(242,140,0,0)}100%{box-shadow:0 0 0 0 rgba(242,140,0,0)}}
-  .foot{margin-top:30px;font-size:13px;color:var(--muted)}
-  .foot a{color:var(--cyan);text-decoration:none}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0C0F" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="KALU" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <script>
+    // Acceso solo por getkalu.com: si abren la .vercel.app u otro host, rebota al dominio propio.
+    (function(){try{var h=location.hostname||'';if(h.indexOf('vercel.app')!==-1){location.replace('https://getkalu.com'+location.pathname+location.search+location.hash);}}catch(e){}})();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <title>KALU — Dinamho Intelligence</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --negro:#0A0C0F; --negro-2:#111318; --negro-3:#1A1D24; --negro-4:#22262F;
+      --naranja:#F28C00; --naranja-2:#FF9F1C; --naranja-dim:rgba(242,140,0,0.15); --naranja-glow:rgba(242,140,0,0.35);
+      --azul-ciborg:#00D4FF; --azul-dim:rgba(0,212,255,0.1);
+      --blanco:#FFFFFF; --gris-1:#F0F0F0; --gris-2:#A0A4AD; --gris-3:#4A4E5A;
+      --verde-ok:#00C896; --rojo-alerta:#FF3B30;
+    }
+    html,body{height:100%;font-family:'Space Grotesk',sans-serif;background:var(--negro);color:var(--blanco);overflow:hidden;}
+    header{position:fixed;top:0;left:0;right:0;z-index:200;height:60px;background:rgba(10,12,15,0.95);border-bottom:1px solid rgba(242,140,0,0.2);backdrop-filter:blur(12px);display:flex;align-items:center;padding:0 24px;gap:16px;}
+    .logo-dnm{display:flex;align-items:center;gap:10px;}
+    .logo-hex{width:36px;height:36px;display:flex;align-items:center;justify-content:center;}
+    .logo-hex svg{width:36px;height:36px;}
+    .logo-text{display:flex;flex-direction:column;line-height:1.1;}
+    .logo-text .brand{font-size:13px;font-weight:700;color:var(--naranja);letter-spacing:1px;}
+    .logo-text .sub{font-size:10px;color:var(--gris-2);letter-spacing:0.5px;font-family:'JetBrains Mono',monospace;}
+    .header-divider{width:1px;height:24px;background:var(--gris-3);margin:0 4px;}
+    .kalu-label{font-size:15px;font-weight:600;color:var(--blanco);}
+    .status-pill{margin-left:auto;display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace;border:1px solid;}
+    .status-pill.online{background:rgba(0,200,150,0.1);border-color:rgba(0,200,150,0.3);color:var(--verde-ok);}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulso 2s infinite;}
+    @keyframes pulso{0%,100%{opacity:1}50%{opacity:0.3}}
+    /* HOME */
+    #pantalla-home{position:fixed;inset:0;padding-top:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);z-index:15;transition:opacity 0.5s ease,transform 0.5s ease;}
+    #pantalla-home.saliendo{opacity:0;transform:translateY(-20px);pointer-events:none;}
+    /* LOGIN */
+    #pantalla-login{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);padding:24px;transition:opacity .4s ease;}
+    #pantalla-login.oculto{opacity:0;pointer-events:none;}
+    .login-card{width:100%;max-width:380px;background:var(--negro-2);border:1px solid var(--negro-4);border-radius:16px;padding:34px 28px;box-shadow:0 20px 60px rgba(0,0,0,.55);}
+    .login-logo{display:flex;align-items:center;justify-content:center;}
+    .login-title{text-align:center;color:var(--naranja);font-weight:700;font-size:26px;letter-spacing:1px;margin-top:10px;}
+    .login-sub{text-align:center;color:#8A909C;font-size:11px;font-family:'JetBrains Mono',monospace;margin-bottom:20px;letter-spacing:.5px;}
+    .login-label{display:block;color:#A0A4AD;font-size:12px;margin:14px 0 6px;font-family:'JetBrains Mono',monospace;}
+    .login-input{width:100%;background:var(--negro);border:1px solid var(--negro-4);border-radius:10px;padding:12px 14px;color:#EAECEF;font-size:15px;outline:none;transition:border .2s;}
+    .login-input:focus{border-color:var(--naranja);}
+    .login-btn{width:100%;margin-top:22px;background:var(--naranja);color:#141414;border:none;border-radius:10px;padding:13px;font-weight:700;font-size:15px;cursor:pointer;transition:filter .2s;}
+    .login-btn:hover{filter:brightness(1.08);}
+    .login-btn:disabled{opacity:.6;cursor:default;}
+    .login-error{color:#FF5A4E;font-size:13px;text-align:center;margin-top:14px;min-height:16px;}
+    .login-foot{text-align:center;color:#5A606B;font-size:11px;margin-top:20px;}
+    #btn-logout{background:transparent;border:1px solid var(--negro-4);color:#A0A4AD;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;margin-left:12px;transition:all .2s;}
+    #btn-logout:hover{border-color:var(--naranja);color:var(--naranja);}
+    .home-avatar-wrap{width:160px;height:160px;position:relative;margin-bottom:16px;}
+    .home-avatar-wrap svg{width:100%;height:100%;}
+    .ring-orbit{animation:girar 10s linear infinite;transform-origin:110px 110px;}
+    .ring-orbit-2{animation:girar 16s linear infinite reverse;transform-origin:110px 110px;}
+    .ring-orbit-3{animation:girar 24s linear infinite;transform-origin:110px 110px;}
+    .avatar-float{animation:flotar 4s ease-in-out infinite;}
+    .halo-voz{transform-origin:110px 110px;animation:haloIdle 3s ease-in-out infinite;}
+    .halo-voz-2{transform-origin:110px 110px;animation:haloIdle2 3s ease-in-out infinite 0.5s;}
+    .avatar-core{animation:corePulse 3s ease-in-out infinite;transform-origin:110px 110px;}
+    .ojo-pupila-home{animation:parpadeoHome 6s ease-in-out infinite;transform-origin:center;}
+    @keyframes girar{to{transform:rotate(360deg);}}
+    @keyframes flotar{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    @keyframes corePulse{0%,100%{opacity:0.85;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}
+    @keyframes haloIdle{0%,100%{opacity:0.15;transform:scale(1)}50%{opacity:0.35;transform:scale(1.06)}}
+    @keyframes haloIdle2{0%,100%{opacity:0.08;transform:scale(1)}50%{opacity:0.2;transform:scale(1.12)}}
+    @keyframes parpadeoHome{0%,88%,100%{transform:scaleY(1)}92%,96%{transform:scaleY(0.05)}}
+    .home-titulo{font-size:28px;font-weight:700;color:var(--naranja);letter-spacing:2px;margin-bottom:4px;}
+    .home-sub{font-size:12px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;margin-bottom:40px;letter-spacing:1px;}
+    .home-modulos{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;padding:0 24px;}
+    .modulo-card{width:260px;background:var(--negro-2);border:1px solid var(--gris-3);border-radius:16px;padding:28px 24px;cursor:pointer;transition:all 0.25s ease;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;}
+    .modulo-card::before{content:'';position:absolute;inset:0;border-radius:16px;background:linear-gradient(135deg,transparent 60%,rgba(242,140,0,0.04));pointer-events:none;}
+    .modulo-card:hover{border-color:var(--naranja);transform:translateY(-4px);box-shadow:0 16px 48px rgba(242,140,0,0.12);}
+    .modulo-card:hover .modulo-icon{color:var(--naranja);}
+    .modulo-card.proximamente{opacity:0.45;cursor:not-allowed;}
+    .modulo-card.proximamente:hover{transform:none;box-shadow:none;border-color:var(--gris-3);}
+    .modulo-icon{font-size:32px;margin-bottom:4px;transition:all 0.2s;}
+    .modulo-tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:1px;font-family:'JetBrains Mono',monospace;width:fit-content;}
+    .modulo-tag.activo{background:rgba(0,200,150,0.15);border:1px solid rgba(0,200,150,0.3);color:var(--verde-ok);}
+    .modulo-tag.pronto{background:rgba(242,140,0,0.12);border:1px solid rgba(242,140,0,0.25);color:var(--naranja);}
+    .modulo-nombre{font-size:18px;font-weight:700;color:var(--blanco);}
+    .modulo-desc{font-size:12px;color:var(--gris-2);line-height:1.6;}
+    .modulo-flecha{font-size:18px;color:var(--gris-3);margin-top:auto;transition:all 0.2s;}
+    .modulo-card:hover .modulo-flecha{color:var(--naranja);transform:translateX(4px);}
+    .home-footer{position:absolute;bottom:24px;font-size:11px;color:var(--gris-3);font-family:'JetBrains Mono',monospace;letter-spacing:1px;}
+    .home-footer span{color:var(--naranja);}
+    /* INICIO HSE */
+    #pantalla-inicio{position:fixed;inset:0;display:none;flex-direction:row;align-items:stretch;padding-top:60px;background:var(--negro);z-index:10;transition:opacity 0.5s ease,transform 0.5s ease;overflow:hidden;}
+    #pantalla-inicio.visible{display:flex;}
+    #pantalla-inicio.saliendo{opacity:0;transform:translateY(-20px);pointer-events:none;}
+    .inicio-avatar-col{width:320px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;border-right:1px solid rgba(242,140,0,0.1);background:var(--negro-2);}
+    .kalu-avatar-inicio{width:200px;height:200px;position:relative;flex-shrink:0;margin-bottom:20px;}
+    .kalu-avatar-inicio svg{width:100%;height:100%;}
+    .kalu-avatar-inicio.estado-hablando .halo-voz{animation:haloHabla 0.4s ease-in-out infinite alternate;}
+    .kalu-avatar-inicio.estado-hablando .halo-voz-2{animation:haloHabla2 0.4s ease-in-out infinite alternate 0.2s;}
+    .kalu-avatar-inicio.estado-escuchando .halo-voz{animation:haloEscucha 1.2s ease-in-out infinite;}
+    .kalu-avatar-inicio.estado-alerta .halo-voz{animation:haloAlerta 0.5s ease-in-out infinite alternate;}
+    @keyframes haloHabla{from{opacity:0.2;transform:scale(1)}to{opacity:0.6;transform:scale(1.1)}}
+    @keyframes haloHabla2{from{opacity:0.1;transform:scale(1)}to{opacity:0.4;transform:scale(1.18)}}
+    @keyframes haloEscucha{0%,100%{opacity:0.2;transform:scale(1)}50%{opacity:0.5;transform:scale(1.08)}}
+    @keyframes haloAlerta{from{opacity:0.3;transform:scale(1)}to{opacity:0.7;transform:scale(1.09)}}
+    .ojo-pupila-inicio{animation:parpadeoInicio 6s ease-in-out infinite;transform-origin:center;}
+    @keyframes parpadeoInicio{0%,88%,100%{transform:scaleY(1)}92%,96%{transform:scaleY(0.05)}}
+    .inicio-kalu-titulo{font-size:18px;font-weight:700;color:var(--naranja);letter-spacing:1px;margin-bottom:6px;}
+    .inicio-kalu-sub{font-size:11px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.6;}
+    .btn-volver-home{margin-top:20px;padding:8px 16px;background:none;border:1px solid var(--gris-3);border-radius:8px;color:var(--gris-2);font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all 0.2s;letter-spacing:1px;}
+    .btn-volver-home:hover{border-color:var(--naranja);color:var(--naranja);}
+    .inicio-form-col{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:32px 40px;}
+    .inicio-form-col::-webkit-scrollbar{width:4px;}
+    .inicio-form-col::-webkit-scrollbar-thumb{background:var(--gris-3);border-radius:2px;}
+    .pasos-header{display:flex;align-items:center;gap:0;margin-bottom:32px;}
+    .paso-tab{display:flex;align-items:center;gap:8px;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--gris-3);cursor:default;transition:all 0.3s;border:1px solid transparent;}
+    .paso-tab.activo{color:var(--naranja);border-color:rgba(242,140,0,0.3);background:var(--naranja-dim);}
+    .paso-tab.completado{color:var(--verde-ok);}
+    .paso-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--negro-3);border:1px solid var(--gris-3);transition:all 0.3s;}
+    .paso-tab.activo .paso-num{background:var(--naranja);border-color:var(--naranja);color:var(--negro);}
+    .paso-tab.completado .paso-num{background:var(--verde-ok);border-color:var(--verde-ok);color:var(--negro);}
+    .paso-sep{width:24px;height:1px;background:var(--gris-3);margin:0 4px;}
+    .paso-contenido{display:none;flex-direction:column;gap:20px;flex:1;}
+    .paso-contenido.visible{display:flex;}
+    .campo{display:flex;flex-direction:column;gap:8px;}
+    .campo label{font-size:11px;font-weight:600;color:var(--naranja);text-transform:uppercase;letter-spacing:1px;font-family:'JetBrains Mono',monospace;}
+    .campo input,.campo textarea{width:100%;padding:12px 16px;background:var(--negro-3);border:1px solid var(--gris-3);border-radius:10px;color:var(--blanco);font-size:14px;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+    .campo textarea{resize:none;min-height:80px;line-height:1.5;}
+    .campo input:focus,.campo textarea:focus{border-color:var(--naranja);box-shadow:0 0 0 3px var(--naranja-dim);}
+    .campo input::placeholder,.campo textarea::placeholder{color:var(--gris-3);}
+    .agregar-fila{display:flex;gap:8px;}
+    .agregar-fila input{flex:1;}
+    .btn-agregar{padding:12px 16px;background:var(--negro-4);border:1px solid var(--gris-3);border-radius:10px;color:var(--naranja);font-size:20px;cursor:pointer;transition:all 0.2s;flex-shrink:0;}
+    .btn-agregar:hover{background:var(--naranja-dim);border-color:var(--naranja);}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;min-height:28px;}
+    .chip{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;background:var(--naranja-dim);border:1px solid rgba(242,140,0,0.3);font-size:12px;font-weight:500;color:var(--naranja-2);}
+    .chip button{background:none;border:none;cursor:pointer;color:var(--naranja);font-size:14px;line-height:1;padding:0;}
+    .chip.equipo{background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.3);color:var(--azul-ciborg);}
+    .chip.equipo button{color:var(--azul-ciborg);}
+    .equipos-sugeridos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+    .btn-equipo-sug{padding:4px 12px;border-radius:20px;border:1px solid rgba(0,212,255,0.2);background:rgba(0,212,255,0.05);color:var(--gris-2);font-size:12px;cursor:pointer;transition:all 0.15s;font-family:'Space Grotesk',sans-serif;}
+    .btn-equipo-sug:hover{background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.4);color:var(--azul-ciborg);}
+    .btn-equipo-sug.seleccionado{background:rgba(0,212,255,0.15);border-color:var(--azul-ciborg);color:var(--azul-ciborg);font-weight:600;}
+    .btns-nav{display:flex;gap:12px;margin-top:auto;padding-top:24px;}
+    .btn-siguiente{flex:1;padding:14px;background:var(--naranja);border:none;border-radius:12px;color:var(--negro);font-size:15px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:0.5px;transition:all 0.2s;position:relative;overflow:hidden;}
+    .btn-siguiente::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);}
+    .btn-siguiente:hover{background:var(--naranja-2);transform:translateY(-1px);box-shadow:0 8px 24px var(--naranja-glow);}
+    .btn-siguiente:disabled{background:var(--gris-3);cursor:not-allowed;transform:none;box-shadow:none;color:var(--gris-2);}
+    .btn-volver{padding:14px 20px;background:var(--negro-3);border:1px solid var(--gris-3);border-radius:12px;color:var(--gris-2);font-size:14px;font-weight:500;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all 0.2s;}
+    .btn-volver:hover{border-color:var(--naranja);color:var(--naranja);}
+    .generando-overlay{display:none;position:absolute;inset:0;background:rgba(10,12,15,0.92);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:50;}
+    .generando-overlay.visible{display:flex;}
+    .generando-spinner{width:48px;height:48px;border-radius:50%;border:3px solid rgba(242,140,0,0.2);border-top-color:var(--naranja);animation:spin 1s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .generando-msg{font-size:14px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.8;transition:opacity .3s ease;max-width:360px;}
+    .generando-msg span{color:var(--naranja);}
+    /* CHAT HSE */
+    #pantalla-chat{display:none;position:fixed;inset:0;flex-direction:column;padding-top:60px;}
+    #pantalla-chat.visible{display:flex;}
+    .chat-layout{display:flex;flex:1;overflow:hidden;}
+    .kalu-panel{width:200px;flex-shrink:0;background:var(--negro-2);border-right:1px solid rgba(242,140,0,0.15);display:flex;flex-direction:column;align-items:center;padding:24px 16px;gap:16px;}
+    .kalu-cara-wrap{width:150px;height:150px;position:relative;border-radius:50%;overflow:visible;}
+    .kalu-cara-wrap svg{width:150px;height:150px;border-radius:50%;overflow:hidden;}
+    .kalu-cara-wrap::before{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(0,212,255,0.4);transition:border-color 0.3s,box-shadow 0.3s;}
+    .kalu-cara-wrap.estado-idle::before{border-color:rgba(0,212,255,0.35);box-shadow:0 0 14px rgba(0,212,255,0.15),0 0 28px rgba(0,212,255,0.08);}
+    .kalu-cara-wrap.estado-escuchando::before{border-color:rgba(242,140,0,0.7);box-shadow:0 0 20px rgba(242,140,0,0.3);animation:ringEscucha 1.2s ease-in-out infinite;}
+    .kalu-cara-wrap.estado-hablando::before{border-color:rgba(0,212,255,0.9);box-shadow:0 0 24px rgba(0,212,255,0.5);animation:ringHabla 0.15s ease-in-out infinite alternate;}
+    .kalu-cara-wrap.estado-alerta::before{border-color:rgba(255,59,48,0.9);box-shadow:0 0 24px rgba(255,59,48,0.5);animation:ringAlerta 0.6s ease-in-out infinite alternate;}
+    @keyframes ringEscucha{0%,100%{box-shadow:0 0 12px rgba(242,140,0,0.2)}50%{box-shadow:0 0 28px rgba(242,140,0,0.5)}}
+    @keyframes ringHabla{from{box-shadow:0 0 16px rgba(0,212,255,0.3)}to{box-shadow:0 0 36px rgba(0,212,255,0.7)}}
+    @keyframes ringAlerta{from{box-shadow:0 0 16px rgba(255,59,48,0.3)}to{box-shadow:0 0 36px rgba(255,59,48,0.7)}}
+    .voz-onda{display:flex;align-items:center;justify-content:center;gap:3px;height:24px;margin-top:8px;opacity:0;transition:opacity 0.3s;}
+    .voz-onda.visible{opacity:1;}
+    .voz-onda span{display:inline-block;width:3px;border-radius:2px;background:var(--azul-ciborg);height:4px;transition:height 0.08s ease;}
+    .kalu-cara-wrap .ojos-grupo{animation:parpadeoChat 7s ease-in-out infinite;transform-origin:70px 52px;}
+    @keyframes parpadeoChat{0%,85%,100%{transform:scaleY(1)}88%,95%{transform:scaleY(0.05)}}
+    .kalu-nombre{font-size:13px;font-weight:700;color:var(--naranja);text-align:center;letter-spacing:1px;}
+    .kalu-modo{font-size:10px;color:var(--gris-2);text-align:center;font-family:'JetBrains Mono',monospace;background:var(--negro-3);padding:4px 10px;border-radius:6px;border:1px solid var(--gris-3);}
+    .kalu-estado-label{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--azul-ciborg);text-align:center;letter-spacing:1px;opacity:0.7;transition:color 0.3s;min-height:16px;}
+    .kalu-estado-label.escuchando{color:var(--naranja);opacity:1;}
+    .kalu-estado-label.hablando{color:var(--azul-ciborg);opacity:1;}
+    .kalu-estado-label.alerta{color:var(--rojo-alerta);opacity:1;}
+    .kalu-stats{width:100%;margin-top:auto;display:flex;flex-direction:column;gap:8px;}
+    .stat-item{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-family:'JetBrains Mono',monospace;}
+    .stat-item .label{color:var(--gris-2);}
+    .stat-item .value{color:var(--naranja);font-weight:600;}
+    .chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+    .chat-topbar{padding:12px 20px;background:var(--negro-2);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .tag-tarea{padding:4px 12px;border-radius:6px;background:var(--naranja-dim);border:1px solid rgba(242,140,0,0.3);color:var(--naranja-2);font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+    .tag-empleado{padding:4px 10px;border-radius:6px;background:var(--negro-3);border:1px solid var(--gris-3);color:var(--gris-2);font-size:11px;}
+    .ats-banner{margin:0;padding:12px 20px;background:rgba(0,200,150,0.1);border-bottom:1px solid rgba(0,200,150,0.3);color:var(--verde-ok);font-size:13px;font-weight:500;display:none;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;}
+    .ats-banner.visible{display:flex;}
+    .btn-nueva-sesion{padding:6px 16px;border-radius:8px;background:var(--verde-ok);border:none;color:var(--negro);font-size:12px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;white-space:nowrap;transition:all 0.2s;}
+    .btn-nueva-sesion:hover{opacity:0.85;transform:translateY(-1px);}
+    .mensajes{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;}
+    .mensajes::-webkit-scrollbar{width:4px;}
+    .mensajes::-webkit-scrollbar-thumb{background:var(--gris-3);border-radius:2px;}
+    .burbuja{max-width:78%;display:flex;flex-direction:column;gap:4px;}
+    .burbuja.kalu{align-self:flex-start;}
+    .burbuja.usuario{align-self:flex-end;}
+    .burbuja .remitente{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
+    .burbuja.kalu .remitente{color:var(--azul-ciborg);}
+    .burbuja.usuario .remitente{color:var(--naranja);text-align:right;}
+    .burbuja .contenido{padding:12px 16px;border-radius:16px;font-size:14px;line-height:1.6;}
+    .burbuja.kalu .contenido{background:var(--negro-3);border:1px solid rgba(0,212,255,0.15);border-bottom-left-radius:4px;color:var(--gris-1);}
+    .burbuja.usuario .contenido{background:var(--naranja);border-bottom-right-radius:4px;color:var(--negro);font-weight:500;}
+    .kalu-audio{margin-top:6px;}
+    .btn-escuchar{padding:4px 14px;border-radius:20px;border:1px solid rgba(0,212,255,0.4);background:rgba(0,212,255,0.08);color:var(--azul-ciborg);font-size:11px;font-weight:600;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;transition:all 0.15s;}
+    .btn-escuchar:hover{background:rgba(0,212,255,0.18);border-color:var(--azul-ciborg);}
+    .btn-escuchar:disabled{opacity:0.5;cursor:not-allowed;}
+    .typewriter-cursor::after{content:'▋';animation:cursor 0.8s infinite;color:var(--azul-ciborg);}
+    @keyframes cursor{0%,100%{opacity:1}50%{opacity:0}}
+    .subtitulos-bar{background:rgba(0,0,0,0.85);border-top:1px solid rgba(0,212,255,0.2);padding:10px 20px;min-height:44px;display:flex;align-items:center;font-size:13px;color:var(--azul-ciborg);font-family:'JetBrains Mono',monospace;transition:opacity 0.3s;}
+    .subtitulos-bar.vacia{opacity:0.3;}
+    .typing{display:none;align-self:flex-start;padding:12px 16px;background:var(--negro-3);border:1px solid rgba(0,212,255,0.15);border-radius:16px;border-bottom-left-radius:4px;}
+    .typing.visible{display:block;}
+    .typing-dots{display:flex;gap:5px;align-items:center;}
+    .typing-dots span{width:7px;height:7px;background:var(--azul-ciborg);border-radius:50%;animation:bounce 1.2s infinite;opacity:0.6;}
+    .typing-dots span:nth-child(2){animation-delay:0.2s;}
+    .typing-dots span:nth-child(3){animation-delay:0.4s;}
+    @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+    .input-area{background:var(--negro-2);border-top:1px solid rgba(255,255,255,0.06);padding:12px 20px;}
+    .selector-empleado{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;}
+    .btn-emp{padding:5px 14px;border-radius:20px;border:1px solid var(--gris-3);background:var(--negro-3);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--gris-2);font-family:'Space Grotesk',sans-serif;transition:all 0.15s;}
+    .btn-emp.activo{background:var(--naranja-dim);border-color:var(--naranja);color:var(--naranja-2);}
+    .input-row{display:flex;gap:8px;align-items:flex-end;}
+    .input-row textarea{flex:1;padding:12px 16px;background:var(--negro-3);border:1px solid var(--gris-3);border-radius:12px;color:var(--blanco);font-size:14px;font-family:'Space Grotesk',sans-serif;resize:none;outline:none;max-height:120px;min-height:46px;line-height:1.4;transition:border-color 0.2s;}
+    .input-row textarea:focus{border-color:var(--naranja);}
+    .input-row textarea::placeholder{color:var(--gris-3);}
+    .btn-accion{width:46px;height:46px;border-radius:12px;border:1px solid var(--gris-3);background:var(--negro-3);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;}
+    .btn-accion svg{width:18px;height:18px;fill:var(--gris-2);}
+    .btn-accion:hover{border-color:var(--naranja);background:var(--naranja-dim);}
+    .btn-accion:hover svg{fill:var(--naranja);}
+    .btn-accion.grabando{background:var(--rojo-alerta);border-color:var(--rojo-alerta);animation:pulsoRed 1s infinite;}
+    .btn-accion.grabando svg{fill:white;}
+    @keyframes pulsoRed{0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,0.4)}50%{box-shadow:0 0 0 8px rgba(255,59,48,0)}}
+    .btn-enviar{width:46px;height:46px;border-radius:12px;background:var(--naranja);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;}
+    .btn-enviar svg{width:18px;height:18px;fill:var(--negro);}
+    .btn-enviar:hover{background:var(--naranja-2);box-shadow:0 4px 16px var(--naranja-glow);}
+    .btn-enviar:disabled{background:var(--gris-3);cursor:not-allowed;box-shadow:none;}
+    .voz-ind{display:none;align-items:center;gap:8px;padding:5px 12px;margin-bottom:8px;background:rgba(255,59,48,0.1);border-radius:8px;border:1px solid rgba(255,59,48,0.3);font-size:12px;color:var(--rojo-alerta);font-family:'JetBrains Mono',monospace;}
+    .voz-ind.visible{display:flex;}
+    .voz-dot{width:6px;height:6px;border-radius:50%;background:var(--rojo-alerta);animation:pulso 1s infinite;}
+    .error-msg{padding:8px 16px;margin:4px 0;background:rgba(255,59,48,0.1);border:1px solid rgba(255,59,48,0.3);color:var(--rojo-alerta);border-radius:8px;font-size:12px;display:none;font-family:'JetBrains Mono',monospace;}
+    /* COUNTDOWN HSE */
+    #countdown-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(10,12,15,0.92);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+    #countdown-overlay.visible{display:flex;}
+    .countdown-check{font-size:48px;color:var(--verde-ok);animation:checkPop 0.4s ease-out;}
+    @keyframes checkPop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.2)}100%{transform:scale(1);opacity:1}}
+    .countdown-msg{font-size:16px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;letter-spacing:1px;text-align:center;}
+    .countdown-num{font-size:120px;font-weight:700;color:var(--naranja);font-family:'Space Grotesk',sans-serif;line-height:1;animation:numPulse 1s ease-in-out infinite;text-shadow:0 0 60px rgba(242,140,0,0.4);}
+    @keyframes numPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:0.85}}
+    .countdown-bar{width:200px;height:3px;background:var(--negro-4);border-radius:2px;overflow:hidden;}
+    .countdown-bar-fill{height:100%;background:var(--naranja);border-radius:2px;transition:width 1s linear;}
+    /* INVESTIGADOR FORM */
+    #pantalla-investigador{position:fixed;inset:0;display:none;flex-direction:row;align-items:stretch;padding-top:60px;background:var(--negro);z-index:10;transition:opacity 0.4s ease,transform 0.4s ease;overflow:hidden;}
+    #pantalla-investigador.visible{display:flex;}
+    #pantalla-investigador.saliendo{opacity:0;transform:translateY(-20px);pointer-events:none;}
+    .inv-avatar-col{width:320px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;border-right:1px solid rgba(255,59,48,0.15);background:var(--negro-2);}
+    .kalu-avatar-inv.pensando{animation:pulsoPensando 1.1s ease-in-out infinite;}
+    @keyframes pulsoPensando{0%,100%{opacity:.72;filter:drop-shadow(0 0 3px rgba(255,59,48,.25));}50%{opacity:1;filter:drop-shadow(0 0 18px rgba(255,59,48,.65));}}
+    .kalu-avatar-inv{width:180px;height:180px;position:relative;flex-shrink:0;margin-bottom:20px;}
+    .kalu-avatar-inv svg{width:100%;height:100%;}
+    .inv-kalu-titulo{font-size:16px;font-weight:700;color:var(--rojo-alerta);letter-spacing:1px;margin-bottom:6px;}
+    .inv-kalu-sub{font-size:11px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.6;margin-bottom:20px;}
+    .alerta-badge{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;background:rgba(255,59,48,0.1);border:1px solid rgba(255,59,48,0.3);font-size:11px;color:var(--rojo-alerta);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:12px;}
+    .alerta-dot{width:6px;height:6px;border-radius:50%;background:var(--rojo-alerta);animation:pulso 1s infinite;}
+    .inv-form-col{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:32px 40px;}
+    .inv-form-col::-webkit-scrollbar{width:4px;}
+    .inv-form-col::-webkit-scrollbar-thumb{background:var(--gris-3);border-radius:2px;}
+    .inv-titulo-form{font-size:22px;font-weight:700;color:var(--blanco);margin-bottom:6px;}
+    .inv-sub-form{font-size:12px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;margin-bottom:28px;letter-spacing:0.5px;}
+    .campo-inv{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+    .campo-inv label{font-size:11px;font-weight:600;color:var(--rojo-alerta);text-transform:uppercase;letter-spacing:1px;font-family:'JetBrains Mono',monospace;}
+    .campo-inv input,.campo-inv textarea,.campo-inv select{width:100%;padding:12px 16px;background:var(--negro-3);border:1px solid var(--gris-3);border-radius:10px;color:var(--blanco);font-size:14px;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+    .campo-inv textarea{resize:none;min-height:90px;line-height:1.5;}
+    .campo-inv select{cursor:pointer;}
+    .campo-inv input:focus,.campo-inv textarea:focus,.campo-inv select:focus{border-color:var(--rojo-alerta);box-shadow:0 0 0 3px rgba(255,59,48,0.1);}
+    .campo-inv input::placeholder,.campo-inv textarea::placeholder{color:var(--gris-3);}
+    .campo-inv select option{background:var(--negro-3);}
+    .inv-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    .btn-inv-iniciar{width:100%;padding:16px;background:var(--rojo-alerta);border:none;border-radius:12px;color:var(--blanco);font-size:16px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:0.5px;transition:all 0.2s;margin-top:8px;position:relative;overflow:hidden;}
+    .btn-inv-iniciar::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.1),transparent);}
+    .btn-inv-iniciar:hover{background:#E0342A;transform:translateY(-1px);box-shadow:0 8px 24px rgba(255,59,48,0.3);}
+    .btn-inv-iniciar:disabled{background:var(--gris-3);cursor:not-allowed;transform:none;box-shadow:none;}
+    /* INVESTIGADOR CHAT */
+    #pantalla-inv-chat{display:none;position:fixed;inset:0;flex-direction:column;padding-top:60px;}
+    #pantalla-inv-chat.visible{display:flex;}
+    .inv-chat-layout{display:flex;flex:1;overflow:hidden;}
+    .inv-panel{width:200px;flex-shrink:0;background:var(--negro-2);border-right:1px solid rgba(255,59,48,0.2);display:flex;flex-direction:column;align-items:center;padding:24px 16px;gap:12px;}
+    .inv-panel .kalu-cara-wrap::before{border-color:rgba(255,59,48,0.5);box-shadow:0 0 20px rgba(255,59,48,0.2);}
+    .inv-nombre{font-size:13px;font-weight:700;color:var(--rojo-alerta);text-align:center;letter-spacing:1px;}
+    .inv-estado-label{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--rojo-alerta);text-align:center;letter-spacing:1px;opacity:0.8;}
+    .inv-fase-indicator{width:100%;margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+    .fase-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--gris-3);border:1px solid transparent;transition:all 0.3s;}
+    .fase-item.activa{color:var(--rojo-alerta);background:rgba(255,59,48,0.08);border-color:rgba(255,59,48,0.2);}
+    .fase-item.completada{color:var(--verde-ok);}
+    .fase-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+    .inv-chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+    .inv-topbar{padding:12px 20px;background:rgba(255,59,48,0.06);border-bottom:1px solid rgba(255,59,48,0.15);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .tag-inv{padding:4px 12px;border-radius:6px;background:rgba(255,59,48,0.12);border:1px solid rgba(255,59,48,0.3);color:var(--rojo-alerta);font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+    .inv-mensajes{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;}
+    .inv-mensajes::-webkit-scrollbar{width:4px;}
+    .inv-mensajes::-webkit-scrollbar-thumb{background:var(--gris-3);border-radius:2px;}
+    .burbuja.kalu-inv .remitente{color:var(--rojo-alerta);}
+    .burbuja.kalu-inv .contenido{background:var(--negro-3);border:1px solid rgba(255,59,48,0.15);border-bottom-left-radius:4px;color:var(--gris-1);}
+    .inv-input-area{background:var(--negro-2);border-top:1px solid rgba(255,255,255,0.06);padding:12px 20px;}
+    .inv-selector-testigo{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;}
+    .btn-testigo{padding:5px 14px;border-radius:20px;border:1px solid var(--gris-3);background:var(--negro-3);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--gris-2);font-family:'Space Grotesk',sans-serif;transition:all 0.15s;}
+    .btn-testigo.activo{background:rgba(255,59,48,0.12);border-color:var(--rojo-alerta);color:var(--rojo-alerta);}
+    .inv-subtitulos{background:rgba(0,0,0,0.85);border-top:1px solid rgba(255,59,48,0.2);padding:10px 20px;min-height:44px;display:flex;align-items:center;font-size:13px;color:var(--rojo-alerta);font-family:'JetBrains Mono',monospace;opacity:0.5;}
+    /* OVERLAY CIERRE INVESTIGACIÓN */
+    #inv-cierre-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(10,12,15,0.95);backdrop-filter:blur(12px);flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+    #inv-cierre-overlay.visible{display:flex;}
+    .inv-cierre-check{font-size:56px;animation:checkPop 0.4s ease-out;}
+    .inv-cierre-titulo{font-size:20px;font-weight:700;color:var(--verde-ok);letter-spacing:1px;font-family:'JetBrains Mono',monospace;}
+    .inv-cierre-sub{font-size:13px;color:var(--gris-2);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.8;}
+    .inv-cierre-num{font-size:80px;font-weight:700;color:var(--rojo-alerta);font-family:'Space Grotesk',sans-serif;line-height:1;text-shadow:0 0 40px rgba(255,59,48,0.4);}
+    .inv-cierre-bar{width:200px;height:3px;background:var(--negro-4);border-radius:2px;overflow:hidden;}
+    .inv-cierre-bar-fill{height:100%;background:var(--rojo-alerta);border-radius:2px;transition:width 1s linear;}
+    @media(max-width:700px){
+      #pantalla-inicio{flex-direction:column;}
+      .inicio-avatar-col{width:100%;height:200px;border-right:none;border-bottom:1px solid rgba(242,140,0,0.1);padding:20px;flex-direction:row;gap:20px;}
+      .kalu-avatar-inicio{width:120px;height:120px;margin-bottom:0;}
+      .inicio-form-col{padding:20px;}
+      .kalu-panel{display:none;}
+      .burbuja{max-width:90%;}
+      .home-modulos{flex-direction:column;align-items:center;}
+      .modulo-card{width:100%;max-width:320px;}
+      #pantalla-home{justify-content:flex-start;overflow-y:auto;padding-top:76px;padding-bottom:40px;}
+      .home-footer{position:static;margin-top:20px;}
+      #pantalla-investigador{flex-direction:column;}
+      .inv-avatar-col{width:100%;height:auto;border-right:none;border-bottom:1px solid rgba(255,59,48,0.15);padding:16px;flex-direction:row;gap:16px;justify-content:flex-start;}
+      .kalu-avatar-inv{width:90px;height:90px;margin-bottom:0;}
+      .inv-form-col{padding:20px;}
+      .inv-grid-2{grid-template-columns:1fr;}
+      .inv-panel{display:none;}
+    }
+    #btn-instalar{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:400;display:none;align-items:center;gap:7px;background:var(--naranja);color:#141414;border:none;border-radius:22px;padding:9px 18px;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(242,140,0,.4);}
+    #btn-instalar.show{display:inline-flex;}
+  </style>
 </head>
 <body>
-<div class="bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
-<div class="box">
-  <div class="logo">
-    <svg viewBox="0 0 40 40" fill="none" style="width:42px;height:42px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial">DI</text></svg>
-    <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
+<!-- LOGIN -->
+<div id="pantalla-login">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 40 40" fill="none" width="40" height="40"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="14" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text></svg>
+    </div>
+    <div class="login-title">KALU</div>
+    <div class="login-sub">// ACCESO SEGURO · v3 · DINAMHO INTELLIGENCE</div>
+    <label class="login-label" for="login-email">Cédula o correo</label>
+    <input class="login-input" id="login-email" type="text" autocomplete="off" placeholder="Tu cédula" />
+    <label class="login-label" for="login-pass">Contraseña</label>
+    <input class="login-input" id="login-pass" type="password" autocomplete="off" placeholder="••••••••" />
+    <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-foot">Acceso exclusivo para empresas registradas.<br><a href="#" onclick="verRegistro();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">Crear cuenta nueva</a></div>
+    <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
   </div>
-  <div class="ico">🛠️</div>
-  <h1>Estamos mejorando la plataforma</h1>
-  <p>Estamos haciendo una actualización importante para unificar todos los módulos en un solo acceso.</p>
-  <p><b>Volvemos mañana</b>, con todo funcionando mejor.</p>
-  <div class="pill"><span class="dot"></span> Mantenimiento en curso</div>
-  <div class="foot">¿Necesitás algo urgente? Escribinos a <a href="mailto:info@dinamho.co">info@dinamho.co</a></div>
 </div>
+<!-- REGISTRO -->
+<div id="pantalla-registro" style="position:fixed;inset:0;z-index:100;display:none;flex-direction:column;align-items:center;justify-content:center;background:var(--negro);padding:24px;">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 40 40" fill="none" width="40" height="40"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="14" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text></svg>
+    </div>
+    <div class="login-title">Crear cuenta</div>
+    <div class="login-sub">// SOLO PERSONAL REGISTRADO POR LA EMPRESA</div>
+    <label class="login-label" for="reg-cedula">Cédula</label>
+    <input class="login-input" id="reg-cedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Tu cédula (solo números)" />
+    <label class="login-label" for="reg-email">Correo (para confirmar y recuperar tu clave)</label>
+    <input class="login-input" id="reg-email" type="email" autocomplete="off" placeholder="tu@correo.com" />
+    <label class="login-label" for="reg-pass">Contraseña</label>
+    <input class="login-input" id="reg-pass" type="password" autocomplete="off" placeholder="Elegí una contraseña (mín. 6)" />
+    <button class="login-btn" id="reg-btn" onclick="registrarse()">Registrarme</button>
+    <div class="login-error" id="reg-msg"></div>
+    <div class="login-foot"><a href="#" onclick="verLogin();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">← Ya tengo cuenta, ingresar</a></div>
+    <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
+  </div>
+</div>
+<header>
+  <div class="logo-dnm">
+    <div class="logo-hex">
+      <svg viewBox="0 0 40 40" fill="none">
+        <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
+        <polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.1)" stroke="#F28C00" stroke-width="0.5"/>
+        <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk, sans-serif">DI</text>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <span class="brand">DINAMHO</span>
+      <span class="sub">INTELLIGENCE</span>
+    </div>
+  </div>
+  <div class="header-divider"></div>
+  <span class="kalu-label" id="header-modulo">KALU</span>
+  <div class="status-pill online"><div class="status-dot"></div>EN LÍNEA</div>
+  <button id="btn-logout" onclick="hacerLogout()" style="display:none;">Salir</button>
+</header>
+<button id="btn-instalar" onclick="instalarApp()">⬇ Instalar app</button>
+<!-- COUNTDOWN HSE -->
+<div id="countdown-overlay">
+  <div class="countdown-check">✓</div>
+  <div class="countdown-msg">ATS generado — pendiente aprobación HSE<br>Nueva sesión en</div>
+  <div class="countdown-num" id="countdown-num">5</div>
+  <div class="countdown-bar"><div class="countdown-bar-fill" id="countdown-bar-fill" style="width:100%"></div></div>
+</div>
+<!-- OVERLAY CIERRE INVESTIGACIÓN -->
+<div id="inv-cierre-overlay">
+  <div class="inv-cierre-check">✓</div>
+  <div class="inv-cierre-titulo">INVESTIGACIÓN CERRADA</div>
+  <div class="inv-cierre-sub">4 documentos generados y enviados al supervisor HSE<br>Cerrando sesión en</div>
+  <div class="inv-cierre-num" id="inv-cierre-num">5</div>
+  <div class="inv-cierre-bar"><div class="inv-cierre-bar-fill" id="inv-cierre-bar-fill" style="width:100%"></div></div>
+</div>
+<style>
+/* === Avatares foto KALU (mascota Sherlock HSE) === */
+.home-avatar-wrap,.kalu-avatar-inicio,.kalu-avatar-inv{position:relative;}
+.kalu-foto{position:relative;z-index:2;width:100%;height:100%;object-fit:cover;object-position:center 30%;border-radius:26px;border:1.5px solid rgba(0,212,255,.35);box-shadow:0 12px 34px rgba(0,0,0,.55);display:block;animation:kaluFlota 4s ease-in-out infinite;}
+.kalu-foto-halo{position:absolute;inset:-16%;z-index:1;border-radius:50%;background:radial-gradient(circle,rgba(0,212,255,.30),rgba(242,140,0,.10) 48%,transparent 70%);filter:blur(12px);pointer-events:none;}
+@keyframes kaluFlota{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes kaluHabla{from{opacity:.5;transform:scale(.94)}to{opacity:1;transform:scale(1.1)}}
+@keyframes kaluEscucha{0%,100%{opacity:.4;transform:scale(.96)}50%{opacity:.9;transform:scale(1.06)}}
+@keyframes kaluAlerta{from{opacity:.5}to{opacity:1}}
+.kalu-avatar-inicio.estado-hablando .kalu-foto-halo{animation:kaluHabla .5s ease-in-out infinite alternate;}
+.kalu-avatar-inicio.estado-escuchando .kalu-foto-halo{animation:kaluEscucha 1.3s ease-in-out infinite;}
+.kalu-avatar-inicio.estado-alerta .kalu-foto{border-color:#FF3B30;}
+.kalu-avatar-inicio.estado-alerta .kalu-foto-halo{background:radial-gradient(circle,rgba(255,59,48,.35),transparent 70%);animation:kaluAlerta .5s ease-in-out infinite alternate;}
+.kalu-avatar-inv .kalu-foto{border-color:rgba(255,59,48,.4);}
+.kalu-avatar-inv .kalu-foto-halo{background:radial-gradient(circle,rgba(255,59,48,.30),transparent 70%);}
+/* Avatar de las pantallas de CHAT (ATS e investigacion) */
+.kalu-cara-wrap .kalu-foto-chat{width:150px;height:150px;border-radius:50%;object-fit:cover;object-position:center 26%;display:block;}
+</style>
+<!-- HOME -->
+<div id="pantalla-home">
+  <div class="home-avatar-wrap">
+    <span class="kalu-foto-halo"></span>
+    <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
+  </div>
+  <div class="home-titulo">KALU IA</div>
+  <div class="home-sub">// SELECCIONÁ UN MÓDULO PARA CONTINUAR</div>
+  <div class="home-modulos">
+    <div class="modulo-card" onclick="abrirModuloHSE()">
+      <div class="modulo-icon">🛡️</div>
+      <div class="modulo-tag activo">● ACTIVO</div>
+      <div class="modulo-nombre">KALU HSE</div>
+      <div class="modulo-desc">Sesión de validación de conocimiento HSE pre-turno. Genera el ATS con la cuadrilla antes de iniciar el trabajo.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
+    <div class="modulo-card" onclick="abrirModuloInvestigador()">
+      <div class="modulo-icon">🔍</div>
+      <div class="modulo-tag activo">● ACTIVO</div>
+      <div class="modulo-nombre">KALU Investigador</div>
+      <div class="modulo-desc">Investigación de incidentes en campo. Árbol de Causas, declaraciones, alerta inmediata y 4 documentos al supervisor HSE.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
+    <div class="modulo-card" onclick="location.href='tarjetas.html'">
+      <div class="modulo-icon">📋</div>
+      <div class="modulo-tag activo">● ACTIVO</div>
+      <div class="modulo-nombre">KALU Tarjetas</div>
+      <div class="modulo-desc">Tarjetas de actos y condiciones inseguras. Observás, adjuntás foto, firmás y queda registrado para el HSE.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
+    <div class="modulo-card" onclick="location.href='hse.html'">
+      <div class="modulo-icon">📊</div>
+      <div class="modulo-tag activo">● HSE</div>
+      <div class="modulo-nombre">Consola HSE</div>
+      <div class="modulo-desc">Panel de indicadores en vivo: ATS, investigaciones y tarjetas. Acceso exclusivo para supervisores HSE.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
+    <div class="modulo-card proximamente">
+      <div class="modulo-icon">🎓</div>
+      <div class="modulo-tag pronto">◎ PRÓXIMAMENTE</div>
+      <div class="modulo-nombre">KALU Capacitador</div>
+      <div class="modulo-desc">Formación en campo y certificación de mentores.</div>
+      <div class="modulo-flecha">→</div>
+    </div>
+  </div>
+  <div class="home-footer">Powered by <span>Dinamho Intelligence</span></div>
+</div>
+<!-- PANTALLA INICIO HSE -->
+<div id="pantalla-inicio">
+  <div class="inicio-avatar-col">
+    <div class="kalu-avatar-inicio" id="avatar-inicio">
+      <span class="kalu-foto-halo"></span>
+      <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
+    </div>
+    <div class="inicio-kalu-titulo">KALU HSE</div>
+    <div class="inicio-kalu-sub">Validación pre-turno<br>Dinamho Intelligence v4</div>
+    <button class="btn-volver-home" onclick="volverHome()">← MÓDULOS</button>
+  </div>
+  <div class="inicio-form-col" style="position:relative;">
+    <div class="generando-overlay" id="generando-overlay">
+      <div class="generando-spinner"></div>
+      <div class="generando-msg"><span>KALU</span> está generando el ATS...<br>Analizando equipos y condiciones</div>
+    </div>
+    <div class="pasos-header">
+      <div class="paso-tab activo" id="tab-1"><div class="paso-num">1</div>Sesión</div>
+      <div class="paso-sep"></div>
+      <div class="paso-tab" id="tab-2"><div class="paso-num">2</div>Equipos y condiciones</div>
+    </div>
+    <div class="paso-contenido visible" id="paso-1">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="campo"><label>Empresa ejecutora</label><input type="text" id="input-empresa" placeholder="Ej: Dinamho T&T, Total QC..."/></div>
+        <div class="campo"><label>Cliente</label><input type="text" id="input-cliente" value="Baker Hughes"/></div>
+      </div>
+      <div class="campo"><label>Área / Locación exacta</label><input type="text" id="input-area" placeholder="Ej: Area QC, Base Baker Hughes..."/></div>
+      <div class="campo"><label>Tarea del día</label><input type="text" id="input-tarea" placeholder="Ej: Inspección dimensional..."/></div>
+      <div class="campo">
+        <label>Cuadrilla</label>
+        <div class="agregar-fila"><input type="text" id="input-nombre" placeholder="Nombre del empleado"/><button class="btn-agregar" onclick="agregarEmpleado()">+</button></div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="campo"><label>Responsable / Quien firma el ATS</label><input type="text" id="input-responsable" placeholder="Nombre completo"/></div>
+      <div class="btns-nav"><button class="btn-siguiente" onclick="irPaso2()">SIGUIENTE →</button></div>
+    </div>
+    <div class="paso-contenido" id="paso-2">
+      <div class="campo">
+        <label>Equipos y herramientas</label>
+        <div class="agregar-fila"><input type="text" id="input-equipo" placeholder="Ej: Hidrolavadora, Dremel..."/><button class="btn-agregar" onclick="agregarEquipo()">+</button></div>
+        <div class="equipos-sugeridos" id="equipos-sugeridos">
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Videoscopio')">Videoscopio</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Galgas de inspección')">Galgas</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Equipo de ultrasonido')">Ultrasonido</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Montacargas')">Montacargas</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Puente grúa')">Puente grúa</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Herramientas de golpe y palanca')">Golpe/palanca</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Herramientas rotativas Dremel')">Dremel</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Extensiones eléctricas')">Extensiones</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Herramientas de corte')">Corte</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Hidrolavadora')">Hidrolavadora</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Gato hidráulico')">Gato hidráulico</button>
+          <button class="btn-equipo-sug" onclick="toggleEquipoSug(this,'Compresor')">Compresor</button>
+        </div>
+        <div class="chips" id="chips-equipos"></div>
+      </div>
+      <div class="campo"><label>Condiciones ambientales</label><input type="text" id="input-condiciones" placeholder="Ej: Lluvia, calor extremo..."/></div>
+      <div class="campo"><label>Observaciones <span style="color:var(--gris-3);font-weight:400">(opcional)</span></label><textarea id="input-observaciones" placeholder="Permisos especiales, restricciones..."></textarea></div>
+      <div class="btns-nav"><button class="btn-volver" onclick="irPaso1()">← Volver</button><button class="btn-siguiente" id="btn-iniciar" onclick="iniciarSesion()">INICIAR CON KALU</button></div>
+    </div>
+  </div>
+</div>
+<!-- PANTALLA INVESTIGADOR FORM -->
+<div id="pantalla-investigador">
+  <div class="inv-avatar-col">
+    <div class="kalu-avatar-inv">
+      <span class="kalu-foto-halo"></span>
+      <img src="kalu-avatar.png" alt="KALU" class="kalu-foto" onerror="this.style.visibility='hidden'"/>
+    </div>
+    <div class="alerta-badge"><div class="alerta-dot"></div>INVESTIGACIÓN ACTIVA</div>
+    <div class="inv-kalu-titulo">KALU INVESTIGADOR</div>
+    <div class="inv-kalu-sub">Res. 1401/2007 · NTC 3701<br>ISO 45001:2018</div>
+    <button class="btn-volver-home" onclick="volverHomeDesdeInv()">← MÓDULOS</button>
+  </div>
+  <div class="inv-form-col">
+    <div class="inv-titulo-form">Abrir investigación</div>
+    <div class="inv-sub-form">// COMPLETÁ LOS DATOS DEL EVENTO — KALU CONDUCE EL RESTO</div>
+    <div class="inv-grid-2">
+      <div class="campo-inv"><label>Quién reporta</label><input type="text" id="inv-reporta" placeholder="Nombre completo"/></div>
+      <div class="campo-inv"><label>Cédula (para la firma)</label><input type="text" id="inv-cedula" placeholder="C.C. n.º"/></div>
+    </div>
+    <div class="campo-inv"><label>Rol</label>
+      <select id="inv-rol">
+        <option value="">Seleccioná...</option>
+        <option value="Trabajador afectado">Trabajador afectado</option>
+        <option value="Supervisor">Supervisor</option>
+        <option value="Compañero testigo">Compañero testigo</option>
+      </select>
+    </div>
+    <div class="campo-inv"><label>Empresa</label><input type="text" id="inv-empresa" placeholder="Empresa ejecutora"/></div>
+    <div class="inv-grid-2">
+      <div class="campo-inv"><label>Fecha del evento</label><input type="date" id="inv-fecha"/></div>
+      <div class="campo-inv"><label>Hora aproximada</label><input type="time" id="inv-hora"/></div>
+    </div>
+    <div class="campo-inv"><label>Locación exacta</label><input type="text" id="inv-locacion" placeholder="Ej: Taller principal, Área QC..."/></div>
+    <div class="campo-inv"><label>¿Qué ocurrió? — descripción inicial</label><textarea id="inv-descripcion" placeholder="Describí brevemente lo que pasó..."></textarea></div>
+    <div class="campo-inv">
+      <label>Testigos presentes</label>
+      <div class="agregar-fila"><input type="text" id="inv-testigo-input" placeholder="Nombre del testigo"/><button class="btn-agregar" onclick="agregarTestigo()">+</button></div>
+      <div class="chips" id="chips-testigos"></div>
+    </div>
+    <button class="btn-inv-iniciar" id="btn-inv-iniciar" onclick="iniciarInvestigacion()">🔍 INICIAR INVESTIGACIÓN CON KALU</button>
+    <button class="btn-volver-home" style="width:100%;margin-top:12px" onclick="continuarInvestigacion()">↩ CONTINUAR INVESTIGACIÓN EXISTENTE (HSE)</button>
+  </div>
+</div>
+<!-- INVESTIGADOR CHAT -->
+<div id="pantalla-inv-chat">
+  <div class="inv-chat-layout">
+    <div class="inv-panel">
+      <div class="kalu-cara-wrap estado-alerta" id="inv-cara-wrap">
+        <img src="kalu-avatar.png" alt="KALU" class="kalu-foto-chat" onerror="this.style.visibility='hidden'"/>
+      </div>
+      <div class="inv-nombre">KALU INV.</div>
+      <div class="inv-estado-label" id="inv-estado-label">// investigando</div>
+      <div class="inv-fase-indicator">
+        <div class="fase-item activa" id="fase-1"><div class="fase-dot"></div>ALERTA</div>
+        <div class="fase-item" id="fase-2"><div class="fase-dot"></div>DECLARACIONES</div>
+        <div class="fase-item" id="fase-3"><div class="fase-dot"></div>CAUSAS</div>
+        <div class="fase-item" id="fase-4"><div class="fase-dot"></div>INFORME</div>
+      </div>
+    </div>
+    <div class="inv-chat-main">
+      <div class="inv-topbar" id="inv-topbar"></div>
+      <div class="inv-mensajes" id="inv-mensajes">
+        <div class="typing" id="inv-typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="inv-subtitulos" id="inv-subtitulos">// KALU está procesando el evento...</div>
+      <div class="inv-input-area">
+        <div class="inv-selector-testigo" id="inv-selector-testigo"></div>
+        <div class="voz-ind" id="inv-voz-ind"><div class="voz-dot"></div><span id="inv-voz-estado">Grabando...</span></div>
+        <div class="error-msg" id="inv-error-msg"></div>
+        <div class="input-row">
+          <textarea id="inv-input-msg" placeholder="Describí lo que viste o viviste..." rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeInv()}"
+            oninput="autoResize(this)"></textarea>
+          <button class="btn-accion" id="inv-btn-mic" onclick="toggleGrabacionInv()" title="Hablar">
+            <svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 18.93V22h2v-2.07A8 8 0 0 0 20 12h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z"/></svg>
+          </button>
+          <button class="btn-enviar" style="background:var(--rojo-alerta);" id="inv-btn-enviar" onclick="enviarMensajeInv()">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- CHAT HSE -->
+<div id="pantalla-chat">
+  <div class="chat-layout">
+    <div class="kalu-panel">
+      <div class="kalu-cara-wrap estado-idle" id="kalu-cara-wrap">
+        <img src="kalu-avatar.png" alt="KALU" class="kalu-foto-chat" onerror="this.style.visibility='hidden'"/>
+      </div>
+      <div class="voz-onda" id="voz-onda">
+        <span id="vb0"></span><span id="vb1"></span><span id="vb2"></span>
+        <span id="vb3"></span><span id="vb4"></span><span id="vb5"></span><span id="vb6"></span>
+      </div>
+      <div class="kalu-nombre">KALU IA</div>
+      <div class="kalu-estado-label" id="kalu-estado-label">// idle</div>
+      <div class="kalu-modo" id="kalu-modo-label">MODO —</div>
+      <div class="kalu-stats" id="kalu-stats"></div>
+    </div>
+    <div class="chat-main">
+      <div class="chat-topbar" id="chat-topbar"></div>
+      <div class="ats-banner" id="ats-banner">
+        <span>✓ ATS generado — pendiente aprobación supervisor HSE</span>
+        <button class="btn-nueva-sesion" onclick="iniciarCountdown()">NUEVA SESIÓN</button>
+      </div>
+      <div class="mensajes" id="mensajes">
+        <div class="typing" id="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="subtitulos-bar vacia" id="subtitulos">// esperando respuesta de KALU...</div>
+      <div class="input-area">
+        <div class="selector-empleado" id="selector-emp"></div>
+        <div class="voz-ind" id="voz-ind"><div class="voz-dot"></div><span id="voz-estado">Grabando...</span></div>
+        <div class="error-msg" id="error-msg"></div>
+        <div class="input-row">
+          <textarea id="input-msg" placeholder="Escribí tu respuesta..." rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensaje()}"
+            oninput="autoResize(this)"></textarea>
+          <button class="btn-accion" id="btn-mic" onclick="toggleGrabacion()" title="Hablar">
+            <svg viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 18.93V22h2v-2.07A8 8 0 0 0 20 12h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z"/></svg>
+          </button>
+          <button class="btn-enviar" id="btn-enviar" onclick="enviarMensaje()">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const N8N_BASE        = 'https://dnmintell.app.n8n.cloud/webhook';
+const GL_SUF = '-v2';  // GL/Supabase es el UNICO camino. Migracion completa (jul 2026). SharePoint erradicado.
+const WEBHOOK_INICIAR = `${N8N_BASE}/kalu-v3-iniciar${GL_SUF}`;
+const WEBHOOK_MENSAJE = `${N8N_BASE}/kalu-v3-mensaje${GL_SUF}`;
+const WEBHOOK_STT     = `${N8N_BASE}/kalu-hse-stt`;
+const WEBHOOK_TTS     = `${N8N_BASE}/kalu-hse-tts`;
+const WEBHOOK_INV_INICIAR = `${N8N_BASE}/kalu-investigador-iniciar${GL_SUF}`;
+const WEBHOOK_INV_MENSAJE = `${N8N_BASE}/kalu-investigador-mensaje${GL_SUF}`;
+let empleados=[],equipos=[],empleadoActivo='',sessionId='',atsItemId='';
+let mensajesCount=0,mediaRecorder=null,audioChunks=[],grabando=false,grabandoInv=false;
+let subtitulosTimeout=null,pendingCountdown=false,autoCountdownTimer=null;
+let estadoAvatar='idle',audioCtx=null,analyser=null,lipSyncRAF=null,lipSyncSource=null;
+let testigos=[],testigoActivo='',invSessionId='',invAudioActual=null;
+let invVozCancel=null,invAbortChunk=null;
+const BOCAS={
+  inicio:{cerrada:'M94 120 Q110 130 126 120',abierta_s:'M92 119 Q110 132 128 119',abierta_m:'M90 118 Q110 135 130 118',abierta_l:'M88 117 Q110 138 132 117'},
+  chat:{cerrada:'M59 96 Q70 104 81 96',abierta_s:'M57 95 Q70 106 83 95',abierta_m:'M55 95 Q70 108 85 95',abierta_l:'M54 94 Q70 111 86 94'}
+};
+function setBocaInicio(t){const e=document.getElementById('boca-inicio');if(e)e.setAttribute('d',BOCAS.inicio[t]||BOCAS.inicio.cerrada);}
+function setBocaChat(t){const e=document.getElementById('kalu-boca-chat');if(e)e.setAttribute('d',BOCAS.chat[t]||BOCAS.chat.cerrada);}
+function setEstadoAvatar(estado){
+  if(estadoAvatar===estado)return; estadoAvatar=estado;
+  const wrap=document.getElementById('kalu-cara-wrap');if(wrap)wrap.className=`kalu-cara-wrap estado-${estado}`;
+  const ini=document.getElementById('avatar-inicio');if(ini)ini.className=`kalu-avatar-inicio estado-${estado}`;
+  const lbl=document.getElementById('kalu-estado-label');
+  if(lbl){lbl.className=`kalu-estado-label ${estado}`;lbl.textContent={idle:'// idle',escuchando:'// escuchando',hablando:'// hablando',alerta:'// alerta HSE'}[estado]||`// ${estado}`;}
+  if(estado==='idle'){setBocaInicio('cerrada');setBocaChat('cerrada');}
+  else if(estado==='escuchando'){setBocaInicio('abierta_s');setBocaChat('abierta_s');}
+  const onda=document.getElementById('voz-onda');if(onda)onda.classList.toggle('visible',estado==='hablando');
+}
+function iniciarLipSync(audioElement){
+  detenerLipSync();
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    analyser=audioCtx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=0.4;
+    lipSyncSource=audioCtx.createMediaElementSource(audioElement);
+    lipSyncSource.connect(analyser);analyser.connect(audioCtx.destination);
+    const dataArray=new Uint8Array(analyser.frequencyBinCount);
+    const barras=[0,1,2,3,4,5,6].map(i=>document.getElementById('vb'+i));
+    function tick(){
+      analyser.getByteFrequencyData(dataArray);
+      const voz=dataArray.slice(2,30);
+      const norm=Math.min(voz.reduce((a,b)=>a+b,0)/voz.length/90,1);
+      const t=norm<0.15?'cerrada':norm<0.35?'abierta_s':norm<0.6?'abierta_m':'abierta_l';
+      setBocaInicio(t);setBocaChat(t);
+      const seg=Math.floor(dataArray.length/7);
+      barras.forEach((b,i)=>{if(!b)return;const v=dataArray[i*seg]/255;b.style.height=Math.max(3,Math.round(v*22))+'px';b.style.opacity=0.4+v*0.6;});
+      lipSyncRAF=requestAnimationFrame(tick);
+    }
+    tick();
+  }catch(e){}
+}
+function detenerLipSync(){
+  if(lipSyncRAF){cancelAnimationFrame(lipSyncRAF);lipSyncRAF=null;}
+  if(lipSyncSource){try{lipSyncSource.disconnect();}catch(e){}lipSyncSource=null;}
+  analyser=null;
+  for(let i=0;i<7;i++){const b=document.getElementById('vb'+i);if(b){b.style.height='4px';b.style.opacity='0.3';}}
+  setBocaInicio('cerrada');setBocaChat('cerrada');
+}
+// ── NAVEGACIÓN ──
+function autollenarIdentidad(){
+  // La identidad del reporte/declaración es SIEMPRE la del usuario logueado (docs firmados).
+  var p=(window.kaluAuth&&window.kaluAuth.perfil)||{};
+  var nom=p.nombre||''; var ced=p.cedula||''; var emp=(window.kaluAuth&&window.kaluAuth.empresaNombre)||'';
+  // Investigador
+  var ir=document.getElementById('inv-reporta'); if(ir){ ir.value=nom; }
+  var ic=document.getElementById('inv-cedula'); if(ic){ ic.value=ced; if(ced){ ic.readOnly=true; ic.style.opacity='.65'; ic.style.cursor='not-allowed'; ic.title='Tu cédula (de la sesión). No editable.'; } else { ic.readOnly=false; } }
+  var ie=document.getElementById('inv-empresa'); if(ie){ ie.value=emp; }
+  // ATS
+  var ar=document.getElementById('input-responsable'); if(ar&&!ar.value){ ar.value=nom; }
+  var ae=document.getElementById('input-empresa'); if(ae&&!ae.value){ ae.value=emp; }
+}
+function abrirModuloHSE(){
+  document.getElementById('header-modulo').textContent='KALU HSE';
+  autollenarIdentidad();
+  const home=document.getElementById('pantalla-home');home.classList.add('saliendo');
+  setTimeout(()=>{home.style.display='none';const inicio=document.getElementById('pantalla-inicio');inicio.style.opacity='0';inicio.style.transform='translateY(20px)';inicio.classList.add('visible');setTimeout(()=>{inicio.style.transition='opacity 0.4s ease,transform 0.4s ease';inicio.style.opacity='1';inicio.style.transform='translateY(0)';},30);},400);
+}
+function abrirModuloInvestigador(){
+  document.getElementById('header-modulo').textContent='KALU Investigador';
+  autollenarIdentidad();
+  const home=document.getElementById('pantalla-home');home.classList.add('saliendo');
+  const ahora=new Date();
+  document.getElementById('inv-fecha').value=ahora.toISOString().split('T')[0];
+  document.getElementById('inv-hora').value=ahora.toTimeString().slice(0,5);
+  setTimeout(()=>{home.style.display='none';const inv=document.getElementById('pantalla-investigador');inv.style.opacity='0';inv.style.transform='translateY(20px)';inv.classList.add('visible');setTimeout(()=>{inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='1';inv.style.transform='translateY(0)';},30);},400);
+}
+function volverHomeDesdeInv(){
+  document.getElementById('header-modulo').textContent='KALU';
+  const inv=document.getElementById('pantalla-investigador');inv.style.transition='opacity 0.3s ease,transform 0.3s ease';inv.style.opacity='0';inv.style.transform='translateY(20px)';
+  setTimeout(()=>{inv.classList.remove('visible');inv.style.opacity='';inv.style.transform='';const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');setTimeout(()=>{home.style.transition='opacity 0.4s ease';home.style.opacity='1';},30);},300);
+}
+function volverHome(){
+  document.getElementById('header-modulo').textContent='KALU';
+  const inicio=document.getElementById('pantalla-inicio');inicio.style.transition='opacity 0.3s ease,transform 0.3s ease';inicio.style.opacity='0';inicio.style.transform='translateY(20px)';
+  setTimeout(()=>{inicio.classList.remove('visible');inicio.style.opacity='';inicio.style.transform='';const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');setTimeout(()=>{home.style.transition='opacity 0.4s ease';home.style.opacity='1';},30);},300);
+}
+// ── INVESTIGADOR ──
+function agregarTestigo(){const inp=document.getElementById('inv-testigo-input');const nombre=inp.value.trim();if(!nombre||testigos.includes(nombre)){inp.value='';return;}testigos.push(nombre);renderChipsTestigos();inp.value='';inp.focus();}
+document.getElementById('inv-testigo-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();agregarTestigo();}});
+function renderChipsTestigos(){document.getElementById('chips-testigos').innerHTML=testigos.map((t,i)=>`<div class="chip">${t}<button onclick="quitarTestigo(${i})">×</button></div>`).join('');}
+function quitarTestigo(i){testigos.splice(i,1);renderChipsTestigos();}
+async function iniciarInvestigacion(){
+  const reporta=document.getElementById('inv-reporta').value.trim();
+  const rol=document.getElementById('inv-rol').value;
+  const empresa=document.getElementById('inv-empresa').value.trim();
+  const fecha=document.getElementById('inv-fecha').value;
+  const hora=document.getElementById('inv-hora').value;
+  const locacion=document.getElementById('inv-locacion').value.trim();
+  const descripcion=document.getElementById('inv-descripcion').value.trim();
+  const cedula=document.getElementById('inv-cedula').value.trim();
+  if(!reporta){alert('Ingresá quién reporta');return;}
+  if(!rol){alert('Seleccioná el rol');return;}
+  if(!empresa){alert('Ingresá la empresa');return;}
+  if(!locacion){alert('Ingresá la locación del evento');return;}
+  if(!descripcion){alert('Describí brevemente qué ocurrió');return;}
+  if(!cedula){alert('Ingresá la cédula (necesaria para la firma)');return;}
+  const btn=document.getElementById('btn-inv-iniciar');btn.disabled=true;btn.textContent='⏳ Iniciando investigación...';
+  const participantes=[reporta,...testigos.filter(t=>t!==reporta)];
+  testigoActivo=reporta;invSessionId='INV-'+Date.now();
+  window.invFirma={reporta,rol,cedula,inv_id:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,transcript:[]};
+  try{
+    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,cedula,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null})});
+    const data=await res.json();
+    if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
+    const inv=document.getElementById('pantalla-investigador');inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='0';inv.style.transform='translateY(-20px)';
+    setTimeout(()=>{
+      inv.classList.remove('visible');inv.style.opacity='';inv.style.transform='';
+      document.getElementById('pantalla-inv-chat').classList.add('visible');
+      document.getElementById('inv-topbar').innerHTML=`<span class="tag-inv">🔍 INVESTIGACIÓN</span><span class="tag-inv">${locacion}</span><span class="tag-inv">${fecha} ${hora}</span>`;
+      renderSelectorTestigos(participantes);
+      agregarMensajeInv(data.mensaje||'Investigación iniciada.',true);
+      setFaseActiva('fase-1');
+    },400);
+  }catch(e){btn.disabled=false;btn.textContent='🔍 INICIAR INVESTIGACIÓN CON KALU';alert('Error al conectar.');}
+}
+async function continuarInvestigacion(){
+  const id=(prompt('INV-ID del expediente (llave HSE):')||'').trim();
+  if(!id)return;
+  const nombre=(prompt('Nombre de quien va a declarar ahora:')||'').trim();
+  if(!nombre)return;
+  const cedInv=(prompt('Cédula de quien declara (para la firma):')||'').trim();
+  invSessionId=id;testigoActivo=nombre;testigos=[];
+  window.invFirma={reporta:nombre,rol:'declarante',cedula:cedInv,inv_id:id,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,transcript:[]};
+  document.getElementById('header-modulo').textContent='KALU Investigador';
+  const inv=document.getElementById('pantalla-investigador');inv.classList.remove('visible');inv.style.opacity='';inv.style.transform='';
+  document.getElementById('pantalla-inv-chat').classList.add('visible');
+  document.getElementById('inv-topbar').innerHTML=`<span class="tag-inv">🔍 EXPEDIENTE</span><span class="tag-inv">${id}</span><span class="tag-inv">Reingreso HSE</span>`;
+  document.getElementById('inv-mensajes').innerHTML=`<div class="typing" id="inv-typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  renderSelectorTestigos([nombre]);
+  document.getElementById('inv-typing').classList.add('visible');setPensandoInv(true);
+  try{
+    const trigger='El HSE autoriza el ingreso de '+nombre+' para declarar. Salúdalo con calma, recuérdale que esto busca mejorar y no culpar, y comienza a tomar su declaración con una sola pregunta.';
+    const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:id,mensaje:trigger,declarante:'Sistema'})});
+    const data=await res.json();
+    document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
+    if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
+    if(data.fase)setFaseActiva(`fase-${data.fase}`);
+    agregarMensajeInv(data.mensaje||'Retomando expediente...',true);
+  }catch(e){
+    document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
+    alert('No se pudo retomar el expediente. Verificá el INV-ID.');
+  }
+}
+function renderSelectorTestigos(lista){document.getElementById('inv-selector-testigo').innerHTML=lista.map(t=>`<button class="btn-testigo ${t===testigoActivo?'activo':''}" onclick="selecTestigo('${t}')">${t}</button>`).join('');}
+function selecTestigo(nombre){testigoActivo=nombre;renderSelectorTestigos([testigoActivo,...testigos.filter(t=>t!==testigoActivo)]);}
+function setFaseActiva(faseId){
+  ['fase-1','fase-2','fase-3','fase-4'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const idx=['fase-1','fase-2','fase-3','fase-4'].indexOf(id);
+    const actIdx=['fase-1','fase-2','fase-3','fase-4'].indexOf(faseId);
+    if(id===faseId){el.classList.add('activa');el.classList.remove('completada');}
+    else if(idx<actIdx){el.classList.remove('activa');el.classList.add('completada');}
+    else{el.classList.remove('activa','completada');}
+  });
+}
+// ── CIERRE AUTOMÁTICO INVESTIGACIÓN ──
+function iniciarCierreInv(esFinal){
+  setFaseActiva('fase-4');
+  const overlay=document.getElementById('inv-cierre-overlay');
+  const numEl=document.getElementById('inv-cierre-num');
+  const barWrap=overlay.querySelector('.inv-cierre-bar');
+  const tit=overlay.querySelector('.inv-cierre-titulo');
+  const sub=overlay.querySelector('.inv-cierre-sub');
+  if(esFinal){
+    if(tit)tit.textContent='🔒 INVESTIGACIÓN CERRADA';
+    if(sub)sub.innerHTML='4 documentos enviados al supervisor HSE.<br>Expediente <b style="color:var(--naranja)">'+invSessionId+'</b> — contenido protegido.';
+  }else{
+    if(tit)tit.textContent='🔒 DECLARACIÓN REGISTRADA';
+    if(sub)sub.innerHTML='Expediente abierto — faltan declaraciones de testigos.<br>ID para continuar (HSE): <b style="color:var(--naranja)">'+invSessionId+'</b>';
+  }
+  // Candado estatico: sin countdown. El HSE decide cuando volver.
+  if(numEl)numEl.style.display='none';
+  if(barWrap)barWrap.style.display='none';
+  let btn=document.getElementById('inv-cierre-btn');
+  if(!btn){
+    btn=document.createElement('button');btn.id='inv-cierre-btn';btn.className='btn-nueva-sesion';btn.style.marginTop='10px';
+    overlay.appendChild(btn);
+  }
+  btn.textContent='↩ VOLVER AL INICIO';
+  btn.onclick=resetInvestigacion;
+  overlay.classList.add('visible');
+}
+function resetInvestigacion(){
+  // Cortar la cadena de voz TTS (todas las oraciones pendientes) tras el cierre
+  cancelarVozInv();
+  if(window.speechSynthesis)speechSynthesis.cancel();
+  invSessionId='';testigos=[];testigoActivo='';
+  document.getElementById('inv-cierre-overlay').classList.remove('visible');
+  document.getElementById('pantalla-inv-chat').classList.remove('visible');
+  document.getElementById('inv-mensajes').innerHTML=`<div class="typing" id="inv-typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  ['inv-reporta','inv-empresa','inv-locacion','inv-descripcion'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('inv-rol').value='';
+  document.getElementById('chips-testigos').innerHTML='';
+  document.getElementById('btn-inv-iniciar').disabled=false;
+  document.getElementById('btn-inv-iniciar').textContent='🔍 INICIAR INVESTIGACIÓN CON KALU';
+  // Volver al home
+  document.getElementById('header-modulo').textContent='KALU';
+  const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');
+  setTimeout(()=>{home.style.transition='opacity 0.5s ease';home.style.opacity='1';},50);
+}
+function _invPadInit(cv){
+  const cx=cv.getContext('2d');const r=cv.getBoundingClientRect();
+  cv.width=r.width*devicePixelRatio;cv.height=r.height*devicePixelRatio;cx.scale(devicePixelRatio,devicePixelRatio);
+  cx.lineWidth=2.4;cx.lineCap='round';cx.strokeStyle='#12161C';let dr=false;cv._ink=false;
+  const pos=e=>{const b=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-b.left,y:t.clientY-b.top};};
+  cv.onmousedown=e=>{dr=true;const p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();};
+  cv.onmousemove=e=>{if(!dr)return;const p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();cv._ink=true;e.preventDefault();};
+  window.addEventListener('mouseup',()=>{dr=false;});
+  cv.ontouchstart=e=>{dr=true;const p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();};
+  cv.ontouchmove=e=>{if(!dr)return;const p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();cv._ink=true;e.preventDefault();};
+  cv.ontouchend=()=>{dr=false;};
+  cv._clear=()=>{cx.clearRect(0,0,cv.width,cv.height);cv._ink=false;};
+}
+function _invHash(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h*0x01000193)>>>0;}return h.toString(16).padStart(8,'0');}
+function _invLabel(f,rol){return rol==='KALU'?'KALU':((rol)||(f&&f.reporta)||'Declarante');}
+function _invSeqText(f){var t=(f&&f.transcript)||[];return t.map(function(e){return _invLabel(f,e.rol)+': '+(e.texto||'');}).join('\n\n');}
+function mostrarFirmaInv(data){
+  const f=window.invFirma||{};
+  var seq=(f.transcript&&f.transcript.length)?f.transcript.slice():[];
+  if(!seq.length && data && data.mensaje){seq=[{rol:'KALU',texto:data.mensaje}];}
+  f.transcript=seq;
+  window._invSeqTxt=_invSeqText(f);
+  var seqHtml=seq.map(function(e){var lab=_invLabel(f,e.rol);var col=(e.rol==='KALU')?'#F28C00':'#00D4FF';return '<div style="margin-bottom:8px;"><span style="color:'+col+';font-weight:700;">'+lab.replace(/</g,'&lt;')+':</span> '+(e.texto||'').replace(/</g,'&lt;')+'</div>';}).join('');
+  const ov=document.createElement('div');ov.id='inv-firma-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(6,8,11,.94);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;';
+  ov.innerHTML='<div style="max-width:560px;width:100%;background:#12161C;border:1px solid #242B35;border-radius:18px;padding:24px;font-family:Arial,sans-serif;color:#E8EDF2;">'
+    +'<div style="font-size:11px;letter-spacing:2px;color:#F28C00;font-weight:700;">FIRMA DE LA DECLARACIÓN · LEY 527</div>'
+    +'<div style="font-size:20px;font-weight:800;margin:6px 0 4px;">Firmá tu declaración</div>'
+    +'<div style="font-size:13px;color:#95A0AD;margin-bottom:14px;">'+(f.reporta||'Declarante')+' — C.C. '+(f.cedula||'—')+' · '+(f.rol||'')+'</div>'
+    +'<div style="background:#171C24;border:1px solid #242B35;border-radius:12px;padding:12px;font-size:12.5px;line-height:1.5;color:#c7cfda;max-height:200px;overflow:auto;margin-bottom:14px;">'+seqHtml+'</div>'
+    +'<div style="font-size:11px;color:#95A0AD;margin-bottom:6px;">FIRMÁ EN EL RECUADRO</div>'
+    +'<canvas id="inv-firma-pad" style="width:100%;height:150px;background:#fbfdff;border:1px solid #242B35;border-radius:12px;touch-action:none;display:block;"></canvas>'
+    +'<div style="display:flex;justify-content:flex-end;margin:6px 0 12px;"><button onclick="document.getElementById(\'inv-firma-pad\')._clear()" style="background:none;border:none;color:#5E6873;font-size:12px;cursor:pointer;">Limpiar</button></div>'
+    +'<button id="inv-firma-btn" style="width:100%;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#F28C00,#C86E00);color:#0A0C0F;">Firmo y acepto</button>'
+    +'<div id="inv-firma-msg" style="font-size:12px;color:#E8930C;margin-top:8px;min-height:16px;"></div></div>';
+  document.body.appendChild(ov);
+  _invPadInit(document.getElementById('inv-firma-pad'));
+  document.getElementById('inv-firma-btn').onclick=()=>firmarInvDecl(data);
+}
+async function firmarInvDecl(data){
+  const f=window.invFirma||{};
+  const cv=document.getElementById('inv-firma-pad');const msg=document.getElementById('inv-firma-msg');
+  if(!cv._ink){msg.style.color='#E8930C';msg.textContent='Falta la firma en el recuadro.';return;}
+  const btn=document.getElementById('inv-firma-btn');btn.disabled=true;msg.style.color='#95A0AD';msg.textContent='Guardando…';
+  try{
+    const ts=new Date().toISOString();const seqTxt=window._invSeqTxt||'';
+    const hash=_invHash(seqTxt+(f.cedula||'')+ts);const firmaPng=cv.toDataURL('image/png');
+    // Genera el PDF firmado (lo descarga local) y lo sube al ARCHIVO de documentos del expediente.
+    const pdfBlob=_pdfTestimonio(f,(f.transcript||[]),firmaPng,hash,ts);
+    if(!pdfBlob) throw new Error('no se pudo generar el PDF de la declaración.');
+    const nombreArch='testimonio-'+(String(f.cedula||'sc').replace(/[^a-zA-Z0-9]/g,''))+'-'+Date.now()+'.pdf';
+    const rutaArch='investigaciones/'+(f.inv_id||'SININV')+'/'+nombreArch;
+    const upDoc=await sb.storage.from('documentos').upload(rutaArch,pdfBlob,{contentType:'application/pdf'});
+    if(upDoc.error) throw new Error('subir al depósito: '+upDoc.error.message);
+    const docIns=await sb.from('documentos').insert({empresa_id:(f.empresa_id||null),tipo:'testimonio',origen:'investigacion',nombre:'Declaración firmada — '+(f.reporta||'declarante')+' · '+(f.inv_id||''),storage_path:rutaArch});
+    if(docIns.error) throw new Error('registrar en el depósito: '+docIns.error.message);
+    msg.style.color='#25C26E';msg.innerHTML='&#10003; Firmado. Guardado en el expediente y descargado.';
+    btn.textContent='Continuar →';btn.disabled=false;
+    btn.onclick=()=>{const o=document.getElementById('inv-firma-overlay');if(o)o.remove();iniciarCierreInv(data&&data.cerrar);};
+  }catch(e){msg.style.color='#FF3B30';msg.textContent='Error: '+((e&&e.message)||e);btn.disabled=false;}
+}
+function _pdfTestimonio(f,seqArr,firmaPng,hash,ts){
+  try{
+    const JS=(window.jspdf&&window.jspdf.jsPDF);if(!JS){return;}
+    const doc=new JS({unit:'pt',format:'a4'});const W=595;const M=40;const BOT=800;let y=56;
+    function nl(h){if(y+h>BOT){doc.addPage();y=56;}}
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(20,20,20);doc.text('Registro de declaración — KALU',M,y);y+=10;
+    doc.setDrawColor(242,140,0);doc.setLineWidth(2);doc.line(M,y,W-M,y);y+=22;
+    doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
+    doc.text('Expediente: '+(f.inv_id||''),M,y);y+=15;
+    doc.text('Declarante: '+(f.reporta||'')+'    C.C. '+(f.cedula||'')+'    Rol: '+(f.rol||''),M,y);y+=15;
+    doc.text('Fecha: '+new Date(ts).toLocaleString('es-CO'),M,y);y+=24;
+    doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(11);doc.text('Declaración (transcripción de la entrevista)',M,y);y+=16;
+    doc.setFontSize(10.5);
+    (seqArr||[]).forEach(function(e){
+      var isK=(e.rol==='KALU');var lab=isK?'KALU':((e.rol)||(f.reporta||'Declarante'));
+      var lines=doc.splitTextToSize((e.texto||''),W-M*2-8);
+      nl(16+lines.length*13+8);
+      doc.setFont('helvetica','bold');doc.setTextColor(isK?242:20,isK?140:20,isK?0:20);doc.text(lab+':',M,y);y+=13;
+      doc.setFont('helvetica','normal');doc.setTextColor(45,45,45);doc.text(lines,M+8,y);y+=lines.length*13+8;
+    });
+    y+=8;
+    doc.setFont('helvetica','bold');doc.setTextColor(20,20,20);doc.setFontSize(10);nl(96);doc.text('Firma',M,y);y+=6;
+    try{doc.addImage(firmaPng,'PNG',M,y,150,60);}catch(_){}
+    y+=72;doc.setDrawColor(200);doc.line(M,y,W-M,y);y+=16;
+    doc.setFontSize(8.5);doc.setTextColor(90,90,90);
+    const c='Firmado electrónicamente por '+(f.reporta||'')+', C.C. '+(f.cedula||'')+', el '+new Date(ts).toLocaleString('es-CO')+'. Método: firma en pantalla. Integridad garantizada por hash '+hash+'. Conforme a la Ley 527 de 1999. Documento inalterable — cualquier cambio invalida el hash.';
+    const cl=doc.splitTextToSize(c,W-M*2);doc.text(cl,M,y);
+    doc.save('Testimonio_'+(f.inv_id||'KALU')+'.pdf');
+    return doc.output('blob');
+  }catch(e){console.error('PDF',e);return null;}
+}
+function agregarMensajeInv(texto,reproducir=false,onFinalizado=null){
+  const cont=document.getElementById('inv-mensajes');
+  const typing=document.getElementById('inv-typing');
+  const div=document.createElement('div');div.className='burbuja kalu-inv';
+  const contenido=document.createElement('div');contenido.className='contenido typewriter-cursor';
+  const audioWrap=document.createElement('div');audioWrap.className='kalu-audio';
+  const btnEsc=document.createElement('button');btnEsc.className='btn-escuchar';btnEsc.textContent='▶ Escuchar';
+  btnEsc.onclick=()=>reproducirVozInv(btnEsc,texto);
+  audioWrap.appendChild(btnEsc);
+  div.innerHTML='<div class="remitente">KALU INV.</div>';
+  div.appendChild(contenido);div.appendChild(audioWrap);
+  cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
+  // Coordinación de cierre: esperar a que terminen typewriter Y audio antes de continuar
+  let twListo=false, audioListo=!reproducir; // si no hay audio, se da por listo
+  function chequearFin(){ if(twListo&&audioListo&&onFinalizado){ const cb=onFinalizado; onFinalizado=null; cb(); } }
+  document.getElementById('inv-subtitulos').textContent=texto.substring(0,80)+(texto.length>80?'...':'');
+  if(reproducir){
+    // El texto se revela SINCRONIZADO con la voz: cada tramo aparece mientras KALU lo dice.
+    reproducirVozAutoInv(texto,()=>{contenido.classList.remove('typewriter-cursor');twListo=true;audioListo=true;chequearFin();},contenido);
+  } else {
+    typewriterEffect(contenido,texto,()=>{contenido.classList.remove('typewriter-cursor');twListo=true;chequearFin();});
+  }
+}
+function agregarMensajeTestigo(texto,nombre){
+  const cont=document.getElementById('inv-mensajes');const typing=document.getElementById('inv-typing');
+  const div=document.createElement('div');div.className='burbuja usuario';
+  div.innerHTML=`<div class="remitente">${esc(nombre)}</div><div class="contenido">${esc(texto)}</div>`;
+  cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
+}
+async function enviarMensajeInv(){
+  const ta=document.getElementById('inv-input-msg');const texto=ta.value.trim();
+  if(!texto||!invSessionId)return;
+  const btnEnv=document.getElementById('inv-btn-enviar');const btnMic=document.getElementById('inv-btn-mic');
+  btnEnv.disabled=true;btnMic.disabled=true;ta.disabled=true;
+  agregarMensajeTestigo(texto,testigoActivo);ta.value='';ta.style.height='auto';
+  if(window.invFirma&&texto){window.invFirma.transcript.push({rol:testigoActivo,texto:texto});}
+  document.getElementById('inv-typing').classList.add('visible');setPensandoInv(true);
+  try{
+    const res=await fetch(WEBHOOK_INV_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:invSessionId,mensaje:texto,declarante:testigoActivo,cedula:(window.invFirma&&window.invFirma.cedula)||''})});
+    const data=await res.json();
+    document.getElementById('inv-typing').classList.remove('visible');setPensandoInv(false);
+    if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
+    if(data.fase)setFaseActiva(`fase-${data.fase}`);
+    // ── CIERRE SOLO EN INFORME FINAL ──
+    if(data.informeDetectado){
+      agregarMensajeInv(data.mensaje||'Sin respuesta',true,()=>{
+        setTimeout(()=>mostrarFirmaInv(data),1200);
+      });
+    }else{
+      agregarMensajeInv(data.mensaje||'Sin respuesta',true);
+    }
+  }catch(e){
+    document.getElementById('inv-typing').classList.remove('visible');
+    const err=document.getElementById('inv-error-msg');err.textContent='Error de conexión.';err.style.display='block';setTimeout(()=>err.style.display='none',4000);
+  }finally{btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus();}
+}
+// ── VOZ INVESTIGADOR ──
+async function toggleGrabacionInv(){if(grabandoInv)detenerGrabacionInv();else await iniciarGrabacionInv();}
+async function iniciarGrabacionInv(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});audioChunks=[];
+    const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4';
+    mediaRecorder=new MediaRecorder(stream,{mimeType:mime});
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());await transcribirAudioInv(new Blob(audioChunks,{type:mime}),mime);};
+    mediaRecorder.start(250);grabandoInv=true;
+    document.getElementById('inv-btn-mic').classList.add('grabando');
+    document.getElementById('inv-voz-estado').textContent='Grabando... (tocá para detener)';
+    document.getElementById('inv-voz-ind').classList.add('visible');
+  }catch(e){alert('No se pudo acceder al micrófono.');}
+}
+function detenerGrabacionInv(){
+  if(mediaRecorder&&grabandoInv){mediaRecorder.stop();grabandoInv=false;
+  document.getElementById('inv-btn-mic').classList.remove('grabando');
+  document.getElementById('inv-voz-estado').textContent='Procesando...';}
+}
+async function transcribirAudioInv(blob,mime){
+  const ind=document.getElementById('inv-voz-ind');
+  try{
+    const ext=mime.includes('mp4')?'mp4':'webm';const fd=new FormData();fd.append('audio',blob,`audio.${ext}`);fd.append('empleado',testigoActivo);
+    const res=await fetch(WEBHOOK_STT,{method:'POST',body:fd});const data=await res.json();
+    ind.classList.remove('visible');
+    if(data.texto?.trim()){const ta=document.getElementById('inv-input-msg');ta.value=data.texto.trim();autoResize(ta);await enviarMensajeInv();}
+    else{document.getElementById('inv-error-msg').textContent='No se entendió. Intentá de nuevo.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
+  }catch(e){ind.classList.remove('visible');document.getElementById('inv-error-msg').textContent='Error al procesar audio.';document.getElementById('inv-error-msg').style.display='block';setTimeout(()=>document.getElementById('inv-error-msg').style.display='none',4000);}
+}
+function partirEnOraciones(texto){
+  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
+  const frases=bruto.map(f=>f.trim()).filter(Boolean);
+  if(frases.length<=1) return frases.length?frases:[(texto||'').trim()].filter(Boolean);
+  const resto=frases.slice(1).join(' ');
+  return resto ? [frases[0], resto] : [frases[0]];
+}
+async function ttsBlob(texto){
+  const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+  if(!res.ok)throw new Error('tts');
+  return await res.blob();
+}
+function cancelarVozInv(){
+  if(invVozCancel){const c=invVozCancel;invVozCancel=null;c();}
+  if(invAbortChunk){const a=invAbortChunk;invAbortChunk=null;a();}
+  if(invAudioActual){try{invAudioActual.pause();invAudioActual.currentTime=0;}catch(e){}invAudioActual=null;}
+}
+function armarTramos(texto){
+  const bruto=(texto||'').match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g)||[texto||''];
+  const chunks=[]; const bounds=[]; let acc=0, buf='';
+  for(const b of bruto){
+    acc+=b.length; const t=b.trim(); if(!t) continue;
+    buf = buf ? (buf+' '+t) : t;
+    const min = chunks.length===0 ? 40 : 140;
+    if(buf.length>=min){ chunks.push(buf); bounds.push(acc); buf=''; }
+  }
+  if(buf){ chunks.push(buf); bounds.push((texto||'').length); }
+  if(!chunks.length && (texto||'').trim()){ chunks.push((texto||'').trim()); bounds.push((texto||'').length); }
+  if(bounds.length) bounds[bounds.length-1]=(texto||'').length;
+  return {chunks,bounds};
+}
+function revelarSync(el,texto,from,to,durMs,scrollId){
+  return new Promise(res=>{
+    from=Math.max(0,Math.min(texto.length,from));
+    to=Math.max(from,Math.min(texto.length,to));
+    const start=performance.now();
+    const dur=Math.max(250, durMs || (to-from)*62);
+    const iv=setInterval(()=>{
+      const p=Math.min(1,(performance.now()-start)/dur);
+      const idx=Math.round(from+(to-from)*p);
+      el.innerHTML=texto.substring(0,idx).replace(/\n/g,'<br>');
+      if(scrollId){const s=document.getElementById(scrollId);if(s)s.scrollTop=99999;}
+      if(p>=1){clearInterval(iv);res();}
+    },30);
+  });
+}
+async function reproducirVozAutoInv(texto,onEnded=null,contentEl=null){
+  const done=()=>{ if(onEnded){const cb=onEnded;onEnded=null;cb();} };
+  const {chunks,bounds}=armarTramos(texto);
+  if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); done();return;}
+  let cancelado=false;
+  invVozCancel=()=>{cancelado=true;};
+  try{
+    let sigProm=ttsBlob(chunks[0]).catch(()=>null);
+    let prevBound=0;
+    for(let i=0;i<chunks.length&&!cancelado;i++){
+      const blob=await sigProm;
+      sigProm=(i+1<chunks.length)?ttsBlob(chunks[i+1]).catch(()=>null):null;
+      const toBound=bounds[i]||texto.length;
+      if(!blob||cancelado){ if(contentEl&&!cancelado)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>'); prevBound=toBound; continue; }
+      const desde=prevBound;
+      await new Promise(resolve=>{
+        const url=URL.createObjectURL(blob);const audio=new Audio(url);
+        invAudioActual=audio;let cerrado=false;
+        const fin=()=>{if(cerrado)return;cerrado=true;URL.revokeObjectURL(url);if(invAudioActual===audio)invAudioActual=null;invAbortChunk=null;if(contentEl)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>');resolve();};
+        invAbortChunk=()=>{try{audio.pause();}catch(e){}fin();};
+        audio.addEventListener('ended',fin);
+        audio.addEventListener('error',fin);
+        audio.addEventListener('play',()=>{ if(contentEl){ const d=(isFinite(audio.duration)&&audio.duration>0)?audio.duration*1000:null; revelarSync(contentEl,texto,desde,toBound,d,'inv-mensajes'); } });
+        audio.play().catch(fin);
+      });
+      prevBound=toBound;
+    }
+  }catch(e){}
+  if(contentEl&&!cancelado)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>');
+  invVozCancel=null;invAbortChunk=null;
+  done();
+}
+function setPensandoInv(on){
+  const a=document.querySelector('.kalu-avatar-inv');if(a)a.classList.toggle('pensando',on);
+  if(on){const s=document.getElementById('inv-subtitulos');if(s)s.textContent='Analizando la declaración…';}
+}
+async function reproducirVozInv(btn,texto){
+  btn.textContent='⏳ Cargando...';btn.disabled=true;
+  try{
+    const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+    if(!res.ok)throw new Error();const blob=await res.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);
+    audio.addEventListener('play',()=>{btn.textContent='🔊 Reproduciendo...';});
+    audio.addEventListener('ended',()=>{btn.textContent='▶ Escuchar';btn.disabled=false;URL.revokeObjectURL(url);});
+    audio.addEventListener('error',()=>{btn.textContent='▶ Escuchar';btn.disabled=false;});
+    audio.play();
+  }catch(e){btn.textContent='▶ Escuchar';btn.disabled=false;}
+}
+// ── HSE CHAT ──
+function agregarMensajeKALU(texto,reproducir=false){
+  const cont=document.getElementById('mensajes');const typing=document.getElementById('typing');mensajesCount++;
+  const div=document.createElement('div');div.className='burbuja kalu';
+  const contenido=document.createElement('div');contenido.className='contenido typewriter-cursor';
+  const audioWrap=document.createElement('div');audioWrap.className='kalu-audio';
+  const btnEsc=document.createElement('button');btnEsc.className='btn-escuchar';btnEsc.textContent='▶ Escuchar';
+  btnEsc.onclick=()=>reproducirVoz(btnEsc,texto);audioWrap.appendChild(btnEsc);
+  div.innerHTML='<div class="remitente">KALU IA</div>';div.appendChild(contenido);div.appendChild(audioWrap);
+  cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;
+  if(reproducir){
+    reproducirVozAuto(texto,contenido).then(()=>{contenido.classList.remove('typewriter-cursor');});
+  } else {
+    typewriterEffect(contenido,texto,()=>{contenido.classList.remove('typewriter-cursor');if(estadoAvatar==='hablando'&&!lipSyncSource)setTimeout(()=>setEstadoAvatar('idle'),600);});
+  }
+  mostrarSubtitulos(texto);
+}
+function typewriterEffect(el,texto,onDone){
+  let charIdx=0;el.innerHTML='';
+  const iv=setInterval(()=>{charIdx++;el.innerHTML=texto.substring(0,charIdx).replace(/\n/g,'<br>');document.getElementById('inv-mensajes')&&(document.getElementById('inv-mensajes').scrollTop=99999);if(charIdx>=texto.length){clearInterval(iv);if(onDone)onDone();}},18);
+}
+function mostrarSubtitulos(texto){const bar=document.getElementById('subtitulos');bar.classList.remove('vacia');const palabras=texto.split(' ');let idx=0;if(subtitulosTimeout)clearInterval(subtitulosTimeout);subtitulosTimeout=setInterval(()=>{const fin=Math.min(idx+6,palabras.length);bar.textContent=palabras.slice(idx,fin).join(' ');idx=fin;if(idx>=palabras.length){clearInterval(subtitulosTimeout);setTimeout(()=>{bar.classList.add('vacia');bar.textContent='// esperando respuesta...';},2000);}},400);}
+function agregarMensajeUsuario(texto,remitente){const cont=document.getElementById('mensajes');const typing=document.getElementById('typing');const div=document.createElement('div');div.className='burbuja usuario';div.innerHTML=`<div class="remitente">${esc(remitente)}</div><div class="contenido">${esc(texto)}</div>`;cont.insertBefore(div,typing);cont.scrollTop=cont.scrollHeight;}
+function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+function mostrarTyping(show){document.getElementById('typing').classList.toggle('visible',show);if(show){document.getElementById('mensajes').scrollTop=99999;setEstadoAvatar('escuchando');}}
+async function enviarMensaje(){
+  if(window.atsCerrado)return; const ta=document.getElementById('input-msg');const texto=ta.value.trim();if(!texto||!sessionId)return;
+  const btnEnv=document.getElementById('btn-enviar');const btnMic=document.getElementById('btn-mic');
+  btnEnv.disabled=true;btnMic.disabled=true;ta.disabled=true;
+  agregarMensajeUsuario(texto,empleadoActivo);ta.value='';ta.style.height='auto';
+  mostrarTyping(true);document.getElementById('error-msg').style.display='none';
+  try{
+    const res=await fetch(WEBHOOK_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,atsItemId,mensaje:texto,empleado:empleadoActivo})});
+    const data=await res.json();mostrarTyping(false);setEstadoAvatar('hablando');
+    agregarMensajeKALU(data.mensaje||'Sin respuesta',true);
+    if(data.atsDetectado){window.atsCerrado=true;document.getElementById('ats-banner').classList.add('visible');ta.disabled=true;btnEnv.disabled=true;btnMic.disabled=true;ta.placeholder='ATS generado — sesión cerrada.';if(autoCountdownTimer)clearTimeout(autoCountdownTimer);autoCountdownTimer=setTimeout(()=>iniciarCountdown(),12000);}
+  }catch(e){mostrarTyping(false);setEstadoAvatar('alerta');setTimeout(()=>setEstadoAvatar('idle'),3000);document.getElementById('error-msg').textContent='Error de conexión.';document.getElementById('error-msg').style.display='block';}
+  finally{ if(!window.atsCerrado){ btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus(); } }
+}
+function iniciarCountdown(){
+  if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
+  const overlay=document.getElementById('countdown-overlay');const numEl=document.getElementById('countdown-num');const barEl=document.getElementById('countdown-bar-fill');
+  const total=5;let seg=total;overlay.classList.add('visible');numEl.textContent=seg;barEl.style.width='100%';
+  const tick=setInterval(()=>{seg--;numEl.textContent=seg;barEl.style.width=((seg/total)*100)+'%';if(seg<=0){clearInterval(tick);resetSesion();}},1000);
+}
+function resetSesion(){
+  detenerLipSync();setEstadoAvatar('idle');window.atsCerrado=false;sessionId='';atsItemId='';empleados=[];equipos=[];empleadoActivo='';mensajesCount=0;pendingCountdown=false;
+  if(autoCountdownTimer){clearTimeout(autoCountdownTimer);autoCountdownTimer=null;}
+  document.getElementById('mensajes').innerHTML=`<div class="typing" id="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  document.getElementById('ats-banner').classList.remove('visible');document.getElementById('kalu-stats').innerHTML='';document.getElementById('kalu-modo-label').textContent='MODO —';
+  ['chips','chips-equipos'].forEach(id=>document.getElementById(id).innerHTML='');
+  ['input-tarea','input-empresa','input-area','input-responsable','input-nombre','input-equipo','input-condiciones','input-observaciones'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('input-cliente').value='Baker Hughes';document.querySelectorAll('.btn-equipo-sug').forEach(b=>b.classList.remove('seleccionado'));
+  document.getElementById('subtitulos').textContent='// esperando respuesta de KALU...';document.getElementById('subtitulos').classList.add('vacia');
+  document.getElementById('countdown-overlay').classList.remove('visible');document.getElementById('pantalla-chat').classList.remove('visible');
+  document.getElementById('paso-2').classList.remove('visible');document.getElementById('paso-1').classList.add('visible');
+  document.getElementById('tab-2').classList.remove('activo');document.getElementById('tab-1').classList.add('activo');document.getElementById('tab-1').classList.remove('completado');document.getElementById('tab-1').querySelector('.paso-num').textContent='1';
+  document.getElementById('btn-iniciar').disabled=false;document.getElementById('btn-iniciar').textContent='INICIAR CON KALU';
+  document.getElementById('header-modulo').textContent='KALU';
+  const inicio=document.getElementById('pantalla-inicio');inicio.classList.remove('visible');
+  const home=document.getElementById('pantalla-home');home.style.display='flex';home.style.opacity='0';home.classList.remove('saliendo');
+  setTimeout(()=>{home.style.transition='opacity 0.5s ease';home.style.opacity='1';},50);
+}
+// ── HSE VOZ ──
+async function toggleGrabacion(){if(grabando)detenerGrabacion();else await iniciarGrabacion();}
+async function iniciarGrabacion(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});audioChunks=[];
+    const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4';
+    mediaRecorder=new MediaRecorder(stream,{mimeType:mime});
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());await transcribirAudio(new Blob(audioChunks,{type:mime}),mime);};
+    mediaRecorder.start(250);grabando=true;setEstadoAvatar('escuchando');
+    document.getElementById('btn-mic').classList.add('grabando');document.getElementById('voz-estado').textContent='Grabando...';document.getElementById('voz-ind').classList.add('visible');
+  }catch(e){alert('No se pudo acceder al micrófono.');}
+}
+function detenerGrabacion(){if(mediaRecorder&&grabando){mediaRecorder.stop();grabando=false;document.getElementById('btn-mic').classList.remove('grabando');document.getElementById('voz-estado').textContent='Procesando...';setEstadoAvatar('idle');}}
+async function transcribirAudio(blob,mime){
+  const ind=document.getElementById('voz-ind');
+  try{
+    const ext=mime.includes('mp4')?'mp4':'webm';const fd=new FormData();fd.append('audio',blob,`audio.${ext}`);fd.append('empleado',empleadoActivo);
+    const res=await fetch(WEBHOOK_STT,{method:'POST',body:fd});const data=await res.json();ind.classList.remove('visible');
+    if(data.texto?.trim()){const ta=document.getElementById('input-msg');ta.value=data.texto.trim();autoResize(ta);await enviarMensaje();}
+    else{mostrarError('No se entendió el audio.');setEstadoAvatar('idle');}
+  }catch(e){ind.classList.remove('visible');mostrarError('Error al procesar audio.');setEstadoAvatar('idle');}
+}
+async function reproducirVozAuto(texto,contentEl=null){
+  const {chunks,bounds}=armarTramos(texto);
+  if(!chunks.length){ if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>'); setEstadoAvatar('idle'); return; }
+  try{
+    let sigProm=ttsBlob(chunks[0]).catch(()=>null);
+    let prevBound=0;
+    for(let i=0;i<chunks.length;i++){
+      const blob=await sigProm;
+      sigProm=(i+1<chunks.length)?ttsBlob(chunks[i+1]).catch(()=>null):null;
+      const toBound=bounds[i]||texto.length;
+      if(!blob){ if(contentEl)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>'); prevBound=toBound; continue; }
+      const desde=prevBound;
+      await new Promise(resolve=>{
+        const url=URL.createObjectURL(blob);const audio=new Audio(url);let cerrado=false;
+        const fin=()=>{if(cerrado)return;cerrado=true;URL.revokeObjectURL(url);if(contentEl)contentEl.innerHTML=texto.substring(0,toBound).replace(/\n/g,'<br>');resolve();};
+        audio.addEventListener('play',()=>{ setEstadoAvatar('hablando'); if(contentEl){ const d=(isFinite(audio.duration)&&audio.duration>0)?audio.duration*1000:null; revelarSync(contentEl,texto,desde,toBound,d,'mensajes'); } });
+        audio.addEventListener('ended',fin);
+        audio.addEventListener('error',fin);
+        audio.play().catch(fin);
+      });
+      prevBound=toBound;
+    }
+  }catch(e){}
+  if(contentEl)contentEl.innerHTML=(texto||'').replace(/\n/g,'<br>');
+  setEstadoAvatar('idle');
+}
+async function reproducirVoz(btn,texto){
+  btn.textContent='⏳ Cargando...';btn.disabled=true;
+  try{
+    const res=await fetch(WEBHOOK_TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+    if(!res.ok)throw new Error();const blob=await res.blob();const url=URL.createObjectURL(blob);const audio=new Audio(url);
+    audio.addEventListener('play',()=>{setEstadoAvatar('hablando');iniciarLipSync(audio);btn.textContent='🔊 Reproduciendo...';});
+    audio.addEventListener('ended',()=>{detenerLipSync();setEstadoAvatar('idle');btn.textContent='▶ Escuchar';btn.disabled=false;URL.revokeObjectURL(url);});
+    audio.addEventListener('error',()=>{detenerLipSync();setEstadoAvatar('idle');btn.textContent='▶ Escuchar';btn.disabled=false;});
+    audio.play();
+  }catch(e){btn.textContent='▶ Escuchar';btn.disabled=false;setEstadoAvatar('idle');}
+}
+function mostrarError(msg){const err=document.getElementById('error-msg');err.textContent=msg;err.style.display='block';setTimeout(()=>{err.style.display='none';},4000);}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+// ── HSE FORM ──
+function agregarEmpleado(){const inp=document.getElementById('input-nombre');const nombre=inp.value.trim();if(!nombre||empleados.includes(nombre)){inp.value='';return;}empleados.push(nombre);renderChips();inp.value='';inp.focus();}
+document.getElementById('input-nombre').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();agregarEmpleado();}});
+function renderChips(){document.getElementById('chips').innerHTML=empleados.map((e,i)=>`<div class="chip">${e}<button onclick="quitarEmp(${i})">×</button></div>`).join('');}
+function quitarEmp(i){empleados.splice(i,1);renderChips();}
+function irPaso2(){
+  const tarea=document.getElementById('input-tarea').value.trim();const empresa=document.getElementById('input-empresa').value.trim();const area=document.getElementById('input-area').value.trim();
+  if(!empresa){alert('Ingresá la empresa ejecutora');return;}if(!area){alert('Ingresá el área o locación');return;}if(!tarea){alert('Ingresá la tarea del día');return;}if(empleados.length===0){alert('Agregá al menos un empleado');return;}
+  document.getElementById('paso-1').classList.remove('visible');document.getElementById('paso-2').classList.add('visible');
+  document.getElementById('tab-1').classList.remove('activo');document.getElementById('tab-1').classList.add('completado');document.getElementById('tab-1').querySelector('.paso-num').textContent='✓';document.getElementById('tab-2').classList.add('activo');
+}
+function irPaso1(){document.getElementById('paso-2').classList.remove('visible');document.getElementById('paso-1').classList.add('visible');document.getElementById('tab-2').classList.remove('activo');document.getElementById('tab-1').classList.add('activo');document.getElementById('tab-1').classList.remove('completado');document.getElementById('tab-1').querySelector('.paso-num').textContent='1';}
+function agregarEquipo(){const inp=document.getElementById('input-equipo');const eq=inp.value.trim();if(!eq||equipos.includes(eq)){inp.value='';return;}equipos.push(eq);renderChipsEquipos();inp.value='';inp.focus();}
+document.getElementById('input-equipo').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();agregarEquipo();}});
+function toggleEquipoSug(btn,nombre){if(equipos.includes(nombre)){equipos=equipos.filter(e=>e!==nombre);btn.classList.remove('seleccionado');}else{equipos.push(nombre);btn.classList.add('seleccionado');}renderChipsEquipos();}
+function renderChipsEquipos(){document.getElementById('chips-equipos').innerHTML=equipos.map((e,i)=>`<div class="chip equipo">${e}<button onclick="quitarEquipo(${i})">×</button></div>`).join('');document.querySelectorAll('.btn-equipo-sug').forEach(btn=>{btn.classList.toggle('seleccionado',equipos.includes(btn.getAttribute('onclick').match(/'([^']+)'\)/)?.[1]));});}
+function quitarEquipo(i){const nombre=equipos[i];equipos.splice(i,1);renderChipsEquipos();document.querySelectorAll('.btn-equipo-sug').forEach(btn=>{if(btn.getAttribute('onclick').includes(`'${nombre}'`))btn.classList.remove('seleccionado');});}
+function renderSelectorEmp(){document.getElementById('selector-emp').innerHTML=empleados.map(e=>`<button class="btn-emp ${e===empleadoActivo?'activo':''}" onclick="selecEmp('${e}')">${e}</button>`).join('');}
+function selecEmp(nombre){empleadoActivo=nombre;renderSelectorEmp();}
+const MSGS_GENERANDO=[
+  '<span>KALU</span> está preparando todo con calma…<br>Dame un momentito.',
+  'Mientras armo el análisis…<br>¿cómodo por acá? Es más fácil de lo que parece.',
+  '¿Es tu primera vez charlando con una IA?<br>Tranquilo, vamos juntos, a tu ritmo.',
+  'Estoy revisando los equipos y las condiciones<br>para cuidarte mejor en el turno.',
+  'Ya casi…<br>quiero que salgas a trabajar con todo claro.'
+];
+let genMsgTimer=null,genMsgIdx=0;
+function iniciarMensajesGenerando(){
+  const el=document.getElementById('generando-msg');if(!el)return;
+  genMsgIdx=0;el.style.opacity='1';el.innerHTML=MSGS_GENERANDO[0];
+  clearInterval(genMsgTimer);
+  genMsgTimer=setInterval(()=>{
+    genMsgIdx=(genMsgIdx+1)%MSGS_GENERANDO.length;
+    el.style.opacity='0';
+    setTimeout(()=>{el.innerHTML=MSGS_GENERANDO[genMsgIdx];el.style.opacity='1';},300);
+  },3800);
+}
+function detenerMensajesGenerando(){clearInterval(genMsgTimer);genMsgTimer=null;}
+async function iniciarSesion(){
+  const tarea=document.getElementById('input-tarea').value.trim();const empresa=document.getElementById('input-empresa').value.trim();const cliente=document.getElementById('input-cliente').value.trim();const area=document.getElementById('input-area').value.trim();const responsable=document.getElementById('input-responsable').value.trim()||empleados[0]||'';const condiciones=document.getElementById('input-condiciones').value.trim();const observaciones=document.getElementById('input-observaciones').value.trim();
+  if(equipos.length===0){alert('Agregá al menos un equipo');return;}if(!condiciones){alert('Describí las condiciones ambientales');return;}
+  const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');window.atsCerrado=false;document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
+  try{
+    const res=await fetch(WEBHOOK_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null})});
+    const data=await res.json();detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
+    if(data.bloqueado){btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');alert(data.mensaje);return;}
+    sessionId=data.sessionId||'';atsItemId=data.atsItemId||'';empleadoActivo=empleados[0];
+    document.getElementById('kalu-modo-label').textContent=(data.descripcionModo||`Modo ${data.modo}`).toUpperCase();
+    document.getElementById('kalu-stats').innerHTML=`<div class="stat-item"><span class="label">PELIGROS</span><span class="value">${data.totalPeligros||'—'}</span></div><div class="stat-item"><span class="label">MODO</span><span class="value">${data.modo||'—'}</span></div>`;
+    document.getElementById('chat-topbar').innerHTML=`<span class="tag-tarea">${tarea}</span>${empleados.map(e=>`<span class="tag-empleado">${e}</span>`).join('')}`;
+    const inicio=document.getElementById('pantalla-inicio');inicio.style.transition='opacity 0.5s ease,transform 0.5s ease';inicio.style.opacity='0';inicio.style.transform='translateY(-20px)';
+    setTimeout(()=>{inicio.classList.remove('visible');inicio.style.opacity='';inicio.style.transform='';document.getElementById('pantalla-chat').classList.add('visible');renderSelectorEmp();setEstadoAvatar('hablando');agregarMensajeKALU(data.mensaje,true);},500);
+  }catch(e){detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');alert('Error al conectar con KALU.');btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');}
+}
+</script>
+<script>
+  // ===== AUTENTICACIÓN KALU (Supabase) — PLATAFORMA unificada (Fase 4) =====
+  const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+  const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+  const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+  window.kaluAuth = { token:null, perfil:null };
+  async function cargarPerfil(){
+    try{
+      const { data:{ user } } = await sb.auth.getUser();
+      if(!user) return null;
+      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado,acceso_consola,cedula').eq('id', user.id).single();
+      window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null, estado:'activo', acceso_consola:false, cedula:null };
+    }catch(e){ window.kaluAuth.perfil = window.kaluAuth.perfil || { rol:'trabajador', estado:'activo' }; }
+    return window.kaluAuth.perfil;
+  }
+  // Estado de la cuenta: solo 'activo' puede entrar. 'pendiente' = falta aprobación; cualquier otro (baja/suspendido) = bloqueado.
+  function estadoDeCuenta(){ return (window.kaluAuth && window.kaluAuth.perfil && window.kaluAuth.perfil.estado) || 'activo'; }
+  async function rechazarSiInactivo(mostrarMsg){
+    const est = estadoDeCuenta();
+    if(est === 'activo') return false; // OK, deja pasar
+    try{ await sb.auth.signOut(); }catch(_){}
+    window.kaluAuth = { token:null, perfil:null };
+    const txt = (est==='pendiente')
+      ? 'Tu cuenta está pendiente de aprobación por tu HSE.'
+      : 'Tu cuenta está inactiva. Contactá a tu HSE.';
+    if(typeof mostrarMsg==='function') mostrarMsg(txt);
+    return true; // fue rechazada
+  }
+  function mostrarLogin(mostrar){
+    const el=document.getElementById('pantalla-login');
+    const salir=document.getElementById('btn-logout');
+    if(!el) return;
+    if(mostrar){ el.classList.remove('oculto'); el.style.display='flex'; if(salir)salir.style.display='none'; const em=document.getElementById('login-email'); const pw=document.getElementById('login-pass'); if(em)em.value=''; if(pw)pw.value=''; }
+    else { el.classList.add('oculto'); if(salir)salir.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 400); }
+  }
+  async function aplicarRol(){
+    const p=(window.kaluAuth&&window.kaluAuth.perfil)||{};
+    const rol=p.rol||'trabajador';
+    const esManager=(rol==='hse'||rol==='supervisor');
+    const puedeConsola=esManager || (p.acceso_consola===true);
+    // 1) La tarjeta de Consola HSE se muestra a managers o a quien tenga acceso a consola
+    document.querySelectorAll('.modulo-card').forEach(function(c){
+      const oc=c.getAttribute('onclick')||'';
+      if(oc.indexOf('hse.html')!==-1){ c.style.display=puedeConsola?'':'none'; }
+    });
+    // 2) Mostrar "Nombre · Empresa" arriba a la derecha
+    let empresa='';
+    try{
+      if(p.empresa_id){
+        const { data } = await sb.from('empresas').select('razon_social').eq('id',p.empresa_id).single();
+        empresa=(data&&data.razon_social)||'';
+      }
+    }catch(_){}
+    window.kaluAuth.empresaNombre=empresa;
+    let el=document.getElementById('kalu-usuario');
+    if(!el){
+      el=document.createElement('div'); el.id='kalu-usuario';
+      el.style.cssText="display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;margin-right:4px;";
+      const hdr=document.querySelector('header'); const salir=document.getElementById('btn-logout');
+      if(hdr && salir){ hdr.insertBefore(el,salir); } else if(hdr){ hdr.appendChild(el); }
+    }
+    const nombre=((p.nombre||'').trim())||'Usuario';
+    const escn=nombre.replace(/</g,'&lt;'); const esce=empresa.replace(/</g,'&lt;');
+    el.innerHTML='<span style="font-size:13px;font-weight:700;color:#F0F0F0;">'+escn+'</span>'
+      +(empresa?('<span style="font-size:10px;color:#F28C00;font-family:monospace;letter-spacing:.5px;">'+esce+'</span>'):'');
+  }
+  function verRegistro(){ var l=document.getElementById('pantalla-login'); var r=document.getElementById('pantalla-registro'); if(l)l.style.display='none'; if(r)r.style.display='flex'; }
+  function verLogin(){ var l=document.getElementById('pantalla-login'); var r=document.getElementById('pantalla-registro'); if(r)r.style.display='none'; if(l){ l.classList.remove('oculto'); l.style.display='flex'; } }
+  async function registrarse(){
+    const cedula=((document.getElementById('reg-cedula').value||'').replace(/\D/g,''));
+    const email=(document.getElementById('reg-email').value||'').trim();
+    const pass=document.getElementById('reg-pass').value||'';
+    const msg=document.getElementById('reg-msg'); msg.style.color='#FF5A4E'; msg.textContent='';
+    if(!cedula||!email||!pass){ msg.textContent='Completá cédula, correo y contraseña.'; return; }
+    if(pass.length<6){ msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
+    const btn=document.getElementById('reg-btn'); btn.disabled=true; btn.textContent='Creando cuenta…';
+    try{
+      // 1) La cédula debe estar en el padrón de la empresa
+      const { data:trab } = await sb.from('personas').select('nombre').eq('cedula',cedula).limit(1);
+      if(!trab || !trab.length){
+        msg.textContent='Tu cédula no está registrada por tu empresa. Hablá con tu HSE.';
+        btn.disabled=false; btn.textContent='Registrarme'; return;
+      }
+      // 2) Crear la cuenta. El nombre y la empresa salen de la cédula (trigger). Llega correo de confirmación.
+      const { data, error } = await sb.auth.signUp({ email, password:pass, options:{ data:{ cedula }, emailRedirectTo:'https://getkalu.com/app.html' } });
+      if(error){
+        const m=(error.message||'').toLowerCase();
+        if(m.indexOf('already')!==-1){ msg.textContent='Ese correo ya tiene una cuenta. Probá ingresar.'; }
+        else { msg.textContent='No se pudo registrar: '+error.message; }
+        btn.disabled=false; btn.textContent='Registrarme'; return;
+      }
+      msg.style.color='#25C26E';
+      msg.innerHTML='¡Listo! Te enviamos un correo a <b>'+email.replace(/</g,'&lt;')+'</b>. Confirmá el link y despues ingresa con tu <b>cedula</b>.';
+      btn.disabled=false; btn.textContent='Registrarme';
+    }catch(e){ msg.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Registrarme'; }
+  }
+  async function hacerLogin(){
+    const ident=(document.getElementById('login-email').value||'').trim();
+    const pass=document.getElementById('login-pass').value||'';
+    const err=document.getElementById('login-error');
+    const btn=document.getElementById('login-btn');
+    err.textContent='';
+    if(!ident||!pass){ err.textContent='Completá cédula/correo y contraseña.'; return; }
+    btn.disabled=true; btn.textContent='Ingresando…';
+    try{
+      let email=ident;
+      if(/^\d+$/.test(ident)){
+        const { data:mail, error:e2 } = await sb.rpc('email_por_cedula', { ced: ident });
+        if(e2 || !mail){ err.textContent='Cédula no registrada.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+        email=mail;
+      }
+      const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
+      if(error){ err.textContent='Datos incorrectos.'; btn.disabled=false; btn.textContent='Ingresar'; return; }
+      window.kaluAuth.token = data.session.access_token;
+      await cargarPerfil();
+      if(await rechazarSiInactivo(t=>{ err.textContent=t; })){ document.getElementById('login-pass').value=''; btn.disabled=false; btn.textContent='Ingresar'; return; }
+      aplicarRol();
+      document.getElementById('login-pass').value='';
+      btn.disabled=false; btn.textContent='Ingresar';
+      mostrarLogin(false);
+    }catch(e){ err.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Ingresar'; }
+  }
+  async function hacerLogout(){
+    try{ await sb.auth.signOut(); }catch(e){}
+    window.kaluAuth={ token:null, perfil:null };
+    location.href='/';
+  }
+  ['login-email','login-pass'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); hacerLogin(); } });
+  });
+  (async ()=>{
+    try{
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session){ window.kaluAuth.token=session.access_token; await cargarPerfil(); if(await rechazarSiInactivo(t=>{ var le=document.getElementById('login-error'); if(le) le.textContent=t; })){ mostrarLogin(true); } else { aplicarRol(); mostrarLogin(false); } }
+      else { mostrarLogin(true); }
+    }catch(e){ mostrarLogin(true); }
+  })();
+</script>
+<script>
+  let deferredPrompt=null;
+  const esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  function mostrarBtnInstalar(){ if(esStandalone) return; const b=document.getElementById('btn-instalar'); if(b)b.classList.add('show'); }
+  function ocultarBtnInstalar(){ const b=document.getElementById('btn-instalar'); if(b)b.classList.remove('show'); }
+  window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferredPrompt=e; mostrarBtnInstalar(); });
+  window.addEventListener('appinstalled',function(){ ocultarBtnInstalar(); deferredPrompt=null; });
+  function instalarApp(){
+    if(deferredPrompt){ deferredPrompt.prompt(); if(deferredPrompt.userChoice){ deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; ocultarBtnInstalar(); }); } }
+    else if(esIOS){ alert('Para instalar KALU en el iPhone:\n\n1) Abrí este sitio en Safari.\n2) Tocá el botón Compartir (el cuadrado con la flecha hacia arriba).\n3) Elegí "Agregar a inicio" y confirmá.'); }
+    else { alert('Abrí este sitio en Chrome (Android) o Safari (iPhone) para instalarlo en tu teléfono.'); }
+  }
+  if(esIOS && !esStandalone){ window.addEventListener('load',function(){ setTimeout(mostrarBtnInstalar,800); }); }
+</script>
+<script>
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }
+</script>
 </body>
 </html>

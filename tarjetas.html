@@ -324,9 +324,9 @@ function pintarEmp(){
 }
 function pickEmp(i,el){ [...$('empChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); obs=norm(cands[i]); err('idErr',''); }
 async function entrarDash(){
-  prepararBranding(obs.empresa_id);
   show('scDash');
   var el=$('dashBody'); if(el) el.innerHTML='<div style="text-align:center;padding:24px;color:var(--tx2)">Cargando tu aporte…</div>';
+  try{ await prepararBranding(obs.empresa_id); }catch(e){}
   var br=$('btnReportar'); if(br && BRAND && BRAND.color) br.style.background=BRAND.color;
   try{ var s=await sbRpc('stats_operador',{ced:obs.cedula, emp:obs.empresa_id}); renderDash(s||{}); }
   catch(e){ renderDash(null); }

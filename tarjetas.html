@@ -451,7 +451,7 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   if(BRAND.doc && (BRAND.doc.codigo||BRAND.doc.version||BRAND.doc.fecha)){
     var _ctl=[]; if(BRAND.doc.codigo)_ctl.push('Formulario '+BRAND.doc.codigo);
     if(BRAND.doc.version)_ctl.push('Versión '+BRAND.doc.version);
-    if(BRAND.doc.fecha)_ctl.push('Fecha '+BRAND.doc.fecha);
+    if(BRAND.doc.fecha)_ctl.push('Implementación '+BRAND.doc.fecha);
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(_bc[0],_bc[1],_bc[2]);
     doc.text(_ctl.join('   ·   '), 40, y); y+=16;
   }

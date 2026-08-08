@@ -221,7 +221,7 @@ let obs=null, cands=[], clase='inseguro';
 var BRAND={};
 function hexToRgb(h){ if(!h)return null; h=String(h).replace('#',''); if(h.length===3)h=h.split('').map(function(c){return c+c;}).join(''); if(h.length!==6)return null; var n=parseInt(h,16); if(isNaN(n))return null; return [(n>>16)&255,(n>>8)&255,n&255]; }
 function urlADataURL(url){ return new Promise(function(res){ var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ try{ var c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight; c.getContext('2d').drawImage(img,0,0); res({data:c.toDataURL('image/png'),w:img.naturalWidth,h:img.naturalHeight}); }catch(e){ res(null); } }; img.onerror=function(){ res(null); }; img.src=url; }); }
-async function prepararBranding(emp){ BRAND={}; if(!emp) return; try{ var b=await sbRpc('branding_empresa',{emp:emp}); if(!b||typeof b!=='object') return; BRAND.color=b.color; BRAND.nombre=b.nombre; if(b.logo_url){ BRAND.logo=await urlADataURL(b.logo_url); } }catch(e){} }
+async function prepararBranding(emp){ BRAND={}; if(!emp) return; try{ var b=await sbRpc('branding_empresa',{emp:emp}); if(!b||typeof b!=='object') return; BRAND.color=b.color; BRAND.nombre=b.nombre; BRAND.doc=(b.docs&&b.docs.tarjeta)||null; if(b.logo_url){ BRAND.logo=await urlADataURL(b.logo_url); } }catch(e){} }
 const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
 let fotos=[], last=null;
 function $(id){return document.getElementById(id);}
@@ -447,6 +447,15 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   doc.text((BRAND.nombre||empresa||'KALU')+' · Tarjeta de observación', 40, y); y+=20;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
   doc.text('Actos y condiciones inseguras · '+r.id+'  ·  por KALU · Dinamho', 40, y); y+=22;
+  // Recuadro de control documental (por empresa): código / versión / fecha de implementación
+  if(BRAND.doc && (BRAND.doc.codigo||BRAND.doc.version||BRAND.doc.fecha)){
+    var _cx=W-40, _cy=94;
+    if(BRAND.doc.codigo){ doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(_bc[0],_bc[1],_bc[2]); doc.text(String(BRAND.doc.codigo), _cx, _cy, {align:'right'}); _cy+=13; }
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(90,90,90);
+    if(BRAND.doc.version){ doc.text('Versión '+String(BRAND.doc.version), _cx, _cy, {align:'right'}); _cy+=11; }
+    if(BRAND.doc.fecha){ doc.text('Fecha '+String(BRAND.doc.fecha), _cx, _cy, {align:'right'}); _cy+=11; }
+    if(_cy>y) y=_cy;   // baja el divisor para que quede debajo del bloque
+  }
   doc.setDrawColor(220,220,220); doc.line(40,y,W-40,y); y+=20;
   const tag=r.clase==='seguro'?'ACTO SEGURO (refuerzo)':('INSEGURO · '+String(r.tipo||'').toUpperCase());
   doc.setFont('helvetica','bold'); doc.setFontSize(11);

@@ -144,6 +144,15 @@
   .ubtn.ok{background:rgba(37,194,110,.15);color:var(--verde);border:1px solid rgba(37,194,110,.4);}
   .ubtn.no{background:rgba(255,59,48,.13);color:var(--rojo);border:1px solid rgba(255,59,48,.4);}
   .umute{color:var(--tx3);font-size:12px;}
+  .sem{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+  .sem-ok{background:rgba(37,194,110,.15);color:#4FD98B;border:1px solid rgba(37,194,110,.4)}
+  .sem-warn{background:rgba(240,180,0,.15);color:#F0B400;border:1px solid rgba(240,180,0,.4)}
+  .sem-bad{background:rgba(255,59,48,.15);color:#FF8A82;border:1px solid rgba(255,59,48,.4)}
+  .sem-done{background:rgba(120,140,160,.15);color:#9fb0c0;border:1px solid rgba(120,140,160,.35)}
+  .sem-none{background:rgba(120,140,160,.08);color:#8a97a5;border:1px dashed rgba(120,140,160,.35)}
+  .gbtn{background:rgba(242,140,0,.14);border:1px solid var(--nar);color:var(--nar);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .gform label{display:block;font-size:12px;color:#aeb6c0;margin:10px 0 4px;font-weight:600}
+  .gform input,.gform textarea{width:100%;background:#12151a;border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:9px;font-size:13px;font-family:inherit;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -1061,6 +1070,75 @@ function tarPplTable(pairs){
   if(!pairs.length) return '<div class="mut" style="padding:6px">Sin datos.</div>';
   return '<table class="ppl">'+pairs.map(function(p){return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td></tr>';}).join('')+'</table>';
 }
+var SEM_DIAS={alto:3,medio:7,bajo:15};
+function _hoyISO(){ return new Date().toISOString().slice(0,10); }
+function _addDias(baseISO,d){ var x=new Date((baseISO||_hoyISO())+'T00:00:00'); x.setDate(x.getDate()+(d||0)); return x.toISOString().slice(0,10); }
+function _diasEntre(aISO,bISO){ return Math.round((new Date(bISO+'T00:00:00')-new Date(aISO+'T00:00:00'))/86400000); }
+function sugerirPlazo(t){ var d=SEM_DIAS[String(t.riesgo||'').toLowerCase()]; return _addDias(tarDate(t),(d||7)); }
+function semTarjeta(t){
+  if((t.clase||'')==='seguro') return {txt:'Refuerzo',cls:'sem-none'};
+  if((t.estado||'')==='cerrada') return {txt:'Cerrada',cls:'sem-done'};
+  if(!t.fecha_limite) return {txt:'Por asignar plazo',cls:'sem-none'};
+  var dias=_diasEntre(_hoyISO(), String(t.fecha_limite).slice(0,10));
+  if(dias<0) return {txt:'Vencida ('+(-dias)+'d)',cls:'sem-bad'};
+  if(dias<=2) return {txt:'Por vencer ('+dias+'d)',cls:'sem-warn'};
+  return {txt:'En plazo ('+dias+'d)',cls:'sem-ok'};
+}
+function gestionarTarjeta(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  document.getElementById('detTit').textContent='Tarjeta '+(t.consecutivo||'')+' · seguimiento';
+  var cerrada=(t.estado||'')==='cerrada';
+  var plazo=(t.fecha_limite?String(t.fecha_limite).slice(0,10):sugerirPlazo(t));
+  var info='<div style="font-size:13px;line-height:1.6;margin-bottom:6px">'
+    +'<b>Observador:</b> '+esc(t.observador_nombre||'-')+'<br>'
+    +'<b>Riesgo:</b> '+esc(String(t.riesgo||'-').toUpperCase())+' &nbsp; <b>Categoria:</b> '+esc(t.categoria||'-')+'<br>'
+    +'<b>Observacion:</b> '+esc(t.descripcion||'-')
+    +(t.compromiso?('<br><b>Compromiso:</b> '+esc(t.compromiso)+(t.responsable?(' ('+esc(t.responsable)+')'):'')):'')
+    +'</div>';
+  var body;
+  if(cerrada){
+    body=info+'<span class="sem sem-done" style="margin:6px 0">Cerrada</span>'
+      +'<div style="font-size:13px;line-height:1.6;margin-top:8px"><b>Solucion:</b> '+esc(t.respuesta||'-')+'<br>'
+      +'<b>Cerro:</b> '+esc(t.cerrada_por||'-')+' · '+esc(String(t.cerrada_at||'').slice(0,16).replace('T',' '))+'</div>'
+      +'<div style="margin-top:12px"><button class="gbtn" onclick="reabrirTarjeta(\''+id+'\')">Reabrir</button></div>';
+  } else {
+    body=info+'<div class="gform">'
+      +'<label>Plazo de ejecucion (lo fija el HSE)</label>'
+      +'<input type="date" id="gPlazo" value="'+esc(plazo)+'">'
+      +'<div style="font-size:11px;color:#7a8590;margin-top:3px">Sugerido segun el riesgo — ajustalo al tiempo real de la solucion.</div>'
+      +'<label>Solucion / accion tomada (para cerrar)</label>'
+      +'<textarea id="gResp" rows="3" placeholder="Que se hizo para resolver de fondo...">'+esc(t.respuesta||'')+'</textarea>'
+      +'<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'
+      +'<button class="gbtn" onclick="guardarPlazo(\''+id+'\')">Guardar plazo</button>'
+      +'<button class="gbtn" style="background:rgba(37,194,110,.14);border-color:#25C26E;color:#4FD98B" onclick="cerrarTarjeta(\''+id+'\')">✓ Cerrar tarjeta</button>'
+      +'</div></div>';
+  }
+  document.getElementById('detBody').innerHTML=body;
+  document.getElementById('detalle').classList.remove('hide');
+}
+async function guardarPlazo(id){
+  var v=document.getElementById('gPlazo').value; if(!v){ alert('Poné una fecha de plazo.'); return; }
+  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{fecha_limite:v});
+    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t) t.fecha_limite=v; cerrarDet(); renderTar();
+  }catch(e){ alert('No se pudo guardar ('+e.message+').'); }
+}
+async function cerrarTarjeta(id){
+  var resp=(document.getElementById('gResp').value||'').trim();
+  if(!resp){ alert('Escribí la solución / acción tomada para poder cerrar.'); return; }
+  var plazo=document.getElementById('gPlazo').value||null;
+  if(!confirm('Vas a cerrar esta tarjeta con la solución registrada. ¿Confirmás?')) return;
+  try{ var ts=new Date().toISOString();
+    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'cerrada',respuesta:resp,cerrada_por:MYNAME,cerrada_at:ts,fecha_limite:plazo});
+    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='cerrada'; t.respuesta=resp; t.cerrada_por=MYNAME; t.cerrada_at=ts; t.fecha_limite=plazo; }
+    cerrarDet(); renderTar();
+  }catch(e){ alert('No se pudo cerrar ('+e.message+').'); }
+}
+async function reabrirTarjeta(id){
+  if(!confirm('¿Reabrir esta tarjeta?')) return;
+  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'abierta',cerrada_por:null,cerrada_at:null});
+    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='abierta'; t.cerrada_por=null; t.cerrada_at=null; } cerrarDet(); renderTar();
+  }catch(e){ alert('No se pudo reabrir ('+e.message+').'); }
+}
 function tarTableHTML(rows){
   if(!rows.length) return '<div class="detempty">'+(verElim?'No hay tarjetas eliminadas.':'Sin tarjetas con estos filtros.')+'</div>';
   if(verElim){
@@ -1071,13 +1149,15 @@ function tarTableHTML(rows){
           +'<td><button style="background:rgba(37,194,110,.12);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="restaurarTarjeta(\''+t.id+'\')">↩ Restaurar</button></td></tr>';
       }).join('')+'</tbody></table></div>';
   }
-  return '<div class="twrap"><table class="ttbl"><thead><tr><th>N°</th><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th><th></th></tr></thead><tbody>'
+  return '<div class="twrap"><table class="ttbl"><thead><tr><th>N°</th><th>Seguimiento</th><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th><th></th></tr></thead><tbody>'
     +rows.map(function(t){
       const cl=(t.clase||'')==='seguro'?'<span class="badge seg">seguro</span>':(t.clase||'')==='inseguro'?'<span class="badge ins">inseguro</span>':esc(t.clase||'—');
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
+      var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
+      var gBtn=((t.clase||'')==='inseguro'&&!t.eliminada)?'<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ':'';
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
-      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+esc(t.consecutivo||'-')+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
-        +'<td><button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
+      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+esc(t.consecutivo||'-')+'</td><td>'+semChip+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
+        +'<td style="white-space:nowrap">'+gBtn+'<button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 async function eliminarTarjeta(id){

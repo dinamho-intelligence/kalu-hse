@@ -12,7 +12,7 @@
   :root{--bg:#0A0C0F;--panel:#12161C;--panel2:#171C24;--line:#242B35;--nar:#F28C00;--cy:#00D4FF;--verde:#25C26E;--amber:#E8930C;--rojo:#FF3B30;--tx:#E8EDF2;--tx2:#95A0AD;--tx3:#5E6873;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{background:radial-gradient(1200px 700px at 15% -10%,#131A22 0%,var(--bg) 55%);color:var(--tx);font-family:Arial,"Segoe UI",system-ui,sans-serif;min-height:100vh;}
-  header{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:12px 22px;background:rgba(10,12,15,.95);border-bottom:1px solid rgba(242,140,0,.2);backdrop-filter:blur(10px);}
+  header{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:16px 22px;background:rgba(10,12,15,.95);border-bottom:1px solid rgba(242,140,0,.2);backdrop-filter:blur(10px);}
   .hex{width:34px;height:34px;flex-shrink:0;}
   .brand{display:flex;flex-direction:column;line-height:1.05;}
   .brand b{font-size:13px;font-weight:800;letter-spacing:1px;color:var(--tx);}
@@ -296,21 +296,27 @@ const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
 let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null, ATSDATA=null, verElimAts=false;
 function $(id){return document.getElementById(id);}
 /* ---- Branding por empresa (logo + color + nombre) ---- */
+var MYEMAIL='';
 function cargarBranding(emp){
   if(!emp) return;
-  sbGet('empresas?id=eq.'+emp+'&select=branding').then(function(r){
-    aplicarBranding((r&&r[0]&&r[0].branding)||{});
+  sbGet('empresas?id=eq.'+emp+'&select=razon_social,branding').then(function(r){
+    var row=(r&&r[0])||{};
+    var razon=row.razon_social||'';
+    aplicarBranding(razon, row.branding||{});
+    var w=$('who'); if(w && MYEMAIL) w.textContent=MYEMAIL+(razon?' · '+razon:'');
   }).catch(function(){});
 }
-function aplicarBranding(b){
-  if(!b||typeof b!=='object') return;
+function aplicarBranding(razon, b){
+  if(!b||typeof b!=='object') b={};
+  var nombre=(b.nombre||razon||'');
   if(b.color){ document.documentElement.style.setProperty('--nar', b.color); }
   var el=$('brandTop'); if(!el) return;
   if(b.logo_url){
-    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="max-height:34px;max-width:160px;object-fit:contain">'
-      +'<div class="brand"><b>'+esc(b.nombre||'')+'</b><span>por KALU · Dinamho</span></div>';
-  } else if(b.nombre){
-    var bb=el.querySelector('.brand b'); if(bb) bb.textContent=b.nombre;
+    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="max-height:52px;max-width:200px;object-fit:contain">'
+      +(nombre?'<div class="brand"><b>'+esc(nombre)+'</b></div>':'');
+  } else {
+    var bb=el.querySelector('.brand b'); if(bb) bb.textContent=nombre||'KALU';
+    var bs=el.querySelector('.brand span'); if(bs) bs.textContent='';
   }
 }
 async function login(){
@@ -345,7 +351,7 @@ async function login(){
       e.textContent='Acceso solo para HSE y supervisores.';
       TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return;
     }
-    $('who').textContent=email;
+    MYEMAIL=email; $('who').textContent=email;
     $('scLogin').classList.add('hide'); $('scDash').classList.remove('hide'); $('lo').classList.remove('hide');
     cargar();
   }catch(err){e.textContent='Error de conexión. Probá de nuevo.';b.disabled=false;b.textContent='Ingresar';}

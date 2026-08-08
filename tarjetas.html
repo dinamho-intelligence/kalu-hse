@@ -396,7 +396,7 @@ async function registrar(){
   reg.hash=hashStr(id+obs.cedula+reg.descripcion+clase+ts);
   const firmaBlob=dataURLtoBlob(firmaDataUrl);
   const fotoUrls=fotos.map(function(f){return f.dataUrl;});
-  const pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoUrls).output('blob');
+  let pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoUrls).output('blob');
   try{
     if(!navigator.onLine) throw new Error('offline');
     const paths=[];
@@ -404,6 +404,7 @@ async function registrar(){
     const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
     reg.foto_paths = paths.length?paths:null; reg.foto_path = paths.length?paths[0]:null; reg.firma_path=firmaPath;
     await sbRpc('registrar_tarjeta',{t:reg});
+    try{ var _cc=await sbRpc('consecutivo_tarjeta',{id:id}); if(_cc){ reg.consecutivo=_cc; pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoUrls).output('blob'); } }catch(_){}
     await guardarPdfTarjeta(reg, ts, pdfBlob);
     last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrls:fotoUrls, empresa:obs.empresa, pendiente:false};
     mostrarHecho(false);
@@ -446,7 +447,7 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(20,20,20);
   doc.text('Tarjeta de observación', 40, y); y+=20;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
-  doc.text('Actos y condiciones inseguras · '+r.id, 40, y); y+=16;
+  doc.text('Actos y condiciones inseguras · N° '+(r.consecutivo||'(pendiente)'), 40, y); y+=16;
   // Control documental por empresa, en una línea: formulario · versión · fecha
   if(BRAND.doc && (BRAND.doc.codigo||BRAND.doc.version||BRAND.doc.fecha)){
     var _ctl=[]; if(BRAND.doc.codigo)_ctl.push('Formulario '+BRAND.doc.codigo);

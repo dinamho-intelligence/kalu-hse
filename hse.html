@@ -1120,6 +1120,7 @@ function gestionarTarjeta(id){
   document.getElementById('detTit').textContent='Tarjeta '+(t.consecutivo||'')+' · seguimiento';
   var cerrada=(t.estado||'')==='cerrada';
   var plazo=(t.fecha_limite?String(t.fecha_limite).slice(0,10):sugerirPlazo(t));
+  var destBtn=t.destacada?'<button class="gbtn" onclick="quitarDestaque(\''+id+'\')">Quitar destaque 🏅</button>':'<button class="gbtn" onclick="destacarTarjeta(\''+id+'\')">🏅 Tarjeta de la semana</button>';
   var info='<div style="font-size:13px;line-height:1.6;margin-bottom:6px">'
     +'<b>Observador:</b> '+esc(t.observador_nombre||'-')+'<br>'
     +'<b>Riesgo:</b> '+esc(String(t.riesgo||'-').toUpperCase())+' &nbsp; <b>Categoria:</b> '+esc(t.categoria||'-')+'<br>'
@@ -1131,7 +1132,7 @@ function gestionarTarjeta(id){
     body=info+'<span class="sem sem-done" style="margin:6px 0">Cerrada</span>'
       +'<div style="font-size:13px;line-height:1.6;margin-top:8px"><b>Solucion:</b> '+esc(t.respuesta||'-')+'<br>'
       +'<b>Cerro:</b> '+esc(t.cerrada_por||'-')+' · '+esc(String(t.cerrada_at||'').slice(0,16).replace('T',' '))+'</div>'
-      +'<div style="margin-top:12px"><button class="gbtn" onclick="reabrirTarjeta(\''+id+'\')">Reabrir</button></div>';
+      +'<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap"><button class="gbtn" onclick="reabrirTarjeta(\''+id+'\')">Reabrir</button>'+destBtn+'</div>';
   } else {
     body=info+'<div class="gform">'
       +'<label>Plazo de ejecucion (lo fija el HSE)</label>'
@@ -1142,6 +1143,7 @@ function gestionarTarjeta(id){
       +'<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'
       +'<button class="gbtn" onclick="guardarPlazo(\''+id+'\')">Guardar plazo</button>'
       +'<button class="gbtn" style="background:rgba(37,194,110,.14);border-color:#25C26E;color:#4FD98B" onclick="cerrarTarjeta(\''+id+'\')">✓ Cerrar tarjeta</button>'
+      +destBtn
       +'</div></div>';
   }
   document.getElementById('detBody').innerHTML=body;
@@ -1169,6 +1171,25 @@ async function reabrirTarjeta(id){
   try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'abierta',cerrada_por:null,cerrada_at:null});
     var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='abierta'; t.cerrada_por=null; t.cerrada_at=null; } cerrarDet(); renderTar();
   }catch(e){ alert('No se pudo reabrir ('+e.message+').'); }
+}
+function _lunesISO(){ var h=new Date(); var d=(h.getDay()+6)%7; h.setDate(h.getDate()-d); return h.toISOString().slice(0,10); }
+async function destacarTarjeta(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var motivo=prompt('¿Por qué esta es la tarjeta de la semana? (lo verá el equipo en su tablero)');
+  if(motivo===null) return; motivo=String(motivo).trim(); if(!motivo){ alert('Escribí el motivo.'); return; }
+  var wk=_lunesISO();
+  try{
+    await sbPatch('tarjetas?empresa_id=eq.'+encodeURIComponent(t.empresa_id)+'&destacada=eq.true',{destacada:false});
+    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{destacada:true,destacada_motivo:motivo,destacada_semana:wk,destacada_por:MYNAME});
+    (TAR||[]).forEach(function(x){ if(x.empresa_id===t.empresa_id) x.destacada=false; });
+    t.destacada=true; t.destacada_motivo=motivo; t.destacada_semana=wk; t.destacada_por=MYNAME;
+    cerrarDet(); renderTar(); alert('Marcada como tarjeta de la semana 🏅');
+  }catch(e){ alert('No se pudo destacar ('+e.message+').'); }
+}
+async function quitarDestaque(id){
+  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{destacada:false});
+    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t) t.destacada=false; cerrarDet(); renderTar();
+  }catch(e){ alert('No se pudo quitar ('+e.message+').'); }
 }
 function tarTableHTML(rows){
   if(!rows.length) return '<div class="detempty">'+(verElim?'No hay tarjetas eliminadas.':'Sin tarjetas con estos filtros.')+'</div>';

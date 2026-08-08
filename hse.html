@@ -214,10 +214,12 @@
       <div class="loading" id="tarLoading">Cargando tarjetas…</div>
       <div class="hide" id="tarContent">
         <div class="kpis" id="tarKpis"></div>
+        <div id="tarSeg" style="margin:2px 0 12px"></div>
         <div class="tarbar">
           <select id="fClase" onchange="renderTar()"><option value="">Todas (seguras + inseguras)</option><option value="seguro">Solo seguras</option><option value="inseguro">Solo inseguras</option></select>
           <select id="fCat" onchange="renderTar()"><option value="">Toda categoría</option></select>
           <select id="fLugar" onchange="renderTar()"><option value="">Todo lugar</option></select>
+          <select id="fEstado" onchange="renderTar()"><option value="">Todos los estados</option><option value="abiertas">Sin cerrar</option><option value="sinplazo">Por asignar plazo</option><option value="porvencer">Por vencer</option><option value="vencidas">Vencidas</option><option value="cerradas">Cerradas</option></select>
           <input id="fPers" oninput="renderTar()" placeholder="Buscar persona…">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="fVerElim" onchange="verElim=this.checked;renderTar()" style="width:auto"> Ver eliminadas</label>
           <span style="flex:1"></span>
@@ -1034,13 +1036,22 @@ function tarDate(t){ return String(t.fecha||t.creado||'').slice(0,10); }
 function tarFiltered(){
   if(!TAR) return [];
   const fc=document.getElementById('fClase').value, fk=document.getElementById('fCat').value,
-        fl=document.getElementById('fLugar').value, fp=(document.getElementById('fPers').value||'').toLowerCase().trim();
+        fl=document.getElementById('fLugar').value, fp=(document.getElementById('fPers').value||'').toLowerCase().trim(),
+        fe=((document.getElementById('fEstado')||{}).value||'');
   return TAR.filter(function(t){
     if(verElim){ if(!t.eliminada) return false; } else { if(t.eliminada) return false; }
     if(fc && (t.clase||'')!==fc) return false;
     if(fk && (t.categoria||'')!==fk) return false;
     if(fl && (t.lugar||'')!==fl) return false;
     if(fp){ const hay=((t.observador_nombre||'')+' '+(t.observado_nombre||'')).toLowerCase(); if(hay.indexOf(fp)===-1) return false; }
+    if(fe){
+      var s=semTarjeta(t);
+      if(fe==='cerradas' && (t.estado||'')!=='cerrada') return false;
+      if(fe==='abiertas' && ((t.clase||'')!=='inseguro' || (t.estado||'')==='cerrada')) return false;
+      if(fe==='vencidas' && s.cls!=='sem-bad') return false;
+      if(fe==='porvencer' && s.cls!=='sem-warn') return false;
+      if(fe==='sinplazo' && ((t.clase||'')!=='inseguro' || (t.estado||'')==='cerrada' || t.fecha_limite)) return false;
+    }
     return true;
   });
 }
@@ -1061,6 +1072,15 @@ function renderTar(){
     ['cat',cats,'Categorías','cy'],
     ['lug',lugs,'Lugares','']
   ].map(function(k){return '<div class="kpi '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[2]+'</div></div>';}).join('');
+  var sm=segMetrics();
+  document.getElementById('tarSeg').innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +'<span class="sem sem-none">Inseguras <b>'+sm.total+'</b></span>'
+    +'<span class="sem sem-warn">Sin cerrar <b>'+sm.abiertas+'</b></span>'
+    +'<span class="sem sem-bad">Vencidas <b>'+sm.venc+'</b></span>'
+    +'<span class="sem sem-done">Cerradas <b>'+sm.cerr+'</b></span>'
+    +'<span class="sem sem-ok">% de cierre <b>'+sm.pct+'%</b></span>'
+    +(sm.prom!=null?'<span class="sem sem-none">Tiempo prom. cierre <b>'+sm.prom+'d</b></span>':'')
+    +'</div>';
   document.getElementById('tarObsdor').innerHTML=tarPplTable(tarTallyBy(rows,'observador_nombre'));
   document.getElementById('tarObsdo').innerHTML=tarPplTable(tarTallyBy(rows,'observado_nombre'));
   document.getElementById('tarCount').textContent='('+rows.length+')';
@@ -1083,6 +1103,17 @@ function semTarjeta(t){
   if(dias<0) return {txt:'Vencida ('+(-dias)+'d)',cls:'sem-bad'};
   if(dias<=2) return {txt:'Por vencer ('+dias+'d)',cls:'sem-warn'};
   return {txt:'En plazo ('+dias+'d)',cls:'sem-ok'};
+}
+function segMetrics(){
+  var ins=(TAR||[]).filter(function(t){return !t.eliminada && (t.clase||'')==='inseguro';});
+  var total=ins.length;
+  var cerr=ins.filter(function(t){return (t.estado||'')==='cerrada';});
+  var venc=ins.filter(function(t){return semTarjeta(t).cls==='sem-bad';}).length;
+  var abiertas=ins.filter(function(t){return (t.estado||'')!=='cerrada';}).length;
+  var pct=total?Math.round(cerr.length/total*100):0;
+  var difs=cerr.map(function(t){ var c=String(t.creado||t.fecha||'').slice(0,10); var f=String(t.cerrada_at||'').slice(0,10); if(!c||!f) return null; var d=_diasEntre(c,f); return (d>=0?d:null); }).filter(function(x){return x!=null;});
+  var prom=difs.length?Math.round(difs.reduce(function(a,b){return a+b;},0)/difs.length):null;
+  return {total:total,abiertas:abiertas,venc:venc,cerr:cerr.length,pct:pct,prom:prom};
 }
 function gestionarTarjeta(id){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;

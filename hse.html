@@ -313,7 +313,7 @@ function aplicarBranding(razon, b){
   if(b.color){ document.documentElement.style.setProperty('--nar', b.color); }
   var el=$('brandTop'); if(!el) return;
   if(b.logo_url){
-    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="height:54px;width:auto;max-width:240px;object-fit:contain">'
+    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="height:56px;width:auto;max-width:360px;object-fit:contain">'
       +(nombre?'<div class="brand"><b>'+esc(nombre)+'</b></div>':'');
   } else {
     var bb=el.querySelector('.brand b'); if(bb) bb.textContent=nombre||'KALU';

@@ -1071,12 +1071,12 @@ function tarTableHTML(rows){
           +'<td><button style="background:rgba(37,194,110,.12);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="restaurarTarjeta(\''+t.id+'\')">↩ Restaurar</button></td></tr>';
       }).join('')+'</tbody></table></div>';
   }
-  return '<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th><th></th></tr></thead><tbody>'
+  return '<div class="twrap"><table class="ttbl"><thead><tr><th>N°</th><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th><th>PDF</th><th></th></tr></thead><tbody>'
     +rows.map(function(t){
       const cl=(t.clase||'')==='seguro'?'<span class="badge seg">seguro</span>':(t.clase||'')==='inseguro'?'<span class="badge ins">inseguro</span>':esc(t.clase||'—');
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
-      return '<tr><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
+      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+esc(t.consecutivo||'-')+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
         +'<td><button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }

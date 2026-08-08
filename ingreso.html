@@ -91,7 +91,7 @@
   <!-- PORTAL -->
   <div class="portal" id="portalView">
     <div class="phead">
-      <a class="logo" href="index.html" style="justify-content:center">
+      <a class="logo" href="index.html" style="justify-content:center" id="p_logo">
         <svg viewBox="0 0 40 40" fill="none" style="width:34px;height:34px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
         <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
       </a>
@@ -112,7 +112,7 @@ function esc(s){return (s==null?"":String(s)).replace(/[<>&"]/g,function(c){retu
 /* CASA DE LOS USUARIOS = plataforma unificada. La puerta única pregunta acá. */
 const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[], SB_EMPRESA_NOMBRE="";
+let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[], SB_EMPRESA_NOMBRE="", SB_BRANDING={};
 /* Catálogo del portal. Cada app declara a qué MÓDULO pertenece (mod). El portal
    le muestra a cada empresa SOLO los módulos que tiene contratados en empresas.modulos. */
 const PORTAL=[
@@ -152,13 +152,14 @@ async function cargarPerfilYPortal(){
   if(p.estado && p.estado!=="activo") throw new Error("Tu cuenta está "+p.estado+". Contactá a tu administrador.");
   SB_EMPRESA=p.empresa_id; SB_NOMBRE=p.nombre||""; SB_ROL=p.rol||""; SB_SUPER=!!p.es_super;
   /* módulos contratados por su empresa → el portal muestra solo esos */
-  SB_MODULOS=[]; SB_EMPRESA_NOMBRE="";
+  SB_MODULOS=[]; SB_EMPRESA_NOMBRE=""; SB_BRANDING={};
   try{
-    const emp=await sbFetch("/rest/v1/empresas?id=eq."+SB_EMPRESA+"&select=razon_social,modulos,activa");
+    const emp=await sbFetch("/rest/v1/empresas?id=eq."+SB_EMPRESA+"&select=razon_social,modulos,activa,branding");
     if(emp&&emp.length){
       if(emp[0].activa===false) throw new Error("La empresa está inactiva. Contactá a Dinamho.");
       SB_MODULOS=Array.isArray(emp[0].modulos)?emp[0].modulos:[];
       SB_EMPRESA_NOMBRE=emp[0].razon_social||"";
+      SB_BRANDING=(emp[0].branding&&typeof emp[0].branding==='object')?emp[0].branding:{};
     }
   }catch(e){ if(String(e.message).indexOf("inactiva")>=0) throw e; /* si RLS bloquea, queda sin módulos y avisamos abajo */ }
   guardarSesion(); mostrarPortal();
@@ -171,11 +172,27 @@ async function doLogin(){
   catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
   finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
 }
+/* Branding por empresa: pinta el color y cambia el logo del portal.
+   La pantalla de login queda con KALU (aún no sabemos la empresa). */
+function aplicarBrandingPortal(){
+  var b=SB_BRANDING||{};
+  if(b.color && /^#[0-9a-fA-F]{6}$/.test(b.color)){
+    var r=document.documentElement.style;
+    r.setProperty('--orange', b.color);
+    r.setProperty('--orange2', b.color);
+    r.setProperty('--glow-o', b.color+'59');   /* mismo color, ~35% alpha */
+  }
+  var el=$("#p_logo"); if(!el) return;
+  if(b.logo_url){
+    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="height:46px;width:auto;max-width:300px;object-fit:contain">';
+  }
+}
 function mostrarPortal(){
   $("#loginView").style.display="none";
   $("#portalView").style.display="block";
   $("#p_hola").textContent = "Hola" + (SB_NOMBRE ? ", "+SB_NOMBRE.split(" ")[0] : "");
   $("#p_who").innerHTML = "Ingresaste como <b>"+esc(SB_EMAIL||"")+"</b>"+(SB_EMPRESA_NOMBRE?' · <b>'+esc(SB_EMPRESA_NOMBRE)+'</b>':'');
+  aplicarBrandingPortal();
   /* solo los módulos contratados por la empresa */
   const contratados = PORTAL.filter(function(c){ return SB_MODULOS.indexOf(c.mod)>=0; });
   let cards=contratados.map(function(c){

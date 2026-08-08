@@ -215,6 +215,7 @@
       <div class="hide" id="tarContent">
         <div class="kpis" id="tarKpis"></div>
         <div id="tarSeg" style="margin:2px 0 12px"></div>
+        <div id="tarDestacada"></div>
         <div class="tarbar">
           <select id="fClase" onchange="renderTar()"><option value="">Todas (seguras + inseguras)</option><option value="seguro">Solo seguras</option><option value="inseguro">Solo inseguras</option></select>
           <select id="fCat" onchange="renderTar()"><option value="">Toda categoría</option></select>
@@ -1081,6 +1082,8 @@ function renderTar(){
     +'<span class="sem sem-ok">% de cierre <b>'+sm.pct+'%</b></span>'
     +(sm.prom!=null?'<span class="sem sem-none">Tiempo prom. cierre <b>'+sm.prom+'d</b></span>':'')
     +'</div>';
+  var _dst=(TAR||[]).filter(function(t){return !t.eliminada && t.destacada;})[0];
+  document.getElementById('tarDestacada').innerHTML=_dst?('<div style="border:1px solid var(--nar);border-radius:12px;padding:10px 14px;margin:0 0 12px;background:rgba(242,140,0,.07)"><b style="color:var(--nar)">🏅 Tarjeta de la semana</b> · '+esc(_dst.consecutivo||'')+' · '+esc(_dst.observador_nombre||'')+(_dst.destacada_motivo?(' — <span style="color:var(--tx2)">'+esc(_dst.destacada_motivo)+'</span>'):'')+'</div>'):'';
   document.getElementById('tarObsdor').innerHTML=tarPplTable(tarTallyBy(rows,'observador_nombre'));
   document.getElementById('tarObsdo').innerHTML=tarPplTable(tarTallyBy(rows,'observado_nombre'));
   document.getElementById('tarCount').textContent='('+rows.length+')';
@@ -1208,7 +1211,7 @@ function tarTableHTML(rows){
       var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
       var gBtn=((t.clase||'')==='inseguro'&&!t.eliminada)?'<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ':'';
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
-      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+esc(t.consecutivo||'-')+'</td><td>'+semChip+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
+      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td><td>'+pdfCell+'</td>'
         +'<td style="white-space:nowrap">'+gBtn+'<button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }

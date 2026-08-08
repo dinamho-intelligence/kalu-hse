@@ -329,7 +329,7 @@ async function entrarDash(){
   try{ await prepararBranding(obs.empresa_id); }catch(e){}
   var br=$('btnReportar'); if(br && BRAND && BRAND.color) br.style.background=BRAND.color;
   try{ var s=await sbRpc('stats_operador',{ced:obs.cedula, emp:obs.empresa_id}); renderDash(s||{}); }
-  catch(e){ renderDash(null); }
+  catch(e){ var d=$('dashBody'); if(d) d.innerHTML='<div style="text-align:center;padding:16px;color:var(--tx2)">No pudimos cargar tus números ahora, pero podés reportar igual. 👍<br><span style="font-size:11px;color:#FF8A82;word-break:break-all">'+esc(String((e&&e.message)||e))+'</span></div>'; }
 }
 function renderDash(s){
   var el=$('dashBody'); if(!el) return;

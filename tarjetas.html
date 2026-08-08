@@ -358,6 +358,14 @@ function renderDash(s){
       +t5.map(function(r){ var yo=(r.nombre===nombre); return '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;'+(yo?('font-weight:800;color:'+accent):'color:var(--tx)')+'"><span>'+r.pos+'. '+esc(r.nombre||'-')+(yo?' (vos)':'')+'</span><span>'+r.n+'</span></div>'; }).join('')
       +'</div>';
   }
+  if(s.destacada && s.destacada.motivo){
+    var d=s.destacada;
+    h+='<div style="border:1px solid '+accent+';border-radius:12px;padding:12px 14px;margin-bottom:12px;background:rgba(242,140,0,.06)">'
+      +'<div style="font-size:12px;font-weight:800;color:'+accent+';margin-bottom:4px">🏅 Tarjeta de la semana</div>'
+      +'<div style="font-size:13px;color:var(--tx)">'+esc(d.nombre||'')+(d.categoria?(' · '+esc(d.categoria)):'')+'</div>'
+      +'<div style="font-size:12px;color:var(--tx2);margin-top:4px">Elegida por KALU: '+esc(d.motivo)+'</div>'
+      +'</div>';
+  }
   var cats=(s.mis_categorias||[]);
   if(cats.length){
     h+='<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tus categorías</div>'

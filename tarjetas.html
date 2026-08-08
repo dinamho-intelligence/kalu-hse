@@ -218,6 +218,10 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const H={apikey:SB_ANON, Authorization:'Bearer '+SB_ANON};
 const CATS=['Uso de EPP','Posición de personas','Herramientas y equipos','Procedimientos','Orden y aseo','Reacción de las personas','Otro'];
 let obs=null, cands=[], clase='inseguro';
+var BRAND={};
+function hexToRgb(h){ if(!h)return null; h=String(h).replace('#',''); if(h.length===3)h=h.split('').map(function(c){return c+c;}).join(''); if(h.length!==6)return null; var n=parseInt(h,16); if(isNaN(n))return null; return [(n>>16)&255,(n>>8)&255,n&255]; }
+function urlADataURL(url){ return new Promise(function(res){ var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ try{ var c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight; c.getContext('2d').drawImage(img,0,0); res({data:c.toDataURL('image/png'),w:img.naturalWidth,h:img.naturalHeight}); }catch(e){ res(null); } }; img.onerror=function(){ res(null); }; img.src=url; }); }
+async function prepararBranding(emp){ BRAND={}; if(!emp) return; try{ var b=await sbRpc('branding_empresa',{emp:emp}); if(!b||typeof b!=='object') return; BRAND.color=b.color; BRAND.nombre=b.nombre; if(b.logo_url){ BRAND.logo=await urlADataURL(b.logo_url); } }catch(e){} }
 const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
 let fotos=[], last=null;
 function $(id){return document.getElementById(id);}
@@ -314,6 +318,7 @@ function pintarEmp(){
 }
 function pickEmp(i,el){ [...$('empChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); obs=norm(cands[i]); err('idErr',''); }
 function entrarForm(){
+  prepararBranding(obs.empresa_id);
   $('obsBox').innerHTML='<div class="who">'+obs.nombre+'</div><small>C.C. '+obs.cedula+' · '+obs.empresa+'</small>'
     +'<span class="src">Identidad tomada del <b>registro de la empresa</b> · no editable.</span>';
   $('catChips').innerHTML=CATS.map(c=>'<div class="chip" data-v="'+c+'" onclick="pickCat(this)">'+c+'</div>').join('');
@@ -435,11 +440,13 @@ function mostrarHecho(pendiente){
 function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
   const W=doc.internal.pageSize.getWidth(); let y=54;
-  doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
+  var _bc=hexToRgb(BRAND.color)||[242,140,0];
+  doc.setFillColor(_bc[0],_bc[1],_bc[2]); doc.rect(0,0,W,8,'F');
+  if(BRAND.logo&&BRAND.logo.data){ try{ var _lh=30, _lw=Math.min(160,_lh*(BRAND.logo.w/BRAND.logo.h)); doc.addImage(BRAND.logo.data,'PNG',W-40-_lw,28,_lw,_lh); }catch(e){} }
   doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(20,20,20);
-  doc.text('KALU · Tarjeta de observación', 40, y); y+=20;
+  doc.text((BRAND.nombre?BRAND.nombre:'KALU')+' · Tarjeta de observación', 40, y); y+=20;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
-  doc.text('Actos y condiciones inseguras · '+r.id, 40, y); y+=22;
+  doc.text('Actos y condiciones inseguras · '+r.id+'  ·  por KALU · Dinamho', 40, y); y+=22;
   doc.setDrawColor(220,220,220); doc.line(40,y,W-40,y); y+=20;
   const tag=r.clase==='seguro'?'ACTO SEGURO (refuerzo)':('INSEGURO · '+String(r.tipo||'').toUpperCase());
   doc.setFont('helvetica','bold'); doc.setFontSize(11);

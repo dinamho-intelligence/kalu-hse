@@ -323,6 +323,7 @@ function pintarEmp(){
   err('idErr','Ese documento está en más de una empresa. Elegí cuál.');
 }
 function pickEmp(i,el){ [...$('empChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); obs=norm(cands[i]); err('idErr',''); }
+function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function entrarDash(){
   show('scDash');
   var el=$('dashBody'); if(el) el.innerHTML='<div style="text-align:center;padding:24px;color:var(--tx2)">Cargando tu aporte…</div>';

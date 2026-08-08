@@ -442,7 +442,7 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   const W=doc.internal.pageSize.getWidth(); let y=54;
   var _bc=hexToRgb(BRAND.color)||[242,140,0];
   doc.setFillColor(_bc[0],_bc[1],_bc[2]); doc.rect(0,0,W,8,'F');
-  if(BRAND.logo&&BRAND.logo.data){ try{ var _mw=240,_mh=84,_aw=BRAND.logo.w||1,_ah=BRAND.logo.h||1,_s=Math.min(_mw/_aw,_mh/_ah),_lw=_aw*_s,_lh=_ah*_s; doc.addImage(BRAND.logo.data,'PNG',W-40-_lw,16,_lw,_lh); }catch(e){} }
+  if(BRAND.logo&&BRAND.logo.data){ try{ var _mw=210,_mh=68,_aw=BRAND.logo.w||1,_ah=BRAND.logo.h||1,_s=Math.min(_mw/_aw,_mh/_ah),_lw=_aw*_s,_lh=_ah*_s; doc.addImage(BRAND.logo.data,'PNG',W-40-_lw,14,_lw,_lh); }catch(e){} }
   doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(20,20,20);
   doc.text((BRAND.nombre||empresa||'KALU')+' · Tarjeta de observación', 40, y); y+=20;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);

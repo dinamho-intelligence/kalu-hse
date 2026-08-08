@@ -147,7 +147,7 @@
 </head>
 <body>
 <header>
-  <a class="brandlink" href="/app.html" title="Volver al inicio">
+  <a class="brandlink" id="brandTop" href="/app.html" title="Volver al inicio">
     <svg class="hex" viewBox="0 0 40 40" fill="none">
       <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.5"/>
       <text x="20" y="25" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Arial">DI</text>
@@ -295,6 +295,24 @@ const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
 let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null, ATSDATA=null, verElimAts=false;
 function $(id){return document.getElementById(id);}
+/* ---- Branding por empresa (logo + color + nombre) ---- */
+function cargarBranding(emp){
+  if(!emp) return;
+  sbGet('empresas?id=eq.'+emp+'&select=branding').then(function(r){
+    aplicarBranding((r&&r[0]&&r[0].branding)||{});
+  }).catch(function(){});
+}
+function aplicarBranding(b){
+  if(!b||typeof b!=='object') return;
+  if(b.color){ document.documentElement.style.setProperty('--nar', b.color); }
+  var el=$('brandTop'); if(!el) return;
+  if(b.logo_url){
+    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="max-height:34px;max-width:160px;object-fit:contain">'
+      +'<div class="brand"><b>'+esc(b.nombre||'')+'</b><span>por KALU · Dinamho</span></div>';
+  } else if(b.nombre){
+    var bb=el.querySelector('.brand b'); if(bb) bb.textContent=b.nombre;
+  }
+}
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value;
   const e=$('loginErr'); e.textContent='';
@@ -315,6 +333,7 @@ async function login(){
       const est=p0.estado||'';
       MYEMP=p0.empresa_id||null;
       MYNAME=(p0.nombre||email);
+      cargarBranding(MYEMP);
       rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true);
       estadoBloqueado=(est && est!=='activo'); // baja / pendiente / rechazado
     }catch(_){ rolOk=false; }

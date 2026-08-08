@@ -119,6 +119,12 @@
     </div>
     <button class="btn" id="btnId" onclick="identificar()">Continuar ▸</button>
   </div>
+  <div class="card hide" id="scDash">
+    <h2><span class="dot">▸</span> Tu aporte</h2>
+    <div id="dashBody"><div style="text-align:center;padding:24px;color:var(--tx2)">Cargando tu aporte…</div></div>
+    <button class="btn" id="btnReportar" onclick="entrarForm()">Reportar nueva tarjeta ▸</button>
+    <button onclick="location.reload()" style="width:100%;margin-top:10px;background:none;border:1px solid var(--line);border-radius:10px;color:var(--tx2);padding:10px;font-size:13px;cursor:pointer">Salir</button>
+  </div>
   <div class="card hide" id="scForm">
     <h2><span class="dot">▸</span> ¿Qué observaste?</h2>
     <div class="idlock" id="obsBox"></div>
@@ -225,7 +231,7 @@ async function prepararBranding(emp){ BRAND={}; if(!emp) return; try{ var b=awai
 const pickVal={tipo:'',riesgo:'',detuvo:'',categoria:''};
 let fotos=[], last=null;
 function $(id){return document.getElementById(id);}
-function show(id){['scId','scForm','scFirma','scDone'].forEach(s=>$(s).classList.toggle('hide',s!==id)); window.scrollTo(0,0);}
+function show(id){['scId','scDash','scForm','scFirma','scDone'].forEach(s=>$(s).classList.toggle('hide',s!==id)); window.scrollTo(0,0);}
 function err(box,m){const e=$(box); if(!m){e.classList.remove('err'); e.textContent=''; return;} e.textContent=m; e.classList.add('err');}
 async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); if(!r.ok) throw new Error('GET '+r.status); return r.json();}
 /* RPC seguro: el anónimo no toca tablas directo, llama funciones controladas. */
@@ -306,7 +312,7 @@ async function identificar(){
       obs=norm(cands[0]);
     }
     if(obs && obs.vigente===false){ err('idErr','Tu registro fue dado de baja por tu empresa. No podés registrar tarjetas. Hablá con tu HSE.'); return; }
-    entrarForm();
+    entrarDash();
   }catch(e){ err('idErr','No se pudo continuar. Intentá de nuevo.'); }
   finally{ $('btnId').disabled=false; $('btnId').textContent='Continuar ▸'; }
 }
@@ -317,6 +323,48 @@ function pintarEmp(){
   err('idErr','Ese documento está en más de una empresa. Elegí cuál.');
 }
 function pickEmp(i,el){ [...$('empChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); obs=norm(cands[i]); err('idErr',''); }
+async function entrarDash(){
+  prepararBranding(obs.empresa_id);
+  show('scDash');
+  var el=$('dashBody'); if(el) el.innerHTML='<div style="text-align:center;padding:24px;color:var(--tx2)">Cargando tu aporte…</div>';
+  var br=$('btnReportar'); if(br && BRAND && BRAND.color) br.style.background=BRAND.color;
+  try{ var s=await sbRpc('stats_operador',{ced:obs.cedula, emp:obs.empresa_id}); renderDash(s||{}); }
+  catch(e){ renderDash(null); }
+}
+function renderDash(s){
+  var el=$('dashBody'); if(!el) return;
+  var accent=(BRAND&&BRAND.color)||'#F28C00';
+  var nombre=(obs&&obs.nombre)||(s&&s.nombre)||'';
+  var pn=(nombre||'').split(' ')[0];
+  if(!s){ el.innerHTML='<div style="text-align:center;padding:16px;color:var(--tx2)">No pudimos cargar tus números ahora, pero podés reportar igual. 👍</div>'; return; }
+  var pos=s.mi_posicion, t5=(s.top5||[]);
+  var h='';
+  h+='<div style="text-align:center;font-size:15px;color:var(--tx2);margin-bottom:12px">¡Hola '+esc(pn)+'! Gracias por cuidar a tu equipo 👷</div>';
+  h+='<div style="border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center;margin-bottom:12px;background:var(--panel2)">'
+    +'<div style="font-size:42px;font-weight:800;line-height:1;color:'+accent+'">'+(s.empresa_mes||0)+'</div>'
+    +'<div style="font-size:13px;color:var(--tx2);margin-top:2px">tarjetas de tu empresa este mes</div>'
+    +'<div style="font-size:14px;margin-top:8px;color:var(--tx)">Vos sumaste <b>'+(s.mis_mes||0)+'</b> este mes · <b>'+(s.mis_total||0)+'</b> en total</div>'
+    +'</div>';
+  if(pos){
+    var medal=(pos<=5)?' 🏅':'';
+    h+='<div style="text-align:center;font-size:15px;margin-bottom:12px;color:var(--tx)">Estás en el puesto <b style="color:'+accent+';font-size:22px">#'+pos+'</b> de '+(s.total_reportadores||0)+' reportadores'+medal+'</div>';
+  } else {
+    h+='<div style="text-align:center;font-size:15px;margin-bottom:12px;color:var(--tx)">Todavía no reportaste — <b>¡sé el primero hoy!</b></div>';
+  }
+  if(t5.length){
+    h+='<div style="border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:12px">'
+      +'<div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Top 5 · quiénes más reportan</div>'
+      +t5.map(function(r){ var yo=(r.nombre===nombre); return '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;'+(yo?('font-weight:800;color:'+accent):'color:var(--tx)')+'"><span>'+r.pos+'. '+esc(r.nombre||'-')+(yo?' (vos)':'')+'</span><span>'+r.n+'</span></div>'; }).join('')
+      +'</div>';
+  }
+  var cats=(s.mis_categorias||[]);
+  if(cats.length){
+    h+='<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tus categorías</div>'
+      +cats.map(function(c){ return '<span style="display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:4px 10px;font-size:12px;color:var(--tx2);margin:2px">'+esc(c.categoria||'-')+' · '+c.n+'</span>'; }).join(' ')
+      +'</div>';
+  }
+  el.innerHTML=h;
+}
 function entrarForm(){
   prepararBranding(obs.empresa_id);
   $('obsBox').innerHTML='<div class="who">'+obs.nombre+'</div><small>C.C. '+obs.cedula+' · '+obs.empresa+'</small>'

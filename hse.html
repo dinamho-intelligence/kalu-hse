@@ -190,6 +190,7 @@
       <button class="tab" id="tabUsers" onclick="verVista('usuarios')">👤 Usuarios</button>
       <button class="tab" id="tabDocs" onclick="verVista('docs')">📎 Documentos</button>
       <button class="tab" id="tabAudit" onclick="verVista('audit')">🕵 Auditoría</button>
+      <button class="tab gestor-only" id="tabNotif" onclick="verVista('notif')">✉ Notificaciones</button>
     </div>
     <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
@@ -296,6 +297,14 @@
         </div>
         <div class="loading" id="auditLoading">Cargando auditoría…</div>
         <div id="auditContent"></div>
+      </div>
+    </div>
+    <div class="hide" id="viewNotif">
+      <div class="card">
+        <h2><span>▸</span> Notificaciones por correo · destinatarios de tu empresa</h2>
+        <div class="umsg">Definí a qué correos llega cada aviso. Podés poner <b>uno o varios</b> por módulo (separados por coma o uno por línea). Estos correos son solo de tu empresa. Si dejás un módulo vacío, ese aviso usa por defecto a los HSE/supervisores/admin activos.</div>
+        <div class="loading" id="notifLoading">Cargando configuración…</div>
+        <div id="notifContent"></div>
       </div>
     </div>
   </div>
@@ -523,7 +532,7 @@ function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); 
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 let EXP=null, USERS=null, ROSTER=null, DOCS=null, verElimExp=false;
 async function aplicarModoOperador(){
-  ['tabExp','tabAts','tabChat','tabUsers','tabDocs','tabAudit'].forEach(function(id){ var el=$(id); if(el) el.style.display='none'; });
+  ['tabExp','tabAts','tabChat','tabUsers','tabDocs','tabAudit','tabNotif'].forEach(function(id){ var el=$(id); if(el) el.style.display='none'; });
   document.body.classList.add('op');
   verVista('tar');
   try{ var s=await sbRpc('stats_operador',{ced:MYCED, emp:MYEMP}); renderOpScore(s||{}); }catch(e){}
@@ -549,6 +558,8 @@ function verVista(v){
   document.getElementById('tabUsers').classList.toggle('on',v==='usuarios');
   document.getElementById('tabDocs').classList.toggle('on',v==='docs');
   document.getElementById('tabAudit').classList.toggle('on',v==='audit');
+  document.getElementById('tabNotif').classList.toggle('on',v==='notif');
+  document.getElementById('viewNotif').classList.toggle('hide',v!=='notif');
   document.getElementById('viewTablero').classList.toggle('hide',v!=='tablero');
   document.getElementById('viewExp').classList.toggle('hide',v!=='exp');
   document.getElementById('viewTar').classList.toggle('hide',v!=='tar');
@@ -564,6 +575,55 @@ function verVista(v){
   if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
   if(v==='docs' && !DOCS) loadDocs();
   if(v==='audit' && !AUDIT) loadAudit();
+  if(v==='notif' && !NOTIF) loadNotif();
+}
+// ===== NOTIFICACIONES (destinatarios de correo por módulo) =====
+var NOTIF=null;
+var NOTIF_MODS=[
+  {k:'tarjetas_diario',       t:'📋 Tarjetas · cierre diario',       d:'Resumen diario con las tarjetas del día.'},
+  {k:'ats_aprobacion',        t:'🦺 ATS · esperando aprobación',     d:'Aviso cuando un ATS queda esperando la aprobación del HSE (después del supervisor).'},
+  {k:'investigacion_iniciada',t:'🔎 Investigación · iniciada',       d:'Aviso cuando se inicia una investigación.'}
+];
+async function loadNotif(){
+  $('notifLoading').style.display='';
+  $('notifContent').innerHTML='';
+  var map={};
+  try{
+    var rows=await sbGet('notif_config?select=modulo,emails,activo&empresa_id=eq.'+MYEMP);
+    (rows||[]).forEach(function(r){ map[r.modulo]={emails:r.emails||'',activo:r.activo!==false}; });
+  }catch(e){}
+  NOTIF=map;
+  var h='';
+  NOTIF_MODS.forEach(function(m){
+    var cur=map[m.k]||{emails:'',activo:true};
+    h+='<div class="card" style="margin-bottom:12px">'
+      +'<h2 style="font-size:15px"><span>▸</span> '+m.t+'</h2>'
+      +'<div class="umsg" style="margin-bottom:8px">'+m.d+'</div>'
+      +'<textarea id="notif_'+m.k+'" rows="2" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--bd,#333);border-radius:8px;background:var(--bg2,#111);color:inherit;font:inherit" '
+      +'placeholder="correo1@empresa.com, correo2@empresa.com">'+esc(cur.emails)+'</textarea>'
+      +'<div style="display:flex;align-items:center;gap:12px;margin-top:8px">'
+      +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);cursor:pointer"><input type="checkbox" id="notifac_'+m.k+'" '+(cur.activo?'checked':'')+' style="width:auto"> Activo</label>'
+      +'<button class="dl" onclick="saveNotif(\''+m.k+'\')">Guardar</button>'
+      +'<span id="notifmsg_'+m.k+'" style="font-size:12px;color:var(--nar)"></span>'
+      +'</div></div>';
+  });
+  $('notifLoading').style.display='none';
+  $('notifContent').innerHTML=h;
+}
+async function saveNotif(k){
+  var msg=$('notifmsg_'+k); msg.style.color='var(--tx2)'; msg.textContent='Guardando…';
+  var emails=($('notif_'+k).value||'').split(/[\n,;]+/).map(function(s){return s.trim();}).filter(Boolean).join(', ');
+  var activo=$('notifac_'+k).checked;
+  try{
+    var r=await fetch(SB_URL+'/rest/v1/notif_config?on_conflict=empresa_id,modulo',{method:'POST',
+      headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({empresa_id:MYEMP,modulo:k,emails:emails,activo:activo})});
+    if(!r.ok) throw new Error('save '+r.status);
+    $('notif_'+k).value=emails;
+    NOTIF[k]={emails:emails,activo:activo};
+    msg.style.color='var(--nar)'; msg.textContent='✓ Guardado';
+    setTimeout(function(){msg.textContent='';},2500);
+  }catch(e){ msg.style.color='#e66'; msg.textContent='Error al guardar'; }
 }
 // ===== USUARIOS (panel de administración del HSE) =====
 function estadoBadge(s){

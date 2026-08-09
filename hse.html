@@ -786,7 +786,7 @@ async function guardarTrabajador(id){
 async function loadExpedientes(){
   try{
     const [inv,test,firm]=await Promise.all([
-      sbGet('investigaciones?select=inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at,eliminada,eliminada_por,eliminada_motivo,eliminada_at&order=created_at.desc'),
+      sbGet('investigaciones?select=id,inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at,eliminada,eliminada_por,eliminada_motivo,eliminada_at&order=created_at.desc'),
       sbGet('testimonios?select=id,inv_id,rol,transcripcion,hash,estado,creado,firmantes(nombre,cedula)&order=creado.asc'),
       sbGet('firmas?select=doc_id,firma_path,hash_doc,metodo,firmado_en,rol&doc_tipo=eq.testimonio')
     ]);
@@ -843,6 +843,17 @@ async function restaurarExp(invId){
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
 }
 function volverLista(){ document.getElementById('expDetail').classList.add('hide'); document.getElementById('expList').classList.remove('hide'); }
+async function cargarNotas(invUuid){
+  var w=document.getElementById('notasWrap'); if(!w) return;
+  if(!invUuid){ w.innerHTML=''; return; }
+  try{
+    var ns=await sbGet('notas_confidenciales?select=contenido,created_at&investigacion_id=eq.'+encodeURIComponent(invUuid)+'&order=created_at.asc');
+    if(!ns || !ns.length){ w.innerHTML=''; return; }
+    w.innerHTML='<div class="card" style="margin-bottom:16px;border-color:rgba(255,59,48,.35)"><h2><span>▸</span> 🔒 Notas confidenciales</h2>'
+      + ns.map(function(n){ return '<div style="font-size:13px;color:var(--tx);line-height:1.6;padding:8px 0;border-bottom:1px solid var(--line)"><div style="font-size:11px;color:var(--tx3);margin-bottom:3px">'+esc(String(n.created_at||'').slice(0,16).replace('T',' '))+'</div>'+esc(n.contenido||'')+'</div>'; }).join('')
+      +'<div style="font-size:11px;color:var(--tx3);margin-top:8px">Visible solo para el HSE de tu empresa.</div></div>';
+  }catch(e){ w.innerHTML=''; }
+}
 async function openExpediente(invId){
   const tests=(EXP.testByInv[invId]||[]);
   const inv=EXP.inv.find(v=>v.inv_id===invId)||{};
@@ -854,9 +865,11 @@ async function openExpediente(invId){
     +'<div style="font-size:13px;color:var(--tx2);line-height:1.7">'+esc(inv.descripcion||inv.titulo||'')+'<br>'
     +'<b>Reporta:</b> '+esc(inv.reporta||'—')+' · <b>Cliente:</b> '+esc(inv.cliente||'—')+' · <b>Estado:</b> '+esc(inv.estado||'—')+'</div></div>'
     +'<div id="informeWrap"><div class="loading" style="padding:14px">Cargando informe…</div></div>'
+    +'<div id="notasWrap"></div>'
     +'<h3 class="expsub">Declaraciones firmadas</h3>'
     +'<div id="testWrap"></div>';
   cargarInforme(invId);
+  cargarNotas(inv.id);
   const wrap=document.getElementById('testWrap');
   if(!tests.length){ wrap.innerHTML='<div class="loading">Este expediente aún no tiene declaraciones firmadas.</div>'; return; }
   for(const t of tests){

@@ -846,7 +846,7 @@ async function guardarTrabajador(id){
 async function loadExpedientes(){
   try{
     const [inv,test,firm]=await Promise.all([
-      sbGet('investigaciones?select=id,inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at,eliminada,eliminada_por,eliminada_motivo,eliminada_at&order=created_at.desc'),
+      sbGet('investigaciones?select=id,inv_id,titulo,descripcion,reporta,cliente,estado,fecha_evento,created_at,eliminada,eliminada_por,eliminada_motivo,eliminada_at,fotos&order=created_at.desc'),
       sbGet('testimonios?select=id,inv_id,rol,transcripcion,hash,estado,creado,firmantes(nombre,cedula)&order=creado.asc'),
       sbGet('firmas?select=doc_id,firma_path,hash_doc,metodo,firmado_en,rol&doc_tipo=eq.testimonio')
     ]);
@@ -920,10 +920,15 @@ async function openExpediente(invId){
   const det=document.getElementById('expDetail');
   document.getElementById('expList').classList.add('hide');
   det.classList.remove('hide'); window.scrollTo(0,0);
+  var _fotos=Array.isArray(inv.fotos)?inv.fotos:[];
+  var fotosCard=_fotos.length?('<div class="card" style="margin-bottom:16px"><h2><span>▸</span> 📷 Fotos del lugar</h2><div style="display:flex;flex-wrap:wrap;gap:12px">'
+    +_fotos.map(function(f){ var url=SB_URL+'/storage/v1/object/public/evidencias/'+(f.path||''); return '<div style="width:158px"><a href="'+url+'" target="_blank"><img src="'+url+'" style="width:158px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"></a><div style="font-size:11.5px;color:var(--tx2);margin-top:4px">'+esc(f.rotulo||'')+'</div></div>'; }).join('')
+    +'</div></div>'):'';
   det.innerHTML='<button class="back" onclick="volverLista()">◂ Volver a expedientes</button>'
     +'<div class="card" style="margin-bottom:16px"><h2><span>▸</span> Expediente '+esc(invId)+'</h2>'
     +'<div style="font-size:13px;color:var(--tx2);line-height:1.7">'+esc(inv.descripcion||inv.titulo||'')+'<br>'
     +'<b>Reporta:</b> '+esc(inv.reporta||'—')+' · <b>Cliente:</b> '+esc(inv.cliente||'—')+' · <b>Estado:</b> '+esc(inv.estado||'—')+'</div></div>'
+    +fotosCard
     +'<div id="informeWrap"><div class="loading" style="padding:14px">Cargando informe…</div></div>'
     +'<div id="notasWrap"></div>'
     +'<h3 class="expsub">Declaraciones firmadas</h3>'

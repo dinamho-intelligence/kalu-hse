@@ -587,6 +587,11 @@
       <div class="agregar-fila"><input type="text" id="inv-testigo-input" placeholder="Nombre del testigo"/><button class="btn-agregar" onclick="agregarTestigo()">+</button></div>
       <div class="chips" id="chips-testigos"></div>
     </div>
+    <div class="campo-inv">
+      <label>Fotos del lugar (opcional)</label>
+      <div class="agregar-fila"><label class="btn-agregar" style="cursor:pointer;white-space:nowrap;padding:10px 16px">📷 Agregar fotos<input type="file" id="inv-fotos-input" accept="image/*" multiple capture="environment" style="display:none" onchange="agregarFotosInv(this)"></label><span id="inv-fotos-hint" style="font-size:11.5px;color:#8A909C;align-self:center">Se comprimen solas. Poné un rótulo a cada una.</span></div>
+      <div id="inv-fotos-lista" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+    </div>
     <button class="btn-inv-iniciar" id="btn-inv-iniciar" onclick="iniciarInvestigacion()">🔍 INICIAR INVESTIGACIÓN CON KALU</button>
     <button class="btn-volver-home" style="width:100%;margin-top:12px" onclick="continuarInvestigacion()">↩ CONTINUAR INVESTIGACIÓN EXISTENTE (HSE)</button>
   </div>
@@ -781,6 +786,61 @@ function agregarTestigo(){const inp=document.getElementById('inv-testigo-input')
 document.getElementById('inv-testigo-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();agregarTestigo();}});
 function renderChipsTestigos(){document.getElementById('chips-testigos').innerHTML=testigos.map((t,i)=>`<div class="chip">${t}<button onclick="quitarTestigo(${i})">×</button></div>`).join('');}
 function quitarTestigo(i){testigos.splice(i,1);renderChipsTestigos();}
+/* ===== Fotos del lugar (compresión en el navegador + subida a storage) ===== */
+var invFotos=[];
+function comprimirImg(file,maxLado,calidad){
+  return new Promise(function(resolve,reject){
+    var url=URL.createObjectURL(file); var img=new Image();
+    img.onload=function(){
+      URL.revokeObjectURL(url);
+      var w=img.width,h=img.height;
+      if(w>=h && w>maxLado){ h=Math.round(h*maxLado/w); w=maxLado; }
+      else if(h>w && h>maxLado){ w=Math.round(w*maxLado/h); h=maxLado; }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(cv.toDataURL('image/jpeg',calidad));
+    };
+    img.onerror=function(){ URL.revokeObjectURL(url); reject(new Error('img')); };
+    img.src=url;
+  });
+}
+async function agregarFotosInv(inp){
+  var files=Array.prototype.slice.call(inp.files||[]); inp.value='';
+  var hint=document.getElementById('inv-fotos-hint'); if(hint) hint.textContent='Comprimiendo…';
+  for(var i=0;i<files.length;i++){
+    try{ var data=await comprimirImg(files[i],1600,0.7); invFotos.push({data:data,rotulo:''}); }catch(e){}
+  }
+  if(hint) hint.textContent='Se comprimen solas. Poné un rótulo a cada una.';
+  renderFotosInv();
+}
+function renderFotosInv(){
+  var box=document.getElementById('inv-fotos-lista'); if(!box) return;
+  box.innerHTML=invFotos.map(function(f,i){
+    var rot=(f.rotulo||'').replace(/"/g,'&quot;');
+    return '<div style="display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:6px">'
+      +'<img src="'+f.data+'" style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+      +'<input type="text" value="'+rot+'" oninput="invFotos['+i+'].rotulo=this.value" placeholder="Rótulo: vista general, zona del golpe, posición…" style="flex:1;background:#0d0f14;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#eaecef;padding:8px 10px;font-size:13px">'
+      +'<button type="button" onclick="quitarFotoInv('+i+')" style="background:none;border:none;color:#e0574a;font-size:20px;cursor:pointer;flex-shrink:0;line-height:1">×</button>'
+      +'</div>';
+  }).join('');
+}
+function quitarFotoInv(i){ invFotos.splice(i,1); renderFotosInv(); }
+async function subirFotosInvestigacion(sessionId){
+  if(!invFotos.length) return [];
+  var SBURL='https://nignqeipzlemwfrwmpip.supabase.co';
+  var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+  var tok=(window.kaluAuth&&window.kaluAuth.token)||null;
+  var out=[];
+  for(var i=0;i<invFotos.length;i++){
+    try{
+      var blob=await (await fetch(invFotos[i].data)).blob();
+      var path='investigaciones/'+sessionId+'/foto_'+(i+1)+'.jpg';
+      var r=await fetch(SBURL+'/storage/v1/object/evidencias/'+path,{method:'POST',headers:{apikey:ANON,Authorization:'Bearer '+tok,'x-upsert':'true','Content-Type':'image/jpeg'},body:blob});
+      if(r.ok) out.push({path:path,rotulo:invFotos[i].rotulo||''});
+    }catch(e){}
+  }
+  return out;
+}
 async function iniciarInvestigacion(){
   const reporta=document.getElementById('inv-reporta').value.trim();
   const rol=document.getElementById('inv-rol').value;
@@ -801,7 +861,10 @@ async function iniciarInvestigacion(){
   testigoActivo=reporta;invSessionId='INV-'+Date.now();
   window.invFirma={reporta,rol,cedula,inv_id:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,transcript:[]};
   try{
-    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,cedula,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null})});
+    let fotosSubidas=[];
+    try{ fotosSubidas=await subirFotosInvestigacion(invSessionId); }catch(e){}
+    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,cedula,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null,fotos:fotosSubidas})});
+    invFotos=[]; renderFotosInv();
     const data=await res.json();
     if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
     const inv=document.getElementById('pantalla-investigador');inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='0';inv.style.transform='translateY(-20px)';

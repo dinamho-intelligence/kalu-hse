@@ -563,6 +563,7 @@
   <div class="inv-form-col">
     <div class="inv-titulo-form">Abrir investigación</div>
     <div class="inv-sub-form">// COMPLETÁ LOS DATOS DEL EVENTO — KALU CONDUCE EL RESTO</div>
+    <div id="inv-conn" style="margin:6px 0 10px"></div>
     <div class="inv-grid-2">
       <div class="campo-inv"><label>Quién reporta</label><input type="text" id="inv-reporta" placeholder="Nombre completo"/></div>
       <div class="campo-inv"><label>Cédula (para la firma)</label><input type="text" id="inv-cedula" placeholder="C.C. n.º"/></div>
@@ -762,6 +763,33 @@ function abrirModuloHSE(){
   const home=document.getElementById('pantalla-home');home.classList.add('saliendo');
   setTimeout(()=>{home.style.display='none';const inicio=document.getElementById('pantalla-inicio');inicio.style.opacity='0';inicio.style.transform='translateY(20px)';inicio.classList.add('visible');setTimeout(()=>{inicio.style.transition='opacity 0.4s ease,transform 0.4s ease';inicio.style.opacity='1';inicio.style.transform='translateY(0)';},30);},400);
 }
+/* ===== Estado de conexión de KALU (evita llenar el form si está caído) ===== */
+var KALU_ONLINE=true;
+async function pingKalu(){
+  if(navigator.onLine===false) return false;
+  try{
+    var ctrl=new AbortController(); var t=setTimeout(function(){ctrl.abort();},4500);
+    await fetch('https://dnmintell.app.n8n.cloud/favicon.ico',{method:'GET',mode:'no-cors',cache:'no-store',signal:ctrl.signal});
+    clearTimeout(t); return true;
+  }catch(e){ return false; }
+}
+function pintarConexion(){
+  var el=document.getElementById('inv-conn'); if(!el) return;
+  var btn=document.getElementById('btn-inv-iniciar');
+  if(KALU_ONLINE){
+    el.innerHTML='<span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#2fbf71;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:#2fbf71;display:inline-block"></span>KALU en línea</span>';
+    if(btn){ btn.disabled=false; btn.style.opacity=''; }
+  } else {
+    el.innerHTML='<span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#e0574a;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:#e0574a;display:inline-block"></span>Sin conexión — revisá tu internet. No vas a poder iniciar hasta que vuelva.</span>';
+    if(btn){ btn.disabled=true; btn.style.opacity='.5'; }
+  }
+}
+async function refrescarEstadoKalu(){
+  var el=document.getElementById('inv-conn'); if(el) el.innerHTML='<span style="font-size:12px;color:#8A909C">Verificando conexión…</span>';
+  KALU_ONLINE=await pingKalu(); pintarConexion();
+}
+window.addEventListener('online',refrescarEstadoKalu);
+window.addEventListener('offline',function(){ KALU_ONLINE=false; pintarConexion(); });
 function abrirModuloInvestigador(){
   document.getElementById('header-modulo').textContent='KALU Investigador';
   autollenarIdentidad();
@@ -769,6 +797,7 @@ function abrirModuloInvestigador(){
   const ahora=new Date();
   document.getElementById('inv-fecha').value=ahora.toISOString().split('T')[0];
   document.getElementById('inv-hora').value=ahora.toTimeString().slice(0,5);
+  refrescarEstadoKalu();
   setTimeout(()=>{home.style.display='none';const inv=document.getElementById('pantalla-investigador');inv.style.opacity='0';inv.style.transform='translateY(20px)';inv.classList.add('visible');setTimeout(()=>{inv.style.transition='opacity 0.4s ease,transform 0.4s ease';inv.style.opacity='1';inv.style.transform='translateY(0)';},30);},400);
 }
 function volverHomeDesdeInv(){
@@ -856,6 +885,8 @@ async function iniciarInvestigacion(){
   if(!locacion){alert('Ingresá la locación del evento');return;}
   if(!descripcion){alert('Describí brevemente qué ocurrió');return;}
   if(!cedula){alert('Ingresá la cédula (necesaria para la firma)');return;}
+  KALU_ONLINE=await pingKalu(); pintarConexion();
+  if(!KALU_ONLINE){ alert('KALU está sin conexión. Revisá tu internet e intentá de nuevo en un momento.'); return; }
   const btn=document.getElementById('btn-inv-iniciar');btn.disabled=true;btn.textContent='⏳ Iniciando investigación...';
   const participantes=[reporta,...testigos.filter(t=>t!==reporta)];
   testigoActivo=reporta;invSessionId='INV-'+Date.now();

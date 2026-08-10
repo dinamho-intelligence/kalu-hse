@@ -865,7 +865,7 @@ async function subirFotosInvestigacion(sessionId){
       var blob=await (await fetch(invFotos[i].data)).blob();
       var path='investigaciones/'+sessionId+'/foto_'+(i+1)+'.jpg';
       var r=await fetch(SBURL+'/storage/v1/object/evidencias/'+path,{method:'POST',headers:{apikey:ANON,Authorization:'Bearer '+tok,'x-upsert':'true','Content-Type':'image/jpeg'},body:blob});
-      if(r.ok) out.push({path:path,rotulo:invFotos[i].rotulo||''});
+      if(r.ok) out.push({path:path,rotulo:invFotos[i].rotulo||'',data:invFotos[i].data});
     }catch(e){}
   }
   return out;

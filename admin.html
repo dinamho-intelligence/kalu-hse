@@ -237,7 +237,7 @@ async function viewEnrolamiento(){
     +'<div class="fld"><label>Correo del futuro admin</label><input id="en_email" type="email" placeholder="admin@empresa.com" style="'+stI+'"/></div>'
     +'<div class="fld"><label>Nombre (opcional)</label><input id="en_nombre" placeholder="Nombre del administrador" style="'+stI+'"/></div>'
     +'<div class="fld"><label>Módulos autorizados</label><div class="modchips" id="en_mods">'+mchips+'</div></div>'
-    +'<div><button class="btn btn-amber" onclick="enviarEnrol()">🚀 Enviar invitación de enrolamiento</button></div>'
+    +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button id="en_btn" class="btn btn-amber" onclick="enviarEnrol()">🚀 Enviar invitación de enrolamiento</button><span id="en_status" class="meta"></span></div>'
     +'</div>';
   h+='<h2 class="sec" style="margin-top:26px">Enrolamientos (auditoría)</h2><div id="en_lista" class="spin">Cargando…</div>';
   $("#view").innerHTML=h;
@@ -249,12 +249,16 @@ async function enviarEnrol(){
   var mods=[].map.call(document.querySelectorAll('#en_mods .mchk.on'),function(c){return c.getAttribute("data-k");});
   if(!mods.length){ toast("Elegí al menos un módulo.",true); return; }
   var nombre=($("#en_nombre").value||"").trim();
+  var btn=$("#en_btn"), st=$("#en_status");
+  if(btn){ btn.disabled=true; btn.textContent="Enviando…"; }
+  if(st){ st.style.color=""; st.textContent=""; }
   try{
     var r=await fetch(N8N_ENROL+"/kalu-enrolar-invitar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:SB_TOKEN,email:email,nombre:nombre,modulos:mods})});
     var d=await r.json();
-    if(d&&d.ok){ toast("Invitación enviada a "+email); $("#en_email").value=""; $("#en_nombre").value=""; logAud("enrolar_empresa","enrolamiento",email,{modulos:mods}); cargarEnrolamientos(); }
-    else { toast((d&&d.message)||"No se pudo enviar.",true); }
-  }catch(e){ toast("Error de conexión con n8n.",true); }
+    if(d&&d.ok){ toast("Invitación enviada a "+email); if(st){ st.style.color="#2ea86a"; st.textContent="✓ Invitación enviada a "+email; } $("#en_email").value=""; $("#en_nombre").value=""; logAud("enrolar_empresa","enrolamiento",email,{modulos:mods}); cargarEnrolamientos(); }
+    else { toast((d&&d.message)||"No se pudo enviar.",true); if(st){ st.style.color="var(--no)"; st.textContent=(d&&d.message)||"No se pudo enviar."; } }
+  }catch(e){ toast("Error de conexión con n8n.",true); if(st){ st.style.color="var(--no)"; st.textContent="Error de conexión con n8n."; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent="🚀 Enviar invitación de enrolamiento"; } }
 }
 async function cargarEnrolamientos(){
   try{

@@ -1,0 +1,116 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KALU · Carga de empresas → SQL</title>
+<style>
+:root{--bg:#0b0e13;--card:#141a22;--card2:#171e27;--line:#28303b;--line2:#333d4a;--tx:#eef2f6;--tx2:#9fabb8;--tx3:#6b7784;--org:#f7941d;--red:#e23b3b;--grad:linear-gradient(120deg,#e23b3b,#f7941d)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;padding:22px;line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:22px;font-weight:800;letter-spacing:-.3px}
+h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--tx2);font-size:13px;margin:6px 0 18px}
+.emp{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.emp h3{font-size:13px;color:var(--tx3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fld label{display:block;font-size:10.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;font-weight:700}
+input[type=text]{width:100%;background:#0f141b;border:1px solid var(--line2);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px;font-family:inherit;outline:none}
+input[type=text]:focus{border-color:var(--org)}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.chip{border:1px solid var(--line2);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--tx2);cursor:pointer;user-select:none}
+.chip.on{background:rgba(247,148,29,.14);border-color:var(--org);color:var(--org);font-weight:700}
+.sedes{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.sede{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:8px;margin-bottom:8px;align-items:center}
+.btn{background:#0f141b;border:1px solid var(--line2);border-radius:9px;color:var(--tx);padding:9px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn:hover{border-color:var(--org);color:var(--org)}
+.btn.grad{background:var(--grad);border:none;color:#0b0e13}
+.btn.sm{padding:6px 10px;font-size:12px}
+.x{background:none;border:none;color:var(--tx3);font-size:18px;cursor:pointer;line-height:1}
+.x:hover{color:var(--red)}
+.bar{display:flex;gap:10px;margin:6px 0 18px;flex-wrap:wrap}
+.full{grid-column:1/-1}
+textarea{width:100%;min-height:280px;background:#0d1117;border:1px solid var(--line2);border-radius:12px;color:#cbd5e1;padding:14px;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5;margin-top:8px}
+.row-act{display:flex;align-items:center;gap:8px}
+.mini{font-size:11px;color:var(--tx3)}
+</style></head>
+<body><div class="wrap">
+<h1>KALU · <span class="g">Carga de empresas → SQL</span></h1>
+<div class="sub">Cargá cada empresa y sus datos. Al final, <b>Generar SQL</b> te arma el código para pegar en Supabase (SQL Editor). Sirve para las empresas que ya tenés y para altas manuales. Correr primero <b>enrolar_schema.sql</b> una vez.</div>
+
+<div id="emps"></div>
+
+<div class="bar">
+  <button class="btn" onclick="addEmp()">＋ Agregar empresa</button>
+  <button class="btn grad" onclick="generar()">⚙ Generar SQL</button>
+</div>
+
+<textarea id="sql" placeholder="Acá aparece el SQL generado…" readonly></textarea>
+<div class="bar" style="margin-top:8px"><button class="btn" onclick="copiar()">📋 Copiar SQL</button><span class="mini" id="msg"></span></div>
+
+<script>
+var MODS=[["hse","HSE"],["ra","Realidad Asistida"],["qaqc","QA/QC"],["ndt","NDT"]];
+var E=[];
+function nuevaEmp(){ return {rs:"",nit:"",rep:"",dir:"",ciu:"",act:"",arl:"",dom:"",mods:["hse"],activa:true,sedes:[]}; }
+function addEmp(){ E.push(nuevaEmp()); render(); }
+function delEmp(i){ E.splice(i,1); render(); }
+function addSede(i){ E[i].sedes.push({n:"",c:"",d:""}); render(); }
+function delSede(i,j){ E[i].sedes.splice(j,1); render(); }
+function toggleMod(i,k){ var a=E[i].mods, x=a.indexOf(k); if(x>=0)a.splice(x,1); else a.push(k); render(); }
+function esc(s){return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");}
+function F(i,f){ return 'oninput="E['+i+'].'+f+'=this.value"'; }
+function render(){
+  document.getElementById('emps').innerHTML = E.map(function(e,i){
+    var chips=MODS.map(function(m){return '<span class="chip '+(e.mods.indexOf(m[0])>=0?'on':'')+'" onclick="toggleMod('+i+',\''+m[0]+'\')">'+m[1]+'</span>';}).join('');
+    var sedes=e.sedes.map(function(s,j){ return '<div class="sede">'
+      +'<input type="text" placeholder="Nombre (ej. Base Yopal)" value="'+esc(s.n)+'" oninput="E['+i+'].sedes['+j+'].n=this.value">'
+      +'<input type="text" placeholder="Ciudad" value="'+esc(s.c)+'" oninput="E['+i+'].sedes['+j+'].c=this.value">'
+      +'<input type="text" placeholder="Dirección" value="'+esc(s.d)+'" oninput="E['+i+'].sedes['+j+'].d=this.value">'
+      +'<button class="x" title="Quitar" onclick="delSede('+i+','+j+')">×</button></div>'; }).join('');
+    return '<div class="emp"><h3><span>🏢 Empresa '+(i+1)+'</span><button class="x" style="margin-left:auto" onclick="delEmp('+i+')" title="Quitar empresa">×</button></h3>'
+      +'<div class="grid">'
+      +'<div class="fld full"><label>Razón social *</label><input type="text" value="'+esc(e.rs)+'" '+F(i,'rs')+'></div>'
+      +'<div class="fld"><label>NIT</label><input type="text" value="'+esc(e.nit)+'" '+F(i,'nit')+'></div>'
+      +'<div class="fld"><label>Representante legal</label><input type="text" value="'+esc(e.rep)+'" '+F(i,'rep')+'></div>'
+      +'<div class="fld"><label>Dirección principal</label><input type="text" value="'+esc(e.dir)+'" '+F(i,'dir')+'></div>'
+      +'<div class="fld"><label>Ciudad</label><input type="text" value="'+esc(e.ciu)+'" '+F(i,'ciu')+'></div>'
+      +'<div class="fld"><label>Actividad económica (CIIU)</label><input type="text" value="'+esc(e.act)+'" '+F(i,'act')+'></div>'
+      +'<div class="fld"><label>ARL</label><input type="text" value="'+esc(e.arl)+'" '+F(i,'arl')+'></div>'
+      +'<div class="fld full"><label>Dominio de correo (ej. empresa.com)</label><input type="text" value="'+esc(e.dom)+'" '+F(i,'dom')+'></div>'
+      +'</div>'
+      +'<div style="margin-top:12px"><label style="font-size:10.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Módulos autorizados</label><div class="chips">'+chips+'</div></div>'
+      +'<div style="margin-top:12px" class="row-act"><span class="chip '+(e.activa?'on':'')+'" onclick="E['+i+'].activa=!E['+i+'].activa;render()">'+(e.activa?'✓ Activa':'Inactiva')+'</span></div>'
+      +'<div class="sedes"><label style="font-size:10.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;font-weight:700;display:block;margin-bottom:8px">Sedes / bases</label>'+sedes
+      +'<button class="btn sm" onclick="addSede('+i+')">＋ Agregar sede</button></div>'
+      +'</div>';
+  }).join('');
+}
+function q(v){ v=(v==null?"":String(v)).trim(); return v? "'"+v.replace(/'/g,"''")+"'" : "NULL"; }
+function generar(){
+  var out=["-- KALU · carga de empresas (generado). Correr enrolar_schema.sql una vez antes.\n"];
+  E.forEach(function(e){
+    if(!(e.rs||"").trim()) return;
+    var cond = (e.nit||"").trim() ? "nit = "+q(e.nit) : "lower(razon_social) = lower("+q(e.rs)+")";
+    var cols=["razon_social","nit","representante_legal","direccion","ciudad","actividad_economica","arl","dominio","modulos","activa"];
+    var vals=[q(e.rs),q(e.nit),q(e.rep),q(e.dir),q(e.ciu),q(e.act),q(e.arl),q(e.dom),"'"+JSON.stringify(e.mods)+"'::jsonb",(e.activa?"true":"false")];
+    var sets=cols.map(function(c,ix){return c+"="+vals[ix];}).join(", ");
+    var b=["do $$","declare v_id uuid;","begin",
+      "  select id into v_id from public.empresas where "+cond+" limit 1;",
+      "  if v_id is null then",
+      "    insert into public.empresas ("+cols.join(",")+")",
+      "    values ("+vals.join(",")+") returning id into v_id;",
+      "  else",
+      "    update public.empresas set "+sets+" where id=v_id;",
+      "  end if;"];
+    var sd=(e.sedes||[]).filter(function(s){return (s.n||"").trim();});
+    if(sd.length){
+      b.push("  delete from public.sedes where empresa_id=v_id;");
+      b.push("  insert into public.sedes (empresa_id,nombre,ciudad,direccion) values");
+      b.push(sd.map(function(s){return "    (v_id,"+q(s.n)+","+q(s.c)+","+q(s.d)+")";}).join(",\n")+";");
+    }
+    b.push("end $$;");
+    out.push(b.join("\n"));
+  });
+  document.getElementById('sql').value = out.join("\n\n");
+}
+function copiar(){ var t=document.getElementById('sql'); t.select(); document.execCommand('copy'); document.getElementById('msg').textContent="✓ Copiado"; setTimeout(function(){document.getElementById('msg').textContent="";},1800); }
+addEmp();
+</script>
+</div></body></html>

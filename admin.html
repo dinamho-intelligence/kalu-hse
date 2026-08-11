@@ -219,12 +219,45 @@ function construirTabs(){
   if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
   tabs.push(["usuarios","👥 Usuarios y accesos"]);
   tabs.push(["padron","🪪 Padrón (cédulas)"]);
+  tabs.push(["formatos","📄 Control documental"]);
   tabs.push(["auditoria","📜 Auditoría"]);
   $("#tabs").innerHTML=tabs.map(function(t){return '<button class="tab" id="tab_'+t[0]+'" onclick="irTab(\''+t[0]+'\')">'+t[1]+'</button>';}).join("");
   irTab(tabs[0][0]);
 }
 function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
-  if(t==="empresas") viewEmpresas(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else viewAuditoria(); }
+  if(t==="empresas") viewEmpresas(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
+async function viewFormatos(){
+  var h='<h2 class="sec">Control documental</h2>';
+  h+='<div class="note" style="margin-bottom:14px">Cargá el <b>N° de formato</b>, la <b>versión</b> y la <b>fecha de versión</b> de cada documento de tu empresa. Aparecen impresos en el PDF de cada formato. Se guarda solo al salir de cada campo.</div>';
+  var data;
+  try{ data=await sbFetch("/rest/v1/rpc/mi_control_documental",{method:"POST",body:"{}"}); }
+  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  var mods=Array.isArray(data&&data.modulos)?data.modulos:[];
+  var docs=(data&&data.docs&&typeof data.docs==="object")?data.docs:{};
+  var seen={}, dlist=[];
+  mods.forEach(function(mk){ (DOCS_POR_MODULO[mk]||[]).forEach(function(dt){ if(!seen[dt[0]]){ seen[dt[0]]=1; dlist.push(dt); } }); });
+  if(!dlist.length){ h+='<div class="empty">Tu empresa todavía no tiene módulos que generen documentos.</div>'; $("#view").innerHTML=h; return; }
+  var stI='background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:8px 11px;font-size:12.5px';
+  h+='<div class="row" style="flex-direction:column;align-items:stretch;gap:10px">'
+    + dlist.map(function(dt){ var dd=docs[dt[0]]||{}; return '<div data-tipo="'+dt[0]+'" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      +'<span class="meta" style="width:180px;font-weight:700">'+dt[1]+'</span>'
+      +'<input class="fdoc-codigo" placeholder="N° formato" value="'+esc(dd.codigo||"")+'" onchange="guardarDocEmpresa(\''+dt[0]+'\')" style="flex:1;min-width:130px;'+stI+'"/>'
+      +'<input class="fdoc-version" placeholder="Versión" value="'+esc(dd.version||"")+'" onchange="guardarDocEmpresa(\''+dt[0]+'\')" style="width:100px;'+stI+'"/>'
+      +'<input class="fdoc-fecha" placeholder="Fecha versión" value="'+esc(dd.fecha||"")+'" onchange="guardarDocEmpresa(\''+dt[0]+'\')" style="width:135px;'+stI+'"/>'
+      +'</div>'; }).join("")
+    +'</div>';
+  $("#view").innerHTML=h;
+}
+async function guardarDocEmpresa(tipo){
+  var rowEl=document.querySelector('[data-tipo="'+tipo+'"]'); if(!rowEl) return;
+  var payload={ p_tipo:tipo,
+    p_codigo:(rowEl.querySelector('.fdoc-codigo')||{}).value||'',
+    p_version:(rowEl.querySelector('.fdoc-version')||{}).value||'',
+    p_fecha:(rowEl.querySelector('.fdoc-fecha')||{}).value||'' };
+  try{ await sbFetch("/rest/v1/rpc/set_control_documental",{method:"POST",body:JSON.stringify(payload)});
+    logAud("set_control_documental","empresa",ME.empresa_id||"",{tipo:tipo}); toast("Control documental guardado");
+  }catch(e){ toast("Error: "+e.message,true); }
+}
 function selectorEmpresa(){
   if(!ME.es_super) return "";
   const opts=EMPRESAS.map(function(e){return '<option value="'+e.id+'"'+(e.id===CTX_EMP?" selected":"")+'>'+esc(e.razon_social)+'</option>';}).join("");

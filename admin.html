@@ -136,6 +136,7 @@ const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 /* Webhook de n8n para acciones con permisos de admin (invitar, resetear, crear super).
    Cuando lo tengamos, se completa acá y los botones quedan vivos. */
 const N8N_HOOK = "https://dnmintell.app.n8n.cloud/webhook/kalu-admin";
+const N8N_ENROL = "https://dnmintell.app.n8n.cloud/webhook";
 let SB_TOKEN=null, ME=null, TAB="", CTX_EMP=null, EMPRESAS=[];
 /* Catálogo de módulos → roles → permisos por defecto (editables) */
 const MODULOS=[
@@ -217,6 +218,7 @@ function salir(){ if(!confirm("¿Cerrar sesión?"))return; try{ sessionStorage.r
 function construirTabs(){
   const tabs=[];
   if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
+  if(ME.es_super) tabs.push(["enrolamiento","🚀 Enrolamiento"]);
   tabs.push(["usuarios","👥 Usuarios y accesos"]);
   tabs.push(["padron","🪪 Padrón (cédulas)"]);
   tabs.push(["formatos","📄 Control documental"]);
@@ -225,7 +227,45 @@ function construirTabs(){
   irTab(tabs[0][0]);
 }
 function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
-  if(t==="empresas") viewEmpresas(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
+  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
+async function viewEnrolamiento(){
+  var h='<h2 class="sec">Enrolar una empresa nueva</h2>';
+  h+='<div class="note" style="margin-bottom:14px">Ingresá el correo del futuro <b>administrador</b> de la empresa y qué módulos le autorizás. KALU le manda un correo para que <b>él</b> cargue todos los datos y cree su usuario. La empresa se crea sola cuando termina — vos solo das el gatillo.</div>';
+  var mchips=MODULOS.map(function(m){ return '<span class="mchk" data-k="'+m.key+'" onclick="this.classList.toggle(\'on\')">'+m.ic+' '+m.nombre+'</span>'; }).join("");
+  var stI='width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:9px 12px;font-size:13px';
+  h+='<div class="row" style="flex-direction:column;align-items:stretch;gap:12px;max-width:640px">'
+    +'<div class="fld"><label>Correo del futuro admin</label><input id="en_email" type="email" placeholder="admin@empresa.com" style="'+stI+'"/></div>'
+    +'<div class="fld"><label>Nombre (opcional)</label><input id="en_nombre" placeholder="Nombre del administrador" style="'+stI+'"/></div>'
+    +'<div class="fld"><label>Módulos autorizados</label><div class="modchips" id="en_mods">'+mchips+'</div></div>'
+    +'<div><button class="btn btn-amber" onclick="enviarEnrol()">🚀 Enviar invitación de enrolamiento</button></div>'
+    +'</div>';
+  h+='<h2 class="sec" style="margin-top:26px">Enrolamientos (auditoría)</h2><div id="en_lista" class="spin">Cargando…</div>';
+  $("#view").innerHTML=h;
+  var hseChip=document.querySelector('#en_mods .mchk[data-k="hse"]'); if(hseChip) hseChip.classList.add("on");
+  cargarEnrolamientos();
+}
+async function enviarEnrol(){
+  var email=($("#en_email").value||"").trim(); if(!email){ toast("Poné el correo del futuro admin.",true); return; }
+  var mods=[].map.call(document.querySelectorAll('#en_mods .mchk.on'),function(c){return c.getAttribute("data-k");});
+  if(!mods.length){ toast("Elegí al menos un módulo.",true); return; }
+  var nombre=($("#en_nombre").value||"").trim();
+  try{
+    var r=await fetch(N8N_ENROL+"/kalu-enrolar-invitar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:SB_TOKEN,email:email,nombre:nombre,modulos:mods})});
+    var d=await r.json();
+    if(d&&d.ok){ toast("Invitación enviada a "+email); $("#en_email").value=""; $("#en_nombre").value=""; logAud("enrolar_empresa","enrolamiento",email,{modulos:mods}); cargarEnrolamientos(); }
+    else { toast((d&&d.message)||"No se pudo enviar.",true); }
+  }catch(e){ toast("Error de conexión con n8n.",true); }
+}
+async function cargarEnrolamientos(){
+  try{
+    var rows=await sbFetch("/rest/v1/enrolamientos?select=email_admin,estado,modulos,creado,expira&order=creado.desc");
+    if(!rows||!rows.length){ $("#en_lista").innerHTML='<div class="empty">Todavía no hay enrolamientos.</div>'; return; }
+    $("#en_lista").innerHTML=rows.map(function(e){
+      var bdg=e.estado==="usado"?'<span class="bdg a">usado</span>':(e.estado==="cancelado"?'<span class="bdg i">cancelado</span>':'<span class="bdg s">pendiente</span>');
+      return '<div class="row"><span class="nm">'+esc(e.email_admin)+'</span>'+bdg+'<span class="meta">'+(Array.isArray(e.modulos)?e.modulos.join(", "):"")+'</span><div class="grow"></div><span class="meta">'+fFecha(e.creado)+'</span></div>';
+    }).join("");
+  }catch(e){ $("#en_lista").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; }
+}
 async function viewFormatos(){
   var h='<h2 class="sec">Control documental</h2>';
   h+='<div class="note" style="margin-bottom:14px">Cargá el <b>N° de formato</b>, la <b>versión</b> y la <b>fecha de versión</b> de cada documento de tu empresa. Aparecen impresos en el PDF de cada formato. Se guarda solo al salir de cada campo.</div>';

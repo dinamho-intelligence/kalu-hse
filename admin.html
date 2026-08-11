@@ -161,6 +161,11 @@ const MODULOS=[
   }},
   {key:"ndt", nombre:"NDT", ic:"🔬", perms:[], roles:{}}
 ];
+// Documentos (formatos PDF) que genera cada módulo → control documental automático por empresa.
+const DOCS_POR_MODULO={
+  hse:[["tarjeta","Tarjeta"],["ats","ATS"],["informe","Investigación · Informe"],["transcripcion","Investigación · Transcripción"],["alerta","Investigación · Alerta"],["leccion","Investigación · Lección aprendida"]],
+  qaqc:[["qaqc","QA/QC · Informe"]]
+};
 const PERM_LABEL={
   validacion:"Validación", ats:"ATS", tarjetas:"Tarjetas",
   investigaciones:"Investigaciones", expedientes:"Expedientes",
@@ -246,7 +251,21 @@ async function viewEmpresas(){
       +'<label class="meta" style="display:flex;align-items:center;gap:6px">Color <input type="color" value="'+(b.color||"#F28C00")+'" onchange="guardarBranding(\''+e.id+'\',{color:this.value})" style="width:36px;height:26px;border:none;background:none;cursor:pointer"></label>'
       +'<input placeholder="Nombre comercial (opcional)" value="'+esc(b.nombre||"")+'" onchange="guardarBranding(\''+e.id+'\',{nombre:this.value})" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:7px 10px;font-size:12px"/>'
       +'</div>';
-    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-cy btn-sm" onclick="invitarAdmin(\''+e.id+'\',\''+esc(e.razon_social)+'\')">✉ Invitar admin</button><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div>'+brand+'</div>';
+    const docs=(b.docs&&typeof b.docs==="object")?b.docs:{};
+    // Se arma solo: cada módulo habilitado suma los formatos (documentos) que genera.
+    var _seen={}, _dlist=[];
+    mods.forEach(function(mk){ (DOCS_POR_MODULO[mk]||[]).forEach(function(dt){ if(!_seen[dt[0]]){ _seen[dt[0]]=1; _dlist.push(dt); } }); });
+    const docctrl='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+      +'<div class="meta" style="font-weight:700;margin-bottom:8px">📄 Control documental <span style="font-weight:400">— N° de formato, versión y fecha de versión (aparecen en el PDF de cada formato)</span></div>'
+      +(_dlist.length ? _dlist.map(function(dt){ var dd=docs[dt[0]]||{}; return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+        +'<span class="meta" style="width:150px;font-weight:600">'+dt[1]+'</span>'
+        +'<input placeholder="N° formato" value="'+esc(dd.codigo||"")+'" onchange="guardarDoc(\''+e.id+'\',\''+dt[0]+'\',\'codigo\',this.value)" style="flex:1;min-width:110px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px"/>'
+        +'<input placeholder="Versión" value="'+esc(dd.version||"")+'" onchange="guardarDoc(\''+e.id+'\',\''+dt[0]+'\',\'version\',this.value)" style="width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px"/>'
+        +'<input placeholder="Fecha versión" value="'+esc(dd.fecha||"")+'" onchange="guardarDoc(\''+e.id+'\',\''+dt[0]+'\',\'fecha\',this.value)" style="width:118px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px"/>'
+        +'</div>'; }).join("")
+        : '<div class="meta" style="font-size:11.5px">Habilitá un módulo que genere documentos (HSE o QA/QC) para configurar su control documental.</div>')
+      +'</div>';
+    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-cy btn-sm" onclick="invitarAdmin(\''+e.id+'\',\''+esc(e.razon_social)+'\')">✉ Invitar admin</button><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div>'+brand+docctrl+'</div>';
   }).join("");
   $("#view").innerHTML=h;
 }
@@ -277,6 +296,19 @@ async function guardarBranding(id, patch){
     await sbFetch("/rest/v1/empresas?id=eq."+id,{method:"PATCH",body:JSON.stringify({branding:cur})});
     var e=EMPRESAS.find(function(x){return x.id===id;}); if(e) e.branding=cur;
     logAud("set_branding","empresa",id,patch); toast("Branding guardado");
+  }catch(err){ toast("Error: "+err.message,true); }
+}
+async function guardarDoc(id, tipo, campo, valor){
+  try{
+    var b=Object.assign({}, brandingDe(id));
+    var docs=Object.assign({}, (b.docs&&typeof b.docs==="object")?b.docs:{});
+    var d=Object.assign({}, docs[tipo]||{});
+    var v=(valor&&valor.trim)?valor.trim():valor;
+    if(v){ d[campo]=v; } else { delete d[campo]; }
+    docs[tipo]=d; b.docs=docs;
+    await sbFetch("/rest/v1/empresas?id=eq."+id,{method:"PATCH",body:JSON.stringify({branding:b})});
+    var e=EMPRESAS.find(function(x){return x.id===id;}); if(e) e.branding=b;
+    logAud("set_doc_control","empresa",id,{tipo:tipo,campo:campo,valor:v||null}); toast("Control documental guardado");
   }catch(err){ toast("Error: "+err.message,true); }
 }
 async function subirLogoEmpresa(id, inp){

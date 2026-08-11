@@ -1235,6 +1235,8 @@ function gestionarTarjeta(id){
     +'<b>Observacion:</b> '+esc(t.descripcion||'-')
     +(t.compromiso?('<br><b>Compromiso:</b> '+esc(t.compromiso)+(t.responsable?(' ('+esc(t.responsable)+')'):'')):'')
     +'</div>';
+  var _tf=Array.isArray(t.foto_paths)?t.foto_paths:(t.foto_path?[t.foto_path]:[]);
+  info += _tf.length?('<div style="margin:2px 0 10px"><div style="font-size:12px;color:var(--tx2);margin-bottom:6px">📷 Fotos de evidencia — clic para abrir en pestaña nueva</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+_tf.map(function(p){var url=SB_URL+'/storage/v1/object/public/tarjetas/'+p;return '<a href="'+url+'" target="_blank"><img src="'+url+'" style="width:110px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"></a>';}).join('')+'</div></div>'):'';
   var body;
   if(cerrada){
     body=info+'<span class="sem sem-done" style="margin:6px 0">Cerrada</span>'

@@ -392,7 +392,10 @@ function setClase(c){
 }
 function pick(k,el){ const box=el.parentElement; [...box.children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal[k]=el.dataset.v; }
 function pickCat(el){ [...$('catChips').children].forEach(c=>c.classList.remove('on')); el.classList.add('on'); pickVal.categoria=el.dataset.v; }
-function addFoto(){ const f=$('foto').files[0]; $('foto').value=''; if(!f) return; if(fotos.length>=5){ alert('Máximo 5 fotos.'); return; } const rd=new FileReader(); rd.onload=e=>{ fotos.push({file:f, dataUrl:e.target.result, type:(f.type||'image/jpeg')}); renderFotos(); }; rd.readAsDataURL(f); }
+async function addFoto(){ const f=$('foto').files[0]; $('foto').value=''; if(!f) return; if(fotos.length>=5){ alert('Máximo 5 fotos.'); return; }
+  try{ const n=await normalizeImg(f,1600); fotos.push({file:n.blob, dataUrl:n.dataUrl, type:'image/jpeg', w:n.w, h:n.h}); }
+  catch(e){ const rd=new FileReader(); rd.onload=ev=>{ fotos.push({file:f, dataUrl:ev.target.result, type:(f.type||'image/jpeg')}); renderFotos(); }; rd.readAsDataURL(f); return; }
+  renderFotos(); }
 function renderFotos(){ const c=$('fotosPrev'); if(!c) return; c.innerHTML=fotos.map(function(ft,i){ return '<div style="position:relative;width:84px;height:84px">'
   +'<img src="'+ft.dataUrl+'" onclick="abrirEditor('+i+')" title="Marcar" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:pointer">'
   +'<button type="button" onclick="quitarFoto('+i+')" title="Quitar" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--rojo,#e23b3b);color:#fff;border:2px solid #fff;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button>'
@@ -435,6 +438,26 @@ function hashStr(s){let h=0x811c9dc5; for(let i=0;i<s.length;i++){h^=s.charCodeA
 function ahora(){const d=new Date(); return d.toLocaleDateString('es-CO')+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});}
 function uuid(){ if(crypto&&crypto.randomUUID) return crypto.randomUUID(); return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
 function dataURLtoBlob(u){const a=u.split(','); const m=a[0].match(/:(.*?);/)[1]; const b=atob(a[1]); let n=b.length; const arr=new Uint8Array(n); while(n--)arr[n]=b.charCodeAt(n); return new Blob([arr],{type:m});}
+// Normaliza la foto: respeta la orientación real (endereza las verticales/EXIF) y optimiza peso.
+function normalizeImg(file, maxSide){
+  maxSide = maxSide || 1600;
+  return new Promise(function(resolve){
+    try{
+      var url=URL.createObjectURL(file); var img=new Image();
+      img.onload=function(){
+        var iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+        var s=Math.min(1, maxSide/Math.max(iw,ih)); var w=Math.max(1,Math.round(iw*s)), h=Math.max(1,Math.round(ih*s));
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        var cx=cv.getContext('2d'); cx.drawImage(img,0,0,w,h);
+        try{ URL.revokeObjectURL(url); }catch(e){}
+        var dataUrl=cv.toDataURL('image/jpeg',0.82);
+        cv.toBlob(function(blob){ resolve({dataUrl:dataUrl,w:w,h:h,blob:blob||dataURLtoBlob(dataUrl)}); },'image/jpeg',0.82);
+      };
+      img.onerror=function(){ try{URL.revokeObjectURL(url);}catch(e){} var rd=new FileReader(); rd.onload=function(ev){ resolve({dataUrl:ev.target.result,w:0,h:0,blob:file}); }; rd.readAsDataURL(file); };
+      img.src=url;
+    }catch(e){ var rd=new FileReader(); rd.onload=function(ev){ resolve({dataUrl:ev.target.result,w:0,h:0,blob:file}); }; rd.readAsDataURL(file); }
+  });
+}
 async function registrar(){
   err('sErr','');
   if(!hasInk){err('sErr','Falta tu firma en el recuadro.'); return;}
@@ -534,10 +557,17 @@ function buildTarjetaPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls){
   y+=6;
   var _fu = Array.isArray(fotoDataUrls)?fotoDataUrls:(fotoDataUrls?[fotoDataUrls]:[]);
   if(_fu.length){
-    doc.setFont('helvetica','bold'); doc.text('Evidencia'+(_fu.length>1?' ('+_fu.length+' fotos)':''), 40, y); y+=8;
-    var _fx=40, _fw=175, _fh=132, _gap=8, _yy=y;
-    _fu.forEach(function(u){ if(_fx+_fw>W-40){ _fx=40; _yy+=_fh+_gap; } try{ doc.addImage(u,'JPEG',_fx,_yy,_fw,_fh); }catch(e){} _fx+=_fw+_gap; });
-    y=_yy+_fh+10;
+    doc.setFont('helvetica','bold'); doc.text('Evidencia'+(_fu.length>1?' ('+_fu.length+' fotos)':''), 40, y); y+=10;
+    // Marco según la proporción real de cada foto: vertical si es vertical, horizontal si es horizontal (sin deformar).
+    var _maxW=165, _maxH=180, _gap=10, _fx=40, _yy=y, _rowH=0;
+    _fu.forEach(function(u){
+      var iw=4, ih=3; try{ var pr=doc.getImageProperties(u); if(pr&&pr.width&&pr.height){ iw=pr.width; ih=pr.height; } }catch(e){}
+      var s=Math.min(_maxW/iw, _maxH/ih); var w=iw*s, h=ih*s;
+      if(_fx+w>W-40){ _fx=40; _yy+=_rowH+_gap; _rowH=0; }
+      try{ doc.addImage(u,'JPEG',_fx,_yy,w,h); }catch(e){}
+      _fx+=w+_gap; if(h>_rowH) _rowH=h;
+    });
+    y=_yy+_rowH+12;
   }
   doc.setFont('helvetica','bold'); doc.text('Firma del observador', 40, y); y+=6;
   try{ doc.addImage(firmaDataUrl,'PNG',40,y,150,60); }catch(e){}

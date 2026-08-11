@@ -138,6 +138,7 @@ const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const N8N_HOOK = "https://dnmintell.app.n8n.cloud/webhook/kalu-admin";
 const N8N_ENROL = "https://dnmintell.app.n8n.cloud/webhook";
 let SB_TOKEN=null, ME=null, TAB="", CTX_EMP=null, EMPRESAS=[];
+let MIEMP=null, SEDES_BY_EMP={}, DOCS_EDIT={};
 /* Catálogo de módulos → roles → permisos por defecto (editables) */
 const MODULOS=[
   {key:"hse", nombre:"HSE", ic:"🛡️",
@@ -219,6 +220,7 @@ function construirTabs(){
   const tabs=[];
   if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
   if(ME.es_super) tabs.push(["enrolamiento","🚀 Enrolamiento"]);
+  tabs.push(["miempresa","🏢 Mi empresa"]);
   tabs.push(["usuarios","👥 Usuarios y accesos"]);
   tabs.push(["padron","🪪 Padrón (cédulas)"]);
   tabs.push(["formatos","📄 Control documental"]);
@@ -227,7 +229,7 @@ function construirTabs(){
   irTab(tabs[0][0]);
 }
 function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
-  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
+  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="miempresa") viewMiEmpresa(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
 async function viewEnrolamiento(){
   var h='<h2 class="sec">Enrolar una empresa nueva</h2>';
   h+='<div class="note" style="margin-bottom:14px">Ingresá el correo del futuro <b>administrador</b> de la empresa y qué módulos le autorizás. KALU le manda un correo para que <b>él</b> cargue todos los datos y cree su usuario. La empresa se crea sola cuando termina — vos solo das el gatillo.</div>';
@@ -258,7 +260,7 @@ async function enviarEnrol(){
     if(d&&d.ok){ toast("Invitación enviada a "+email); if(st){ st.style.color="#2ea86a"; st.textContent="✓ Invitación enviada a "+email; } $("#en_email").value=""; $("#en_nombre").value=""; logAud("enrolar_empresa","enrolamiento",email,{modulos:mods}); cargarEnrolamientos(); }
     else { toast((d&&d.message)||"No se pudo enviar.",true); if(st){ st.style.color="var(--no)"; st.textContent=(d&&d.message)||"No se pudo enviar."; } }
   }catch(e){ toast("Error de conexión con n8n.",true); if(st){ st.style.color="var(--no)"; st.textContent="Error de conexión con n8n."; } }
-  finally{ if(btn){ btn.disabled=false; btn.textContent="🚀 Enviar invitación de enrolamiento"; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent="🚀 Enviar invitación de enrolamiento"; } cargarEnrolamientos(); }
 }
 async function cargarEnrolamientos(){
   try{
@@ -270,9 +272,10 @@ async function cargarEnrolamientos(){
     }).join("");
   }catch(e){ $("#en_lista").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; }
 }
+let FMT_EDIT=false;
 async function viewFormatos(){
   var h='<h2 class="sec">Control documental</h2>';
-  h+='<div class="note" style="margin-bottom:14px">Cargá el <b>N° de formato</b>, la <b>versión</b> y la <b>fecha de versión</b> de cada documento de tu empresa. Aparecen impresos en el PDF de cada formato. Se guarda solo al salir de cada campo.</div>';
+  h+='<div class="note" style="margin-bottom:14px">El <b>N° de formato</b>, la <b>versión</b> y la <b>fecha de versión</b> de cada documento de tu empresa. Aparecen impresos en el PDF de cada formato. Tocá <b>Editar</b> para cambiarlos y <b>Guardar cambios</b> para confirmar.</div>';
   var data;
   try{ data=await sbFetch("/rest/v1/rpc/mi_control_documental",{method:"POST",body:"{}"}); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
@@ -281,25 +284,34 @@ async function viewFormatos(){
   var seen={}, dlist=[];
   mods.forEach(function(mk){ (DOCS_POR_MODULO[mk]||[]).forEach(function(dt){ if(!seen[dt[0]]){ seen[dt[0]]=1; dlist.push(dt); } }); });
   if(!dlist.length){ h+='<div class="empty">Tu empresa todavía no tiene módulos que generen documentos.</div>'; $("#view").innerHTML=h; return; }
-  var stI='background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:8px 11px;font-size:12.5px';
-  h+='<div class="row" style="flex-direction:column;align-items:stretch;gap:10px">'
-    + dlist.map(function(dt){ var dd=docs[dt[0]]||{}; return '<div data-tipo="'+dt[0]+'" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+  var dis=FMT_EDIT?'':' disabled';
+  var stI='background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:8px 11px;font-size:12.5px'+(FMT_EDIT?'':';opacity:.6');
+  h+='<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap"><span class="meta" style="font-weight:700">📄 Formatos</span><div class="grow"></div>'
+    +(FMT_EDIT
+      ? '<button class="btn btn-amber btn-sm" onclick="guardarFormatos()">💾 Guardar cambios</button><button class="btn btn-b btn-sm" onclick="cancelarFormatos()">Cancelar</button>'
+      : '<button class="btn btn-b btn-sm" onclick="editarFormatos()">✏️ Editar</button>')
+    +'</div>'
+    + dlist.map(function(dt){ var dd=docs[dt[0]]||{}; return '<div data-tipo="'+dt[0]+'" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
       +'<span class="meta" style="width:180px;font-weight:700">'+dt[1]+'</span>'
-      +'<input class="fdoc-codigo" placeholder="N° formato" value="'+esc(dd.codigo||"")+'" onchange="guardarDocEmpresa(\''+dt[0]+'\')" style="flex:1;min-width:130px;'+stI+'"/>'
-      +'<input class="fdoc-version" placeholder="Versión" value="'+esc(dd.version||"")+'" onchange="guardarDocEmpresa(\''+dt[0]+'\')" style="width:100px;'+stI+'"/>'
-      +'<input class="fdoc-fecha" placeholder="Fecha versión" value="'+esc(dd.fecha||"")+'" onchange="guardarDocEmpresa(\''+dt[0]+'\')" style="width:135px;'+stI+'"/>'
+      +'<input class="fdoc-codigo" placeholder="N° formato" value="'+esc(dd.codigo||"")+'"'+dis+' style="flex:1;min-width:130px;'+stI+'"/>'
+      +'<input class="fdoc-version" placeholder="Versión" value="'+esc(dd.version||"")+'"'+dis+' style="width:100px;'+stI+'"/>'
+      +'<input class="fdoc-fecha" placeholder="Fecha versión" value="'+esc(dd.fecha||"")+'"'+dis+' style="width:135px;'+stI+'"/>'
       +'</div>'; }).join("")
     +'</div>';
   $("#view").innerHTML=h;
 }
-async function guardarDocEmpresa(tipo){
-  var rowEl=document.querySelector('[data-tipo="'+tipo+'"]'); if(!rowEl) return;
-  var payload={ p_tipo:tipo,
-    p_codigo:(rowEl.querySelector('.fdoc-codigo')||{}).value||'',
-    p_version:(rowEl.querySelector('.fdoc-version')||{}).value||'',
-    p_fecha:(rowEl.querySelector('.fdoc-fecha')||{}).value||'' };
-  try{ await sbFetch("/rest/v1/rpc/set_control_documental",{method:"POST",body:JSON.stringify(payload)});
-    logAud("set_control_documental","empresa",ME.empresa_id||"",{tipo:tipo}); toast("Control documental guardado");
+function editarFormatos(){ FMT_EDIT=true; viewFormatos(); }
+function cancelarFormatos(){ FMT_EDIT=false; viewFormatos(); }
+async function guardarFormatos(){
+  var rows=$("#view").querySelectorAll('[data-tipo]');
+  try{
+    for(var i=0;i<rows.length;i++){ var r=rows[i];
+      await sbFetch("/rest/v1/rpc/set_control_documental",{method:"POST",body:JSON.stringify({ p_tipo:r.getAttribute('data-tipo'),
+        p_codigo:(r.querySelector('.fdoc-codigo')||{}).value||'',
+        p_version:(r.querySelector('.fdoc-version')||{}).value||'',
+        p_fecha:(r.querySelector('.fdoc-fecha')||{}).value||'' })});
+    }
+    logAud("set_control_documental","empresa",ME.empresa_id||"",{bulk:true}); toast("Control documental guardado"); FMT_EDIT=false; viewFormatos();
   }catch(e){ toast("Error: "+e.message,true); }
 }
 function selectorEmpresa(){
@@ -311,8 +323,9 @@ function empModulos(id){ const e=EMPRESAS.find(function(x){return x.id===id;}); 
 /* ---------- EMPRESAS + MÓDULOS (solo super) ---------- */
 async function viewEmpresas(){
   $("#view").innerHTML='<div class="spin">Cargando empresas…</div>';
-  try{ EMPRESAS=await sbFetch("/rest/v1/empresas?select=id,razon_social,modulos,activa,branding&order=razon_social.asc"); }
+  try{ EMPRESAS=await sbFetch("/rest/v1/empresas?select=id,razon_social,modulos,activa,branding,nit,representante_legal,direccion,ciudad,actividad_economica,arl,dominio&order=razon_social.asc"); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  SEDES_BY_EMP={}; try{ (await sbFetch("/rest/v1/sedes?select=empresa_id,nombre,ciudad,direccion&order=nombre.asc")).forEach(function(s){ (SEDES_BY_EMP[s.empresa_id]=SEDES_BY_EMP[s.empresa_id]||[]).push(s); }); }catch(e){}
   let h='<h2 class="sec">Empresas y módulos contratados</h2>';
   h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Nueva empresa</h2><div class="fgrid"><div class="fld"><label>Razón social</label><input id="ne_rs" placeholder="Nombre de la empresa"/></div><div class="fld"><label>NIT (opcional)</label><input id="ne_nit" placeholder="NIT"/></div></div><button class="btn btn-amber btn-sm" onclick="crearEmpresa()">+ Crear empresa</button><div class="note" style="margin-top:10px">Al crearla podés invitar a su admin por correo (webhook n8n).</div></div>';
   h+='<div class="note" style="margin-bottom:14px">Marcá qué módulos tiene cada empresa. El portal le muestra a su gente solo los módulos habilitados <b>y</b> donde tengan rol.</div>';
@@ -332,19 +345,83 @@ async function viewEmpresas(){
     // Se arma solo: cada módulo habilitado suma los formatos (documentos) que genera.
     var _seen={}, _dlist=[];
     mods.forEach(function(mk){ (DOCS_POR_MODULO[mk]||[]).forEach(function(dt){ if(!_seen[dt[0]]){ _seen[dt[0]]=1; _dlist.push(dt); } }); });
+    const _edD=DOCS_EDIT[e.id]?'':' disabled';
+    const _stD=function(w){ return 'width:'+w+';background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px'+(DOCS_EDIT[e.id]?'':';opacity:.6'); };
     const docctrl='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
-      +'<div class="meta" style="font-weight:700;margin-bottom:8px">📄 Control documental <span style="font-weight:400">— N° de formato, versión y fecha de versión (aparecen en el PDF de cada formato)</span></div>'
-      +(_dlist.length ? _dlist.map(function(dt){ var dd=docs[dt[0]]||{}; return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="meta" style="font-weight:700">📄 Control documental <span style="font-weight:400">— N° de formato, versión y fecha (aparecen en el PDF)</span></span>'
+      +(_dlist.length?('<div class="grow"></div>'+(DOCS_EDIT[e.id]
+        ? '<button class="btn btn-amber btn-sm" onclick="guardarDocs(\''+e.id+'\')">💾 Guardar cambios</button><button class="btn btn-b btn-sm" onclick="cancelarDocs(\''+e.id+'\')">Cancelar</button>'
+        : '<button class="btn btn-b btn-sm" onclick="editarDocs(\''+e.id+'\')">✏️ Editar</button>')):'')
+      +'</div>'
+      +(_dlist.length ? _dlist.map(function(dt){ var dd=docs[dt[0]]||{}; return '<div data-emp="'+e.id+'" data-tipo="'+dt[0]+'" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
         +'<span class="meta" style="width:150px;font-weight:600">'+dt[1]+'</span>'
-        +'<input placeholder="N° formato" value="'+esc(dd.codigo||"")+'" onchange="guardarDoc(\''+e.id+'\',\''+dt[0]+'\',\'codigo\',this.value)" style="flex:1;min-width:110px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px"/>'
-        +'<input placeholder="Versión" value="'+esc(dd.version||"")+'" onchange="guardarDoc(\''+e.id+'\',\''+dt[0]+'\',\'version\',this.value)" style="width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px"/>'
-        +'<input placeholder="Fecha versión" value="'+esc(dd.fecha||"")+'" onchange="guardarDoc(\''+e.id+'\',\''+dt[0]+'\',\'fecha\',this.value)" style="width:118px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px"/>'
+        +'<input class="dc-codigo" placeholder="N° formato" value="'+esc(dd.codigo||"")+'"'+_edD+' style="flex:1;min-width:110px;'+_stD("auto")+'"/>'
+        +'<input class="dc-version" placeholder="Versión" value="'+esc(dd.version||"")+'"'+_edD+' style="'+_stD("90px")+'"/>'
+        +'<input class="dc-fecha" placeholder="Fecha versión" value="'+esc(dd.fecha||"")+'"'+_edD+' style="'+_stD("118px")+'"/>'
         +'</div>'; }).join("")
         : '<div class="meta" style="font-size:11.5px">Habilitá un módulo que genere documentos (HSE o QA/QC) para configurar su control documental.</div>')
       +'</div>';
-    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-cy btn-sm" onclick="invitarAdmin(\''+e.id+'\',\''+esc(e.razon_social)+'\')">✉ Invitar admin</button><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div>'+brand+docctrl+'</div>';
+    const datosRO='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+      +'<div class="meta" style="font-weight:700;margin-bottom:8px">🏢 Datos de la empresa <span style="font-weight:400">— propiedad de la empresa · solo lectura (auditoría)</span></div>'
+      +'<div class="fgrid">'+roField("NIT",e.nit)+roField("Representante legal",e.representante_legal)+roField("Dirección",e.direccion)+roField("Ciudad",e.ciudad)+roField("Actividad económica",e.actividad_economica)+roField("ARL",e.arl)+roField("Dominio",e.dominio)+'</div>'
+      +sedesRO(e.id)+'</div>';
+    return '<div class="row '+(e.activa===false?"off":"")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="nm">'+esc(e.razon_social)+'</span>'+(e.activa===false?'<span class="bdg i">inactiva</span>':'<span class="bdg a">activa</span>')+'<div class="grow"></div><button class="btn btn-cy btn-sm" onclick="invitarAdmin(\''+e.id+'\',\''+esc(e.razon_social)+'\')">✉ Invitar admin</button><button class="btn btn-b btn-sm" onclick="toggleEmpresaActiva(\''+e.id+'\','+(e.activa===false?"true":"false")+')">'+(e.activa===false?"Reactivar":"Desactivar")+'</button></div><div class="modchips">'+chips+'</div>'+brand+docctrl+datosRO+'</div>';
   }).join("");
   $("#view").innerHTML=h;
+}
+function roField(lbl,val){ return '<div class="fld"><label>'+lbl+'</label><div style="padding:6px 0;font-size:12.5px;color:var(--tx)">'+(val?esc(val):'<span style="color:var(--mut)">—</span>')+'</div></div>'; }
+function sedesRO(empId){ var ss=SEDES_BY_EMP[empId]||[]; if(!ss.length) return '<div class="meta" style="font-size:11.5px;margin-top:6px">Sin sedes cargadas.</div>'; return '<div style="margin-top:8px"><div class="meta" style="font-weight:600;margin-bottom:4px">Sedes / bases</div>'+ss.map(function(s){ return '<div class="meta" style="font-size:11.5px">• '+esc(s.nombre||"")+(s.ciudad?' — '+esc(s.ciudad):'')+(s.direccion?' · '+esc(s.direccion):'')+'</div>'; }).join("")+'</div>'; }
+/* ---------- MI EMPRESA (admin edita sus datos + sedes) ---------- */
+async function viewMiEmpresa(){
+  $("#view").innerHTML='<div class="spin">Cargando…</div>';
+  let d; try{ d=await sbFetch("/rest/v1/rpc/mi_empresa",{method:"POST",body:"{}"}); }
+  catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+  if(!d){ $("#view").innerHTML='<div class="empty">Tu usuario no tiene una empresa asignada.</div>'; return; }
+  MIEMP=d;
+  const f=function(id,lbl,val){ return '<div class="fld"><label>'+lbl+'</label><input id="'+id+'" value="'+esc(val||"")+'"/></div>'; };
+  let h='<h2 class="sec">Mi empresa</h2>';
+  h+='<div class="note" style="margin-bottom:14px">Estos son los datos de tu empresa. Editálos y guardá. Podés sumar sedes cuando quieras. El super-admin puede verlos pero no modificarlos.</div>';
+  h+='<div class="card"><div class="fgrid">'
+    +f("me_rs","Razón social",d.razon_social)+f("me_nit","NIT",d.nit)+f("me_rep","Representante legal",d.representante_legal)
+    +f("me_dir","Dirección principal",d.direccion)+f("me_ciu","Ciudad",d.ciudad)+f("me_act","Actividad económica (CIIU)",d.actividad_economica)
+    +f("me_arl","ARL",d.arl)+f("me_dom","Dominio de correo",d.dominio)
+    +'</div><button class="btn btn-amber btn-sm" style="margin-top:12px" onclick="guardarDatosEmpresa()">💾 Guardar datos</button></div>';
+  const sedes=Array.isArray(d.sedes)?d.sedes:[];
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Sedes / bases</h2><div id="mi_sedes">'+renderSedesMi(sedes)+'</div><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="addSedeMi()">＋ Agregar sede</button></div>';
+  $("#view").innerHTML=h;
+}
+function renderSedesMi(sedes){
+  if(!sedes.length) return '<div class="meta" style="font-size:11.5px;margin-bottom:6px">Todavía no cargaste sedes.</div>';
+  var stI='background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:6px 9px;font-size:12px';
+  return sedes.map(function(s){ return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+    +'<input value="'+esc(s.nombre||"")+'" placeholder="Nombre (ej. Base Yopal)" onchange="patchSedeMi(\''+s.id+'\',\'nombre\',this.value)" style="flex:1;min-width:130px;'+stI+'"/>'
+    +'<input value="'+esc(s.ciudad||"")+'" placeholder="Ciudad" onchange="patchSedeMi(\''+s.id+'\',\'ciudad\',this.value)" style="width:120px;'+stI+'"/>'
+    +'<input value="'+esc(s.direccion||"")+'" placeholder="Dirección" onchange="patchSedeMi(\''+s.id+'\',\'direccion\',this.value)" style="flex:1.3;min-width:130px;'+stI+'"/>'
+    +'<button class="btn btn-b btn-sm" onclick="delSedeMi(\''+s.id+'\')" title="Quitar">🗑</button></div>'; }).join("");
+}
+async function guardarDatosEmpresa(){
+  const payload={ p_razon_social:$("#me_rs").value, p_nit:$("#me_nit").value, p_representante_legal:$("#me_rep").value,
+    p_direccion:$("#me_dir").value, p_ciudad:$("#me_ciu").value, p_actividad_economica:$("#me_act").value,
+    p_arl:$("#me_arl").value, p_dominio:$("#me_dom").value };
+  try{ await sbFetch("/rest/v1/rpc/set_datos_empresa",{method:"POST",body:JSON.stringify(payload)});
+    logAud("set_datos_empresa","empresa",(MIEMP&&MIEMP.id)||"",null); toast("Datos guardados"); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function addSedeMi(){
+  if(!MIEMP||!MIEMP.id) return;
+  try{ await sbFetch("/rest/v1/sedes",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify({empresa_id:MIEMP.id,nombre:"Nueva sede"})});
+    logAud("crear_sede","empresa",MIEMP.id,null); toast("Sede agregada"); viewMiEmpresa(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function patchSedeMi(id,campo,val){
+  var b={}; b[campo]=(val&&val.trim())?val.trim():(campo==="nombre"?"(sin nombre)":null);
+  try{ await sbFetch("/rest/v1/sedes?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(b)}); toast("Sede actualizada"); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function delSedeMi(id){
+  if(!confirm("¿Quitar esta sede?"))return;
+  try{ await sbFetch("/rest/v1/sedes?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}}); logAud("borrar_sede","empresa",(MIEMP&&MIEMP.id)||"",null); toast("Sede quitada"); viewMiEmpresa(); }
+  catch(e){ toast("Error: "+e.message,true); }
 }
 async function crearEmpresa(){
   const rs=$("#ne_rs").value.trim(), nit=$("#ne_nit").value.trim();
@@ -375,17 +452,25 @@ async function guardarBranding(id, patch){
     logAud("set_branding","empresa",id,patch); toast("Branding guardado");
   }catch(err){ toast("Error: "+err.message,true); }
 }
-async function guardarDoc(id, tipo, campo, valor){
+function editarDocs(id){ DOCS_EDIT[id]=true; viewEmpresas(); }
+function cancelarDocs(id){ delete DOCS_EDIT[id]; viewEmpresas(); }
+async function guardarDocs(id){
   try{
     var b=Object.assign({}, brandingDe(id));
     var docs=Object.assign({}, (b.docs&&typeof b.docs==="object")?b.docs:{});
-    var d=Object.assign({}, docs[tipo]||{});
-    var v=(valor&&valor.trim)?valor.trim():valor;
-    if(v){ d[campo]=v; } else { delete d[campo]; }
-    docs[tipo]=d; b.docs=docs;
+    $("#view").querySelectorAll('[data-emp="'+id+'"]').forEach(function(r){
+      var tipo=r.getAttribute('data-tipo'); var d={};
+      var c=(r.querySelector('.dc-codigo')||{}).value||''; c=c.trim?c.trim():c;
+      var v=(r.querySelector('.dc-version')||{}).value||''; v=v.trim?v.trim():v;
+      var f=(r.querySelector('.dc-fecha')||{}).value||''; f=f.trim?f.trim():f;
+      if(c) d.codigo=c; if(v) d.version=v; if(f) d.fecha=f;
+      if(Object.keys(d).length) docs[tipo]=d; else delete docs[tipo];
+    });
+    b.docs=docs;
     await sbFetch("/rest/v1/empresas?id=eq."+id,{method:"PATCH",body:JSON.stringify({branding:b})});
     var e=EMPRESAS.find(function(x){return x.id===id;}); if(e) e.branding=b;
-    logAud("set_doc_control","empresa",id,{tipo:tipo,campo:campo,valor:v||null}); toast("Control documental guardado");
+    logAud("set_doc_control","empresa",id,{bulk:true}); toast("Control documental guardado");
+    delete DOCS_EDIT[id]; viewEmpresas();
   }catch(err){ toast("Error: "+err.message,true); }
 }
 async function subirLogoEmpresa(id, inp){

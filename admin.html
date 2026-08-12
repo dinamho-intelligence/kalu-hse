@@ -374,7 +374,7 @@ function sedesRO(empId){ var ss=SEDES_BY_EMP[empId]||[]; if(!ss.length) return '
 /* ---------- MI EMPRESA (admin edita sus datos + sedes) ---------- */
 async function viewMiEmpresa(){
   $("#view").innerHTML='<div class="spin">Cargando…</div>';
-  let d; try{ d=await sbFetch("/rest/v1/rpc/mi_empresa",{method:"POST",body:"{}"}); }
+  let d; try{ d=await sbFetch("/rest/v1/rpc/mis_datos_empresa",{method:"POST",body:"{}"}); }
   catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
   if(!d){ $("#view").innerHTML='<div class="empty">Tu usuario no tiene una empresa asignada.</div>'; return; }
   MIEMP=d;

@@ -593,8 +593,29 @@
       <div class="agregar-fila"><label class="btn-agregar" style="cursor:pointer;white-space:nowrap;padding:10px 16px">📷 Agregar fotos<input type="file" id="inv-fotos-input" accept="image/*" multiple capture="environment" style="display:none" onchange="agregarFotosInv(this)"></label><span id="inv-fotos-hint" style="font-size:11.5px;color:#8A909C;align-self:center">Se comprimen solas. Poné un rótulo a cada una.</span></div>
       <div id="inv-fotos-lista" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
     </div>
+    <details id="afec-form" class="campo-inv" style="margin-top:4px;border:1px solid var(--gris-3);border-radius:10px;padding:12px">
+      <summary style="cursor:pointer;font-weight:600;color:var(--naranja);font-size:13px">👤 Datos del trabajador afectado <span style="font-weight:400;color:#8A909C">(para el informe — opcional)</span></summary>
+      <div style="margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8A909C;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="afec-esreporta" onchange="copiarReportaAfectado()"> El afectado es quien reporta (copiar nombre y cédula)</label>
+        <div class="inv-grid-2">
+          <div class="campo-inv"><label>Nombre del afectado</label><input id="afec-nombre"/></div>
+          <div class="campo-inv"><label>Identificación</label><input id="afec-cedula"/></div>
+          <div class="campo-inv"><label>Tipo de vinculación</label><input id="afec-vinc" placeholder="Directo, temporal…"/></div>
+          <div class="campo-inv"><label>Fecha de nacimiento</label><input id="afec-nac" type="date"/></div>
+          <div class="campo-inv"><label>Sexo</label><input id="afec-sexo"/></div>
+          <div class="campo-inv"><label>Ocupación / cargo</label><input id="afec-cargo"/></div>
+          <div class="campo-inv"><label>Dirección</label><input id="afec-dir"/></div>
+          <div class="campo-inv"><label>Lugar de residencia</label><input id="afec-resid"/></div>
+          <div class="campo-inv"><label>Salario</label><input id="afec-salario"/></div>
+          <div class="campo-inv"><label>Jornada</label><input id="afec-jornada"/></div>
+          <div class="campo-inv"><label>EPS</label><input id="afec-eps"/></div>
+          <div class="campo-inv"><label>AFP</label><input id="afec-afp"/></div>
+          <div class="campo-inv"><label>ARL</label><input id="afec-arl"/></div>
+        </div>
+      </div>
+    </details>
     <button class="btn-inv-iniciar" id="btn-inv-iniciar" onclick="iniciarInvestigacion()">🔍 INICIAR INVESTIGACIÓN CON KALU</button>
-    <button class="btn-volver-home" style="width:100%;margin-top:12px" onclick="continuarInvestigacion()">↩ CONTINUAR INVESTIGACIÓN EXISTENTE (HSE)</button>
+    <button class="btn-volver-home" style="width:100%;margin-top:12px" onclick="continuarInvestigacion()">↩ CONTINUAR INVESTIGACIÓN EXISTENTE</button>
   </div>
 </div>
 <!-- INVESTIGADOR CHAT -->
@@ -870,6 +891,15 @@ async function subirFotosInvestigacion(sessionId){
   }
   return out;
 }
+function copiarReportaAfectado(){
+  var chk=document.getElementById('afec-esreporta');
+  if(chk&&chk.checked){
+    var r=document.getElementById('inv-reporta'), c=document.getElementById('inv-cedula');
+    var an=document.getElementById('afec-nombre'), ac=document.getElementById('afec-cedula');
+    if(r&&an) an.value=r.value;
+    if(c&&ac) ac.value=c.value;
+  }
+}
 async function iniciarInvestigacion(){
   const reporta=document.getElementById('inv-reporta').value.trim();
   const rol=document.getElementById('inv-rol').value;
@@ -885,6 +915,9 @@ async function iniciarInvestigacion(){
   if(!locacion){alert('Ingresá la locación del evento');return;}
   if(!descripcion){alert('Describí brevemente qué ocurrió');return;}
   if(!cedula){alert('Ingresá la cédula (necesaria para la firma)');return;}
+  const _av=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+  const __afec={nombre:_av('afec-nombre'),identificacion:_av('afec-cedula'),tipo_vinculacion:_av('afec-vinc'),fecha_nacimiento:_av('afec-nac'),sexo:_av('afec-sexo'),ocupacion:_av('afec-cargo'),direccion:_av('afec-dir'),lugar_residencia:_av('afec-resid'),salario:_av('afec-salario'),jornada:_av('afec-jornada'),eps:_av('afec-eps'),afp:_av('afec-afp'),arl:_av('afec-arl')};
+  Object.keys(__afec).forEach(function(k){ if(!__afec[k]) delete __afec[k]; });
   KALU_ONLINE=await pingKalu(); pintarConexion();
   if(!KALU_ONLINE){ alert('KALU está sin conexión. Revisá tu internet e intentá de nuevo en un momento.'); return; }
   const btn=document.getElementById('btn-inv-iniciar');btn.disabled=true;btn.textContent='⏳ Iniciando investigación...';
@@ -894,7 +927,7 @@ async function iniciarInvestigacion(){
   try{
     let fotosSubidas=[];
     try{ fotosSubidas=await subirFotosInvestigacion(invSessionId); }catch(e){}
-    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,cedula,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null,fotos:fotosSubidas})});
+    const res=await fetch(WEBHOOK_INV_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reporta,rol,empresa,fecha,hora,locacion,descripcion,testigos,cedula,sessionId:invSessionId,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,token:(window.kaluAuth&&window.kaluAuth.token)||null,fotos:fotosSubidas,datos_afectado:__afec})});
     invFotos=[]; renderFotosInv();
     const data=await res.json();
     if(window.invFirma&&data.mensaje){window.invFirma.transcript.push({rol:'KALU',texto:data.mensaje});}
@@ -1509,6 +1542,15 @@ async function iniciarSesion(){
     const rol=p.rol||'trabajador';
     const esManager=(rol==='hse'||rol==='supervisor');
     const puedeConsola=esManager || (p.acceso_consola===true);
+    // Investigación: todos pueden reportar; solo HSE ve el rol "Supervisor" y el formulario de datos del afectado
+    var _afForm=document.getElementById('afec-form'); if(_afForm) _afForm.style.display=puedeConsola?'':'none';
+    var _rolSel=document.getElementById('inv-rol');
+    if(_rolSel){
+      var _o='<option value="">Seleccioná...</option><option value="Trabajador afectado">Trabajador afectado</option>';
+      if(puedeConsola) _o+='<option value="Supervisor">Supervisor</option>';
+      _o+='<option value="Compañero testigo">Compañero testigo</option>';
+      _rolSel.innerHTML=_o;
+    }
     // 1) La tarjeta de Consola HSE se muestra a managers o a quien tenga acceso a consola
     document.querySelectorAll('.modulo-card').forEach(function(c){
       const oc=c.getAttribute('onclick')||'';

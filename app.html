@@ -1542,12 +1542,15 @@ async function iniciarSesion(){
     const rol=p.rol||'trabajador';
     const esManager=(rol==='hse'||rol==='supervisor');
     const puedeConsola=esManager || (p.acceso_consola===true);
-    // Investigación: todos pueden reportar; solo HSE ve el rol "Supervisor" y el formulario de datos del afectado
-    var _afForm=document.getElementById('afec-form'); if(_afForm) _afForm.style.display=puedeConsola?'':'none';
+    // Investigación: todos pueden reportar; solo el HSE que maneja expedientes (coordinador) ve el rol "Supervisor" y el formulario del afectado
+    var esHseLead=false;
+    try{ const r=await sb.rpc('soy_hse_lider'); esHseLead=(r&&r.data===true); }catch(e){}
+    window.esHseLead=esHseLead;
+    var _afForm=document.getElementById('afec-form'); if(_afForm) _afForm.style.display=esHseLead?'':'none';
     var _rolSel=document.getElementById('inv-rol');
     if(_rolSel){
       var _o='<option value="">Seleccioná...</option><option value="Trabajador afectado">Trabajador afectado</option>';
-      if(puedeConsola) _o+='<option value="Supervisor">Supervisor</option>';
+      if(esHseLead) _o+='<option value="Supervisor">Supervisor</option>';
       _o+='<option value="Compañero testigo">Compañero testigo</option>';
       _rolSel.innerHTML=_o;
     }

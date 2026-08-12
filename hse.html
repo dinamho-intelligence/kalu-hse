@@ -400,6 +400,12 @@ async function login(){
     $('scLogin').classList.add('hide'); $('scDash').classList.remove('hide'); $('lo').classList.remove('hide');
     cargar();
     if(OPERADOR) aplicarModoOperador();
+    // Expedientes: lo más sensible. Solo coordinador HSE / admin / super. Escondemos la pestaña si no.
+    try{
+      const _rr=await fetch(SB_URL+'/rest/v1/rpc/soy_hse_lider',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'});
+      window.PUEDE_EXP=((await _rr.json())===true);
+    }catch(_){ window.PUEDE_EXP=false; }
+    if(!window.PUEDE_EXP){ var _te=document.getElementById('tabExp'); if(_te) _te.style.display='none'; }
   }catch(err){e.textContent='Error de conexión. Probá de nuevo.';b.disabled=false;b.textContent='Ingresar';}
 }
 function salir(){ TOKEN=null; location.reload(); }
@@ -550,6 +556,7 @@ function renderOpScore(s){
     +'</div></div>';
 }
 function verVista(v){
+  if(v==='exp' && window.PUEDE_EXP===false){ v='tablero'; }
   document.getElementById('tabTab').classList.toggle('on',v==='tablero');
   document.getElementById('tabExp').classList.toggle('on',v==='exp');
   document.getElementById('tabTar').classList.toggle('on',v==='tar');

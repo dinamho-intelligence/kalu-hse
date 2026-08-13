@@ -1359,6 +1359,19 @@ async function quitarDestaque(id){
     var t=(TAR||[]).find(function(x){return x.id===id;}); if(t) t.destacada=false; cerrarDet(); renderTar();
   }catch(e){ alert('No se pudo quitar ('+e.message+').'); }
 }
+function _diasCelda(t){
+  if((t.clase||'')!=='inseguro') return '';
+  var r=_repISO(t); if(!r) return '';
+  if((t.estado||'')==='cerrada'){
+    var f=String(t.cerrada_at||'').slice(0,10); if(!f) return '';
+    var dc=_diasEntre(r,f); if(dc<0) return '';
+    return '<div style="font-size:11px;color:#4FD98B;margin-top:3px;white-space:nowrap">✓ cerró en '+dc+'d</div>';
+  }
+  var d=_diasEntre(r,_hoyISO()); if(d<0) d=0;
+  var col=d>15?'#FF8A82':(d>7?'#F2C14E':'#9fabb8');
+  var lbl=t.fecha_limite?(d+'d abierta'):(d+'d sin gestionar');
+  return '<div style="font-size:11px;color:'+col+';margin-top:3px;white-space:nowrap">⏱ '+lbl+'</div>';
+}
 function tarTableHTML(rows){
   if(!rows.length) return '<div class="detempty">'+(verElim?'No hay tarjetas eliminadas.':'Sin tarjetas con estos filtros.')+'</div>';
   if(verElim){
@@ -1377,7 +1390,7 @@ function tarTableHTML(rows){
       var _cru=''; if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Resuelta por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
       var gBtn=((t.clase||'')==='inseguro'&&!t.eliminada)?'<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ':'';
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
-      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+_cru+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,95))+'</td>'
+      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+_cru+_diasCelda(t)+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,95))+'</td>'
         +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button title="Eliminar tarjeta" style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑</button></td>'))+'</tr>';
     }).join('')+'</tbody></table></div>';
 }

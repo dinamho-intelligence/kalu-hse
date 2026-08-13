@@ -22,7 +22,7 @@
   .who{font-size:13px;color:var(--tx2);font-family:monospace;}
   .who b{color:var(--tx);font-weight:800;}
   .lo{background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;}
-  .wrap{max-width:1200px;margin:0 auto;padding:20px 22px 40px;}
+  .wrap{max-width:1560px;margin:0 auto;padding:20px 22px 40px;}
   .login{max-width:380px;margin:60px auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:30px 26px;}
   .login h1{font-size:20px;color:var(--nar);text-align:center;letter-spacing:1px;margin-bottom:2px;}
   .login .sub{text-align:center;color:var(--tx3);font-size:11px;font-family:monospace;margin-bottom:20px;letter-spacing:.5px;}
@@ -129,9 +129,9 @@
   .ppl{width:100%;border-collapse:collapse;font-size:12.5px;}
   .ppl td{padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx);}
   .ppl td.n{text-align:right;color:var(--nar);font-weight:700;width:46px;}
-  .ttbl{width:100%;border-collapse:collapse;font-size:12px;}
-  .ttbl th{text-align:left;color:var(--tx3);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);}
-  .ttbl td{padding:8px 8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx);vertical-align:top;}
+  .ttbl{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .ttbl th{text-align:left;color:var(--tx3);font-weight:600;padding:6px 7px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);}
+  .ttbl td{padding:6px 7px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx);vertical-align:top;}
   .twrap{max-height:460px;overflow:auto;}
   .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
   .badge.seg{background:rgba(37,194,110,.15);color:var(--verde);}
@@ -1337,15 +1337,16 @@ function tarTableHTML(rows){
           +'<td><button style="background:rgba(37,194,110,.12);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="restaurarTarjeta(\''+t.id+'\')">↩ Restaurar</button></td></tr>';
       }).join('')+'</tbody></table></div>';
   }
-  return '<div class="twrap"><table class="ttbl"><thead><tr><th>N°</th><th>Seguimiento</th><th>Fecha</th><th>Observador</th><th>Observado</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th>'+(OPERADOR?'':'<th>PDF</th><th></th>')+'</tr></thead><tbody>'
+  return '<div class="twrap"><table class="ttbl"><thead><tr><th>N°</th><th>Seguimiento</th><th>Fecha</th><th>Observador</th><th>Clase</th><th>Categoría</th><th>Riesgo</th><th>Lugar</th><th>Descripción</th>'+(OPERADOR?'':'<th>PDF</th><th></th>')+'</tr></thead><tbody>'
     +rows.map(function(t){
       const cl=(t.clase||'')==='seguro'?'<span class="badge seg">seguro</span>':(t.clase||'')==='inseguro'?'<span class="badge ins">inseguro</span>':esc(t.clase||'—');
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
+      var _cru=''; if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Resuelta por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
       var gBtn=((t.clase||'')==='inseguro'&&!t.eliminada)?'<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ':'';
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
-      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+esc(t.observado_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,140))+'</td>'
-        +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑 Eliminar</button></td>'))+'</tr>';
+      return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+_cru+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,95))+'</td>'
+        +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button title="Eliminar tarjeta" style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑</button></td>'))+'</tr>';
     }).join('')+'</tbody></table></div>';
 }
 async function eliminarTarjeta(id){

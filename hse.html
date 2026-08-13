@@ -191,6 +191,7 @@
       <button class="tab" id="tabDocs" onclick="verVista('docs')">📎 Documentos</button>
       <button class="tab" id="tabAudit" onclick="verVista('audit')">🕵 Auditoría</button>
       <button class="tab gestor-only" id="tabNotif" onclick="verVista('notif')">✉ Notificaciones</button>
+      <button class="tab" id="tabDir" onclick="window.open('direccion.html','_blank')" style="display:none;border-color:#00d4ff;color:#7fe6ff">🏛 Dirección</button>
     </div>
     <div id="viewTablero">
     <div class="loading" id="loading">Cargando datos…</div>
@@ -407,6 +408,11 @@ async function login(){
       window.PUEDE_EXP=((await _rr.json())===true);
     }catch(_){ window.PUEDE_EXP=false; }
     if(!window.PUEDE_EXP){ var _te=document.getElementById('tabExp'); if(_te) _te.style.display='none'; }
+    // Tablero de Dirección: solo visible si el correo está en la lista de gerencia.
+    try{
+      const _rd=await fetch(SB_URL+'/rest/v1/rpc/soy_direccion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'});
+      if((await _rd.json())===true){ var _td=document.getElementById('tabDir'); if(_td) _td.style.display=''; }
+    }catch(_){}
   }catch(err){e.textContent='Error de conexión. Probá de nuevo.';b.disabled=false;b.textContent='Ingresar';}
 }
 function salir(){ TOKEN=null; location.reload(); }

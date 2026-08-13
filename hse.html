@@ -508,6 +508,11 @@ function render(ats,inv,tar){
   doughnut('cTseg',Object.keys(tc),Object.values(tc),Object.keys(tc).map(k=>k==='seguro'?VE:RO),l=>showDetalle('Tarjetas — '+l,tar.filter(r=>(r.clase||'—')===l),[{k:'categoria',t:'Categoría'},{k:'tipo',t:'Tipo'},{k:'riesgo',t:'Riesgo'}]));
   const tcat=Object.entries(tally(tar.map(r=>r.categoria)));
   bar('cTcat',tcat.map(x=>x[0]),tcat.map(x=>x[1]),NAR,true,l=>showDetalle('Tarjetas — '+l,tar.filter(r=>r.categoria===l),[{k:'clase',t:'Clase'},{k:'tipo',t:'Tipo'},{k:'riesgo',t:'Riesgo'}]));
+  var _tById={}; tar.forEach(function(x){_tById[x.id]=x;});
+  function _descT(id){var c=_tById[id]; return c?((c.consecutivo?('N° '+c.consecutivo+' · '):'')+String(c.descripcion||'').slice(0,80)):null;}
+  var _ins=tar.filter(function(t){return (t.clase||'')==='inseguro' && !t.eliminada;});
+  var _insCer=_ins.filter(function(t){return (t.estado||'')==='cerrada';});
+  var _segTar={inseguras:_ins.length,cerradas:_insCer.length,abiertas:_ins.length-_insCer.length,con_vinculo_documentado:_insCer.filter(function(t){return t.cierra_tarjeta_id;}).length};
   window.KDATA={
     kpis:{ats:ats.length,pendientes_aprobacion:pendientes,investigaciones:inv.length,tarjetas:tar.length,score_promedio:scoreProm},
     ats_por_responsable:topN(tally(ats.map(r=>r.responsable)),10).map(x=>({responsable:x[0],ats:x[1]})),
@@ -518,7 +523,8 @@ function render(ats,inv,tar){
     tarjetas:{por_clase:tally(tar.map(r=>r.clase||'—')),por_categoria:tally(tar.map(r=>r.categoria)),por_riesgo:tally(tar.map(r=>r.riesgo))},
     investigaciones_detalle:inv.slice(0,80).map(function(v){var d={inv_id:v.inv_id,fecha:v.fecha_evento,reporta:v.reporta,rol_reporta:v.rol_reporta,cliente:v.cliente,estado:v.estado,testigos:(Array.isArray(v.testigos)?v.testigos:[]),que_paso:String(v.descripcion||'').slice(0,900)};var inf=(typeof parseInforme==='function')?parseInforme(v.historial):null;if(inf){d.clasificacion=inf.clasificacion;d.afectado=(inf.datos_trabajador&&inf.datos_trabajador.nombre)||null;d.declarantes=(inf.declaraciones||[]).map(function(x){return {persona:x.persona,rol:x.rol};});d.causa_inmediata=inf.causa_inmediata;d.leccion_aprendida=inf.leccion_aprendida;d.acciones=(inf.acciones_correctivas||[]).map(function(a){return {accion:String(a.accion||'').slice(0,120),responsable:a.responsable,estado:a.estado};});}return d;}),
     ats_detalle:atsDetalle,
-    tarjetas_detalle:tar.slice(0,60).map(function(t){return {observador:t.observador_nombre,clase:t.clase,tipo:t.tipo,categoria:t.categoria,riesgo:t.riesgo,lugar:t.lugar,que_vio:String(t.descripcion||'').slice(0,300),fecha:t.fecha};})
+    tarjetas_detalle:tar.slice(0,60).map(function(t){return {observador:t.observador_nombre,clase:t.clase,tipo:t.tipo,categoria:t.categoria,riesgo:t.riesgo,lugar:t.lugar,que_vio:String(t.descripcion||'').slice(0,300),fecha:t.fecha,estado:((t.clase||'')==='inseguro'?((t.estado||'abierta')):null),cerrada_at:t.cerrada_at||null,solucion:t.respuesta?String(t.respuesta).slice(0,200):null,verifico:t.verificado_por||null,resuelta_por:t.cierra_tarjeta_id?_descT(t.cierra_tarjeta_id):null};}),
+    seguimiento_tarjetas:_segTar
   };
   $('note').textContent='Datos en vivo de Supabase · '+ats.length+' ATS, '+inv.length+' investigaciones, '+tar.length+' tarjetas. Tocá cualquier gráfico para ver el detalle. (Sin filtro por empresa aún.)';
 }
@@ -1098,7 +1104,7 @@ function pdfInforme(invId){
 }
 const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-hse-chat';
 let chatHist=[];
-const SUGERENCIAS=['Dame un resumen del estado HSE de la empresa','¿Dónde debería enfocar la prevención?','¿Quién necesita refuerzo según el scoring?','¿Cómo vienen las tarjetas de actos inseguros?'];
+const SUGERENCIAS=['Dame un resumen del estado HSE de la empresa','¿Dónde debería enfocar la prevención?','¿Cuántas condiciones inseguras ya se cerraron?','¿Cómo vienen las tarjetas de actos inseguros?'];
 function initChat(){
   const m=document.getElementById('chatMsgs'); if(!m||m.dataset.init) return; m.dataset.init='1';
   chatBubble('kalu','Hola, soy KALU. Preguntame lo que quieras sobre tus expedientes, ATS, tarjetas, scoring o desempeño — te respondo con tus datos reales.');
@@ -1246,17 +1252,28 @@ function gestionarTarjeta(id){
   info += _tf.length?('<div style="margin:2px 0 10px"><div style="font-size:12px;color:var(--tx2);margin-bottom:6px">📷 Fotos de evidencia — clic para abrir en pestaña nueva</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+_tf.map(function(p){var url=SB_URL+'/storage/v1/object/public/tarjetas/'+p;return '<a href="'+url+'" target="_blank"><img src="'+url+'" style="width:110px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"></a>';}).join('')+'</div></div>'):'';
   var body;
   if(cerrada){
+    var _rp=t.cierra_tarjeta_id?((TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;})):null;
     body=info+'<span class="sem sem-done" style="margin:6px 0">Cerrada</span>'
       +'<div style="font-size:13px;line-height:1.6;margin-top:8px"><b>Solucion:</b> '+esc(t.respuesta||'-')+'<br>'
-      +'<b>Cerro:</b> '+esc(t.cerrada_por||'-')+' · '+esc(String(t.cerrada_at||'').slice(0,16).replace('T',' '))+'</div>'
+      +'<b>Cerro:</b> '+esc(t.cerrada_por||'-')+' · '+esc(String(t.cerrada_at||'').slice(0,16).replace('T',' '))
+      +(_rp?('<br><b>Resuelta por:</b> '+esc((_rp.consecutivo?('N° '+_rp.consecutivo+' · '):'')+String(_rp.descripcion||'').slice(0,60))):'')
+      +(t.verificado_por?('<br><b>Verificó:</b> '+esc(t.verificado_por)):'')
+      +'</div>'
       +'<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap"><button class="gbtn" onclick="reabrirTarjeta(\''+id+'\')">Reabrir</button>'+destBtn+'</div>';
   } else {
+    var seguras=(TAR||[]).filter(function(x){return x.empresa_id===t.empresa_id && (x.clase||'')==='seguro' && !x.eliminada;}).sort(function(a,b){return String(b.fecha||b.creado||'').localeCompare(String(a.fecha||a.creado||''));});
+    var optSeg='<option value="">— ninguna / se resolvió sin tarjeta —</option>'+seguras.map(function(s){return '<option value="'+s.id+'"'+((t.cierra_tarjeta_id===s.id)?' selected':'')+'>'+esc((s.consecutivo?('N° '+s.consecutivo+' · '):'')+String(s.descripcion||'').slice(0,60))+'</option>';}).join('');
+    var _selSt='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:8px 10px;margin-top:4px';
     body=info+'<div class="gform">'
       +'<label>Plazo de ejecucion (lo fija el HSE)</label>'
       +'<input type="date" id="gPlazo" value="'+esc(plazo)+'">'
       +'<div style="font-size:11px;color:#7a8590;margin-top:3px">Sugerido segun el riesgo — ajustalo al tiempo real de la solucion.</div>'
       +'<label>Solucion / accion tomada (para cerrar)</label>'
       +'<textarea id="gResp" rows="3" placeholder="Que se hizo para resolver de fondo...">'+esc(t.respuesta||'')+'</textarea>'
+      +'<label>¿Qué tarjeta segura resuelve esta? <span style="color:#7a8590;font-weight:400">(opcional — deja la trazabilidad)</span></label>'
+      +'<select id="gCierra" style="'+_selSt+'">'+optSeg+'</select>'
+      +'<label>Verificado por</label>'
+      +'<input type="text" id="gVerif" value="'+esc(t.verificado_por||MYNAME||'')+'">'
       +'<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'
       +'<button class="gbtn" onclick="guardarPlazo(\''+id+'\')">Guardar plazo</button>'
       +'<button class="gbtn" style="background:rgba(37,194,110,.14);border-color:#25C26E;color:#4FD98B" onclick="cerrarTarjeta(\''+id+'\')">✓ Cerrar tarjeta</button>'
@@ -1276,10 +1293,12 @@ async function cerrarTarjeta(id){
   var resp=(document.getElementById('gResp').value||'').trim();
   if(!resp){ alert('Escribí la solución / acción tomada para poder cerrar.'); return; }
   var plazo=document.getElementById('gPlazo').value||null;
+  var cierra=((document.getElementById('gCierra')||{}).value)||null;
+  var verif=(((document.getElementById('gVerif')||{}).value)||'').trim()||MYNAME;
   if(!confirm('Vas a cerrar esta tarjeta con la solución registrada. ¿Confirmás?')) return;
   try{ var ts=new Date().toISOString();
-    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'cerrada',respuesta:resp,cerrada_por:MYNAME,cerrada_at:ts,fecha_limite:plazo});
-    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='cerrada'; t.respuesta=resp; t.cerrada_por=MYNAME; t.cerrada_at=ts; t.fecha_limite=plazo; }
+    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'cerrada',respuesta:resp,cerrada_por:MYNAME,cerrada_at:ts,fecha_limite:plazo,cierra_tarjeta_id:cierra,verificado_por:verif});
+    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='cerrada'; t.respuesta=resp; t.cerrada_por=MYNAME; t.cerrada_at=ts; t.fecha_limite=plazo; t.cierra_tarjeta_id=cierra; t.verificado_por=verif; }
     cerrarDet(); renderTar();
   }catch(e){ alert('No se pudo cerrar ('+e.message+').'); }
 }

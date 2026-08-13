@@ -196,6 +196,7 @@
     <div class="loading" id="loading">Cargando datos…</div>
     <div class="hide" id="dashContent">
       <div class="kpis" id="kpis"></div>
+      <div id="tarTiempos"></div>
       <div class="grid">
         <div class="card"><h2><span>▸</span> Quién hizo más ATS</h2><div class="cw"><canvas id="cResp"></canvas></div></div>
         <div class="card"><h2><span>▸</span> Peligros más comunes (por clasificación)</h2><div class="cw"><canvas id="cPel"></canvas></div></div>
@@ -428,7 +429,7 @@ async function cargar(){
     const [ats,inv,tar]=await Promise.all([
       sbGet('ats?select=responsable,tarea,cliente,zona,estado,modo,fecha,cuadrilla,historial&eliminada=eq.false'),
       sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,rol_reporta,descripcion,testigos,historial&eliminada=eq.false'),
-      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha&eliminada=eq.false')
+      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha,creado,estado,cerrada_at,fecha_limite&eliminada=eq.false')
     ]);
     render(ats,inv,tar);
   }catch(e){ $('loading').textContent='No se pudieron cargar los datos ('+e.message+'). ¿Corriste el SQL de lectura?'; }
@@ -473,6 +474,7 @@ function render(ats,inv,tar){
     ['tar',tar.length,'Tarjetas','gr'],
     ['sco',scoreProm+(scoreProm==='—'?'':'/100'),'Score prom. HSE','']
   ].map(k=>'<div class="kpi '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[2]+'</div></div>').join('');
+  $('tarTiempos').innerHTML=tarTiemposHTML(tar);
   $('loading').classList.add('hide'); $('dashContent').classList.remove('hide');
   const gridColor='rgba(255,255,255,0.06)';
   Chart.defaults.color='#95A0AD'; Chart.defaults.font.family='Arial';
@@ -1225,6 +1227,36 @@ function semTarjeta(t){
   if(dias<=2) return {txt:'Por vencer ('+dias+'d)',cls:'sem-warn'};
   return {txt:'En plazo ('+dias+'d)',cls:'sem-ok'};
 }
+function _repISO(t){ return String(t.creado||t.fecha||'').slice(0,10); }
+function tarTiemposHTML(tar){
+  var ins=(tar||[]).filter(function(t){return (t.clase||'')==='inseguro';});
+  var hoy=_hoyISO();
+  // Días de cierre (las que ya se cerraron): reporte -> cerrada_at
+  var difsC=ins.filter(function(t){return (t.estado||'')==='cerrada' && t.cerrada_at;}).map(function(t){
+    var r=_repISO(t), f=String(t.cerrada_at||'').slice(0,10); if(!r||!f) return null; var d=_diasEntre(r,f); return (d>=0?d:null);
+  }).filter(function(x){return x!=null;});
+  var promC=difsC.length?Math.round(difsC.reduce(function(a,b){return a+b;},0)/difsC.length):null;
+  var maxC=difsC.length?Math.max.apply(null,difsC):null;
+  // Días en gestión (las que siguen abiertas): reporte -> hoy = cuánto llevan esperando
+  var difsA=ins.filter(function(t){return (t.estado||'')!=='cerrada';}).map(function(t){
+    var r=_repISO(t); if(!r) return null; var d=_diasEntre(r,hoy); return (d>=0?d:null);
+  }).filter(function(x){return x!=null;});
+  var promA=difsA.length?Math.round(difsA.reduce(function(a,b){return a+b;},0)/difsA.length):null;
+  var maxA=difsA.length?Math.max.apply(null,difsA):null;
+  if(!ins.length) return '';
+  function tile(color,n,unidad,label,sub){
+    return '<div class="kpi '+color+'" style="display:flex;flex-direction:column;justify-content:center">'
+      +'<div class="n">'+(n==null?'—':n)+(n==null?'':'<span style="font-size:14px;font-weight:600;color:var(--tx2)"> '+unidad+'</span>')+'</div>'
+      +'<div class="l">'+label+'</div>'
+      +(sub?'<div style="font-size:11px;color:var(--tx3);margin-top:5px;text-transform:none;letter-spacing:0">'+sub+'</div>':'')
+      +'</div>';
+  }
+  return '<div style="font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin:2px 0 8px">⏱ Tiempos de gestión de tarjetas (condiciones inseguras)</div>'
+    +'<div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">'
+    +tile('gr',promC,'días','Días prom. de cierre',(difsC.length?('sobre '+difsC.length+' cerradas'+(maxC!=null?(' · la que más tardó: '+maxC+'d'):'')):'sin tarjetas cerradas aún'))
+    +tile('am',promA,'días','Pendientes: antigüedad prom.',(difsA.length?(difsA.length+' sin cerrar'+(maxA!=null?(' · la más vieja lleva '+maxA+'d'):'')):'no hay pendientes 🎉'))
+    +'</div>';
+}
 function segMetrics(){
   var ins=(TAR||[]).filter(function(t){return !t.eliminada && (t.clase||'')==='inseguro';});
   var total=ins.length;
@@ -1259,7 +1291,9 @@ function gestionarTarjeta(id){
       +(_rp?('<br><b>Resuelta por:</b> '+esc((_rp.consecutivo?('N° '+_rp.consecutivo+' · '):'')+String(_rp.descripcion||'').slice(0,60))):'')
       +(t.verificado_por?('<br><b>Verificó:</b> '+esc(t.verificado_por)):'')
       +'</div>'
-      +'<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap"><button class="gbtn" onclick="reabrirTarjeta(\''+id+'\')">Reabrir</button>'+destBtn+'</div>';
+      +'<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap"><button class="gbtn" onclick="reabrirTarjeta(\''+id+'\')">Reabrir</button>'
+      +(t.cierra_tarjeta_id?('<button class="gbtn" style="background:rgba(0,212,255,.12);border-color:#00d4ff;color:#7fe6ff" onclick="emitirCertificado(\''+id+'\')">📧 Emitir / reenviar certificado</button>'):'')
+      +destBtn+'</div>';
   } else {
     var seguras=(TAR||[]).filter(function(x){return x.empresa_id===t.empresa_id && (x.clase||'')==='seguro' && !x.eliminada;}).sort(function(a,b){return String(b.fecha||b.creado||'').localeCompare(String(a.fecha||a.creado||''));});
     var optSeg='<option value="">— ninguna / se resolvió sin tarjeta —</option>'+seguras.map(function(s){return '<option value="'+s.id+'"'+((t.cierra_tarjeta_id===s.id)?' selected':'')+'>'+esc((s.consecutivo?('N° '+s.consecutivo+' · '):'')+String(s.descripcion||'').slice(0,60))+'</option>';}).join('');
@@ -1300,6 +1334,7 @@ async function cerrarTarjeta(id){
     await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'cerrada',respuesta:resp,cerrada_por:MYNAME,cerrada_at:ts,fecha_limite:plazo,cierra_tarjeta_id:cierra,verificado_por:verif});
     var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='cerrada'; t.respuesta=resp; t.cerrada_por=MYNAME; t.cerrada_at=ts; t.fecha_limite=plazo; t.cierra_tarjeta_id=cierra; t.verificado_por=verif; }
     cerrarDet(); renderTar();
+    if(cierra){ emitirCertificado(id,true); }
   }catch(e){ alert('No se pudo cerrar ('+e.message+').'); }
 }
 async function reabrirTarjeta(id){
@@ -1466,6 +1501,23 @@ async function restaurarAts(i){
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
 }
 const WEBHOOK_APROBAR='https://dnmintell.app.n8n.cloud/webhook/kalu-v3-aprobar-v2';
+const WEBHOOK_CERT='https://dnmintell.app.n8n.cloud/webhook/kalu-cert-cruce';
+async function emitirCertificado(id, silent){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return false;
+  if(!t.cierra_tarjeta_id){ if(!silent) alert('Esta tarjeta no tiene una tarjeta segura vinculada (cruce). Cerrala indicando cuál la resuelve.'); return false; }
+  var seg=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;})||{};
+  if(!silent && !confirm('KALU va a verificar el cruce y enviar:\n• el correo de cruce a Cielo, Deiber y Daniela (copia a vos)\n• el certificado al observador ('+(t.observador_nombre||'—')+').\n¿Emitir?')) return false;
+  var payload={ empresa_id:(t.empresa_id||MYEMP||null),
+    insegura:{ consecutivo:t.consecutivo||'', descripcion:t.descripcion||'', categoria:t.categoria||'', riesgo:t.riesgo||'', lugar:t.lugar||'', fecha:tarDate(t), observador_nombre:t.observador_nombre||'', observador_cedula:t.observador_cedula||'' },
+    cruce:{ consecutivo:seg.consecutivo||'', descripcion:seg.descripcion||'', fecha:tarDate(seg) },
+    cerrada_por:t.cerrada_por||MYNAME||'', verificado_por:t.verificado_por||t.cerrada_por||MYNAME||'',
+    cerrada_at:t.cerrada_at||new Date().toISOString(), respuesta:t.respuesta||'' , token:TOKEN };
+  try{
+    await fetch(WEBHOOK_CERT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!silent) alert('Certificado y cruce emitidos ✔\nSi el observador tiene correo en el padrón, ya le llegó su reconocimiento.');
+    return true;
+  }catch(e){ if(!silent) alert('No se pudo emitir ('+e.message+'). Revisá que el flujo kalu-cert-cruce esté activo en n8n.'); return false; }
+}
 async function decidirAts(i, accion){
   var r=ATSDATA[i]; if(!r) return;
   var esApro=(accion==='APROBAR');

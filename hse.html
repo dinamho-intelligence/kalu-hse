@@ -196,7 +196,6 @@
     <div class="loading" id="loading">Cargando datos…</div>
     <div class="hide" id="dashContent">
       <div class="kpis" id="kpis"></div>
-      <div id="tarTiempos"></div>
       <div class="grid">
         <div class="card"><h2><span>▸</span> Quién hizo más ATS</h2><div class="cw"><canvas id="cResp"></canvas></div></div>
         <div class="card"><h2><span>▸</span> Peligros más comunes (por clasificación)</h2><div class="cw"><canvas id="cPel"></canvas></div></div>
@@ -220,6 +219,7 @@
         <div id="opScore"></div>
         <div class="kpis" id="tarKpis"></div>
         <div id="tarSeg" style="margin:2px 0 12px"></div>
+        <div id="tarTiemposHSE"></div>
         <div id="tarDestacada"></div>
         <div class="tarbar">
           <select id="fClase" onchange="renderTar()"><option value="">Todas (seguras + inseguras)</option><option value="seguro">Solo seguras</option><option value="inseguro">Solo inseguras</option></select>
@@ -474,7 +474,6 @@ function render(ats,inv,tar){
     ['tar',tar.length,'Tarjetas','gr'],
     ['sco',scoreProm+(scoreProm==='—'?'':'/100'),'Score prom. HSE','']
   ].map(k=>'<div class="kpi '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[2]+'</div></div>').join('');
-  $('tarTiempos').innerHTML=tarTiemposHTML(tar);
   $('loading').classList.add('hide'); $('dashContent').classList.remove('hide');
   const gridColor='rgba(255,255,255,0.06)';
   Chart.defaults.color='#95A0AD'; Chart.defaults.font.family='Arial';
@@ -1202,6 +1201,7 @@ function renderTar(){
     +'<span class="sem sem-ok">% de cierre <b>'+sm.pct+'%</b></span>'
     +(sm.prom!=null?'<span class="sem sem-none">Tiempo prom. cierre <b>'+sm.prom+'d</b></span>':'')
     +'</div>';
+  document.getElementById('tarTiemposHSE').innerHTML=tarTiemposHSEHTML();
   var _dst=(TAR||[]).filter(function(t){return !t.eliminada && t.destacada;})[0];
   document.getElementById('tarDestacada').innerHTML=_dst?('<div style="border:1px solid var(--nar);border-radius:12px;padding:10px 14px;margin:0 0 12px;background:rgba(242,140,0,.07)"><b style="color:var(--nar)">🏅 Tarjeta de la semana</b> · '+esc(_dst.consecutivo||'')+' · '+esc(_dst.observador_nombre||'')+(_dst.destacada_motivo?(' — <span style="color:var(--tx2)">'+esc(_dst.destacada_motivo)+'</span>'):'')+'</div>'):'';
   document.getElementById('tarObsdor').innerHTML=tarPplTable(tarTallyBy(rows,'observador_nombre'));
@@ -1228,33 +1228,30 @@ function semTarjeta(t){
   return {txt:'En plazo ('+dias+'d)',cls:'sem-ok'};
 }
 function _repISO(t){ return String(t.creado||t.fecha||'').slice(0,10); }
-function tarTiemposHTML(tar){
-  var ins=(tar||[]).filter(function(t){return (t.clase||'')==='inseguro';});
-  var hoy=_hoyISO();
-  // Días de cierre (las que ya se cerraron): reporte -> cerrada_at
-  var difsC=ins.filter(function(t){return (t.estado||'')==='cerrada' && t.cerrada_at;}).map(function(t){
-    var r=_repISO(t), f=String(t.cerrada_at||'').slice(0,10); if(!r||!f) return null; var d=_diasEntre(r,f); return (d>=0?d:null);
-  }).filter(function(x){return x!=null;});
-  var promC=difsC.length?Math.round(difsC.reduce(function(a,b){return a+b;},0)/difsC.length):null;
-  var maxC=difsC.length?Math.max.apply(null,difsC):null;
-  // Días en gestión (las que siguen abiertas): reporte -> hoy = cuánto llevan esperando
-  var difsA=ins.filter(function(t){return (t.estado||'')!=='cerrada';}).map(function(t){
-    var r=_repISO(t); if(!r) return null; var d=_diasEntre(r,hoy); return (d>=0?d:null);
-  }).filter(function(x){return x!=null;});
-  var promA=difsA.length?Math.round(difsA.reduce(function(a,b){return a+b;},0)/difsA.length):null;
-  var maxA=difsA.length?Math.max.apply(null,difsA):null;
+function tarTiemposHSEHTML(){
+  var ins=(TAR||[]).filter(function(t){return !t.eliminada && (t.clase||'')==='inseguro';});
   if(!ins.length) return '';
-  function tile(color,n,unidad,label,sub){
+  var hoy=_hoyISO();
+  var abiertas=ins.filter(function(t){return (t.estado||'')!=='cerrada';});
+  // Sin gestionar = abiertas sin plazo asignado (nadie las triageó)
+  var sinGest=abiertas.filter(function(t){return !t.fecha_limite;});
+  var edad=function(t){ var r=_repISO(t); if(!r) return null; var d=_diasEntre(r,hoy); return (d>=0?d:null); };
+  var dG=sinGest.map(edad).filter(function(x){return x!=null;});
+  var dC=abiertas.map(edad).filter(function(x){return x!=null;});
+  var prom=function(a){ return a.length?Math.round(a.reduce(function(x,y){return x+y;},0)/a.length):null; };
+  var mx=function(a){ return a.length?Math.max.apply(null,a):null; };
+  var promG=prom(dG), maxG=mx(dG), promC=prom(dC), maxC=mx(dC);
+  function tile(color,n,label,cnt,sub){
     return '<div class="kpi '+color+'" style="display:flex;flex-direction:column;justify-content:center">'
-      +'<div class="n">'+(n==null?'—':n)+(n==null?'':'<span style="font-size:14px;font-weight:600;color:var(--tx2)"> '+unidad+'</span>')+'</div>'
+      +'<div class="n">'+(n==null?'—':n)+(n==null?'':'<span style="font-size:14px;font-weight:600;color:var(--tx2)"> días</span>')+'</div>'
       +'<div class="l">'+label+'</div>'
-      +(sub?'<div style="font-size:11px;color:var(--tx3);margin-top:5px;text-transform:none;letter-spacing:0">'+sub+'</div>':'')
+      +'<div style="font-size:11px;color:var(--tx3);margin-top:5px;text-transform:none;letter-spacing:0">'+cnt+(sub?(' · '+sub):'')+'</div>'
       +'</div>';
   }
-  return '<div style="font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin:2px 0 8px">⏱ Tiempos de gestión de tarjetas (condiciones inseguras)</div>'
-    +'<div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">'
-    +tile('gr',promC,'días','Días prom. de cierre',(difsC.length?('sobre '+difsC.length+' cerradas'+(maxC!=null?(' · la que más tardó: '+maxC+'d'):'')):'sin tarjetas cerradas aún'))
-    +tile('am',promA,'días','Pendientes: antigüedad prom.',(difsA.length?(difsA.length+' sin cerrar'+(maxA!=null?(' · la más vieja lleva '+maxA+'d'):'')):'no hay pendientes 🎉'))
+  return '<div style="font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin:2px 0 8px">⏱ Respuesta del HSE — antigüedad de lo pendiente</div>'
+    +'<div class="kpis" style="grid-template-columns:repeat(2,1fr);margin:0 0 14px">'
+    +tile('am',promG,'Días prom. SIN gestionar',(sinGest.length+' sin plazo asignado'),(maxG!=null?('la peor lleva '+maxG+'d'):''))
+    +tile((promC!=null&&promC>15?'':'gr'),promC,'Días prom. SIN cerrar',(abiertas.length+' abiertas'),(maxC!=null?('la más vieja '+maxC+'d'):''))
     +'</div>';
 }
 function segMetrics(){

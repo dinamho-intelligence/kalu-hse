@@ -107,7 +107,7 @@ async function entrar(){
     cargarTipo();
   }catch(err){e.textContent='No se pudo conectar. Reintentá.';b.disabled=false;b.textContent='Ingresar';}
 }
-function salir(){TOKEN=null;location.href='hse.html';}
+function salir(){ TOKEN=null; try{ window.close(); }catch(e){} setTimeout(function(){ location.href='hse.html'; }, 200); }
 function setTipo(t){
   TIPO=t;
   Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'),function(el){el.classList.toggle('on',el.getAttribute('data-t')===t);});

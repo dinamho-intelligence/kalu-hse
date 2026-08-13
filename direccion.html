@@ -1,0 +1,192 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KALU · Tablero de Dirección</title>
+<style>
+:root{--bg:#0b0e13;--panel:#0f141b;--card:#141a22;--line:#28303b;--line2:#333d4a;--tx:#eef2f6;--tx2:#9fabb8;--tx3:#6b7784;--nar:#f7941d;--cy:#00d4ff;--verde:#25c26e;--amber:#f7941d;--rojo:#e23b3b;--grad:linear-gradient(120deg,#e23b3b,#f7941d)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 18px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.wm{font-weight:800;font-size:22px;letter-spacing:3px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bt{font-size:10px;letter-spacing:2px;color:var(--tx3);text-transform:uppercase}
+.btn{background:#141a22;border:1px solid var(--line2);color:var(--tx);border-radius:9px;padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--nar)}
+.btn.pri{background:rgba(0,212,255,.12);border-color:var(--cy);color:#7fe6ff}
+/* login */
+#login{max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+#login h1{font-size:18px;margin-bottom:4px}#login p{color:var(--tx2);font-size:13px;margin-bottom:16px}
+#login input{width:100%;background:#0b0f14;border:1px solid var(--line2);color:var(--tx);border-radius:9px;padding:11px 12px;font-size:14px;margin-bottom:10px}
+#login button{width:100%;background:var(--grad);border:0;color:#fff;font-weight:700;border-radius:9px;padding:12px;font-size:14px;cursor:pointer}
+.err{color:#ff8a82;font-size:12.5px;min-height:16px;margin-top:2px}
+.hide{display:none!important}
+/* controls */
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tabs{display:flex;gap:4px;background:#0f141b;border:1px solid var(--line);border-radius:11px;padding:4px}
+.tab{padding:7px 13px;border-radius:8px;font-size:13px;color:var(--tx2);cursor:pointer;border:0;background:transparent;font-weight:600}
+.tab.on{background:var(--nar);color:#0b0e13}
+select{background:#0f141b;color:var(--tx);border:1px solid var(--line2);border-radius:9px;padding:8px 11px;font-size:13px}
+/* report */
+.sem{display:inline-block;font-weight:700;font-size:13px;padding:6px 14px;border-radius:20px;margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:720px){.kpis{grid-template-columns:1fr 1fr}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px}
+.kpi .n{font-size:27px;font-weight:800;line-height:1}
+.kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;letter-spacing:.4px;text-transform:uppercase}
+.kpi .s{font-size:11px;color:var(--tx3);margin-top:5px}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.sec h2{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.analisis{font-size:14px;line-height:1.75;color:#d7dde4}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:#141a22;border:1px solid var(--line2);border-radius:20px;padding:6px 12px;font-size:12.5px;color:var(--tx2)}
+.chip b{color:var(--tx)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+.muted{color:var(--tx3);font-size:13px}
+.meta{font-size:12px;color:var(--tx3);margin-bottom:14px}
+</style></head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="brand" style="margin-bottom:14px"><span class="wm">KALU</span><span class="bt">Tablero de Dirección</span></div>
+  <h1>Acceso Dirección</h1>
+  <p>Panel exclusivo para gerencia. Ingresá con tu correo autorizado.</p>
+  <input id="email" type="email" placeholder="correo@empresa.com" autocomplete="username">
+  <input id="pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <button id="btnLogin" onclick="entrar()">Ingresar</button>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="wrap hide">
+  <div class="top">
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Tablero de Dirección</span></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn pri" id="btnGen" onclick="generarAhora()">↻ Generar ahora</button>
+      <button class="btn" onclick="salir()">Salir</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-t="semanal" onclick="setTipo('semanal')">Semanal</button>
+      <button class="tab" data-t="mensual" onclick="setTipo('mensual')">Mensual</button>
+      <button class="tab" data-t="trimestral" onclick="setTipo('trimestral')">Trimestral</button>
+      <button class="tab" data-t="anual" onclick="setTipo('anual')">Anual</button>
+    </div>
+    <select id="selLabel" onchange="abrir(this.value)"></select>
+  </div>
+
+  <div id="report"><div class="muted" style="padding:20px">Cargando…</div></div>
+</div>
+
+<script>
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+const WEBHOOK_GEN='https://dnmintell.app.n8n.cloud/webhook/kalu-direccion-generar';
+let TOKEN=null, TIPO='semanal', LABELS={};
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+async function sbRpc(fn,body){
+  const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  if(!r.ok) throw new Error('rpc '+fn+' '+r.status); return r.json();
+}
+async function entrar(){
+  var b=document.getElementById('btnLogin'), e=document.getElementById('loginErr');
+  var email=document.getElementById('email').value.trim(), pass=document.getElementById('pass').value;
+  if(!email||!pass){e.textContent='Completá correo y contraseña.';return;}
+  b.disabled=true;b.textContent='Ingresando…';e.textContent='';
+  try{
+    var r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
+    var d=await r.json();
+    if(!r.ok||!d.access_token){e.textContent='Correo o contraseña incorrectos.';b.disabled=false;b.textContent='Ingresar';return;}
+    TOKEN=d.access_token;
+    var ok=await sbRpc('soy_direccion',{});
+    if(ok!==true){e.textContent='Tu correo no está autorizado para el Tablero de Dirección.';TOKEN=null;b.disabled=false;b.textContent='Ingresar';return;}
+    document.getElementById('login').classList.add('hide');
+    document.getElementById('app').classList.remove('hide');
+    cargarTipo();
+  }catch(err){e.textContent='No se pudo conectar. Reintentá.';b.disabled=false;b.textContent='Ingresar';}
+}
+function salir(){TOKEN=null;location.reload();}
+function setTipo(t){
+  TIPO=t;
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'),function(el){el.classList.toggle('on',el.getAttribute('data-t')===t);});
+  cargarTipo();
+}
+async function cargarTipo(){
+  document.getElementById('report').innerHTML='<div class="muted" style="padding:20px">Cargando…</div>';
+  try{
+    var rows=await sbRpc('informes_direccion_labels',{p_tipo:TIPO});
+    LABELS[TIPO]=rows||[];
+    var sel=document.getElementById('selLabel');
+    if(!rows||!rows.length){
+      sel.innerHTML='<option value="">— sin informes —</option>';
+      document.getElementById('report').innerHTML='<div class="sec"><div class="muted">Todavía no hay informes '+TIPO+' guardados. Se generan solos según el calendario, o tocá <b>“Generar ahora”</b> para crear el primero.</div></div>';
+      return;
+    }
+    sel.innerHTML=rows.map(function(r){return '<option value="'+esc(r.periodo_label)+'">'+esc(r.periodo_label)+(r.razon_social?(' · '+esc(r.razon_social)):'')+'</option>';}).join('');
+    abrir(rows[0].periodo_label);
+  }catch(err){
+    document.getElementById('report').innerHTML='<div class="sec"><div class="err">No se pudieron leer los informes ('+esc(err.message)+').</div></div>';
+  }
+}
+async function abrir(label){
+  if(!label) return;
+  document.getElementById('report').innerHTML='<div class="muted" style="padding:20px">Cargando informe…</div>';
+  try{
+    var rows=await sbRpc('informes_direccion_read',{p_tipo:TIPO,p_label:label});
+    if(!rows||!rows.length){document.getElementById('report').innerHTML='<div class="sec"><div class="muted">Informe no encontrado.</div></div>';return;}
+    document.getElementById('report').innerHTML=rows.map(pintarInforme).join('');
+  }catch(err){
+    document.getElementById('report').innerHTML='<div class="sec"><div class="err">No se pudo abrir el informe ('+esc(err.message)+').</div></div>';
+  }
+}
+function semData(s){
+  if(s==='rojo') return {c:'#e23b3b',t:'CRÍTICO — hay temas sin seguimiento'};
+  if(s==='amarillo') return {c:'#f7941d',t:'Atención — pendientes dentro de plazo'};
+  return {c:'#25c26e',t:'Al día'};
+}
+function kpi(n,unidad,label,sub,col){
+  return '<div class="kpi"><div class="n" style="color:'+(col||'#eef2f6')+'">'+(n==null?'—':n)+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
+}
+function pintarInforme(inf){
+  var m=inf.metricas||{}; var t=m.tarjetas||{}, a=m.ats||{}, v=m.investigaciones||{};
+  var sd=semData(inf.semaforo);
+  var h='<div class="sec" style="border-color:'+sd.c+'55">';
+  h+='<div class="meta">'+esc(inf.periodo_tipo)+' · <b style="color:#eef2f6">'+esc(inf.periodo_label)+'</b>'+(inf.fecha_desde?(' · '+esc(inf.fecha_desde)+' → '+esc(inf.fecha_hasta)):'')+(inf.created_at?(' · generado '+esc(String(inf.created_at).slice(0,16).replace('T',' '))):'')+'</div>';
+  h+='<span class="sem" style="background:'+sd.c+'22;border:1px solid '+sd.c+';color:'+sd.c+'">● '+sd.t+'</span>';
+  h+='<div class="kpis">';
+  h+=kpi(t.pct_cierre,'%','Cierre tarjetas',(t.cerradas!=null?(t.cerradas+' de '+t.inseguras):''),(t.pct_cierre!=null&&t.pct_cierre<60?'#f7941d':'#25c26e'));
+  h+=kpi(t.rojas,'','Tarjetas en rojo',(t.sin_gestionar!=null?(t.sin_gestionar+' sin plazo'):''),(t.rojas?'#e23b3b':'#25c26e'));
+  h+=kpi(a.pendientes,'','ATS pendientes',(a.rojos?(a.rojos+' en rojo'):''),(a.pendientes?'#f7941d':'#25c26e'));
+  h+=kpi(v.abiertas,'','Investig. abiertas',(v.rojas?(v.rojas+' estancadas'):''),(v.abiertas?'#f7941d':'#25c26e'));
+  h+='</div></div>';
+  // análisis
+  h+='<div class="sec"><h2>Análisis de KALU</h2><div class="analisis">'+esc(inf.analisis||'—')+'</div></div>';
+  // debilidades
+  h+='<div class="grid2">';
+  h+='<div class="sec"><h2>Antigüedad de lo pendiente</h2><div class="chips">'
+    +'<span class="chip">Tarjetas abiertas prom. <b>'+(t.antiguedad_prom==null?'—':t.antiguedad_prom+'d')+'</b></span>'
+    +'<span class="chip">La peor tarjeta <b>'+(t.peor==null?'—':t.peor+'d')+'</b></span>'
+    +'<span class="chip">ATS pend. prom. <b>'+(a.antiguedad_prom==null?'—':a.antiguedad_prom+'d')+'</b></span>'
+    +'<span class="chip">Investig. prom. <b>'+(v.antiguedad_prom==null?'—':v.antiguedad_prom+'d')+'</b></span>'
+    +'</div></div>';
+  var tl=(t.top_lugares||[]), tc=(t.top_categorias||[]);
+  h+='<div class="sec"><h2>Dónde se concentra</h2>';
+  h+='<div style="font-size:12px;color:#9fabb8;margin-bottom:6px">Lugares con más pendientes</div><div class="chips" style="margin-bottom:10px">'+(tl.length?tl.map(function(x){return '<span class="chip"><b>'+esc(x[0])+'</b> · '+x[1]+'</span>';}).join(''):'<span class="muted">—</span>')+'</div>';
+  h+='<div style="font-size:12px;color:#9fabb8;margin-bottom:6px">Categorías con más pendientes</div><div class="chips">'+(tc.length?tc.map(function(x){return '<span class="chip"><b>'+esc(x[0])+'</b> · '+x[1]+'</span>';}).join(''):'<span class="muted">—</span>')+'</div>';
+  h+='</div></div>';
+  return h;
+}
+async function generarAhora(){
+  var b=document.getElementById('btnGen'); b.disabled=true; b.textContent='Generando…';
+  try{
+    await fetch(WEBHOOK_GEN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({periodo_tipo:TIPO})});
+    // dar unos segundos a n8n y recargar
+    setTimeout(function(){ b.disabled=false; b.textContent='↻ Generar ahora'; cargarTipo(); }, 4000);
+  }catch(err){ b.disabled=false; b.textContent='↻ Generar ahora'; alert('No se pudo generar ('+err.message+'). ¿El flujo kalu-direccion-generar está activo en n8n?'); }
+}
+// enter para login
+document.getElementById('pass').addEventListener('keydown',function(e){ if(e.key==='Enter') entrar(); });
+</script>
+</body></html>

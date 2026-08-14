@@ -72,6 +72,9 @@
   .c-na{background:rgba(120,140,160,.08);color:#8a97a5;} .c-na .d{background:var(--tx3);}
   .mut{color:var(--tx3);font-size:11.5px;}
   .gbtn{background:rgba(242,140,0,.14);border:1px solid var(--nar);color:var(--nar);border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .mini{font-size:12px;padding:3px 7px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--tx2);cursor:pointer;width:auto;}
+  .mini:hover{color:var(--tx);}
+  .fld input,.fld select,.fld textarea{width:100%;}
   .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);}
   /* modal */
   .ov{position:fixed;inset:0;z-index:120;background:rgba(6,8,11,.78);display:flex;align-items:center;justify-content:center;padding:18px;}
@@ -112,6 +115,7 @@
       <button class="tab on" id="tabResumen" onclick="verVista('resumen')">📊 Resumen</button>
       <button class="tab" id="tabAuto" onclick="verVista('auto')">📋 Autoevaluación 0312</button>
       <button class="tab" id="tabMejora" onclick="verVista('mejora')">🔧 Plan de mejoramiento</button>
+      <button class="tab" id="tabConstructor" onclick="verVista('constructor')">🛠 Constructor</button>
       <button class="tab" id="tabFormatos" onclick="verVista('formatos')">📁 Formatos</button>
       <button class="tab" id="tabRegistros" onclick="verVista('registros')">📄 Registros</button>
     </div>
@@ -120,6 +124,7 @@
       <div id="viewResumen"></div>
       <div class="hide" id="viewAuto"></div>
       <div class="hide" id="viewMejora"></div>
+      <div class="hide" id="viewConstructor"></div>
       <div class="hide" id="viewFormatos"></div>
       <div class="hide" id="viewRegistros"></div>
     </div>
@@ -147,6 +152,9 @@ function chip(e,fuente){
 }
 async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});if(!r.ok)throw new Error(path+' '+r.status);return r.json();}
 async function sbInsert(table,body){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(body)});if(!r.ok)throw new Error(table+' '+r.status);}
+async function sbPatch(path,body){const r=await fetch(SB_URL+'/rest/v1/'+path,{method:'PATCH',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(body)});if(!r.ok)throw new Error(path+' '+r.status);}
+const TIPOSD={seccion:'Sección',texto:'Texto',parrafo:'Párrafo',numero:'Número',fecha:'Fecha',seleccion:'Selección',sino:'Sí/No/NA',casillas:'Casillas',foto:'Foto',firma:'Firma',calculo:'Cálculo'};
+let DIS={editId:null,meta:{codigo:'',nombre:'',estado:'borrador',version:1,fecha:'',l0312:[],lruc:[]},campos:[{tipo:'seccion',label:'Datos'}]};
 async function sbRpc(fn,body){const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(!r.ok)throw new Error('rpc '+fn+' '+r.status);return r.json();}
 async function login(){
   let ident=$('email').value.trim(); const pass=$('pass').value; const e=$('loginErr'); e.textContent='';
@@ -186,7 +194,7 @@ async function cargar(){
     const [cat,auto,fmt,per,reg2]=await Promise.all([
       sbGet('sgsst_estandar_catalogo?select=*&order=orden.asc'),
       sbGet('sgsst_autoeval?select=estandar_id,declarado,estado,puntaje_declarado,puntaje_evidenciado,fuente_evidencia,nota_kalu&empresa_id=eq.'+MYEMP+'&periodo=eq.'+PERIODO),
-      sbGet('formato_plantilla?select=id,codigo,nombre,modulo,version,fecha_version,estado,campos,vincula_0312&empresa_id=eq.'+MYEMP+'&order=codigo.asc').catch(function(){return[];}),
+      sbGet('formato_plantilla?select=id,codigo,nombre,modulo,version,fecha_version,estado,campos,vincula_0312,vincula_ruc&empresa_id=eq.'+MYEMP+'&order=codigo.asc').catch(function(){return[];}),
       sbGet('personas?select=nombre,cedula&empresa_id=eq.'+MYEMP+'&order=nombre.asc').catch(function(){return[];}),
       sbGet('formato_registro?select=id,plantilla_id,plantilla_ver,valores,fecha&empresa_id=eq.'+MYEMP+'&order=fecha.desc').catch(function(){return[];})
     ]);
@@ -207,7 +215,7 @@ function calc(rows){
   return {dec:r(dec),evi:r(evi),brecha:r(dec-evi),banda,byC};
 }
 function bandaTxt(b){return {aceptable:'Aceptable',moderadamente_aceptable:'Moderadamente aceptable',critico:'Crítico'}[b];}
-function verVista(v){VISTA=v;[['resumen','tabResumen','viewResumen'],['auto','tabAuto','viewAuto'],['mejora','tabMejora','viewMejora'],['formatos','tabFormatos','viewFormatos'],['registros','tabRegistros','viewRegistros']].forEach(x=>{$(x[1]).classList.toggle('on',v===x[0]);$(x[2]).classList.toggle('hide',v!==x[0]);});render();}
+function verVista(v){VISTA=v;[['resumen','tabResumen','viewResumen'],['auto','tabAuto','viewAuto'],['mejora','tabMejora','viewMejora'],['constructor','tabConstructor','viewConstructor'],['formatos','tabFormatos','viewFormatos'],['registros','tabRegistros','viewRegistros']].forEach(x=>{$(x[1]).classList.toggle('on',v===x[0]);$(x[2]).classList.toggle('hide',v!==x[0]);});render();}
 function setFilt(f){FILT=f;render();}
 function render(){if(!RES)return;
   if(VISTA==='resumen')$('viewResumen').innerHTML=htmlResumen();
@@ -215,6 +223,7 @@ function render(){if(!RES)return;
   if(VISTA==='mejora')$('viewMejora').innerHTML=htmlMejora();
   if(VISTA==='formatos')$('viewFormatos').innerHTML=htmlFormatos();
   if(VISTA==='registros')$('viewRegistros').innerHTML=htmlRegistros();
+  if(VISTA==='constructor'){$('viewConstructor').innerHTML=htmlConstructor();dRenderDesigner();dRenderPreview();}
 }
 function htmlRegistros(){
   if(!REGISTROS.length)return '<div class="card"><div class="mut">Todavía no hay registros. Diligenciá un formato en la pestaña <b>Formatos</b> y aparece acá.</div></div>';
@@ -389,6 +398,97 @@ async function guardarForm(){
   }catch(e){flash('No se pudo guardar ('+e.message+'). Revisá el RLS/tablas de formatos.');}
 }
 function flash(m){const b=$('flash');b.textContent=m;b.style.opacity='1';clearTimeout(window._ft);window._ft=setTimeout(()=>b.style.opacity='0',4200);}
+// ================= CONSTRUCTOR (diseñar formatos desde KALU) =================
+function htmlConstructor(){
+  const opts=FORMATOS.map(f=>'<option value="'+f.id+'"'+(DIS.editId===f.id?' selected':'')+'>'+esc(f.codigo+' · '+f.nombre)+'</option>').join('');
+  return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">'
+    +'<select id="dSel" style="width:auto;min-width:280px" onchange="dLoad(this.value)"><option value="">— nuevo formato —</option>'+opts+'</select>'
+    +'<button class="gbtn" onclick="dNew()">＋ Nuevo</button>'
+    +'<span class="mut">Diseñás el formato acá; se guarda en KALU y aparece en Formatos, listo para diligenciar.</span></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+    +'<div class="card" style="margin:0"><div id="dDesigner"></div></div>'
+    +'<div><div class="mut" style="margin-bottom:6px">Vista previa — el documento controlado</div><div class="card" style="margin:0;padding:12px;background:#dedede"><div id="dPreview"></div></div></div>'
+    +'</div>';
+}
+function dRenderDesigner(){
+  const m=DIS.meta;
+  let h='<div class="fsec">Datos del formato (control documental)</div>';
+  h+='<div class="fld"><label>Nombre</label><input value="'+esc(m.nombre).replace(/"/g,'&quot;')+'" oninput="dMeta(\'nombre\',this.value)"></div>';
+  h+='<div class="fld"><label>Código</label><input value="'+esc(m.codigo).replace(/"/g,'&quot;')+'" oninput="dMeta(\'codigo\',this.value)"></div>';
+  h+='<div class="fld"><label>Estado</label><select onchange="dMeta(\'estado\',this.value)"><option value="borrador"'+(m.estado==='borrador'?' selected':'')+'>Borrador</option><option value="vigente"'+(m.estado==='vigente'?' selected':'')+'>Vigente</option></select></div>';
+  h+='<div class="mut">Versión v'+String(m.version).padStart(3,'0')+' · '+esc(m.fecha||'(nueva)')+' — automáticas. Logo/color/rep. legal salen del branding.</div>';
+  h+='<div class="fsec">Campos</div><div id="dFields">'+DIS.campos.map((c,i)=>dFieldRow(c,i)).join('')+'</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:5px;margin:8px 0">'+Object.keys(TIPOSD).map(t=>'<button class="fbtn" onclick="dAdd(\''+t+'\')">+ '+TIPOSD[t]+'</button>').join('')+'</div>';
+  h+='<div class="fsec">¿Qué evidencia alimenta?</div>';
+  h+='<div class="fld"><label>SG-SST 0312 (ids por coma, ej. 4.2.6, 4.2.4)</label><input value="'+esc((m.l0312||[]).join(', '))+'" oninput="dLinks(\'l0312\',this.value)"></div>';
+  h+='<div class="fld"><label>RUC (ej. 3.2.6)</label><input value="'+esc((m.lruc||[]).join(', '))+'" oninput="dLinks(\'lruc\',this.value)"></div>';
+  h+='<div style="margin-top:12px"><button class="gbtn" style="width:100%;background:var(--verde);border-color:var(--verde);color:#0A0C0F" onclick="dSave()">💾 '+(DIS.editId?'Guardar cambios':'Crear formato')+'</button></div>';
+  $('dDesigner').innerHTML=h;
+}
+function dFieldRow(c,i){
+  const conOpc=(c.tipo==='seleccion'||c.tipo==='casillas');
+  return '<div style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px">'
+    +'<div style="display:flex;gap:6px;align-items:center"><span class="badge">'+esc(TIPOSD[c.tipo]||c.tipo)+'</span>'
+    +'<input value="'+esc(c.label||'').replace(/"/g,'&quot;')+'" oninput="dUpd('+i+',\'label\',this.value)" style="flex:1">'
+    +'<button class="mini" onclick="dMove('+i+',-1)">↑</button><button class="mini" onclick="dMove('+i+',1)">↓</button><button class="mini" onclick="dDel('+i+')">✕</button></div>'
+    +(c.tipo!=='seccion'?('<div style="display:flex;gap:8px;align-items:center;margin-top:5px"><label class="mut" style="display:flex;gap:4px;align-items:center;width:auto"><input type="checkbox" '+(c.req?'checked':'')+' onchange="dUpd('+i+',\'req\',this.checked)" style="width:auto"> obligatorio</label>'
+      +(conOpc?'<input value="'+esc((c.opciones||[]).join(', '))+'" oninput="dOpts('+i+',this.value)" placeholder="opciones por coma · o «— padrón —»" style="flex:1">':'')+'</div>'):'')
+    +'</div>';
+}
+function dMeta(k,v){DIS.meta[k]=v;dRenderPreview();}
+function dLinks(k,v){DIS.meta[k]=v.split(',').map(s=>s.trim()).filter(Boolean);}
+function dUpd(i,p,v){DIS.campos[i][p]=v;dRenderPreview();}
+function dOpts(i,v){DIS.campos[i].opciones=v.split(',').map(s=>s.trim()).filter(Boolean);dRenderPreview();}
+function dAdd(t){DIS.campos.push(t==='seccion'?{tipo:'seccion',label:'Nueva sección'}:{tipo:t,label:TIPOSD[t],req:false,opciones:(t==='seleccion'||t==='casillas')?['Opción 1','Opción 2']:undefined,key:'c'+Date.now().toString(36)});dRenderDesigner();dRenderPreview();}
+function dDel(i){DIS.campos.splice(i,1);dRenderDesigner();dRenderPreview();}
+function dMove(i,d){const j=i+d;if(j<0||j>=DIS.campos.length)return;const t=DIS.campos[i];DIS.campos[i]=DIS.campos[j];DIS.campos[j]=t;dRenderDesigner();dRenderPreview();}
+function dNew(){DIS={editId:null,meta:{codigo:'',nombre:'',estado:'borrador',version:1,fecha:'',l0312:[],lruc:[]},campos:[{tipo:'seccion',label:'Datos'}]};render();}
+function dLoad(id){if(!id){dNew();return;}const f=FORMATOS.find(x=>x.id===id);if(!f)return;
+  DIS={editId:id,meta:{codigo:f.codigo,nombre:f.nombre,estado:f.estado||'borrador',version:f.version||1,fecha:f.fecha_version||'',l0312:(f.vincula_0312||[]).slice(),lruc:(f.vincula_ruc||[]).slice()},campos:Array.isArray(f.campos)?JSON.parse(JSON.stringify(f.campos)):[]};render();}
+function dRenderPreview(){$('dPreview').innerHTML=previewDoc({nombre:DIS.meta.nombre,codigo:DIS.meta.codigo,version:DIS.meta.version,estado:DIS.meta.estado,campos:DIS.campos});}
+function previewField(c){
+  const col=BRAND.color||'#C1272D';
+  if(c.tipo==='seccion')return '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:'+col+';font-weight:800;border-bottom:1px solid #e6e6e3;padding-bottom:4px;margin:16px 0 8px">'+esc(c.label)+'</div>';
+  const lab='<div style="font-size:12px;color:#555;font-weight:600;margin-bottom:3px">'+esc(c.label)+(c.req?' *':'')+'</div>';
+  const st='width:100%;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fafafa;color:#333;box-sizing:border-box';
+  let ctl='';
+  switch(c.tipo){
+    case 'parrafo':ctl='<div style="'+st+';min-height:34px">&nbsp;</div>';break;
+    case 'seleccion':ctl='<div style="'+st+'">'+esc(((c.opciones&&c.opciones[0])||'elegir…'))+' ▾</div>';break;
+    case 'sino':ctl='<div style="display:flex;gap:6px">'+['Sí','No','N.A.'].map(o=>'<span style="border:1px solid #ccc;border-radius:6px;padding:3px 10px;font-size:12px;color:#555">'+o+'</span>').join('')+'</div>';break;
+    case 'casillas':ctl=(c.opciones||[]).map(o=>'<span style="display:inline-flex;gap:5px;align-items:center;margin:0 10px 5px 0;font-size:12px;color:#444">☐ '+esc(o)+'</span>').join('');break;
+    case 'foto':ctl='<div style="border:1px dashed #bbb;border-radius:6px;padding:8px;text-align:center;color:#999;font-size:12px">📷 foto</div>';break;
+    case 'firma':ctl='<div style="border:1px solid #ccc;border-radius:6px;height:44px;background:#fff"></div>';break;
+    case 'fecha':ctl='<div style="'+st+'">dd-mm-aaaa</div>';break;
+    default:ctl='<div style="'+st+'">&nbsp;</div>';
+  }
+  return '<div style="margin:8px 0">'+lab+ctl+'</div>';
+}
+function previewDoc(f){
+  const col=BRAND.color||'#C1272D';
+  const logo=BRAND.logo?'<img src="'+esc(BRAND.logo)+'" style="max-width:118px;max-height:50px;object-fit:contain">':'<div style="width:60px;height:38px;border-radius:6px;background:'+col+';display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px">DI</div>';
+  const rows=(f.campos||[]).map(previewField).join('')||'<div style="color:#999;font-size:12px">Agregá campos con los botones de la izquierda…</div>';
+  return '<div style="background:#fff;color:#111;border-radius:8px;overflow:hidden;font-family:Arial,sans-serif">'
+    +'<div style="display:grid;grid-template-columns:120px 1fr 168px;border-bottom:3px solid '+col+'">'
+    +'<div style="padding:9px;display:grid;place-items:center;border-right:1px solid #eee">'+logo+'</div>'
+    +'<div style="padding:9px;text-align:center;display:flex;flex-direction:column;justify-content:center;border-right:1px solid #eee"><div style="font-weight:800;font-size:14px">'+esc(f.nombre||'(sin nombre)')+'</div><div style="font-size:10.5px;color:#888">'+esc(BRAND.nombre||BRAND.razon||'')+' · SG-SST</div></div>'
+    +'<div style="padding:7px 9px;font-size:10.5px;display:grid;grid-template-columns:auto 1fr;gap:2px 6px;align-content:center"><span style="color:#888">Código</span><span style="text-align:right;font-weight:700">'+esc(f.codigo||'—')+'</span><span style="color:#888">Versión</span><span style="text-align:right;font-weight:700">v'+String(f.version||1).padStart(3,'0')+'</span><span style="color:#888">Estado</span><span style="text-align:right;font-weight:700">'+esc(f.estado||'')+'</span></div></div>'
+    +'<div style="padding:12px 16px">'+rows+'</div></div>';
+}
+async function dSave(){
+  const m=DIS.meta;
+  if(!m.codigo||!m.nombre){flash('Poné código y nombre.');return;}
+  const body={empresa_id:MYEMP,codigo:m.codigo,nombre:m.nombre,modulo:'SST',estado:m.estado,campos:DIS.campos,vincula_0312:m.l0312||[],vincula_ruc:m.lruc||[]};
+  flash('Guardando…');
+  try{
+    if(DIS.editId){await sbPatch('formato_plantilla?id=eq.'+DIS.editId,body);}
+    else{body.version=1;body.fecha_version=new Date().toISOString().slice(0,10);await sbInsert('formato_plantilla',body);}
+    await cargar();
+    if(!DIS.editId){const nf=FORMATOS.find(x=>x.codigo===m.codigo);if(nf)DIS.editId=nf.id;}
+    verVista('constructor');
+    flash('✓ Formato guardado. Ya está en Formatos, listo para diligenciar.');
+  }catch(e){flash('No se pudo guardar ('+e.message+'). Si dice 409, el código ya existe.');}
+}
 ['email','pass'].forEach(id=>{const el=$(id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();login();}});});
 </script>
 </body>

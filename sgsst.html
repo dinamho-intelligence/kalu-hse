@@ -131,7 +131,7 @@ const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const PERIODO=2025;
 let TOKEN=null, MYID=null, MYEMP=null, MYNAME=null;
-let CAT=[], AUTO=[], FORMATOS=[], MERGED=[], RES=null, VISTA='resumen', FILT='todos';
+let CAT=[], AUTO=[], FORMATOS=[], MERGED=[], PERSONAS=[], RES=null, VISTA='resumen', FILT='todos';
 const CICLOS=["PLANEAR","HACER","VERIFICAR","ACTUAR"];
 const PESO_CICLO={PLANEAR:25,HACER:60,VERIFICAR:5,ACTUAR:10};
 function $(id){return document.getElementById(id);}
@@ -179,12 +179,13 @@ async function cargarBranding(emp){
 }
 async function cargar(){
   try{
-    const [cat,auto,fmt]=await Promise.all([
+    const [cat,auto,fmt,per]=await Promise.all([
       sbGet('sgsst_estandar_catalogo?select=*&order=orden.asc'),
       sbGet('sgsst_autoeval?select=estandar_id,declarado,estado,puntaje_declarado,puntaje_evidenciado,fuente_evidencia,nota_kalu&empresa_id=eq.'+MYEMP+'&periodo=eq.'+PERIODO),
-      sbGet('formato_plantilla?select=id,codigo,nombre,modulo,version,fecha_version,estado,campos,vincula_0312&empresa_id=eq.'+MYEMP+'&order=codigo.asc').catch(function(){return[];})
+      sbGet('formato_plantilla?select=id,codigo,nombre,modulo,version,fecha_version,estado,campos,vincula_0312&empresa_id=eq.'+MYEMP+'&order=codigo.asc').catch(function(){return[];}),
+      sbGet('personas?select=nombre,cedula&empresa_id=eq.'+MYEMP+'&order=nombre.asc').catch(function(){return[];})
     ]);
-    CAT=cat||[]; AUTO=auto||[]; FORMATOS=fmt||[];
+    CAT=cat||[]; AUTO=auto||[]; FORMATOS=fmt||[]; PERSONAS=per||[];
     const byId={}; AUTO.forEach(a=>byId[a.estandar_id]=a);
     MERGED=CAT.map(c=>{const a=byId[c.id]||{};return {...c,estado:a.estado||'faltante',declarado:!!a.declarado,fuente:a.fuente_evidencia||null,nota:a.nota_kalu||''};});
     RES=calc(MERGED);
@@ -259,24 +260,45 @@ function htmlFormatos(){
   h+='</tbody></table></div></div>';return h;
 }
 // ---- diligenciar formato ----
+function opcionesDe(c){
+  const o=c.opciones||[];
+  if(o.some(x=>String(x).indexOf('padrón')!==-1)){
+    return PERSONAS.length?PERSONAS.map(p=>p.nombre):['(padrón vacío — cargá personas)'];
+  }
+  return o;
+}
 function fldHTML(c,i){
   if(c.tipo==='seccion')return '<div class="fsec">'+esc(c.label)+'</div>';
   const id='f_'+i;const lab='<label>'+esc(c.label)+(c.req?' *':'')+'</label>';
+  const ops=opcionesDe(c);
   let ctl='';
   switch(c.tipo){
     case 'parrafo':ctl='<textarea id="'+id+'" rows="2"></textarea>';break;
     case 'numero':ctl='<input id="'+id+'" type="number">';break;
     case 'fecha':ctl='<input id="'+id+'" type="date" value="'+new Date().toISOString().slice(0,10)+'">';break;
-    case 'seleccion':ctl='<select id="'+id+'">'+(c.opciones||[]).map(o=>'<option>'+esc(o)+'</option>').join('')+'</select>';break;
+    case 'seleccion':ctl='<select id="'+id+'"><option value="">— elegir —</option>'+ops.map(o=>'<option>'+esc(o)+'</option>').join('')+'</select>';break;
     case 'sino':ctl='<select id="'+id+'"><option>Sí</option><option>No</option><option>N.A.</option></select>';break;
-    case 'casillas':ctl='<div id="'+id+'">'+(c.opciones||[]).map((o,k)=>'<label style="display:inline-flex;gap:5px;align-items:center;margin:0 10px 6px 0;color:var(--tx2);font-size:13px"><input type="checkbox" data-v="'+esc(o)+'" style="width:auto"> '+esc(o)+'</label>').join('')+'</div>';break;
+    case 'casillas':ctl='<div id="'+id+'">'+ops.map((o,k)=>'<label style="display:inline-flex;gap:5px;align-items:center;margin:0 10px 6px 0;color:var(--tx2);font-size:13px"><input type="checkbox" data-v="'+esc(o)+'" style="width:auto"> '+esc(o)+'</label>').join('')+'</div>';break;
     case 'foto':ctl='<div class="mut" style="border:1px dashed var(--line);border-radius:8px;padding:10px;text-align:center">📷 (adjunto liviano — se referencia)</div>';break;
-    case 'firma':ctl='<div class="mut" style="border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">✍ firma</div>';break;
+    case 'firma':ctl='<canvas id="sig_'+i+'" class="sigpad" style="width:100%;height:92px;background:#fbfdff;border:1px solid var(--line);border-radius:8px;touch-action:none;display:block"></canvas><div style="text-align:right;margin-top:2px"><button type="button" onclick="clearSig('+i+')" style="background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;width:auto">Limpiar</button></div>';break;
     case 'calculo':ctl='<input id="'+id+'" value="(cálculo automático)" readonly style="color:var(--tx3)">';break;
     default:ctl='<input id="'+id+'">';
   }
   return '<div class="fld">'+lab+ctl+'</div>';
 }
+function sigInit(cv){
+  const cx=cv.getContext('2d');const r=cv.getBoundingClientRect();
+  cv.width=r.width*devicePixelRatio;cv.height=r.height*devicePixelRatio;cx.scale(devicePixelRatio,devicePixelRatio);
+  cx.lineWidth=2.2;cx.lineCap='round';cx.strokeStyle='#12161C';let dr=false;cv._ink=false;
+  const pos=e=>{const b=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-b.left,y:t.clientY-b.top};};
+  cv.onmousedown=e=>{dr=true;const p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();};
+  cv.onmousemove=e=>{if(!dr)return;const p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();cv._ink=true;e.preventDefault();};
+  window.addEventListener('mouseup',()=>{dr=false;});
+  cv.ontouchstart=e=>{dr=true;const p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();};
+  cv.ontouchmove=e=>{if(!dr)return;const p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();cv._ink=true;e.preventDefault();};
+  cv.ontouchend=()=>{dr=false;};
+}
+function clearSig(i){const cv=$('sig_'+i);if(cv){const cx=cv.getContext('2d');cx.clearRect(0,0,cv.width,cv.height);cv._ink=false;}}
 function abrirForm(i){
   const f=FORMATOS[i]; const campos=Array.isArray(f.campos)?f.campos:[];
   window._formIdx=i;
@@ -286,12 +308,14 @@ function abrirForm(i){
     +'<div class="mbody">'+body+'</div>'
     +'<div style="padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px"><button class="gbtn" style="flex:1;background:var(--verde);border-color:var(--verde);color:#0A0C0F" onclick="guardarForm()">💾 Guardar registro</button><button class="gbtn" onclick="cerrarForm()">Cancelar</button></div>'
     +'</div></div>';
+  document.querySelectorAll('.sigpad').forEach(sigInit);
 }
 function cerrarForm(){$('modalHost').innerHTML='';}
 function collectValues(campos){
   const v={};
   campos.forEach((c,k)=>{
-    if(c.tipo==='seccion'||c.tipo==='foto'||c.tipo==='firma')return;
+    if(c.tipo==='seccion'||c.tipo==='foto')return;
+    if(c.tipo==='firma'){const cv=$('sig_'+k);v[c.key||('f'+k)]=(cv&&cv._ink)?cv.toDataURL('image/png'):null;return;}
     const el=$('f_'+k); if(!el)return;
     if(c.tipo==='casillas'){v[c.key||('c'+k)]=Array.from(el.querySelectorAll('input:checked')).map(x=>x.getAttribute('data-v'));}
     else v[c.key||('c'+k)]=el.value;

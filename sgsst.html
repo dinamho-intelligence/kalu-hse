@@ -134,6 +134,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const PERIODO=2025;
 let TOKEN=null, MYID=null, MYEMP=null, MYNAME=null;
 let CAT=[], AUTO=[], FORMATOS=[], MERGED=[], PERSONAS=[], REGISTROS=[], RES=null, VISTA='resumen', FILT='todos';
+let BRAND={color:'#C1272D',nombre:'',logo:null,rep:'',razon:''};
 const CICLOS=["PLANEAR","HACER","VERIFICAR","ACTUAR"];
 const PESO_CICLO={PLANEAR:25,HACER:60,VERIFICAR:5,ACTUAR:10};
 function $(id){return document.getElementById(id);}
@@ -173,6 +174,7 @@ async function cargarBranding(emp){
   try{
     const r=await sbGet('empresas?id=eq.'+emp+'&select=razon_social,branding');const row=(r&&r[0])||{};
     const razon=row.razon_social||'';const b=row.branding||{};
+    BRAND={color:(b.color&&/^#[0-9a-fA-F]{6}$/.test(b.color))?b.color:'#C1272D',nombre:b.nombre||razon||'',logo:b.logo_url||null,rep:b.representante_legal||'',razon:razon};
     if(b.color&&/^#[0-9a-fA-F]{6}$/.test(b.color))document.documentElement.style.setProperty('--nar',b.color);
     if(b.logo_url)$('hexLogo').outerHTML='<img src="'+esc(b.logo_url)+'" style="height:34px;width:auto;max-width:180px;object-fit:contain">';
     if(b.nombre||razon)$('brandBox').innerHTML='<b>'+esc((b.nombre||razon).toUpperCase())+'</b>';
@@ -223,22 +225,45 @@ function htmlRegistros(){
     h+='<tr><td>'+esc(String(r.fecha||'').slice(0,16).replace('T',' '))+'</td><td class="num">'+esc(f.codigo||'—')+'</td><td style="color:var(--tx)">'+esc(f.nombre||'—')+'</td><td>v'+String(r.plantilla_ver).padStart(3,'0')+'</td><td class="mut">'+esc((f.vincula_0312||[]).join(', '))+'</td><td><button class="gbtn" onclick="verRegistro('+i+')">Ver</button></td></tr>';});
   h+='</tbody></table></div></div>';return h;
 }
-function verRegistro(i){
-  const r=REGISTROS[i]; const f=(FORMATOS.find(x=>x.id===r.plantilla_id))||{}; const campos=Array.isArray(f.campos)?f.campos:[]; const v=r.valores||{};
-  let body='';
+function limpiaVal(v){if(Array.isArray(v))return v.length?v.join(', '):'';var s=(v==null?'':String(v));if(s.indexOf('padrón')!==-1)return '';return s;}
+function docHTML(f,r){
+  const v=(r&&r.valores)||{}; const campos=Array.isArray(f.campos)?f.campos:[]; const col=BRAND.color||'#C1272D';
+  const logo=BRAND.logo?'<img src="'+esc(BRAND.logo)+'" style="max-width:118px;max-height:50px;object-fit:contain">':'<div style="width:60px;height:38px;border-radius:6px;background:'+col+';display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px">DI</div>';
+  let rows='';
   campos.forEach((c,k)=>{
-    if(c.tipo==='seccion'){body+='<div class="fsec">'+esc(c.label)+'</div>';return;}
+    if(c.tipo==='seccion'){rows+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:'+col+';font-weight:800;border-bottom:1px solid #e6e6e3;padding-bottom:4px;margin:16px 0 8px">'+esc(c.label)+'</div>';return;}
     if(c.tipo==='foto')return;
-    const key=c.key||(c.tipo==='firma'?('f'+k):('c'+k));
-    let val=v[key];
-    if(c.tipo==='firma'){body+='<div class="fld"><label>'+esc(c.label)+'</label>'+(val?'<img src="'+val+'" style="max-width:190px;background:#fff;border-radius:6px;border:1px solid var(--line);display:block">':'<span class="mut">sin firma</span>')+'</div>';return;}
-    if(Array.isArray(val))val=val.join(', ');
-    body+='<div class="fld"><label>'+esc(c.label)+'</label><div style="color:var(--tx);font-size:13.5px">'+(val!=null&&val!==''?esc(val):'<span class="mut">—</span>')+'</div></div>';
+    const key=c.key||(c.tipo==='firma'?('f'+k):('c'+k)); let val=v[key];
+    if(c.tipo==='firma'){rows+='<div style="margin:8px 0"><div style="font-size:11px;color:#888;margin-bottom:3px">'+esc(c.label)+'</div>'+(val?'<img src="'+val+'" style="max-width:168px;background:#fff;border:1px solid #ddd;border-radius:6px;display:block">':'<span style="color:#bbb;font-size:12px">sin firma</span>')+'</div>';return;}
+    val=limpiaVal(val);
+    rows+='<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid #f2f2f0"><div style="flex:0 0 210px;font-size:12px;color:#777">'+esc(c.label)+'</div><div style="flex:1;font-size:13px;color:#111;font-weight:600">'+(val!==''?esc(val):'—')+'</div></div>';
   });
-  $('modalHost').innerHTML='<div class="ov" onclick="if(event.target===this)cerrarForm()"><div class="mcard">'
-    +'<div class="mhd"><div><div class="t">'+esc(f.nombre||'Registro')+'</div><div class="c">'+esc(f.codigo||'')+' · v'+String(r.plantilla_ver).padStart(3,'0')+' · '+esc(String(r.fecha||'').slice(0,16).replace('T',' '))+'</div></div><button onclick="cerrarForm()">✕</button></div>'
-    +'<div class="mbody">'+(body||'<div class="mut">Registro sin datos.</div>')+'</div>'
-    +'<div style="padding:14px 18px;border-top:1px solid var(--line)"><button class="gbtn" style="width:100%" onclick="cerrarForm()">Cerrar</button></div></div></div>';
+  const ver='v'+String((r&&r.plantilla_ver)||f.version||1).padStart(3,'0');
+  const fecha=(r&&r.fecha)?String(r.fecha).slice(0,10):(f.fecha_version||'');
+  return '<div style="background:#fff;color:#111;border-radius:10px;overflow:hidden;font-family:Arial,sans-serif;box-shadow:0 2px 14px rgba(0,0,0,.3)">'
+    +'<div style="display:grid;grid-template-columns:130px 1fr 188px;border-bottom:3px solid '+col+'">'
+    +'<div style="padding:10px;display:grid;place-items:center;border-right:1px solid #eee">'+logo+'</div>'
+    +'<div style="padding:10px;text-align:center;display:flex;flex-direction:column;justify-content:center;border-right:1px solid #eee"><div style="font-weight:800;font-size:15px">'+esc(f.nombre||'')+'</div><div style="font-size:11px;color:#888">'+esc(BRAND.nombre||BRAND.razon||'')+' · SG-SST</div></div>'
+    +'<div style="padding:8px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-content:center">'
+    +'<span style="color:#888">Código</span><span style="text-align:right;font-weight:700">'+esc(f.codigo||'')+'</span>'
+    +'<span style="color:#888">Versión</span><span style="text-align:right;font-weight:700">'+ver+'</span>'
+    +'<span style="color:#888">Fecha</span><span style="text-align:right;font-weight:700">'+esc(fecha)+'</span>'
+    +'<span style="color:#888">Estado</span><span style="text-align:right;font-weight:700">Vigente</span></div></div>'
+    +'<div style="padding:14px 20px">'+rows
+    +'<div style="margin-top:16px;font-size:10.5px;color:#999;border-top:1px solid #eee;padding-top:8px">Documento controlado generado por KALU · '+esc(BRAND.nombre||BRAND.razon||'')+(BRAND.rep?(' · Aprueba: '+esc(BRAND.rep)):'')+'</div></div></div>';
+}
+function verRegistro(i){
+  const r=REGISTROS[i]; const f=(FORMATOS.find(x=>x.id===r.plantilla_id))||{}; window._verIdx=i;
+  $('modalHost').innerHTML='<div class="ov" onclick="if(event.target===this)cerrarForm()"><div class="mcard" style="max-width:700px">'
+    +'<div class="mhd"><div><div class="t">Documento controlado</div><div class="c">'+esc(f.codigo||'')+' · '+esc(String(r.fecha||'').slice(0,16).replace("T"," "))+'</div></div><button onclick="cerrarForm()">✕</button></div>'
+    +'<div class="mbody" style="background:#dedede">'+docHTML(f,r)+'</div>'
+    +'<div style="padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px"><button class="gbtn" style="flex:1;background:var(--nar);border-color:var(--nar);color:#0A0C0F" onclick="printDoc()">🖨 Generar PDF</button><button class="gbtn" onclick="cerrarForm()">Cerrar</button></div></div></div>';
+}
+function printDoc(){
+  const r=REGISTROS[window._verIdx]; const f=(FORMATOS.find(x=>x.id===r.plantilla_id))||{};
+  const w=window.open('','_blank'); if(!w){flash('Permití las ventanas emergentes para el PDF.');return;}
+  w.document.write('<html><head><meta charset="utf-8"><title>'+esc(f.codigo||'documento')+'</title></head><body style="margin:18px;background:#fff">'+docHTML(f,r)+'</body></html>');
+  w.document.close(); setTimeout(function(){try{w.focus();w.print();}catch(e){}},400);
 }
 function htmlResumen(){
   const c=RES; const oficial=MERGED.some(m=>m.declarado)?c.dec:null;

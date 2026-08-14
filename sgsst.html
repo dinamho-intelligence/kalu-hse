@@ -24,8 +24,8 @@
   .login h1{font-size:20px;color:var(--nar);text-align:center;letter-spacing:1px;margin-bottom:2px;}
   .login .sub{text-align:center;color:var(--tx3);font-size:11px;font-family:monospace;margin-bottom:20px;letter-spacing:.5px;}
   label{display:block;font-size:11px;color:var(--tx2);margin:12px 0 5px;letter-spacing:.4px;}
-  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--tx);font-size:15px;padding:12px 13px;outline:none;font-family:inherit;}
-  input:focus,select:focus{border-color:var(--nar);}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--tx);font-size:15px;padding:12px 13px;outline:none;font-family:inherit;}
+  input:focus,select:focus,textarea:focus{border-color:var(--nar);}
   .btn{width:100%;margin-top:20px;padding:13px;border:none;border-radius:11px;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F;}
   .btn:disabled{opacity:.6;cursor:default;}
   .err{color:#FF7A70;font-size:12.5px;text-align:center;margin-top:12px;min-height:16px;}
@@ -65,14 +65,28 @@
   .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;}
   .chip .d{width:7px;height:7px;border-radius:50%;}
   .c-evi{background:rgba(37,194,110,.15);color:#4FD98B;} .c-evi .d{background:var(--verde);}
+  .c-lb{background:rgba(37,194,110,.10);color:#8fdcae;border:1px dashed rgba(37,194,110,.5);} .c-lb .d{background:transparent;border:1.5px solid var(--verde);}
   .c-dec{background:rgba(232,147,12,.16);color:#F0B400;} .c-dec .d{background:var(--amber);}
   .c-con{background:rgba(255,59,48,.15);color:#FF8A82;} .c-con .d{background:var(--rojo);}
   .c-fal{background:rgba(120,140,160,.14);color:#9fb0c0;} .c-fal .d{background:var(--tx3);}
   .c-na{background:rgba(120,140,160,.08);color:#8a97a5;} .c-na .d{background:var(--tx3);}
   .mut{color:var(--tx3);font-size:11.5px;}
-  .foot{display:flex;align-items:center;justify-content:center;gap:8px;margin:26px 0 4px;}
-  .foot .dd{width:20px;height:20px;border-radius:5px;background:var(--rojo);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;}
-  .foot span{font-size:11px;color:var(--tx2);}
+  .gbtn{background:rgba(242,140,0,.14);border:1px solid var(--nar);color:var(--nar);border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--tx2);}
+  /* modal */
+  .ov{position:fixed;inset:0;z-index:120;background:rgba(6,8,11,.78);display:flex;align-items:center;justify-content:center;padding:18px;}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:640px;width:100%;max-height:86vh;display:flex;flex-direction:column;}
+  .mhd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:2px solid var(--nar);}
+  .mhd .t{font-size:15px;font-weight:800;color:var(--tx);} .mhd .c{font-family:monospace;font-size:11px;color:var(--tx3);}
+  .mhd button{background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;width:auto;}
+  .mbody{overflow:auto;padding:16px 18px;}
+  .fsec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--nar);font-weight:800;margin:14px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px;}
+  .fld{margin-bottom:10px;} .fld label{margin:0 0 4px;}
+  .seg{display:inline-flex;gap:6px;}
+  .foot2{display:flex;align-items:center;justify-content:center;gap:8px;margin:26px 0 4px;}
+  .foot2 .dd{width:20px;height:20px;border-radius:5px;background:var(--rojo);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;}
+  .foot2 span{font-size:11px;color:var(--tx2);}
+  .flash{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--nar);color:#0A0C0F;padding:11px 16px;border-radius:11px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35);z-index:200;opacity:0;transition:opacity .25s;max-width:92%;}
 </style>
 </head>
 <body>
@@ -83,7 +97,6 @@
   <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="salir()">Salir</button></div>
 </header>
 <div class="wrap">
-  <!-- LOGIN -->
   <div class="login" id="scLogin">
     <h1>KALU · SG-SST</h1>
     <div class="sub">// SISTEMA DE GESTIÓN · SST + RUC</div>
@@ -94,13 +107,12 @@
     <button class="btn" id="btnLogin" onclick="login()">Ingresar</button>
     <div class="err" id="loginErr"></div>
   </div>
-  <!-- DASH -->
   <div class="hide" id="scDash">
     <div class="tabs">
       <button class="tab on" id="tabResumen" onclick="verVista('resumen')">📊 Resumen</button>
       <button class="tab" id="tabAuto" onclick="verVista('auto')">📋 Autoevaluación 0312</button>
       <button class="tab" id="tabMejora" onclick="verVista('mejora')">🔧 Plan de mejoramiento</button>
-      <button class="tab" id="tabFormatos" onclick="verVista('formatos')">📁 Listado Maestro</button>
+      <button class="tab" id="tabFormatos" onclick="verVista('formatos')">📁 Formatos</button>
     </div>
     <div class="loading" id="loading">Cargando el sistema de gestión…</div>
     <div class="hide" id="content">
@@ -110,8 +122,10 @@
       <div class="hide" id="viewFormatos"></div>
     </div>
   </div>
-  <div class="foot"><span class="dd">D</span><span>Powered by <b>Dinamho Intelligence</b></span></div>
+  <div class="foot2"><span class="dd">D</span><span>Powered by <b style="color:var(--tx2)">Dinamho Intelligence</b></span></div>
 </div>
+<div id="modalHost"></div>
+<div class="flash" id="flash"></div>
 <script>
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
@@ -120,30 +134,24 @@ let TOKEN=null, MYID=null, MYEMP=null, MYNAME=null;
 let CAT=[], AUTO=[], FORMATOS=[], MERGED=[], RES=null, VISTA='resumen', FILT='todos';
 const CICLOS=["PLANEAR","HACER","VERIFICAR","ACTUAR"];
 const PESO_CICLO={PLANEAR:25,HACER:60,VERIFICAR:5,ACTUAR:10};
-const EST={evidenciado:['c-evi','Evidenciado'],declarado_sin_evidencia:['c-dec','Declarado sin evidencia'],contradicho:['c-con','Contradicho'],faltante:['c-fal','Faltante'],no_aplica:['c-na','No aplica']};
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function chip(e){const m=EST[e]||EST.faltante;return '<span class="chip '+m[0]+'"><span class="d"></span>'+m[1]+'</span>';}
-
-async function sbGet(path){
-  const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
-  if(!r.ok) throw new Error(path+' '+r.status);
-  return r.json();
+function chip(e,fuente){
+  if(e==='evidenciado'&&fuente==='linea_base') return '<span class="chip c-lb"><span class="d"></span>Evidenciado · línea base</span>';
+  if(e==='evidenciado') return '<span class="chip c-evi"><span class="d"></span>Evidenciado · KALU</span>';
+  const m={declarado_sin_evidencia:['c-dec','Declarado sin evidencia'],contradicho:['c-con','Contradicho'],faltante:['c-fal','Faltante'],no_aplica:['c-na','No aplica']}[e]||['c-fal','Faltante'];
+  return '<span class="chip '+m[0]+'"><span class="d"></span>'+m[1]+'</span>';
 }
-async function sbRpc(fn,body){
-  const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
-  if(!r.ok) throw new Error('rpc '+fn+' '+r.status); return r.json();
-}
+async function sbGet(path){const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});if(!r.ok)throw new Error(path+' '+r.status);return r.json();}
+async function sbInsert(table,body){const r=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(body)});if(!r.ok)throw new Error(table+' '+r.status);}
+async function sbRpc(fn,body){const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(!r.ok)throw new Error('rpc '+fn+' '+r.status);return r.json();}
 async function login(){
   let ident=$('email').value.trim(); const pass=$('pass').value; const e=$('loginErr'); e.textContent='';
   if(!ident||!pass){e.textContent='Completá cédula/correo y contraseña.';return;}
   const b=$('btnLogin'); b.disabled=true; b.textContent='Ingresando…';
   try{
     let email=ident;
-    if(/^\d+$/.test(ident)){
-      const r0=await fetch(SB_URL+'/rest/v1/rpc/email_por_cedula',{method:'POST',headers:{apikey:SB_ANON,'Content-Type':'application/json'},body:JSON.stringify({ced:ident})});
-      const m=await r0.json(); if(!m){e.textContent='Cédula no registrada.';b.disabled=false;b.textContent='Ingresar';return;} email=m;
-    }
+    if(/^\d+$/.test(ident)){const r0=await fetch(SB_URL+'/rest/v1/rpc/email_por_cedula',{method:'POST',headers:{apikey:SB_ANON,'Content-Type':'application/json'},body:JSON.stringify({ced:ident})});const m=await r0.json();if(!m){e.textContent='Cédula no registrada.';b.disabled=false;b.textContent='Ingresar';return;}email=m;}
     const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
     const d=await r.json();
     if(!r.ok||!d.access_token){e.textContent='Correo o contraseña incorrectos.';b.disabled=false;b.textContent='Ingresar';return;}
@@ -151,121 +159,157 @@ async function login(){
     const pf=await sbGet('perfiles?select=*&id=eq.'+MYID); const p0=(pf&&pf[0])||{};
     const rol=p0.rol||'', est=p0.estado||''; MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||email;
     const rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true||p0.es_super===true);
-    if(est && est!=='activo'){e.textContent='Tu cuenta está inactiva. Contactá a tu administrador.';TOKEN=null;b.disabled=false;b.textContent='Ingresar';return;}
+    if(est&&est!=='activo'){e.textContent='Tu cuenta está inactiva.';TOKEN=null;b.disabled=false;b.textContent='Ingresar';return;}
     if(!rolOk){e.textContent='Acceso solo para HSE / gestión.';TOKEN=null;b.disabled=false;b.textContent='Ingresar';return;}
     $('scLogin').classList.add('hide'); $('scDash').classList.remove('hide'); $('lo').classList.remove('hide');
-    await cargarBranding(MYEMP);
-    cargar();
-  }catch(err){e.textContent='Error de conexión. Probá de nuevo.';b.disabled=false;b.textContent='Ingresar';}
+    await cargarBranding(MYEMP); cargar();
+  }catch(err){e.textContent='Error de conexión.';b.disabled=false;b.textContent='Ingresar';}
 }
 function salir(){TOKEN=null;location.reload();}
 async function cargarBranding(emp){
   if(!emp)return;
   try{
-    const r=await sbGet('empresas?id=eq.'+emp+'&select=razon_social,branding'); const row=(r&&r[0])||{};
-    const razon=row.razon_social||''; const b=row.branding||{};
-    if(b.color&&/^#[0-9a-fA-F]{6}$/.test(b.color)) document.documentElement.style.setProperty('--nar',b.color);
-    if(b.logo_url){ $('hexLogo').outerHTML='<img src="'+esc(b.logo_url)+'" style="height:34px;width:auto;max-width:180px;object-fit:contain">'; }
-    if(b.nombre||razon){ $('brandBox').innerHTML='<b>'+esc((b.nombre||razon).toUpperCase())+'</b>'; }
+    const r=await sbGet('empresas?id=eq.'+emp+'&select=razon_social,branding');const row=(r&&r[0])||{};
+    const razon=row.razon_social||'';const b=row.branding||{};
+    if(b.color&&/^#[0-9a-fA-F]{6}$/.test(b.color))document.documentElement.style.setProperty('--nar',b.color);
+    if(b.logo_url)$('hexLogo').outerHTML='<img src="'+esc(b.logo_url)+'" style="height:34px;width:auto;max-width:180px;object-fit:contain">';
+    if(b.nombre||razon)$('brandBox').innerHTML='<b>'+esc((b.nombre||razon).toUpperCase())+'</b>';
     $('who').innerHTML=esc(MYNAME)+(razon?' · <b>'+esc(razon)+'</b>':'');
-  }catch(e){ $('who').textContent=MYNAME||''; }
+  }catch(e){$('who').textContent=MYNAME||'';}
 }
 async function cargar(){
   try{
     const [cat,auto,fmt]=await Promise.all([
       sbGet('sgsst_estandar_catalogo?select=*&order=orden.asc'),
-      sbGet('sgsst_autoeval?select=estandar_id,declarado,estado,puntaje_declarado,puntaje_evidenciado,nota_kalu&empresa_id=eq.'+MYEMP+'&periodo=eq.'+PERIODO),
-      sbGet('formato_plantilla?select=codigo,nombre,modulo,version,fecha_version,estado,vincula_0312&empresa_id=eq.'+MYEMP+'&order=codigo.asc').catch(function(){return[];})
+      sbGet('sgsst_autoeval?select=estandar_id,declarado,estado,puntaje_declarado,puntaje_evidenciado,fuente_evidencia,nota_kalu&empresa_id=eq.'+MYEMP+'&periodo=eq.'+PERIODO),
+      sbGet('formato_plantilla?select=id,codigo,nombre,modulo,version,fecha_version,estado,campos,vincula_0312&empresa_id=eq.'+MYEMP+'&order=codigo.asc').catch(function(){return[];})
     ]);
     CAT=cat||[]; AUTO=auto||[]; FORMATOS=fmt||[];
     const byId={}; AUTO.forEach(a=>byId[a.estandar_id]=a);
-    MERGED=CAT.map(c=>{const a=byId[c.id]||{};return {...c, estado:a.estado||'faltante', declarado:!!a.declarado, nota:a.nota_kalu||''};});
+    MERGED=CAT.map(c=>{const a=byId[c.id]||{};return {...c,estado:a.estado||'faltante',declarado:!!a.declarado,fuente:a.fuente_evidencia||null,nota:a.nota_kalu||''};});
     RES=calc(MERGED);
-    $('loading').classList.add('hide'); $('content').classList.remove('hide');
-    render();
-  }catch(e){ $('loading').textContent='No se pudo cargar ('+e.message+'). Si dice 401/403 revisá el RLS; si dice 404, faltan las tablas SST.'; }
+    $('loading').classList.add('hide'); $('content').classList.remove('hide'); render();
+  }catch(e){$('loading').textContent='No se pudo cargar ('+e.message+').';}
 }
 function calc(rows){
-  let dec=0,evi=0,byC={}; CICLOS.forEach(c=>byC[c]={dec:0,evi:0,peso:PESO_CICLO[c],cont:{evidenciado:0,declarado_sin_evidencia:0,contradicho:0,faltante:0,no_aplica:0}});
-  rows.forEach(s=>{const e=s.estado; const declar=(e==='evidenciado'||e==='declarado_sin_evidencia'||e==='contradicho');
-    if(e!=='no_aplica'&&declar){dec+=s.peso; byC[s.ciclo].dec+=s.peso;}
-    if(e==='evidenciado'){evi+=s.peso; byC[s.ciclo].evi+=s.peso;}
-    byC[s.ciclo].cont[e]=(byC[s.ciclo].cont[e]||0)+1;});
+  let dec=0,evi=0,byC={}; CICLOS.forEach(c=>byC[c]={dec:0,evi:0,peso:PESO_CICLO[c]});
+  rows.forEach(s=>{const e=s.estado;const declar=(e==='evidenciado'||e==='declarado_sin_evidencia'||e==='contradicho');
+    if(e!=='no_aplica'&&declar){dec+=s.peso;byC[s.ciclo].dec+=s.peso;}
+    if(e==='evidenciado'){evi+=s.peso;byC[s.ciclo].evi+=s.peso;}});
   const r=n=>Math.round(n*100)/100;
   const banda=evi>85?'aceptable':(evi>=60?'moderadamente_aceptable':'critico');
   return {dec:r(dec),evi:r(evi),brecha:r(dec-evi),banda,byC};
 }
 function bandaTxt(b){return {aceptable:'Aceptable',moderadamente_aceptable:'Moderadamente aceptable',critico:'Crítico'}[b];}
-function verVista(v){
-  VISTA=v;
-  [['resumen','tabResumen','viewResumen'],['auto','tabAuto','viewAuto'],['mejora','tabMejora','viewMejora'],['formatos','tabFormatos','viewFormatos']].forEach(x=>{
-    $(x[1]).classList.toggle('on',v===x[0]); $(x[2]).classList.toggle('hide',v!==x[0]);
-  });
-  render();
-}
+function verVista(v){VISTA=v;[['resumen','tabResumen','viewResumen'],['auto','tabAuto','viewAuto'],['mejora','tabMejora','viewMejora'],['formatos','tabFormatos','viewFormatos']].forEach(x=>{$(x[1]).classList.toggle('on',v===x[0]);$(x[2]).classList.toggle('hide',v!==x[0]);});render();}
 function setFilt(f){FILT=f;render();}
-function render(){
-  if(!RES)return;
-  if(VISTA==='resumen') $('viewResumen').innerHTML=htmlResumen();
-  if(VISTA==='auto') $('viewAuto').innerHTML=htmlAuto();
-  if(VISTA==='mejora') $('viewMejora').innerHTML=htmlMejora();
-  if(VISTA==='formatos') $('viewFormatos').innerHTML=htmlFormatos();
+function render(){if(!RES)return;
+  if(VISTA==='resumen')$('viewResumen').innerHTML=htmlResumen();
+  if(VISTA==='auto')$('viewAuto').innerHTML=htmlAuto();
+  if(VISTA==='mejora')$('viewMejora').innerHTML=htmlMejora();
+  if(VISTA==='formatos')$('viewFormatos').innerHTML=htmlFormatos();
 }
 function htmlResumen(){
-  const c=RES; const oficial=MERGED.some(m=>m.declarado)?RES.dec:null;
-  const aP=(c.evi/100)*100, bP=(c.brecha/100)*100;
+  const c=RES; const oficial=MERGED.some(m=>m.declarado)?c.dec:null;
+  const aP=(c.evi/100)*100,bP=(c.brecha/100)*100;
+  const lb=MERGED.filter(m=>m.fuente==='linea_base').length, vivo=MERGED.filter(m=>m.fuente==='kalu_vivo').length;
   const enRiesgo=MERGED.filter(m=>['declarado_sin_evidencia','contradicho','faltante'].includes(m.estado)).length;
   let h='<div class="kpis">'
     +'<div class="kpi"><div class="n">'+(oficial!=null?c.dec+'%':'—')+'</div><div class="l">Declarado (autoeval)</div></div>'
     +'<div class="kpi gr"><div class="n">'+c.evi+'%</div><div class="l">Con evidencia (KALU)</div></div>'
     +'<div class="kpi ro"><div class="n">'+c.brecha+'</div><div class="l">Brecha (pts sin respaldo)</div></div>'
-    +'<div class="kpi am"><div class="n">'+enRiesgo+'</div><div class="l">Ítems en riesgo / '+MERGED.length+'</div></div>'
-    +'</div>';
-  h+='<div class="card"><h2><span>▸</span> Banda de cumplimiento evidenciado</h2><span class="band '+c.banda+'">'+bandaTxt(c.banda)+'</span> <span class="mut" style="margin-left:8px">Bandas 0312: crítico &lt;60 · moderado 60–85 · aceptable &gt;85</span></div>';
-  h+='<div class="card"><h2><span>▸</span> Declarado vs. Evidenciado</h2>'
-    +'<div class="split"><div class="a" style="width:'+aP+'%"></div><div class="b" style="width:'+bP+'%"></div></div>'
-    +'<div class="mut" style="margin-top:8px">El sistema declara <b style="color:var(--tx)">'+c.dec+'%</b>. KALU respalda con evidencia viva <b style="color:var(--tx)">'+c.evi+'%</b>. La franja rayada (<b style="color:var(--tx)">'+c.brecha+' pts</b>) es lo que un auditor de certificación o RUC puede tumbar.</div></div>';
+    +'<div class="kpi am"><div class="n">'+enRiesgo+'</div><div class="l">Ítems en riesgo / '+MERGED.length+'</div></div></div>';
+  h+='<div class="card"><h2><span>▸</span> Banda de cumplimiento evidenciado</h2><span class="band '+c.banda+'">'+bandaTxt(c.banda)+'</span>'
+    +' <span class="mut" style="margin-left:10px">'+chip('evidenciado','linea_base')+' '+lb+' línea base · '+chip('evidenciado','kalu_vivo')+' '+vivo+' vivo en KALU</span></div>';
+  h+='<div class="card"><h2><span>▸</span> Declarado vs. Evidenciado</h2><div class="split"><div class="a" style="width:'+aP+'%"></div><div class="b" style="width:'+bP+'%"></div></div>'
+    +'<div class="mut" style="margin-top:8px">Declara <b style="color:var(--tx)">'+c.dec+'%</b> · KALU respalda <b style="color:var(--tx)">'+c.evi+'%</b> (histórico referenciado + vivo). La franja rayada (<b style="color:var(--tx)">'+c.brecha+' pts</b>) es lo que hay que cerrar.</div></div>';
   h+='<div class="card"><h2><span>▸</span> Cumplimiento por ciclo PHVA</h2><div class="meter">';
-  CICLOS.forEach(cy=>{const b=c.byC[cy]; const p=(b.evi/b.peso)*100, pd=(b.dec/b.peso)*100;
+  CICLOS.forEach(cy=>{const b=c.byC[cy];const p=(b.evi/b.peso)*100,pd=(b.dec/b.peso)*100;
     h+='<div class="row"><div class="lbl">'+cy+'</div><div class="track"><div style="width:'+p+'%;background:var(--verde)"></div><div style="width:'+Math.max(0,pd-p)+'%;background:repeating-linear-gradient(45deg,var(--amber),var(--amber) 5px,#c47a0a 5px,#c47a0a 10px)"></div></div><div class="val">'+(Math.round(b.evi*100)/100)+' / '+b.peso+' pts</div></div>';});
-  h+='</div><div class="mut" style="margin-top:6px">Verde = evidenciado · Rayado = declarado sin evidencia.</div></div>';
-  return h;
+  h+='</div></div>';return h;
 }
 function htmlAuto(){
-  const counts={evidenciado:0,declarado_sin_evidencia:0,contradicho:0,faltante:0,no_aplica:0}; MERGED.forEach(m=>counts[m.estado]++);
+  const counts={evidenciado:0,declarado_sin_evidencia:0,contradicho:0,faltante:0,no_aplica:0};MERGED.forEach(m=>counts[m.estado]++);
   const f=[['todos','Todos',MERGED.length],['evidenciado','Evidenciado',counts.evidenciado],['declarado_sin_evidencia','Declarado sin evidencia',counts.declarado_sin_evidencia],['contradicho','Contradicho',counts.contradicho],['faltante','Faltante',counts.faltante]];
   let h='<div class="filters">'+f.map(x=>'<button class="fbtn '+(FILT===x[0]?'on':'')+'" onclick="setFilt(\''+x[0]+'\')">'+x[1]+' · '+x[2]+'</button>').join('')+'</div>';
   h+='<div class="card" style="padding:0"><div class="twrap"><table class="ttbl"><thead><tr><th>Ítem</th><th>Estándar</th><th>Peso</th><th>Estado (KALU)</th></tr></thead><tbody>';
   let last=null;
   MERGED.filter(m=>FILT==='todos'||m.estado===FILT).forEach(m=>{
     if(m.ciclo!==last){h+='<tr class="cyc"><td colspan="4">'+m.ciclo+'</td></tr>';last=m.ciclo;}
-    h+='<tr><td class="num">'+m.id+'</td><td>'+esc(m.item)+'<div class="mut">'+esc(m.estandar_num)+(m.nota?(' — '+esc(m.nota)):'')+'</div></td><td>'+m.peso.toFixed(2)+'</td><td>'+chip(m.estado)+'</td></tr>';
-  });
-  h+='</tbody></table></div></div>';
-  return h;
+    h+='<tr><td class="num">'+m.id+'</td><td>'+esc(m.item)+'<div class="mut">'+esc(m.estandar_num)+(m.nota?(' — '+esc(m.nota)):'')+'</div></td><td>'+m.peso.toFixed(2)+'</td><td>'+chip(m.estado,m.fuente)+'</td></tr>';});
+  h+='</tbody></table></div></div>';return h;
 }
 function htmlMejora(){
-  const gaps=MERGED.filter(m=>['contradicho','declarado_sin_evidencia','faltante'].includes(m.estado))
-    .sort((a,b)=>prio(b)-prio(a));
+  const gaps=MERGED.filter(m=>['contradicho','declarado_sin_evidencia','faltante'].includes(m.estado)).sort((a,b)=>prio(b)-prio(a));
   function prio(m){return (m.estado==='contradicho'?100:m.estado==='declarado_sin_evidencia'?50:20)+m.peso;}
-  function resp(m){if(m.id==='4.1.4')return 'HSEQ + proveedor de higiene';if(m.ciclo==='ACTUAR')return 'HSEQ + Dirección';if(m.ciclo==='VERIFICAR')return 'HSEQ + COPASST';return 'HSEQ';}
-  if(!gaps.length) return '<div class="card">Sin brechas: todo evidenciado. 🎯</div>';
-  let h='<div class="mut" style="margin-bottom:10px">KALU arma el plan solo desde las brechas. Cada acción cierra un estándar declarado sin respaldo o faltante.</div>';
-  h+='<div class="card" style="padding:0"><div class="twrap"><table class="ttbl"><thead><tr><th>Prioridad</th><th>Ítem</th><th>Acción de cierre</th><th>Responsable</th></tr></thead><tbody>';
+  function resp(m){if(m.id==='4.1.4')return 'HSEQ + proveedor';if(m.ciclo==='ACTUAR')return 'HSEQ + Dirección';if(m.ciclo==='VERIFICAR')return 'HSEQ + COPASST';return 'HSEQ';}
+  if(!gaps.length)return '<div class="card">Sin brechas: todo evidenciado. 🎯</div>';
+  let h='<div class="mut" style="margin-bottom:10px">Brechas ordenadas por impacto. Muchas se cierran diligenciando el formato de KALU correspondiente (pestaña Formatos).</div>';
+  h+='<div class="card" style="padding:0"><div class="twrap"><table class="ttbl"><thead><tr><th>Prior.</th><th>Ítem</th><th>Acción de cierre</th><th>Responsable</th></tr></thead><tbody>';
   gaps.forEach(m=>{const alta=(m.estado==='contradicho'||m.peso>=2.5);
-    const acc=m.estado==='contradicho'?('Ejecutar y documentar: '+m.item.toLowerCase()+' (hoy la evidencia dice lo contrario).'):m.estado==='declarado_sin_evidencia'?('Archivar evidencia real de: '+m.item.toLowerCase()+'.'):('Crear e implementar: '+m.item.toLowerCase()+'.');
-    h+='<tr><td style="color:'+(alta?'#FF8A82':'#F0B400')+';font-weight:800">'+(alta?'Alta':'Media')+'</td><td class="num">'+m.id+' '+chip(m.estado)+'</td><td style="color:var(--tx)">'+esc(acc)+'</td><td>'+esc(resp(m))+'</td></tr>';});
-  h+='</tbody></table></div></div>';
-  return h;
+    const acc=m.estado==='contradicho'?('Ejecutar y documentar: '+m.item.toLowerCase()+'.'):m.estado==='declarado_sin_evidencia'?('Generar en KALU la evidencia de: '+m.item.toLowerCase()+'.'):('Crear e implementar: '+m.item.toLowerCase()+'.');
+    h+='<tr><td style="color:'+(alta?'#FF8A82':'#F0B400')+';font-weight:800">'+(alta?'Alta':'Media')+'</td><td class="num">'+m.id+' '+chip(m.estado,m.fuente)+'</td><td style="color:var(--tx)">'+esc(acc)+'</td><td>'+esc(resp(m))+'</td></tr>';});
+  h+='</tbody></table></div></div>';return h;
 }
 function htmlFormatos(){
-  let h='<div class="mut" style="margin-bottom:10px">Listado Maestro de Documentos — reemplaza el Excel. Todo formato se genera en KALU con su control documental (código, versión, fecha).</div>';
-  if(!FORMATOS.length) return h+'<div class="card"><div class="mut">Todavía no hay formatos creados en KALU para esta empresa. Se crean desde el <b>Diseñador de formatos</b>; al diligenciarse, cada registro alimenta solo la evidencia de arriba.</div></div>';
-  h+='<div class="card" style="padding:0"><div class="twrap"><table class="ttbl"><thead><tr><th>Código</th><th>Nombre</th><th>Módulo</th><th>Versión</th><th>Fecha</th><th>Estado</th><th>Alimenta 0312</th></tr></thead><tbody>';
-  FORMATOS.forEach(f=>{h+='<tr><td class="num">'+esc(f.codigo)+'</td><td style="color:var(--tx)">'+esc(f.nombre)+'</td><td>'+esc(f.modulo||'SST')+'</td><td>v'+String(f.version).padStart(3,'0')+'</td><td>'+esc(f.fecha_version||'')+'</td><td>'+esc(f.estado||'')+'</td><td class="mut">'+esc((f.vincula_0312||[]).join(', '))+'</td></tr>';});
-  h+='</tbody></table></div></div>';
-  return h;
+  let h='<div class="mut" style="margin-bottom:10px">Los formatos del sistema, generados en KALU. Al <b>diligenciar</b> uno, nace un registro liviano que evidencia su estándar y recalcula solo.</div>';
+  if(!FORMATOS.length)return h+'<div class="card"><div class="mut">Todavía no hay formatos. Corré el seed de formatos núcleo.</div></div>';
+  h+='<div class="card" style="padding:0"><div class="twrap"><table class="ttbl"><thead><tr><th>Código</th><th>Nombre</th><th>Versión</th><th>Estado</th><th>Alimenta</th><th></th></tr></thead><tbody>';
+  FORMATOS.forEach((f,i)=>{h+='<tr><td class="num">'+esc(f.codigo)+'</td><td style="color:var(--tx)">'+esc(f.nombre)+'</td><td>v'+String(f.version).padStart(3,'0')+'</td><td><span class="badge">'+esc(f.estado||'')+'</span></td><td class="mut">'+esc((f.vincula_0312||[]).join(', '))+'</td><td><button class="gbtn" onclick="abrirForm('+i+')">✎ Diligenciar</button></td></tr>';});
+  h+='</tbody></table></div></div>';return h;
 }
+// ---- diligenciar formato ----
+function fldHTML(c,i){
+  if(c.tipo==='seccion')return '<div class="fsec">'+esc(c.label)+'</div>';
+  const id='f_'+i;const lab='<label>'+esc(c.label)+(c.req?' *':'')+'</label>';
+  let ctl='';
+  switch(c.tipo){
+    case 'parrafo':ctl='<textarea id="'+id+'" rows="2"></textarea>';break;
+    case 'numero':ctl='<input id="'+id+'" type="number">';break;
+    case 'fecha':ctl='<input id="'+id+'" type="date" value="'+new Date().toISOString().slice(0,10)+'">';break;
+    case 'seleccion':ctl='<select id="'+id+'">'+(c.opciones||[]).map(o=>'<option>'+esc(o)+'</option>').join('')+'</select>';break;
+    case 'sino':ctl='<select id="'+id+'"><option>Sí</option><option>No</option><option>N.A.</option></select>';break;
+    case 'casillas':ctl='<div id="'+id+'">'+(c.opciones||[]).map((o,k)=>'<label style="display:inline-flex;gap:5px;align-items:center;margin:0 10px 6px 0;color:var(--tx2);font-size:13px"><input type="checkbox" data-v="'+esc(o)+'" style="width:auto"> '+esc(o)+'</label>').join('')+'</div>';break;
+    case 'foto':ctl='<div class="mut" style="border:1px dashed var(--line);border-radius:8px;padding:10px;text-align:center">📷 (adjunto liviano — se referencia)</div>';break;
+    case 'firma':ctl='<div class="mut" style="border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">✍ firma</div>';break;
+    case 'calculo':ctl='<input id="'+id+'" value="(cálculo automático)" readonly style="color:var(--tx3)">';break;
+    default:ctl='<input id="'+id+'">';
+  }
+  return '<div class="fld">'+lab+ctl+'</div>';
+}
+function abrirForm(i){
+  const f=FORMATOS[i]; const campos=Array.isArray(f.campos)?f.campos:[];
+  window._formIdx=i;
+  const body=campos.map((c,k)=>fldHTML(c,k)).join('')||'<div class="mut">Este formato no tiene campos definidos todavía.</div>';
+  $('modalHost').innerHTML='<div class="ov" onclick="if(event.target===this)cerrarForm()"><div class="mcard">'
+    +'<div class="mhd"><div><div class="t">'+esc(f.nombre)+'</div><div class="c">'+esc(f.codigo)+' · v'+String(f.version).padStart(3,'0')+' · '+esc(f.fecha_version||'')+'</div></div><button onclick="cerrarForm()">✕</button></div>'
+    +'<div class="mbody">'+body+'</div>'
+    +'<div style="padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px"><button class="gbtn" style="flex:1;background:var(--verde);border-color:var(--verde);color:#0A0C0F" onclick="guardarForm()">💾 Guardar registro</button><button class="gbtn" onclick="cerrarForm()">Cancelar</button></div>'
+    +'</div></div>';
+}
+function cerrarForm(){$('modalHost').innerHTML='';}
+function collectValues(campos){
+  const v={};
+  campos.forEach((c,k)=>{
+    if(c.tipo==='seccion'||c.tipo==='foto'||c.tipo==='firma')return;
+    const el=$('f_'+k); if(!el)return;
+    if(c.tipo==='casillas'){v[c.key||('c'+k)]=Array.from(el.querySelectorAll('input:checked')).map(x=>x.getAttribute('data-v'));}
+    else v[c.key||('c'+k)]=el.value;
+  });
+  return v;
+}
+async function guardarForm(){
+  const f=FORMATOS[window._formIdx]; const campos=Array.isArray(f.campos)?f.campos:[];
+  const valores=collectValues(campos);
+  flash('Guardando…');
+  try{
+    await sbInsert('formato_registro',{empresa_id:MYEMP,plantilla_id:f.id,plantilla_ver:f.version,valores:valores,diligenciado_por:null});
+    try{ await sbRpc('sgsst_recalcular',{p_emp:MYEMP,p_periodo:PERIODO}); }catch(e){}
+    cerrarForm(); await cargar();
+    flash('✓ Registro guardado en KALU. Evidencia de '+((f.vincula_0312||[]).join(', ')||'—')+' actualizada.');
+  }catch(e){flash('No se pudo guardar ('+e.message+'). Revisá el RLS/tablas de formatos.');}
+}
+function flash(m){const b=$('flash');b.textContent=m;b.style.opacity='1';clearTimeout(window._ft);window._ft=setTimeout(()=>b.style.opacity='0',4200);}
 ['email','pass'].forEach(id=>{const el=$(id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();login();}});});
 </script>
 </body>

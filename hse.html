@@ -1485,14 +1485,14 @@ function renderAtsList(){
       }).join('')+'</tbody></table></div>';
     return;
   }
-  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'
+  C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>N°</th><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'
     +rows.map(function(o){ var r=o.r;
       var dec = /pendiente/i.test(r.estado||'') ? ' <button style="background:rgba(37,194,110,.14);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="decidirAts('+o.i+',\'APROBAR\')">✅ Aprobar</button> <button style="background:rgba(232,147,12,.14);border:1px solid #E8930C;color:#F0B04A;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="decidirAts('+o.i+',\'DEVOLVER\')">↩ Devolver</button>' : '';
       var esDev=/devuelt/i.test(r.estado||'');
       var estCell = esDev
         ? '<td><span style="color:#F0B04A;font-weight:700">↩ Devuelto</span>'+(r.motivo_devolucion?'<div style="font-size:11px;color:var(--tx2);margin-top:3px;max-width:240px;white-space:normal">Motivo: '+esc(r.motivo_devolucion)+'</div>':'')+'<div style="font-size:11px;color:var(--tx3);margin-top:2px">El técnico lo rehace con KALU</div></td>'
         : '<td>'+esc(r.estado||'—')+'</td>';
-      return '<tr><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td>'+estCell
+      return '<tr><td style="white-space:nowrap;color:var(--tx2);font-weight:600">'+esc(r.consecutivo||'—')+'</td><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td>'+estCell
         +'<td style="white-space:nowrap"><button class="dl" onclick="verAts('+o.i+')">Ver</button>'+dec+' <button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="eliminarAts('+o.i+')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }

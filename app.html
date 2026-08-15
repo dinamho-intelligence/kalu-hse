@@ -498,7 +498,6 @@
     <button class="btn-volver-home" onclick="volverHome()">← MÓDULOS</button>
   </div>
   <div class="inicio-form-col" style="position:relative;">
-    <div id="ats-devueltos-banner" style="display:none;margin:0 0 14px;"></div>
     <div class="generando-overlay" id="generando-overlay">
       <div class="generando-spinner"></div>
       <div class="generando-msg"><span>KALU</span> está generando el ATS...<br>Analizando equipos y condiciones</div>
@@ -509,6 +508,18 @@
       <div class="paso-tab" id="tab-2"><div class="paso-num">2</div>Equipos y condiciones</div>
     </div>
     <div class="paso-contenido visible" id="paso-1">
+      <div id="bloque-devuelto" style="margin-bottom:18px;border:1px solid #E8930C;background:rgba(232,147,12,.08);border-radius:12px;padding:12px 14px">
+        <div style="color:#F0B04A;font-weight:700;font-size:13px;margin-bottom:10px">↩ Corrección de ATS devuelto</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="campo" style="margin:0"><label>Traer ATS devuelto para corregir</label>
+            <select id="sel-devuelto" onchange="onSelDevuelto()"><option value="">— Ninguno (ATS nuevo) —</option></select>
+          </div>
+          <div class="campo" style="margin:0"><label>N° ATS</label>
+            <input type="text" id="input-nro-ats" value="Nuevo — se asigna al generar" readonly style="opacity:.75;cursor:not-allowed"/>
+          </div>
+        </div>
+        <div id="devuelto-motivo" style="margin-top:10px"></div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div class="campo"><label>Empresa ejecutora</label><input type="text" id="input-empresa" placeholder="Ej: Dinamho T&T, Total QC..."/></div>
         <div class="campo"><label>Cliente</label><input type="text" id="input-cliente" value="Baker Hughes"/></div>
@@ -813,30 +824,34 @@ function _atsAnteriorTxt(peligros){
     return (i+1)+'. '+(p.descripcion||'peligro')+(niv?(' ['+niv+']'):'')+(ctrl?(' → control: '+ctrl):'');
   }).join('\n');
 }
+function resetCorreccion(){
+  window.__rehaceDe=null; window.__motivoDev=null; window.__atsAnterior=null;
+  var nro=document.getElementById('input-nro-ats'); if(nro) nro.value='Nuevo — se asigna al generar';
+  var mot=document.getElementById('devuelto-motivo'); if(mot) mot.innerHTML='';
+  var sel=document.getElementById('sel-devuelto'); if(sel) sel.value='';
+}
 async function cargarDevueltos(){
-  const cont=document.getElementById('ats-devueltos-banner'); if(!cont) return;
-  cont.style.display='none'; cont.innerHTML='';
+  const sel=document.getElementById('sel-devuelto');
+  window.__devueltos=[];
+  resetCorreccion();
+  if(sel) sel.innerHTML='<option value="">— Ninguno (ATS nuevo) —</option>';
   try{
     const { data, error } = await sb.rpc('mis_ats_devueltos');
     if(error||!Array.isArray(data)||!data.length) return;
     window.__devueltos=data;
-    let h='<div style="border:1px solid #E8930C;background:rgba(232,147,12,.10);border-radius:14px;padding:14px 16px;">'
-      +'<div style="color:#F0B04A;font-weight:800;font-size:14px;margin-bottom:2px">↩ Tenés '+data.length+' ATS devuelto'+(data.length>1?'s':'')+' para corregir</div>'
-      +'<div style="color:var(--gris-3);font-size:12px;margin-bottom:10px">El HSE te lo devolvió. Mirá qué te marcaron, corregí y yo lo vuelvo a armar.</div>';
-    data.forEach(function(a,idx){
-      var idtxt=a.consecutivo?('<span style="color:#F0B04A;font-weight:800">'+_escd(a.consecutivo)+'</span> · '):'';
-      h+='<div style="border-top:1px solid rgba(232,147,12,.25);padding:10px 0 4px;">'
-        +'<div style="color:#fff;font-weight:700;font-size:13px">'+idtxt+_escd(a.tarea||'ATS')+(a.cliente?' · '+_escd(a.cliente):'')+'</div>'
-        +(a.motivo_devolucion?'<div style="color:#F0B04A;font-size:12.5px;margin:4px 0"><b>Motivo:</b> '+_escd(a.motivo_devolucion)+'</div>':'<div style="color:var(--gris-3);font-size:12px;margin:4px 0">Sin motivo especificado (se devolvió con el sistema anterior).</div>')
-        +(a.aprobador?'<div style="color:var(--gris-3);font-size:11px">Devuelto por '+_escd(a.aprobador)+'</div>':'')
-        +'<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">'
-        +'<button onclick="verAnterior('+idx+')" style="background:transparent;border:1px solid #E8930C;color:#F0B04A;font-weight:700;border-radius:9px;padding:8px 12px;font-size:12.5px;cursor:pointer">👁 Ver el anterior</button>'
-        +'<button onclick="rehacerAts('+idx+')" style="background:#E8930C;border:0;color:#1a1200;font-weight:800;border-radius:9px;padding:8px 14px;font-size:12.5px;cursor:pointer">✏ Rehacer con KALU</button>'
-        +'</div></div>';
-    });
-    h+='</div>';
-    cont.innerHTML=h; cont.style.display='block';
+    if(sel){
+      data.forEach(function(a,idx){
+        var et=(a.consecutivo?a.consecutivo+' · ':'')+(a.tarea||'ATS')+(a.cliente?' · '+a.cliente:'');
+        var o=document.createElement('option'); o.value=String(idx); o.textContent=et; sel.appendChild(o);
+      });
+    }
   }catch(e){ /* silencioso: si el RPC no está, no molesta */ }
+}
+function onSelDevuelto(){
+  var sel=document.getElementById('sel-devuelto'); if(!sel) return;
+  var v=sel.value;
+  if(v===''){ resetCorreccion(); return; }
+  rehacerAts(parseInt(v,10));
 }
 function verAnterior(idx){
   const a=(window.__devueltos||[])[idx]; if(!a) return;
@@ -871,6 +886,9 @@ function rehacerAts(idx){
   window.__rehaceDe=a.id||null;
   window.__motivoDev=a.motivo_devolucion||'';
   window.__atsAnterior=_atsAnteriorTxt(_peligrosDe(a.historial));
+  // N° de ATS (inmodificable) + selector en sync
+  var nro=document.getElementById('input-nro-ats'); if(nro) nro.value=(a.consecutivo?('Corrigiendo '+a.consecutivo):'Corrigiendo ATS devuelto');
+  var sel=document.getElementById('sel-devuelto'); if(sel) sel.value=String(idx);
   _setVal('input-tarea', a.tarea||'');
   _setVal('input-cliente', a.cliente||'');
   _setVal('input-area', a.area||a.zona||'');
@@ -880,9 +898,15 @@ function rehacerAts(idx){
   try{ var eq=a.equipos; if(typeof eq==='string') eq=JSON.parse(eq); if(Array.isArray(eq)){ equipos=eq.slice(); renderChipsEquipos(); } }catch(e){}
   // cuadrilla (jsonb -> array de nombres)
   try{ var cu=a.cuadrilla; if(typeof cu==='string') cu=JSON.parse(cu); if(Array.isArray(cu)){ empleados=cu.map(function(x){return (x&&x.nombre)?x.nombre:x;}).filter(Boolean); if(typeof renderChips==='function') renderChips(); } }catch(e){}
-  var banner=document.getElementById('ats-devueltos-banner'); if(banner) banner.style.display='none';
-  try{ document.getElementById('input-tarea').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
-  alert('Cargué los datos del ATS devuelto. Corregí lo que te marcó el HSE y dale "Iniciar con KALU" — armo la versión corregida (sabiendo qué había antes) y vuelve a aprobación.');
+  // Motivo + botón "Ver el anterior" en el bloque
+  var mot=document.getElementById('devuelto-motivo');
+  if(mot){
+    mot.innerHTML=(a.motivo_devolucion
+        ? '<div style="color:#F0B04A;font-size:12.5px"><b>Motivo del HSE:</b> '+_escd(a.motivo_devolucion)+'</div>'
+        : '<div style="color:var(--gris-3);font-size:12px">Sin motivo especificado (se devolvió con el sistema anterior).</div>')
+      +'<button onclick="verAnterior('+idx+')" style="margin-top:8px;background:transparent;border:1px solid #E8930C;color:#F0B04A;font-weight:700;border-radius:9px;padding:7px 12px;font-size:12.5px;cursor:pointer">👁 Ver el ATS anterior</button>';
+  }
+  try{ document.getElementById('bloque-devuelto').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
 }
 /* ===== Estado de conexión de KALU (evita llenar el form si está caído) ===== */
 var KALU_ONLINE=true;

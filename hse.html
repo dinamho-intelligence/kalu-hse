@@ -1488,7 +1488,11 @@ function renderAtsList(){
   C.innerHTML='<div class="twrap"><table class="ttbl"><thead><tr><th>Fecha</th><th>Responsable</th><th>Tarea</th><th>Cliente</th><th>Zona</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'
     +rows.map(function(o){ var r=o.r;
       var dec = /pendiente/i.test(r.estado||'') ? ' <button style="background:rgba(37,194,110,.14);border:1px solid #25C26E;color:#4FD98B;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="decidirAts('+o.i+',\'APROBAR\')">✅ Aprobar</button> <button style="background:rgba(232,147,12,.14);border:1px solid #E8930C;color:#F0B04A;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="decidirAts('+o.i+',\'DEVOLVER\')">↩ Devolver</button>' : '';
-      return '<tr><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td><td>'+esc(r.estado||'—')+'</td>'
+      var esDev=/devuelt/i.test(r.estado||'');
+      var estCell = esDev
+        ? '<td><span style="color:#F0B04A;font-weight:700">↩ Devuelto</span>'+(r.motivo_devolucion?'<div style="font-size:11px;color:var(--tx2);margin-top:3px;max-width:240px;white-space:normal">Motivo: '+esc(r.motivo_devolucion)+'</div>':'')+'<div style="font-size:11px;color:var(--tx3);margin-top:2px">El técnico lo rehace con KALU</div></td>'
+        : '<td>'+esc(r.estado||'—')+'</td>';
+      return '<tr><td>'+esc(String(r.fecha||'').slice(0,10)||'—')+'</td><td>'+esc(r.responsable||'—')+'</td><td>'+esc(r.tarea||'—')+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+esc(r.zona||'—')+'</td>'+estCell
         +'<td style="white-space:nowrap"><button class="dl" onclick="verAts('+o.i+')">Ver</button>'+dec+' <button style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer" onclick="eliminarAts('+o.i+')">🗑 Eliminar</button></td></tr>';
     }).join('')+'</tbody></table></div>';
 }
@@ -1517,6 +1521,7 @@ async function restaurarAts(i){
   }catch(e){ alert('No se pudo restaurar ('+e.message+').'); }
 }
 const WEBHOOK_APROBAR='https://dnmintell.app.n8n.cloud/webhook/kalu-v3-aprobar-v2';
+const WEBHOOK_ATS_DEVUELTO='https://dnmintell.app.n8n.cloud/webhook/kalu-ats-devuelto-aviso';
 const WEBHOOK_CERT='https://dnmintell.app.n8n.cloud/webhook/kalu-cert-cruce';
 async function emitirCertificado(id, silent){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return false;
@@ -1537,14 +1542,28 @@ async function emitirCertificado(id, silent){
 async function decidirAts(i, accion){
   var r=ATSDATA[i]; if(!r) return;
   var esApro=(accion==='APROBAR');
-  if(!confirm((esApro?'¿Aprobar':'¿Devolver')+' el ATS de «'+(r.tarea||'')+'»?\n'+(esApro?'Queda oficializado y se genera el PDF validado.':'Vuelve para revisión.')+'\nSe registra tu decisión.')) return;
+  var motivo='';
+  if(esApro){
+    if(!confirm('¿Aprobar el ATS de «'+(r.tarea||'')+'»?\nQueda oficializado y se genera el PDF validado.\nSe registra tu decisión.')) return;
+  }else{
+    // Devolver: el motivo es OBLIGATORIO. Le llega al técnico para que sepa qué corregir.
+    motivo=(prompt('Devolver el ATS de «'+(r.tarea||'')+'» para corrección.\n\n¿Por qué lo devolvés? (obligatorio — el técnico lo verá para rehacerlo con KALU)','')||'').trim();
+    if(!motivo){ alert('Necesito un motivo para devolver el ATS. El técnico tiene que saber qué corregir.'); return; }
+  }
   try{
-    var res=await fetch(WEBHOOK_APROBAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:accion,atsItemId:(r.id!=null?String(r.id):''),aprobador:(MYNAME||'HSE')})});
+    var res=await fetch(WEBHOOK_APROBAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:accion,atsItemId:(r.id!=null?String(r.id):''),aprobador:(MYNAME||'HSE'),observaciones:motivo})});
     if(!res.ok) throw new Error('http '+res.status);
     var d={}; try{ d=await res.json(); }catch(e){}
     r.estado=(d&&d.estado)||(esApro?'Oficial':'Devuelto'); r.aprobador=MYNAME;
+    if(!esApro){
+      r.motivo_devolucion=motivo;
+      // Guardar el motivo en la fila del ATS (para que el técnico lo vea en su app).
+      try{ if(r.id!=null) await sbPatch('ats?id=eq.'+encodeURIComponent(String(r.id)),{motivo_devolucion:motivo}); }catch(e){}
+      // Avisar al técnico por correo (flujo aparte; si no está, no rompe nada).
+      try{ fetch(WEBHOOK_ATS_DEVUELTO,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({atsItemId:(r.id!=null?String(r.id):''),motivo:motivo,aprobador:(MYNAME||'HSE')})}); }catch(e){}
+    }
     renderAtsList();
-    alert(esApro?'✅ ATS aprobado y oficializado.':'↩ ATS devuelto para revisión.');
+    alert(esApro?'✅ ATS aprobado y oficializado.':'↩ ATS devuelto para revisión.\nEl técnico recibirá el motivo para rehacerlo con KALU.');
   }catch(e){ alert('No se pudo '+(esApro?'aprobar':'devolver')+' ('+e.message+'). Revisá que el flujo de n8n esté activo.'); }
 }
 function _atsControles(p){ var c=p.controles||p.medidas_control||p.control||p.medidas||''; if(Array.isArray(c)) c=c.join(' · '); return c; }

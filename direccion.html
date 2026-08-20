@@ -61,7 +61,22 @@ table.dl td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(
 table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .bdg{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700}
 .dlempty{color:var(--tx3);font-size:13px;padding:16px 4px}
-</style></head>
+/* explorador interactivo */
+.exhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.exhead h2{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px}
+.excount{font-size:12px;color:var(--tx2)}
+.exfilt{display:flex;flex-wrap:wrap;gap:7px;align-items:center;min-height:10px;margin-bottom:12px}
+.fbadge{display:inline-flex;align-items:center;gap:6px;background:rgba(247,148,29,.14);border:1px solid var(--nar);color:#ffcf8f;border-radius:20px;padding:4px 10px;font-size:12px;cursor:pointer}
+.fbadge .x{font-weight:800}
+.exgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:720px){.exgrid{grid-template-columns:1fr}}
+.excard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 8px}
+.excard h3{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.excanv{position:relative;height:180px}
+.exempty{color:var(--tx3);font-size:12.5px;padding:30px 8px;text-align:center}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
 <body>
 
 <!-- LOGIN -->
@@ -96,6 +111,23 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <div id="report"><div class="muted" style="padding:20px">Cargando…</div></div>
+
+  <!-- EXPLORADOR INTERACTIVO (datos en vivo) -->
+  <div class="sec" id="explorer">
+    <div class="exhead">
+      <div>
+        <h2>Explorador de lo pendiente · en vivo</h2>
+        <div class="ovsub" style="font-size:11.5px;color:#6b7784;margin-top:3px">Tocá una barra para filtrar el resto de los gráficos.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="excount" id="exCount">—</span>
+        <button class="btn" id="exList" onclick="verListaFiltrada()">≣ Ver lista</button>
+        <button class="btn" id="exClear" onclick="limpiarFiltros()">Limpiar filtros</button>
+      </div>
+    </div>
+    <div class="exfilt" id="exFilt"></div>
+    <div class="exgrid" id="exGrid"><div class="exempty">Cargando datos en vivo…</div></div>
+  </div>
 </div>
 
 <!-- MODAL DRILL-DOWN -->
@@ -138,6 +170,7 @@ async function entrar(){
     document.getElementById('login').classList.add('hide');
     document.getElementById('app').classList.remove('hide');
     cargarTipo();
+    initExplorer();
   }catch(err){e.textContent='No se pudo conectar. Reintentá.';b.disabled=false;b.textContent='Ingresar';}
 }
 function salir(){ TOKEN=null; try{ window.close(); }catch(e){} setTimeout(function(){ location.href='hse.html'; }, 200); }
@@ -287,6 +320,104 @@ async function openDrill(kind,arg){
 }
 function closeDrill(){ document.getElementById('drill').classList.add('hide'); }
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeDrill(); });
+
+// ===== EXPLORADOR INTERACTIVO (cross-filtering en vivo) =====
+var EXCH={}, FILT={lugar:null,categoria:null,riesgo:null,antiguedad:null};
+var NAR='#f7941d', CY='#00d4ff';
+function bucket(d){ return d==null?'—':d<=3?'≤3d':d<=7?'4-7d':'>7d'; }
+function bucketColor(b){ return b==='>7d'?'#e23b3b':b==='4-7d'?'#f7941d':b==='≤3d'?'#25c26e':'#6b7784'; }
+function riesgoColor(n){ return n==='alto'?'#e23b3b':n==='medio'?'#f7941d':n==='bajo'?'#25c26e':'#6b7784'; }
+function dimVal(r,dim){ return dim==='lugar'?(r.lugar||'—'):dim==='categoria'?(r.categoria||'—'):dim==='riesgo'?rNivel(r.riesgo):bucket(r.dias); }
+function filtRows(excluir){
+  return (PEND?PEND.tarjetas:[]).filter(function(r){
+    if(excluir!=='lugar'      && FILT.lugar!=null      && (r.lugar||'—')!==FILT.lugar) return false;
+    if(excluir!=='categoria'  && FILT.categoria!=null  && (r.categoria||'—')!==FILT.categoria) return false;
+    if(excluir!=='riesgo'     && FILT.riesgo!=null     && rNivel(r.riesgo)!==FILT.riesgo) return false;
+    if(excluir!=='antiguedad' && FILT.antiguedad!=null && bucket(r.dias)!==FILT.antiguedad) return false;
+    return true;
+  });
+}
+function tallyDim(rows,dim){
+  var m={}; rows.forEach(function(r){ var k=dimVal(r,dim); m[k]=(m[k]||0)+1; });
+  var arr=Object.keys(m).map(function(k){return [k,m[k]];});
+  if(dim==='antiguedad'){ var ord={'≤3d':0,'4-7d':1,'>7d':2,'—':3}; arr.sort(function(a,b){return (ord[a[0]]==null?9:ord[a[0]])-(ord[b[0]]==null?9:ord[b[0]]);}); }
+  else if(dim==='riesgo'){ var or={alto:0,medio:1,bajo:2,'—':3}; arr.sort(function(a,b){return (or[a[0]]==null?9:or[a[0]])-(or[b[0]]==null?9:or[b[0]]);}); }
+  else arr.sort(function(a,b){return b[1]-a[1];});
+  return arr.slice(0,12);
+}
+function toggleFilt(dim,val){ FILT[dim]=(FILT[dim]===val?null:val); renderExplorer(); }
+function limpiarFiltros(){ FILT={lugar:null,categoria:null,riesgo:null,antiguedad:null}; renderExplorer(); }
+function nombreDim(d){ return d==='lugar'?'Lugar':d==='categoria'?'Categoría':d==='riesgo'?'Riesgo':'Antigüedad'; }
+function makeChart(dim,titulo,tipo){
+  var entries=tallyDim(filtRows(dim),dim);
+  var labels=entries.map(function(e){return e[0];}), data=entries.map(function(e){return e[1];});
+  var sel=FILT[dim];
+  var colores=labels.map(function(l){
+    var base = dim==='riesgo'?riesgoColor(l) : dim==='antiguedad'?bucketColor(l) : (dim==='lugar'?NAR:CY);
+    if(sel==null) return base;
+    return l===sel?base:base+'33';
+  });
+  var canv=document.createElement('canvas');
+  var wrap=document.createElement('div'); wrap.className='excard';
+  wrap.innerHTML='<h3>'+titulo+'</h3>';
+  var cbox=document.createElement('div'); cbox.className='excanv'; cbox.appendChild(canv); wrap.appendChild(cbox);
+  document.getElementById('exGrid').appendChild(wrap);
+  if(!labels.length){ cbox.innerHTML='<div class="exempty">Sin datos</div>'; return; }
+  var horizontal=(tipo==='barH');
+  var cfg;
+  var onClick=function(e,els){ if(els&&els.length){ toggleFilt(dim,labels[els[0].index]); } };
+  if(tipo==='doughnut'){
+    cfg={type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colores,borderColor:'#12161C',borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'58%',onClick:onClick,
+        plugins:{legend:{position:'bottom',labels:{color:'#9fabb8',padding:10,font:{size:11}}}},
+        onHover:function(e,el){ if(e.native)e.native.target.style.cursor=el.length?'pointer':'default'; }}};
+  }else{
+    cfg={type:'bar',data:{labels:labels,datasets:[{data:data,backgroundColor:colores,borderRadius:6}]},
+      options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,onClick:onClick,
+        plugins:{legend:{display:false}},
+        scales:{x:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#95A0AD',precision:0}},y:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#95A0AD',precision:0},beginAtZero:true}},
+        onHover:function(e,el){ if(e.native)e.native.target.style.cursor=el.length?'pointer':'default'; }}};
+  }
+  EXCH[dim]=new Chart(canv,cfg);
+}
+function renderExplorer(){
+  var grid=document.getElementById('exGrid'); if(!grid) return;
+  Object.keys(EXCH).forEach(function(k){ try{EXCH[k].destroy();}catch(e){} }); EXCH={};
+  grid.innerHTML='';
+  if(!PEND){ grid.innerHTML='<div class="exempty">Cargando datos en vivo…</div>'; return; }
+  if(typeof Chart==='undefined'){ grid.innerHTML='<div class="exempty">No se pudieron cargar los gráficos (sin conexión al CDN). Igual podés usar “Ver lista”.</div>'; return; }
+  if(!PEND.tarjetas.length){ grid.innerHTML='<div class="exempty">No hay tarjetas pendientes ahora mismo. 👌</div>'; document.getElementById('exCount').textContent='0 tarjetas'; document.getElementById('exFilt').innerHTML=''; return; }
+  var full=filtRows('__all__');
+  var hayFiltro=FILT.lugar||FILT.categoria||FILT.riesgo||FILT.antiguedad;
+  document.getElementById('exCount').textContent=full.length+' tarjeta'+(full.length===1?'':'s')+(hayFiltro?' (filtrado)':'');
+  // chips de filtro activo
+  var fb=[];
+  ['lugar','categoria','riesgo','antiguedad'].forEach(function(d){ if(FILT[d]!=null) fb.push('<span class="fbadge" onclick="toggleFilt(\''+d+'\',\''+encodeURIComponent(FILT[d])+'__RAW\')" title="Quitar filtro">'+nombreDim(d)+': <b>'+esc(FILT[d])+'</b> <span class="x">✕</span></span>'); });
+  document.getElementById('exFilt').innerHTML=fb.join('');
+  document.getElementById('exClear').style.display=hayFiltro?'':'none';
+  // gráficos
+  makeChart('lugar','Por lugar','barH');
+  makeChart('categoria','Por categoría','barH');
+  makeChart('riesgo','Por riesgo','doughnut');
+  makeChart('antiguedad','Por antigüedad','bar');
+}
+// las chips de filtro mandan valor con sufijo __RAW para no re-encodear; normalizamos:
+var _toggleFilt=toggleFilt;
+toggleFilt=function(dim,val){ if(typeof val==='string'&&val.slice(-5)==='__RAW'){ val=decodeURIComponent(val.slice(0,-5)); } _toggleFilt(dim,val); };
+async function initExplorer(){
+  try{ await loadPend(); }catch(e){}
+  renderExplorer();
+}
+function verListaFiltrada(){
+  var rows=filtRows('__all__').slice().sort(function(a,b){return (b.dias||0)-(a.dias||0);});
+  var partes=[]; ['lugar','categoria','riesgo','antiguedad'].forEach(function(d){ if(FILT[d]!=null) partes.push(nombreDim(d)+': '+FILT[d]); });
+  document.getElementById('drillTit').textContent='Tarjetas pendientes'+(partes.length?' — '+partes.join(' · '):'')+' ('+rows.length+')';
+  document.getElementById('drillSub').textContent='Estado actual (datos en vivo desde Supabase)';
+  document.getElementById('drillBody').innerHTML=tabla(['Días','Riesgo','Qué se vio','Observador','Lugar','Categoría','Fecha'],rows,function(r){
+    return [dBadge(r.dias),rBadge(r.riesgo),esc(String(r.desc||'').slice(0,90)),esc(r.obs||'—'),esc(r.lugar||'—'),esc(r.categoria||'—'),esc(r.fecha||'—')];
+  });
+  document.getElementById('drill').classList.remove('hide');
+}
 
 // enter para login
 document.getElementById('pass').addEventListener('keydown',function(e){ if(e.key==='Enter') entrar(); });

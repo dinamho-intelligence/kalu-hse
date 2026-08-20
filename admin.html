@@ -514,6 +514,7 @@ function usuarioRow(u){
     acts+='<button class="btn btn-b btn-sm" onclick="toggleConsola(\''+u.id+'\','+(u.acceso_consola?"false":"true")+')">'+(u.acceso_consola?"Quitar consola":"Dar consola")+'</button>';
     if(ME.es_super) acts+='<button class="btn btn-b btn-sm" onclick="toggleSuper(\''+u.id+'\','+(u.es_super?"false":"true")+')">'+(u.es_super?"Quitar super":"Hacer super")+'</button>';
     acts+='<button class="btn btn-cy btn-sm" onclick="resetPass(\''+u.id+'\')">🔑 Resetear clave</button>';
+    acts+='<button class="btn btn-cy btn-sm" onclick=\'cambiarEmail("'+u.id+'",'+JSON.stringify(esc(u.email||""))+')\'>✉ Cambiar correo</button>';
     if(activo) acts+='<button class="btn btn-danger btn-sm" onclick="bajaUsuario(\''+u.id+'\')">Desactivar</button>';
     else acts+='<button class="btn btn-b btn-sm" onclick="reactivarUsuario(\''+u.id+'\')">Reactivar</button>';
   } else { acts+='<span class="bdg r">vos</span>'; }
@@ -785,6 +786,15 @@ async function resetPass(userId){
 async function crearSuper(){
   const email=prompt("Correo del nuevo super-admin:"); if(!email) return;
   const d=await n8n("crear_super",{email:email.trim()}); if(d) toast(d.message||"Super-admin creado");
+}
+async function cambiarEmail(userId,actual){
+  const nuevo=(prompt("Correo con el que INICIA SESIÓN este usuario.\n\nActual: "+(actual||"—")+"\n\nEscribí el correo NUEVO:",actual||"")||"").trim().toLowerCase();
+  if(!nuevo) return;
+  if(nuevo===(actual||"").toLowerCase()){ toast("Es el mismo correo, no hay cambios.",true); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)){ toast("Correo inválido.",true); return; }
+  if(!confirm("¿Cambiar el correo de login a:\n\n"+nuevo+"\n\nSe actualiza el acceso (Auth), el perfil y el padrón, todo junto. La clave no cambia."))return;
+  const d=await n8n("cambiar_email",{usuario_id:userId,nuevo_email:nuevo});
+  if(d){ logAud("cambiar_email","perfil",userId,{nuevo_email:nuevo}); toast(d.message||("Correo actualizado a "+nuevo)); viewUsuarios(); }
 }
 async function invitarPersona(id,correo){
   if(!confirm("¿Enviar invitación por correo a "+correo+"?\nVa a poder poner su contraseña y entra con sus accesos ya cargados."))return;

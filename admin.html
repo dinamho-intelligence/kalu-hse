@@ -38,6 +38,15 @@
   .seg{display:inline-flex;gap:4px;background:#eef0f4;border-radius:10px;padding:3px;margin:0 10px 12px 0;vertical-align:middle}
   .segbtn{border:0;background:transparent;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;color:#3a4658;cursor:pointer}
   .segbtn.on{background:#fff;color:#111;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .actstat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .actstat .s{background:#f6f7f9;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12px;color:#3a4658;min-width:78px}
+  .actstat .s b{font-size:18px;color:#111;display:block;line-height:1.1}
+  .tl{list-style:none;margin:0;padding:0}
+  .tl li{display:flex;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line)}
+  .tl li:last-child{border-bottom:0}
+  .tl .ic{width:28px;height:28px;border-radius:8px;background:#eef0f4;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+  .tl .tx{flex:1;font-size:13px;color:#26303c}
+  .tl .tm{font-size:11.5px;color:#8a96a4;white-space:nowrap;padding-top:1px}
   .modchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
   .mchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;background:#f7f8fb;border:1.5px solid var(--line2);border-radius:20px;padding:5px 11px;cursor:pointer;user-select:none}
   .mchk.on{background:#fff3e0;border-color:var(--amber);color:#8a5a12}
@@ -129,6 +138,13 @@
       <div class="fld" style="margin-bottom:0"><label>Cargo</label><input id="ed_cargo" placeholder="opcional"/></div>
     </div>
     <div class="mf"><button class="btn btn-b" onclick="cerrarEditar()">Cancelar</button><button class="btn btn-amber" id="edSave" onclick="guardarEditar()">Guardar</button></div>
+  </div>
+</div>
+<!-- Modal actividad del usuario -->
+<div class="ov" id="ovAct">
+  <div class="modal" style="max-width:640px">
+    <div class="mh"><span style="font-size:20px">🕑</span><div><b>Actividad del usuario</b><div class="sub" id="ovAct_s"></div></div><button class="x" onclick="cerrarActividad()">×</button></div>
+    <div class="mb" id="ovAct_b"><div class="empty">Cargando…</div></div>
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -511,6 +527,54 @@ var EST={}, ESTLOADED=false, VER_USU='reg';
 function estadoUsu(id){ var e=EST[id]; if(!e) return ESTLOADED?'pend':'unk'; return e.logueado?'reg':'pend'; }
 function contarEstados(){ var r=0,pd=0; _USERS.forEach(function(u){ (estadoUsu(u.id)==='reg')?r++:pd++; }); return {reg:r,pend:pd,total:_USERS.length}; }
 window.setVerUsu=function(v){ VER_USU=v; Array.prototype.forEach.call(document.querySelectorAll('#segUsu .segbtn'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);}); renderUsuLista(($("#buscarUsu")||{}).value||''); };
+function hace(iso){
+  if(!iso) return '—';
+  var t=new Date(iso); if(isNaN(t.getTime())) return '—';
+  var s=Math.floor((Date.now()-t.getTime())/1000);
+  if(s<60) return 'recién';
+  var m=Math.floor(s/60); if(m<60) return 'hace '+m+' min';
+  var h=Math.floor(m/60); if(h<24) return 'hace '+h+' h';
+  var d=Math.floor(h/24); if(d<30) return 'hace '+d+(d===1?' día':' días');
+  var me=Math.floor(d/30); if(me<12) return 'hace '+me+(me===1?' mes':' meses');
+  return 'hace '+Math.floor(me/12)+' año(s)';
+}
+function fechaCorta(iso){ return String(iso||'').slice(0,10); }
+function accLindo(a){ var m={acceso_consola:'Cambió acceso a consola',hacer_super:'Hecho super-admin',quitar_super:'Quitado super-admin',baja_usuario:'Desactivó un usuario',reactivar_usuario:'Reactivó un usuario',cambiar_email:'Cambió un correo',crear_persona:'Agregó una persona',editar_persona:'Editó una persona',invitar_persona:'Invitó a una persona',set_accesos:'Cambió accesos',set_modulos:'Cambió módulos',baja_persona:'Dio de baja una persona',alta_persona:'Reactivó una persona'}; return m[a]||('Acción: '+esc(a||'—')); }
+async function verActividad(userId, nombre){
+  $("#ovAct").classList.add("show");
+  $("#ovAct_s").textContent=nombre||'';
+  var body=$("#ovAct_b"); body.innerHTML='<div class="empty">Cargando actividad…</div>';
+  var est=EST[userId]||{};
+  var q=encodeURIComponent(nombre||'');
+  var aud=[],tar=[],ats=[],inv=[];
+  try{ aud=await sbFetch("/rest/v1/auditoria?actor_id=eq."+userId+"&select=accion,entidad,detalle,creado&order=creado.desc&limit=100"); }catch(e){}
+  if(nombre){
+    try{ tar=await sbFetch("/rest/v1/tarjetas?observador_nombre=eq."+q+"&select=descripcion,clase,creado,estado&order=creado.desc&limit=100"); }catch(e){}
+    try{ ats=await sbFetch("/rest/v1/ats?responsable=eq."+q+"&select=tarea,estado,fecha&order=fecha.desc&limit=100"); }catch(e){}
+    try{ inv=await sbFetch("/rest/v1/investigaciones?reporta=eq."+q+"&select=inv_id,estado,fecha_evento&order=fecha_evento.desc&limit=100"); }catch(e){}
+  }
+  var ev=[];
+  (aud||[]).forEach(function(a){ ev.push({t:a.creado, ic:'⚙️', tx:accLindo(a.accion)+(a.entidad?(' · '+esc(a.entidad)):'')}); });
+  (tar||[]).forEach(function(x){ var ins=(String(x.clase||'')==='inseguro'); ev.push({t:x.creado, ic:ins?'⚠️':'✅', tx:'Reportó tarjeta'+(ins?' insegura':' segura')+': '+esc(String(x.descripcion||'').slice(0,70))}); });
+  (ats||[]).forEach(function(x){ ev.push({t:x.fecha, ic:'📋', tx:'ATS: '+esc(x.tarea||'—')+' ('+esc(x.estado||'—')+')'}); });
+  (inv||[]).forEach(function(x){ ev.push({t:x.fecha_evento, ic:'🔎', tx:'Investigación '+esc(x.inv_id||'')+' ('+esc(x.estado||'—')+')'}); });
+  ev.sort(function(a,b){ return new Date(b.t||0)-new Date(a.t||0); });
+  var h='';
+  h+='<div class="meta" style="margin-bottom:12px">'+(est.logueado?('Último acceso: <b>'+hace(est.ultimo)+'</b> ('+fechaCorta(est.ultimo)+')'):(est.confirmado?'Cuenta confirmada, sin registro de ingreso.':'⏳ Invitado — <b>nunca inició sesión</b>.'))+'</div>';
+  h+='<div class="actstat">'
+    +'<div class="s"><b>'+((tar||[]).length)+'</b>tarjetas</div>'
+    +'<div class="s"><b>'+((ats||[]).length)+'</b>ATS</div>'
+    +'<div class="s"><b>'+((inv||[]).length)+'</b>investig.</div>'
+    +'<div class="s"><b>'+((aud||[]).length)+'</b>acciones consola</div>'
+    +'</div>';
+  if(!ev.length){ h+='<div class="empty">Sin actividad registrada todavía.</div>'; }
+  else{
+    h+='<ul class="tl">'+ev.slice(0,80).map(function(e){ return '<li><div class="ic">'+e.ic+'</div><div class="tx">'+e.tx+'</div><div class="tm">'+hace(e.t)+'</div></li>'; }).join('')+'</ul>';
+    if(ev.length>80) h+='<div class="meta" style="margin-top:8px">… y '+(ev.length-80)+' más.</div>';
+  }
+  body.innerHTML=h;
+}
+function cerrarActividad(){ $("#ovAct").classList.remove("show"); }
 var BUSCADOR_CSS='width:100%;max-width:460px;margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#161A22;color:#EDEFF2;font-size:14px;outline:none';
 function nivelChip(a){ return (a&&a.nivel==="ver")?' 👁':''; }
 function usuarioRow(u){
@@ -518,6 +582,7 @@ function usuarioRow(u){
   const mias=(_BYUSER[u.id]||[]);
   const chips=mias.length?mias.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(rolLabel(a.modulo,a.rol))+nivelChip(a)+'</span>';}).join(" "):'<span class="meta">sin accesos</span>';
   let acts='<button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("user","'+u.id+'",'+JSON.stringify(esc(u.nombre||u.email))+')\'>🎛️ Accesos</button>';
+  acts+='<button class="btn btn-b btn-sm" onclick=\'verActividad("'+u.id+'",'+JSON.stringify(esc(u.nombre||u.email||""))+')\'>🕑 Actividad</button>';
   if(!yo){
     acts+='<button class="btn btn-b btn-sm" onclick="toggleConsola(\''+u.id+'\','+(u.acceso_consola?"false":"true")+')">'+(u.acceso_consola?"Quitar consola":"Dar consola")+'</button>';
     if(ME.es_super) acts+='<button class="btn btn-b btn-sm" onclick="toggleSuper(\''+u.id+'\','+(u.es_super?"false":"true")+')">'+(u.es_super?"Quitar super":"Hacer super")+'</button>';
@@ -528,10 +593,12 @@ function usuarioRow(u){
   const est=estadoUsu(u.id);
   const estBadge=(est==='reg')?'<span class="bdg log" title="Ya inició sesión">✅ registrado</span>'
     :(est==='pend')?'<span class="bdg pend" title="Invitado, todavía no inició sesión">⏳ pendiente</span>':'';
+  const _ult=EST[u.id]&&EST[u.id].ultimo;
+  const accLogin=_ult?(' · último acceso '+hace(_ult)):(est==='pend'?' · nunca entró':'');
   const badges=estBadge+' '+(activo?'<span class="bdg a">activo</span>':'<span class="bdg i">'+esc(u.estado||"inactivo")+'</span>')
     +(u.es_super?' <span class="bdg s">super</span>':' <span class="bdg r">'+esc(u.rol||"—")+'</span>')
     +(u.acceso_consola?' <span class="bdg r">consola</span>':'');
-  return '<div class="row '+(activo?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(u.nombre||"(sin nombre)")+'</span> '+badges+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">'+esc(u.email||"—")+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+acts+'</div></div>';
+  return '<div class="row '+(activo?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(u.nombre||"(sin nombre)")+'</span> '+badges+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">'+esc(u.email||"—")+accLogin+'</div><div class="modchips" style="margin-bottom:10px">'+chips+'</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+acts+'</div></div>';
 }
 function renderUsuLista(q){
   q=(q||'').trim().toLowerCase();

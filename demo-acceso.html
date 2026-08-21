@@ -1,0 +1,89 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KALU · Acceso a la demo</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#0b0e13;--panel:#0f141b;--card:#141a22;--line:#28303b;--line2:#333d4a;--tx:#eef2f6;--tx2:#9fabb8;--tx3:#6b7784;--nar:#f7941d;--cy:#00d4ff;--rojo:#e23b3b;--grad:linear-gradient(120deg,#e23b3b,#f7941d)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1100px 640px at 50% -10%,#16202b 0%,var(--bg) 60%);color:var(--tx);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px 26px;box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
+.brand{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:16px}
+.wm{font-weight:800;font-size:26px;letter-spacing:3px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bt{font-size:10px;letter-spacing:2px;color:var(--tx3);text-transform:uppercase}
+h1{font-size:19px;text-align:center;margin:6px 0 2px}
+.sub{color:var(--tx2);font-size:13px;text-align:center;margin-bottom:20px}
+label{display:block;font-size:11px;letter-spacing:.6px;color:var(--tx3);text-transform:uppercase;margin:12px 0 5px}
+input[type=email],input[type=password]{width:100%;background:#0b0f14;border:1px solid var(--line2);color:var(--tx);border-radius:10px;padding:12px 13px;font-size:14px}
+input:focus{outline:none;border-color:var(--nar)}
+.pol{display:flex;gap:9px;align-items:flex-start;margin:16px 0 6px;font-size:12.5px;color:var(--tx2);line-height:1.5}
+.pol input{margin-top:2px;width:16px;height:16px;accent-color:var(--nar);flex:0 0 auto}
+.pol a{color:#7fd6f0;text-decoration:none}
+button.go{width:100%;margin-top:16px;background:var(--grad);border:0;color:#fff;font-weight:700;border-radius:10px;padding:13px;font-size:15px;cursor:pointer}
+button.go:disabled{opacity:.6;cursor:default}
+.err{color:#ff8a82;font-size:12.5px;min-height:16px;margin-top:10px;text-align:center}
+.ok{color:#7fe6a0}
+.foot{text-align:center;color:var(--tx3);font-size:12px;margin-top:16px}
+.foot a{color:#7fd6f0;text-decoration:none}
+.reqbtn{display:block;text-align:center;margin-top:14px;color:var(--nar);font-size:13px;text-decoration:none;font-weight:600}
+</style></head><body>
+<div class="card">
+  <div class="brand"><span class="wm">KALU</span><span class="bt">Dinamho Intelligence</span></div>
+  <h1>Acceso a la demo</h1>
+  <div class="sub">Ingresá con el usuario habilitado que te dieron.</div>
+
+  <label for="email">Correo</label>
+  <input id="email" type="email" placeholder="tu@correo.com" autocomplete="username">
+  <label for="pass">Contraseña</label>
+  <input id="pass" type="password" placeholder="••••••••" autocomplete="current-password">
+
+  <div class="pol">
+    <input id="acepto" type="checkbox">
+    <span>Acepto la <a href="politicas.html" target="_blank">Política de Confidencialidad</a> y el <a href="politicas.html#datos" target="_blank">Tratamiento de Datos Personales</a> (Ley 1581/2012).</span>
+  </div>
+
+  <button class="go" id="btn" onclick="entrar()">Entrar a la demo →</button>
+  <div class="err" id="err"></div>
+
+  <a class="reqbtn" href="mailto:Info.ar@dinamho.co?subject=Quiero%20una%20demo%20de%20KALU">¿No tenés usuario? Solicitá una demo →</a>
+  <div class="foot">¿Problemas para entrar? <a href="mailto:Info.ar@dinamho.co">Info.ar@dinamho.co</a></div>
+</div>
+<script>
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth:{ persistSession:true, autoRefreshToken:true, storage: window.localStorage } });
+function fecha(s){ try{ return new Date(s).toLocaleDateString(); }catch(e){ return ''; } }
+async function entrar(){
+  const b=document.getElementById('btn'), e=document.getElementById('err');
+  const email=(document.getElementById('email').value||'').trim();
+  const pass=document.getElementById('pass').value;
+  const ok=document.getElementById('acepto').checked;
+  e.className='err'; e.textContent='';
+  if(!email||!pass){ e.textContent='Completá correo y contraseña.'; return; }
+  if(!ok){ e.textContent='Tenés que aceptar las políticas para continuar.'; return; }
+  b.disabled=true; b.textContent='Verificando…';
+  try{
+    const { data, error } = await sb.auth.signInWithPassword({ email, password:pass });
+    if(error||!data||!data.session){ e.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Entrar a la demo →'; return; }
+    // ¿demo vigente?
+    let est=null;
+    try{ const r=await sb.rpc('demo_estado'); est=(r.data&&r.data[0])||null; }catch(x){}
+    if(!est || !est.vigente){
+      await sb.auth.signOut();
+      e.textContent = est ? ('Tu demo venció el '+fecha(est.expira)+'. Escribinos para reactivarla.') : 'Este usuario no está habilitado para la demo. Escribinos a Info.ar@dinamho.co.';
+      b.disabled=false; b.textContent='Entrar a la demo →'; return;
+    }
+    // registrar aceptación (best effort) y entrar
+    try{ await sb.rpc('demo_aceptar',{ p_ua: navigator.userAgent.slice(0,300) }); }catch(x){}
+    e.className='err ok'; e.textContent='¡Listo! Entrando…';
+    location.href='demo.html';
+  }catch(err){ e.textContent='No se pudo conectar. Reintentá.'; b.disabled=false; b.textContent='Entrar a la demo →'; }
+}
+document.getElementById('pass').addEventListener('keydown',function(ev){ if(ev.key==='Enter') entrar(); });
+// si ya hay sesión demo vigente, saltar directo
+(async function(){
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    if(session){ const r=await sb.rpc('demo_estado'); const est=r.data&&r.data[0]; if(est&&est.vigente){ location.href='demo.html'; } }
+  }catch(e){}
+})();
+</script>
+</body></html>

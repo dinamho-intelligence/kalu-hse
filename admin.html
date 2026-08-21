@@ -254,6 +254,7 @@ function construirTabs(){
   const tabs=[];
   if(ME.es_super) tabs.push(["empresas","🏢 Empresas y módulos"]);
   if(ME.es_super) tabs.push(["enrolamiento","🚀 Enrolamiento"]);
+  if(ME.es_super) tabs.push(["demos","🎫 Demos"]);
   tabs.push(["miempresa","🏢 Mi empresa"]);
   tabs.push(["usuarios","👥 Usuarios y accesos"]);
   tabs.push(["padron","🪪 Padrón (cédulas)"]);
@@ -263,7 +264,7 @@ function construirTabs(){
   irTab(tabs[0][0]);
 }
 function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
-  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="miempresa") viewMiEmpresa(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
+  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="demos") viewDemos(); else if(t==="miempresa") viewMiEmpresa(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
 async function viewEnrolamiento(){
   var h='<h2 class="sec">Enrolar una empresa nueva</h2>';
   h+='<div class="note" style="margin-bottom:14px">Ingresá el correo del futuro <b>administrador</b> de la empresa y qué módulos le autorizás. KALU le manda un correo para que <b>él</b> cargue todos los datos y cree su usuario. La empresa se crea sola cuando termina — vos solo das el gatillo.</div>';
@@ -305,6 +306,86 @@ async function cargarEnrolamientos(){
       return '<div class="row"><span class="nm">'+esc(e.email_admin)+'</span>'+bdg+'<span class="meta">'+(Array.isArray(e.modulos)?e.modulos.join(", "):"")+'</span><div class="grow"></div><span class="meta">'+fFecha(e.creado)+'</span></div>';
     }).join("");
   }catch(e){ $("#en_lista").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; }
+}
+/* ---------- DEMOS (acceso de prospectos con vencimiento) ---------- */
+async function viewDemos(){
+  var h='<h2 class="sec">Accesos de demo</h2>';
+  h+='<div class="note" style="margin-bottom:14px">Creá un usuario para que un prospecto entre a la <b>demo</b> (la sala autovendedora) por un tiempo limitado. KALU genera la cuenta y la clave — copiala y mandásela. Se vence sola; podés extender o revocar cuando quieras. Nada de tocar Supabase.</div>';
+  h+='<div class="card"><h2 class="sec" style="margin-bottom:10px">Nueva demo</h2>'
+    +'<div class="fgrid">'
+    +'<div class="fld"><label>Correo del prospecto</label><input id="dm_email" type="email" placeholder="prospecto@empresa.com"/></div>'
+    +'<div class="fld"><label>Días de vigencia</label><input id="dm_dias" type="number" min="1" value="7"/></div>'
+    +'<div class="fld"><label>Nota (opcional)</label><input id="dm_nota" placeholder="Feria / contacto"/></div>'
+    +'</div>'
+    +'<button class="btn btn-amber btn-sm" id="dm_btn" onclick="crearDemo()">+ Crear acceso demo</button>'
+    +'<div id="dm_result" class="note" style="display:none;margin-top:12px;border-color:#8fd3b0;background:#eefaf3"></div>'
+    +'</div>';
+  h+='<h2 class="sec" style="margin-top:22px">Demos creadas</h2><div id="dm_lista" class="spin">Cargando…</div>';
+  $("#view").innerHTML=h;
+  cargarDemos();
+}
+async function crearDemo(){
+  var email=($("#dm_email").value||"").trim();
+  var dias=parseInt($("#dm_dias").value||"7",10)||7;
+  var nota=($("#dm_nota").value||"").trim();
+  if(!email){ toast("Poné el correo del prospecto.",true); return; }
+  var btn=$("#dm_btn"); btn.disabled=true; btn.textContent="Creando…";
+  var d=await n8n("crear_demo",{email:email,dias:dias,nota:nota});
+  btn.disabled=false; btn.textContent="+ Crear acceso demo";
+  if(!d){ return; }
+  if(d.password){
+    var r=$("#dm_result"); r.style.display="block";
+    r.innerHTML='<b>✅ Demo lista — copiá y mandale esto al prospecto:</b><br><br>'
+      +'Link: <code>getkalu.com/demo-acceso.html</code><br>'
+      +'Correo: <code>'+esc(d.email||email)+'</code><br>'
+      +'Clave: <code style="font-size:15px">'+esc(d.password)+'</code><br>'
+      +'Vence: <b>'+esc(fechaCorta(d.expira))+'</b><br>'
+      +'<span class="meta">⚠️ Guardá la clave ahora: por seguridad no se vuelve a mostrar.</span>';
+  } else { toast(d.message||"Demo creada"); }
+  logAud("crear_demo","demo",email,{dias:dias});
+  $("#dm_email").value=""; $("#dm_nota").value="";
+  cargarDemos();
+}
+function demoVigente(r){ return r.activo!==false && (new Date(r.expira_at).getTime()>Date.now()); }
+function demoRow(r){
+  var vig=demoVigente(r);
+  var venc=(new Date(r.expira_at).getTime()<=Date.now());
+  var bdg = (r.activo===false) ? '<span class="bdg i">revocada</span>' : (venc?'<span class="bdg s">vencida</span>':'<span class="bdg a">vigente</span>');
+  var acts='<button class="btn btn-b btn-sm" onclick="extenderDemo(\''+esc(r.email)+'\')">+ Extender</button>';
+  acts+= (r.activo===false)
+    ? '<button class="btn btn-b btn-sm" onclick="reactivarDemo(\''+esc(r.email)+'\')">Reactivar</button>'
+    : '<button class="btn btn-danger btn-sm" onclick="revocarDemo(\''+esc(r.email)+'\')">Revocar</button>';
+  return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch">'
+    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(r.email)+'</span> '+bdg+'<div class="grow"></div></div>'
+    +'<div class="meta" style="margin:2px 0 8px">Vence: <b>'+esc(fechaCorta(r.expira_at))+'</b>'+(r.nota?(' · '+esc(r.nota)):'')+(r.creado?(' · creada '+esc(fechaCorta(r.creado))):'')+'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+acts+'</div></div>';
+}
+async function cargarDemos(){
+  var box=$("#dm_lista"); if(!box) return;
+  try{
+    var rows=await sbFetch("/rest/v1/demo_accesos?select=email,expira_at,activo,nota,creado&order=creado.desc");
+    if(!rows||!rows.length){ box.innerHTML='<div class="empty">Todavía no hay demos creadas.</div>'; return; }
+    box.innerHTML=rows.map(demoRow).join("");
+  }catch(e){ box.innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; }
+}
+async function extenderDemo(email){
+  var dias=prompt("¿Cuántos días de vigencia desde hoy?","15"); if(dias===null) return;
+  dias=parseInt(dias,10); if(!dias||dias<1){ toast("Días inválidos.",true); return; }
+  var expira=new Date(Date.now()+dias*86400000).toISOString();
+  try{ await sbFetch("/rest/v1/demo_accesos?email=eq."+encodeURIComponent(email),{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({expira_at:expira,activo:true})});
+    logAud("extender_demo","demo",email,{dias:dias}); toast("Demo extendida "+dias+" días"); cargarDemos(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function revocarDemo(email){
+  if(!confirm("¿Revocar la demo de "+email+"? No va a poder entrar (se puede reactivar)."))return;
+  try{ await sbFetch("/rest/v1/demo_accesos?email=eq."+encodeURIComponent(email),{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({activo:false})});
+    logAud("revocar_demo","demo",email,null); toast("Demo revocada"); cargarDemos(); }
+  catch(e){ toast("Error: "+e.message,true); }
+}
+async function reactivarDemo(email){
+  try{ await sbFetch("/rest/v1/demo_accesos?email=eq."+encodeURIComponent(email),{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({activo:true})});
+    logAud("reactivar_demo","demo",email,null); toast("Demo reactivada"); cargarDemos(); }
+  catch(e){ toast("Error: "+e.message,true); }
 }
 let FMT_EDIT=false;
 async function viewFormatos(){

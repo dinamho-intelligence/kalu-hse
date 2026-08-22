@@ -9,14 +9,14 @@
      <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
      <script src="capacitador.js"></script>
      <script>
-       KaluCap.init({ url: SUPABASE_URL, key: SUPABASE_ANON_KEY });
+       KaluCap.init();        // toma config.js y la sesión de KALU solo
        KaluCap.pasaporte('#cap');        // app.html   — el trabajador
        KaluCap.supervision('#cap');      // hse.html   — el supervisor
        KaluCap.admin('#cap');            // admin.html — HSE / operaciones
      </script>
 
-   Si ya tenés un cliente de Supabase creado, pasalo directo:
-       KaluCap.init({ client: miClienteExistente });
+   init() sin argumentos alcanza: lee window.KALU (config.js) y el token
+   que ingreso.html deja en sessionStorage bajo 'kalu_ses'.
 
    La librería de QR es opcional: sin ella la credencial muestra el
    código en texto en vez del cuadro.
@@ -277,7 +277,12 @@ function error(el, e) {
 }
 async function rpc(fn, args) {
   const { data, error: err } = await sb.rpc(fn, args || {});
-  if (err) throw new Error(err.message);
+  if (err) {
+    const m = (err.message || '') + ' ' + (err.code || '');
+    if (/JWT|401|expired|invalid/i.test(m))
+      throw new Error('Tu sesión venció. Entrá de nuevo a KALU y volvé a abrir esta página.');
+    throw new Error(err.message);
+  }
   return data;
 }
 function qrSvg(txt) {
@@ -826,17 +831,51 @@ async function verificar(sel, token) {
   </div></div>`;
 }
 
-/* ------------------------------------------------------------------ init */
-function init(cfg) {
-  if (cfg && cfg.client) { sb = cfg.client; return; }
-  if (!global.supabase || !global.supabase.createClient)
-    throw new Error('Falta supabase-js. Cargalo antes de capacitador.js');
-  if (!cfg || !cfg.url || !cfg.key)
-    throw new Error('KaluCap.init necesita { url, key } o { client }');
-  sb = global.supabase.createClient(cfg.url, cfg.key);
+/* ------------------------------------------------------------------ init
+
+   KALU no usa el login de supabase-js: llama al endpoint de auth y se
+   guarda el token en sessionStorage bajo la clave 'kalu_ses'. Por eso
+   sb.auth.getSession() siempre viene vacío. El cliente se arma con ese
+   token en el header Authorization.
+   ------------------------------------------------------------------- */
+const CLAVE = 'kalu_ses';
+const VIDA  = 55 * 60 * 1000;   // el mismo límite que usa ingreso.html
+
+function sesion() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(CLAVE) || 'null');
+    if (!s || !s.token) return null;
+    return { token: s.token, email: s.email, nombre: s.nombre,
+             empresa: s.empresa,
+             vencida: (Date.now() - (s.ts || 0)) > VIDA,
+             minutos: Math.round((Date.now() - (s.ts || 0)) / 60000) };
+  } catch (e) { return null; }
 }
 
-global.KaluCap = { init, pasaporte, curso, supervision, admin, verificar,
+function init(cfg) {
+  cfg = cfg || {};
+  if (cfg.client) { sb = cfg.client; return sesion(); }
+
+  if (!global.supabase || !global.supabase.createClient)
+    throw new Error('Falta supabase-js. Cargalo antes de capacitador.js');
+
+  const K   = global.KALU || {};
+  const url = cfg.url || K.SB_URL;
+  const key = cfg.key || K.SB_KEY;
+  if (!url || !key)
+    throw new Error('No encontré la configuración. Cargá config.js antes, ' +
+                    'o pasale { url, key } a KaluCap.init');
+
+  const s = sesion();
+  sb = global.supabase.createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: (s && !s.vencida)
+      ? { Authorization: 'Bearer ' + s.token } : {} }
+  });
+  return s;
+}
+
+global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, verificar,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

@@ -1395,7 +1395,7 @@ function tarTableHTML(rows){
       var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
       var _cru=''; if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Resuelta por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
       var gBtn=((t.clase||'')==='inseguro'&&!t.eliminada)?'<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ':'';
-      var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':'<span class="mut">—</span>';
+      var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':(t.eliminada?'<span class="mut">—</span>':'<button class="gbtn" title="Rearmar el PDF que no se generó (mala señal en terreno)" onclick="regenerarPDFTarjeta(\''+t.id+'\',this)">↻ Generar PDF</button>');
       return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+_cru+_diasCelda(t)+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,95))+'</td>'
         +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button title="Eliminar tarjeta" style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑</button></td>'))+'</tr>';
     }).join('')+'</tbody></table></div>';
@@ -1699,6 +1699,136 @@ function tarXLSX(){
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Tarjetas');
   XLSX.writeFile(wb,'Tarjetas_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
+</script>
+<script>
+/* ===== Regenerar PDF de tarjeta desde la consola (para las que quedaron en "—" por señal) ===== */
+var _tBrandCache={};
+async function _tBrand(emp){
+  if(!emp) return {};
+  if(_tBrandCache[emp]) return _tBrandCache[emp];
+  var b={};
+  try{
+    var r=await sbGet('empresas?id=eq.'+emp+'&select=razon_social,branding');
+    var row=(r&&r[0])||{}; var br=(row.branding&&typeof row.branding==='object')?row.branding:{};
+    b.color=br.color||''; b.nombre=br.nombre||row.razon_social||''; b.doc=(br.docs&&br.docs.tarjeta)||null;
+    if(br.logo_url){ try{ b.logo=await _imgDataURL(br.logo_url); }catch(e){} }
+  }catch(e){}
+  _tBrandCache[emp]=b; return b;
+}
+async function _tImgFromStorage(path){
+  var url=SB_URL+'/storage/v1/object/public/tarjetas/'+path;
+  var r=await fetch(url); if(!r.ok) throw new Error('img '+r.status);
+  var blob=await r.blob();
+  return await new Promise(function(res){ var fr=new FileReader(); fr.onload=function(){res(fr.result);}; fr.readAsDataURL(blob); });
+}
+async function _tSbUpDoc(path,blob){
+  var r=await fetch(SB_URL+'/storage/v1/object/documentos/'+path,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+SB_ANON,'Content-Type':'application/pdf'},body:blob});
+  if(!r.ok) throw new Error('UPLOAD '+r.status+' '+await r.text());
+  return path;
+}
+async function _tRpcAnon(fn,body){
+  var r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+SB_ANON,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  if(!r.ok) throw new Error('RPC '+fn+' '+r.status+' '+await r.text());
+  var t=await r.text(); try{return t?JSON.parse(t):null;}catch(e){return t;}
+}
+function _tFechaTs(t){ var s=t.creado||t.fecha; try{ var d=new Date(s); return d.toLocaleDateString('es-CO')+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return String(s||'').slice(0,16).replace('T',' '); } }
+function _tBuildPdf(r, ts, empresa, firmaDataUrl, fotoDataUrls, BRAND){
+  BRAND=BRAND||{};
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'pt',format:'a4'});
+  const W=doc.internal.pageSize.getWidth(); let y=54;
+  var _bc=_hexRgb(BRAND.color)||[242,140,0];
+  doc.setFillColor(_bc[0],_bc[1],_bc[2]); doc.rect(0,0,W,8,'F');
+  if(BRAND.logo&&BRAND.logo.data){ try{ var _mw=210,_mh=68,_aw=BRAND.logo.w||1,_ah=BRAND.logo.h||1,_s=Math.min(_mw/_aw,_mh/_ah),_lw=_aw*_s,_lh=_ah*_s; doc.addImage(BRAND.logo.data,'PNG',W-40-_lw,14,_lw,_lh); }catch(e){} }
+  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(20,20,20);
+  doc.text('Tarjeta de observación', 40, y); y+=20;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+  doc.text('Actos y condiciones inseguras · N° '+(r.consecutivo||'(pendiente)'), 40, y); y+=16;
+  if(BRAND.doc && (BRAND.doc.codigo||BRAND.doc.version||BRAND.doc.fecha)){
+    var _ctl=[]; if(BRAND.doc.codigo)_ctl.push('Formulario '+BRAND.doc.codigo);
+    if(BRAND.doc.version)_ctl.push('Versión '+BRAND.doc.version);
+    if(BRAND.doc.fecha)_ctl.push('Implementación '+BRAND.doc.fecha);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(_bc[0],_bc[1],_bc[2]);
+    doc.text(_ctl.join('   ·   '), 40, y); y+=16;
+  }
+  doc.setDrawColor(220,220,220); doc.line(40,y,W-40,y); y+=20;
+  const tag=r.clase==='seguro'?'ACTO SEGURO (refuerzo)':('INSEGURO · '+String(r.tipo||'').toUpperCase());
+  doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  if(r.clase==='seguro') doc.setTextColor(37,150,90); else doc.setTextColor(200,50,45);
+  doc.text(tag, 40, y); y+=20;
+  doc.setTextColor(30,30,30); doc.setFontSize(10.5);
+  const row=(k,v)=>{ if(!v && v!==false) return; doc.setFont('helvetica','bold'); doc.text(k, 40, y);
+    doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(String(v), W-190); doc.text(lines, 170, y); y+=Math.max(16, lines.length*14); };
+  row('Observador', r.observador_nombre+'  (C.C. '+r.observador_cedula+')');
+  row('Empresa', empresa||'');
+  row('Fecha', ts);
+  row('Categoría', r.categoria);
+  if(r.clase==='inseguro'){ row('Nivel de riesgo', String(r.riesgo||'').toUpperCase()); row('¿Se detuvo la tarea?', r.detuvo_tarea?'Sí':'No'); }
+  row('Lugar / área', r.lugar||'—');
+  row('Observación', r.descripcion);
+  if(r.accion_inmediata) row('Acción inmediata', r.accion_inmediata);
+  if(r.compromiso) row('Compromiso', r.compromiso+(r.responsable?('  ('+r.responsable+')'):''));
+  if(r.observado_nombre) row('Persona observada', r.observado_nombre);
+  y+=6;
+  var _fu = Array.isArray(fotoDataUrls)?fotoDataUrls:(fotoDataUrls?[fotoDataUrls]:[]);
+  if(_fu.length){
+    doc.setFont('helvetica','bold'); doc.text('Evidencia'+(_fu.length>1?' ('+_fu.length+' fotos)':''), 40, y); y+=10;
+    var _maxW=165, _maxH=180, _gap=10, _fx=40, _yy=y, _rowH=0;
+    _fu.forEach(function(u){
+      var iw=4, ih=3; try{ var pr=doc.getImageProperties(u); if(pr&&pr.width&&pr.height){ iw=pr.width; ih=pr.height; } }catch(e){}
+      var s=Math.min(_maxW/iw, _maxH/ih); var w=iw*s, h=ih*s;
+      if(_fx+w>W-40){ _fx=40; _yy+=_rowH+_gap; _rowH=0; }
+      try{ doc.addImage(u,'JPEG',_fx,_yy,w,h); }catch(e){}
+      _fx+=w+_gap; if(h>_rowH) _rowH=h;
+    });
+    y=_yy+_rowH+12;
+  }
+  doc.setFont('helvetica','bold'); doc.text('Firma del observador', 40, y); y+=6;
+  try{ doc.addImage(firmaDataUrl,'PNG',40,y,150,60); }catch(e){}
+  y+=74;
+  doc.setDrawColor(0,170,200); doc.setFillColor(240,251,253); doc.roundedRect(40,y,W-80,64,6,6,'FD');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(20,120,140);
+  doc.text('Constancia de firma electrónica', 52, y+18);
+  doc.setFont('helvetica','normal'); doc.setTextColor(60,60,60); doc.setFontSize(8.5);
+  doc.text(doc.splitTextToSize('Registrado por '+r.observador_nombre+', C.C. '+r.observador_cedula+', el '+ts+'. Método: firma en pantalla. Integridad por hash '+(r.hash||'—')+'. Conforme a la Ley 527 de 1999; cualquier cambio invalida el hash.', W-104), 52, y+32);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(160,160,160);
+  doc.text('Powered by Dinamho Intelligence', W/2, y+64+18, {align:'center'});
+  return doc;
+}
+async function regenerarPDFTarjeta(id, btn){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t){ return; }
+  if(TARPDF[id]){ toast('Esta tarjeta ya tiene PDF.'); return; }
+  var old=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='Generando…'; }
+  try{
+    var brand=await _tBrand(t.empresa_id);
+    var ts=_tFechaTs(t);
+    var firmaData=null;
+    if(t.firma_path){ try{ firmaData=await _tImgFromStorage(t.firma_path); }catch(e){} }
+    var fps=Array.isArray(t.foto_paths)?t.foto_paths:(t.foto_path?[t.foto_path]:[]);
+    var fotoData=[];
+    for(var i=0;i<fps.length;i++){ try{ fotoData.push(await _tImgFromStorage(fps[i])); }catch(e){} }
+    var pdfBlob=_tBuildPdf(t, ts, brand.nombre||'', firmaData, fotoData, brand).output('blob');
+    var ced=String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'');
+    var path='tarjetas/'+t.empresa_id+'/'+ced+'/'+t.id+'.pdf';
+    try{ await _tSbUpDoc(path,pdfBlob); }
+    catch(e){ if(!/already exists|Duplicate|resource already|409/i.test(e.message||'')) throw e; }
+    await _tRpcAnon('registrar_doc_tarjeta',{d:{origen_id:t.id,nombre:'Tarjeta · '+(t.observador_nombre||'')+' · '+ts,storage_path:path}});
+    TARPDF[t.id]=path;
+    try{ logAud('regenerar_pdf_tarjeta','tarjeta',t.id,null); }catch(e){}
+    toast('PDF generado ✔'); renderTar();
+  }catch(e){ toast('No se pudo generar el PDF: '+e.message,true); if(btn){ btn.disabled=false; btn.textContent=old; } }
+}
+/* toast propio (la consola no tenía uno) */
+function toast(m,err){
+  var t=document.getElementById('_kaluToast');
+  if(!t){ t=document.createElement('div'); t.id='_kaluToast';
+    t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f1218;color:#fff;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:all .2s;z-index:9999';
+    document.body.appendChild(t); }
+  t.textContent=m; t.style.background=err?'#c0392b':'#0f1218';
+  t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; },3000);
+}
+/* logAud opcional: si la consola no lo define, no rompe */
+if(typeof logAud==='undefined'){ function logAud(){} }
 </script>
 </body>
 </html>

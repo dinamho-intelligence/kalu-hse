@@ -89,8 +89,9 @@ const CSS = `
 .kc-ct.v b{color:var(--kc-cr)}.kc-ct.x b{color:var(--kc-wa)}.kc-ct.a b{color:var(--kc-ok)}
 
 /* --- pestañas y filtros --- */
-.kc-tabs{display:flex;background:var(--kc-card);border-bottom:1px solid var(--kc-rule)}
-.kc-tab{flex:1;background:none;border:none;padding:12px 4px;cursor:pointer;
+.kc-tabs{display:flex;flex-wrap:wrap;background:var(--kc-card);
+ border-bottom:1px solid var(--kc-rule)}
+.kc-tab{flex:1 1 0;min-width:152px;background:none;border:none;padding:12px 4px;cursor:pointer;
  font-family:var(--kc-fd);font-weight:600;font-size:14px;letter-spacing:.03em;
  text-transform:uppercase;color:var(--kc-ink3);border-bottom:2px solid transparent}
 .kc-tab[aria-selected=true]{color:var(--kc-ac);border-bottom-color:var(--kc-ac)}
@@ -238,6 +239,49 @@ const CSS = `
 .kc-row{display:flex;gap:9px}.kc-row>button{flex:1}
 .kc-b2{border:1px solid var(--kc-rule2);background:none;color:var(--kc-ink2);
  border-radius:8px;padding:10px;cursor:pointer;font-family:var(--kc-fd);font-weight:600}
+
+/* --- catálogo y cronograma --- */
+.kc-bar2{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.kc-bus{flex:1 1 220px;min-width:0;font:inherit;font-size:14px;padding:9px 12px;
+ border:1px solid var(--kc-rule2);border-radius:8px;background:var(--kc-card);color:var(--kc-ink)}
+.kc-sel{font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--kc-rule2);
+ border-radius:8px;background:var(--kc-card);color:var(--kc-ink)}
+.kc-tag.wa{background:var(--kc-was);color:var(--kc-wa)}
+.kc-tag.n{background:var(--kc-card2);color:var(--kc-ink2)}
+.kc-tag.g{background:var(--kc-card2);color:var(--kc-ink3)}
+.kc-chips{display:flex;flex-wrap:wrap;gap:4px;max-width:290px}
+.kc-mch{font-size:11.5px;background:var(--kc-card2);border:1px solid var(--kc-rule);
+ color:var(--kc-ink2);border-radius:4px;padding:1px 6px;white-space:nowrap}
+.kc-mch.b{background:var(--kc-was);border-color:transparent;color:var(--kc-wa)}
+.kc-mes{font-family:var(--kc-fd);font-weight:700;font-size:13px;letter-spacing:.04em;
+ text-transform:uppercase;color:var(--kc-ink3);margin:20px 0 8px;display:flex;
+ align-items:center;gap:9px}
+.kc-mes::after{content:'';flex:1;height:1px;background:var(--kc-rule)}
+.kc-mes span{order:3;font-family:var(--kc-fm);font-size:11px;color:var(--kc-ink3)}
+.kc-ev{display:flex;align-items:center;gap:13px;background:var(--kc-card);
+ border:1px solid var(--kc-rule);border-radius:9px;padding:9px 13px;margin-bottom:7px;
+ box-shadow:var(--kc-sh)}
+.kc-ev.off{opacity:.5}
+.kc-ev.off .kc-evt{text-decoration:line-through}
+.kc-evd{flex:0 0 44px;text-align:center;font-family:var(--kc-fm);line-height:1.1}
+.kc-evd b{display:block;font-family:var(--kc-fd);font-size:19px;font-weight:700}
+.kc-evd span{font-size:9.5px;color:var(--kc-ink3);text-transform:uppercase}
+.kc-mal{color:var(--kc-cr);font-style:normal}
+.kc-evb{flex:1;min-width:0}
+.kc-evt{font-family:var(--kc-fd);font-weight:600;font-size:15px;line-height:1.25}
+.kc-eva{display:flex;gap:6px;flex:0 0 auto}
+.kc-asig{display:flex;align-items:center;gap:10px;padding:8px 0;
+ border-bottom:1px solid var(--kc-rule);font-size:13.5px}
+.kc-asig>div{flex:1;min-width:0}
+.kc-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99;
+ max-width:min(560px,92vw);background:var(--kc-ink);color:var(--kc-ground);
+ border-radius:9px;padding:12px 17px;font-size:13.5px;line-height:1.45;
+ box-shadow:0 8px 30px -8px rgba(0,0,0,.5)}
+@media (max-width:640px){
+  .kc-ev{flex-wrap:wrap}
+  .kc-evb{flex:1 1 100%;order:3}
+  .kc-eva{flex:1 1 100%;order:4}
+}
 `;
 
 function estilos() {
@@ -262,6 +306,10 @@ const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente',
 const EJE = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
 const nodo = sel => typeof sel === 'string' ? document.querySelector(sel) : sel;
 const hoy = () => new Date();
+// AAAA-MM-DD en la hora local del usuario. toISOString() usa UTC y en
+// Colombia (UTC-5) después de las 19:00 devolvería el día siguiente.
+const iso = d => { const x = d || hoy();
+  return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const dias = d => Math.round((new Date(d + 'T12:00:00') - hoy()) / 86400000);
 const fecha = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-CO',
   { day:'2-digit', month:'short', year:'numeric' }) : '—';
@@ -589,6 +637,7 @@ async function supervision(sel) {
     else if (tab === 2) v.innerHTML = vPend();
     else { v.innerHTML = '<div class="kc-carga">Calculando…</div>'; await vInf(v); }
     v.querySelectorAll('[data-aval]').forEach(b => b.onclick = () => dlgAval(b.dataset.aval, b.dataset.ruta, b.dataset.nom));
+    v.querySelectorAll('[data-des]').forEach(b => b.onclick = () => dlgDesempeno(b.dataset.des, b.dataset.nom));
   }
 
   function vEquipo() {
@@ -623,15 +672,56 @@ async function supervision(sel) {
   function vPend() {
     const P = D.pendientes || [];
     if (!P.length) return '<p class="kc-vacio">No hay nada esperándote.</p>';
-    return '<div style="display:flex;flex-direction:column;gap:9px">' + P.map(x =>
-      `<div style="background:var(--kc-card);border:1px solid var(--kc-rule);
-        border-left:3px solid ${x.tipo==='aval'?'var(--kc-ac)':'var(--kc-wa)'};
+    return '<div style="display:flex;flex-direction:column;gap:9px">' + P.map(x => {
+      const av = x.tipo === 'aval';
+      const eq = (D.equipo || []).find(q => q.persona_id === x.persona_id) || {};
+      return `<div style="background:var(--kc-card);border:1px solid var(--kc-rule);
+        border-left:3px solid ${av?'var(--kc-ac)':'var(--kc-wa)'};
         border-radius:8px;padding:12px 15px;display:flex;gap:12px;align-items:center;
-        box-shadow:var(--kc-sh)">
-        <span class="kc-tag" style="background:${x.tipo==='aval'?'var(--kc-acs)':'var(--kc-was)'};
-          color:${x.tipo==='aval'?'var(--kc-ac)':'var(--kc-wa)'}">${x.tipo==='aval'?'Aval':'Desempeño'}</span>
+        flex-wrap:wrap;box-shadow:var(--kc-sh)">
+        <span class="kc-tag" style="background:${av?'var(--kc-acs)':'var(--kc-was)'};
+          color:${av?'var(--kc-ac)':'var(--kc-wa)'}">${av?'Aval':'Desempeño'}</span>
         <b class="kc-tt" style="font-size:15px">${esc(x.persona)}</b>
-        <span style="color:var(--kc-ink2);font-size:13.5px">${esc(x.detalle)}</span></div>`).join('') + '</div>';
+        <span style="color:var(--kc-ink2);font-size:13.5px;flex:1">${esc(x.detalle)}</span>
+        <button class="kc-mini p" ${av
+          ? `data-aval="${x.persona_id}" data-ruta="${eq.ruta_id||''}" data-nom="${esc(x.persona)}"`
+          : `data-des="${x.persona_id}" data-nom="${esc(x.persona)}"`}>${
+          av ? 'Dar el aval' : 'Registrar'}</button></div>`;
+    }).join('') + '</div>';
+  }
+
+  // La valoración de desempeño: lo que el sistema le reclama al supervisor
+  // y hasta ahora no tenía dónde escribirse.
+  function dlgDesempeno(persona, nombre) {
+    const d = document.createElement('dialog');
+    const p = hoy();
+    const per = p.getFullYear() + '-' + String(p.getMonth() + 1).padStart(2, '0');
+    d.innerHTML = `<div class="kc-dlg"><h3>Desempeño de ${esc(nombre)}</h3>
+      <p>Es la evaluación que pide el A.MA001 para asegurar la competencia de la línea.
+         Queda firmada con tu nombre y la fecha, y es uno de los tres candados del ascenso.</p>
+      <label for="kcp">Período</label>
+      <input type="month" id="kcp" value="${per}">
+      <label for="kcr">Resultado</label>
+      <select id="kcr"><option value="aprobado">Aprobado — cumple lo esperado del cargo</option>
+        <option value="con_reservas">Con reservas — cumple con seguimiento</option>
+        <option value="no_aprobado">No aprobado — no cumple todavía</option></select>
+      <label for="kco">Observación</label><textarea id="kco" rows="3"
+        placeholder="Qué viste este período. Esto es lo que el sistema no puede escribir por vos."></textarea>
+      <div class="kc-row"><button class="kc-b2" id="kcx">Cancelar</button>
+        <button class="kc-btn" id="kck">Guardar</button></div></div>`;
+    const w = el.querySelector('.kc-wide') || el;
+    w.appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const btn = d.querySelector('#kck'); btn.disabled = true; btn.textContent = 'Guardando…';
+      try {
+        await rpc('cap_registrar_desempeno', { p_persona: persona,
+          p_periodo: d.querySelector('#kcp').value,
+          p_resultado: d.querySelector('#kcr').value,
+          p_observacion: d.querySelector('#kco').value || null });
+        d.close(); d.remove(); supervision(sel);
+      } catch (e) { btn.disabled = false; btn.textContent = 'Guardar'; alert(e.message); }
+    };
   }
 
   async function vInf(v) {
@@ -696,24 +786,43 @@ async function supervision(sel) {
 async function admin(sel) {
   estilos(); const el = nodo(sel); if (!el) return;
   cargando(el, 'Cargando…');
-  let D;
+  let D, CAT = null, CRO = null;
   try { D = await rpc('cap_admin_datos'); } catch (e) { return error(el, e); }
-  let tab = 1;
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
 
-  function pintar() {
+  let tab = 1, anio = hoy().getFullYear(), busca = '', filtro = 'todas';
+
+  const MODAL = ['presencial','virtual','mixta','plataforma_arl','autoestudio'];
+  const MODALN = { presencial:'Presencial', virtual:'Virtual', mixta:'Mixta',
+                   plataforma_arl:'Plataforma ARL', autoestudio:'Autoestudio' };
+  const BLOQN = { no:'No bloquea', operacion:'Bloquea la operación', ingreso:'Bloquea la vinculación' };
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+                 'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  const vig = d => d == null ? 'No vence' : (d % 365 === 0 ? (d/365) + (d===365?' año':' años')
+                 : d % 30 === 0 ? (d/30) + ' meses' : d + ' días');
+
+  async function traerCat() { if (!CAT) CAT = await rpc('cap_catalogo_datos'); return CAT; }
+  async function traerCro() {
+    if (!CRO || CRO.anio !== anio) CRO = await rpc('cap_cronograma_datos', { p_anio: anio });
+    return CRO;
+  }
+
+  /* ------------------------------------------------------------- armazón */
+  async function pintar() {
     const sm = (D.sinMapear || []).length;
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wide">
       <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:6px">
         <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · ADMINISTRACIÓN</div>
-        <h1 style="font-size:30px;font-weight:700">Cargos y personas</h1></div>
-      <div class="kc-cent ${sm?'mal':'ok'}"><div class="b">${sm||'✓'}</div><div>
+        <h1 style="font-size:30px;font-weight:700">Capacitador</h1></div>
+      ${tab <= 2 ? `<div class="kc-cent ${sm?'mal':'ok'}"><div class="b">${sm||'✓'}</div><div>
         <div class="kc-tt" style="font-size:15px;color:${sm?'var(--kc-cr)':'var(--kc-ok)'}">${
           sm ? sm+' persona(s) con el cargo sin mapear' : 'Todos los cargos mapeados'}</div>
         <div style="font-size:13px;color:var(--kc-ink2)">${sm
           ? 'A esta gente el sistema dejó de exigirle su formación por cargo. Mapealas antes de seguir.'
-          : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>
-      ${sm ? '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo escrito</th>' +
+          : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>` : ''}
+      ${tab === 1 && sm ? '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo escrito</th>' +
         '<th>Capacitaciones hoy</th><th></th></tr></thead><tbody>' +
         D.sinMapear.map(s => `<tr><td class="k">${esc(s.nombre)}</td>
           <td>${esc(s.cargo_texto)}</td><td class="n">${s.capacitaciones_hoy}</td>
@@ -721,14 +830,63 @@ async function admin(sel) {
         '</tbody></table></div>' : ''}
       <div class="kc-tabs" style="margin:18px 0 20px">
         <button class="kc-tab" data-t="1" aria-selected="${tab===1}">Personas</button>
-        <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Catálogo de cargos</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos</button>
+        <button class="kc-tab" data-t="3" aria-selected="${tab===3}">Capacitaciones</button>
+        <button class="kc-tab" data-t="4" aria-selected="${tab===4}">Cronograma</button>
       </div>
-      <div id="kc-v">${tab===1 ? vPers() : vCargos()}</div></div>`;
-    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => { tab = +b.dataset.t; pintar(); });
-    el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => dlg(b.dataset.a, b.dataset.i));
-    el.querySelectorAll('[data-map]').forEach(b => b.onclick = () => dlgMapear(b.dataset.map));
+      <div id="kc-v"><div class="kc-carga">Cargando…</div></div></div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      if (+b.dataset.t !== tab) { tab = +b.dataset.t; busca = ''; filtro = 'todas'; pintar(); }
+    });
+
+    const v = el.querySelector('#kc-v');
+    if (tab === 1)      v.innerHTML = vPers();
+    else if (tab === 2) v.innerHTML = vCargos();
+    else if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
+    else                { await traerCro(); v.innerHTML = vCro(); }
+    enganchar(v);
   }
 
+  function enganchar(v) {
+    el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => dlg(b.dataset.a, b.dataset.i));
+    el.querySelectorAll('[data-map]').forEach(b => b.onclick = () => dlgMapear(b.dataset.map));
+    el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
+    el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
+
+    const bus = v.querySelector('#kc-bus');
+    if (bus) {
+      bus.oninput = () => {
+        busca = bus.value;
+        const foco = document.activeElement === bus;
+        const cur = bus.selectionStart;
+        v.innerHTML = tab === 3 ? vCap() : vCro();
+        enganchar(v);
+        if (foco) { const n = v.querySelector('#kc-bus'); if (n) { n.focus(); n.setSelectionRange(cur, cur); } }
+      };
+    }
+    v.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+      filtro = b.dataset.f; v.innerHTML = tab === 3 ? vCap() : vCro(); enganchar(v);
+    });
+    const sa = v.querySelector('#kc-anio');
+    if (sa) sa.onchange = async () => { anio = +sa.value; await traerCro(); v.innerHTML = vCro(); enganchar(v); };
+  }
+
+  async function recargar(r) {
+    CAT = null; CRO = null;
+    try { D = await rpc('cap_admin_datos'); } catch (e) {}
+    await pintar();
+    if (r && r.aviso) toast(r.aviso);
+  }
+
+  function toast(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    (el.querySelector('.kc-wide') || el).appendChild(t);
+    setTimeout(() => t.remove(), 7000);
+  }
+
+  /* ------------------------------------------------------- 1. personas */
   function vPers() {
     return '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo</th>' +
       '<th>En el padrón</th><th>Desde</th><th>Meses</th><th>Apto</th><th>Venc.</th>' +
@@ -745,6 +903,7 @@ async function admin(sel) {
       </tr>`).join('') + '</tbody></table></div>';
   }
 
+  /* --------------------------------------------------------- 2. cargos */
   function vCargos() {
     return '<div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Área</th><th>Reporta a</th>' +
       '<th>Personas</th><th>Alias</th><th>Rutas</th><th></th></tr></thead><tbody>' +
@@ -759,20 +918,170 @@ async function admin(sel) {
       </tr>`).join('') + '</tbody></table></div>';
   }
 
+  /* -------------------------------------------------- 3. capacitaciones */
+  function vCap() {
+    const C = CAT.catalogo || [], q = busca.trim().toLowerCase();
+    const act = C.filter(c => c.activo);
+    const huerf = act.filter(c => c.personas === 0);
+    const n = {
+      todas: C.length, activas: act.length,
+      bloqueo: act.filter(c => c.bloqueo > 0).length,
+      huerfanas: huerf.length,
+      apagadas: C.length - act.length
+    };
+    const pasa = c => {
+      if (q && !((c.codigo + ' ' + c.titulo).toLowerCase().includes(q))) return false;
+      if (filtro === 'activas')   return c.activo;
+      if (filtro === 'apagadas')  return !c.activo;
+      if (filtro === 'bloqueo')   return c.activo && c.bloqueo > 0;
+      if (filtro === 'huerfanas') return c.activo && c.personas === 0;
+      return true;
+    };
+    const L = C.filter(pasa);
+    const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
+
+    const alerta = huerf.length ? `<div class="kc-cent mal"><div class="b">${huerf.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${huerf.length} capacitación(es) activas que no le llegan a nadie</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Están en el catálogo pero ninguna persona las tiene asignada.
+          O falta asignarles un cargo, o el comité o la actividad a la que apuntan todavía no tiene gente cargada.</div></div></div>` : '';
+
+    return alerta + `
+      <div class="kc-bar2">
+        <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar por código o título…"
+               value="${esc(busca)}" autocomplete="off">
+        <button class="kc-mini" data-c="crear">+ Crear propia</button>
+        <button class="kc-mini" data-c="sumar">Sumar de la biblioteca${
+          (CAT.biblioteca||[]).length ? ' · ' + CAT.biblioteca.length : ''}</button>
+      </div>
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
+        ${chip('huerfanas','Sin gente')}${chip('apagadas','Apagadas')}
+      </div>
+      ${L.length ? `<div class="kc-sc"><table><thead><tr>
+        <th>Código</th><th>Capacitación</th><th>Vigencia</th><th>Modalidad</th>
+        <th>Le aplica a</th><th>Gente</th><th>${anio}</th><th></th></tr></thead><tbody>` +
+      L.map(c => `<tr${c.activo?'':' style="opacity:.45"'}>
+        <td class="k">${esc(c.codigo)}${c.bloqueo === 2
+            ? ' <span class="kc-tag no" title="Bloquea la vinculación">ING</span>'
+            : c.bloqueo === 1 ? ' <span class="kc-tag wa" title="Bloquea la operación">OPE</span>' : ''}</td>
+        <td><div>${esc(c.titulo)}</div>
+            <div class="kc-cd" style="margin-top:2px">${esc(c.eje)} · ${esc(c.tipo)}${
+              c.autoestudio ? ' · autoestudio' : ''}${c.propia ? ' · propia' : ''}</div></td>
+        <td class="n">${vig(c.vigencia_dias)}</td>
+        <td style="font-size:13px;color:var(--kc-ink3)">${c.modalidad ? MODALN[c.modalidad] : '—'}</td>
+        <td>${c.asignaciones.length
+            ? '<div class="kc-chips">' + c.asignaciones.slice(0,3).map(a =>
+                `<span class="kc-mch${a.bloqueante!=='no'?' b':''}">${esc(a.destino)}</span>`).join('') +
+              (c.asignaciones.length > 3 ? `<span class="kc-mch">+${c.asignaciones.length-3}</span>` : '') + '</div>'
+            : '<span style="color:var(--kc-cr);font-size:13px">nadie</span>'}</td>
+        <td class="n"${c.personas===0?' style="color:var(--kc-cr)"':''}>${c.personas}</td>
+        <td class="n">${c.hechos}/${c.eventos}</td>
+        <td><div style="display:flex;gap:6px">
+          <button class="kc-mini" data-c="editar" data-i="${c.id}">Editar</button>
+          <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
+          <button class="kc-mini${c.activo?'':' p'}" data-c="${c.activo?'apagar':'prender'}" data-i="${c.id}">${
+            c.activo ? 'Apagar' : 'Prender'}</button></div></td>
+      </tr>`).join('') + '</tbody></table></div>'
+      : '<p class="kc-vacio">Nada con ese filtro.</p>'}`;
+  }
+
+  /* ------------------------------------------------------ 4. cronograma */
+  function vCro() {
+    const E = CRO.eventos || [], q = busca.trim().toLowerCase();
+    const hoyS = iso();
+    // el orden importa: las que no van por fecha no son «dictadas»,
+    // son reglas permanentes que se disparan solas.
+    const est = e => !e.fecha ? 'disparo'
+                   : e.cancelado ? 'cancelado'
+                   : e.ejecutado ? 'hecho'
+                   : e.fecha < hoyS ? 'atrasado' : 'programado';
+    const n = { todas:E.length, hecho:0, programado:0, atrasado:0, cancelado:0, disparo:0 };
+    E.forEach(e => n[est(e)]++);
+
+    const pasa = e => {
+      if (q && !((e.codigo + ' ' + e.titulo + ' ' + (e.responsable||'')).toLowerCase().includes(q))) return false;
+      return filtro === 'todas' ? true : est(e) === filtro;
+    };
+    const L = E.filter(pasa);
+    const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
+
+    const conFecha = L.filter(e => e.fecha), sinFecha = L.filter(e => !e.fecha);
+    const porMes = {};
+    conFecha.forEach(e => { (porMes[e.mes] = porMes[e.mes] || []).push(e); });
+
+    const TAG = { hecho:['si','Dictado'], programado:['n','Programado'],
+                  atrasado:['no','Sin dictar'], cancelado:['g','Cancelado'], disparo:['n','Se dispara solo'] };
+
+    const fila = e => {
+      const s = est(e);
+      const desfase = e.fecha && (+e.fecha.slice(0,4) !== CRO.anio);
+      return `<div class="kc-ev${s==='cancelado'?' off':''}">
+        <div class="kc-evd">${e.fecha
+            ? `<b>${e.fecha.slice(8,10)}</b><span>${e.fecha.slice(5,7)}${
+                desfase ? '<i class="kc-mal"> ' + e.fecha.slice(0,4) + '</i>' : ''}</span>`
+            : '<b>—</b><span>' + esc(e.disparador) + '</span>'}</div>
+        <div class="kc-evb">
+          <div class="kc-evt">${esc(e.codigo)} · ${esc(e.titulo)}</div>
+          <div class="kc-cd">${[
+              e.responsable ? esc(e.responsable) : null,
+              e.modalidad ? MODALN[e.modalidad] : null,
+              e.lugar ? esc(e.lugar) : null,
+              e.ejecutado && e.fecha ? e.asistieron + ' de ' + (e.convocados || '?') + ' asistieron' : null,
+              !e.ejecutado && e.fecha && e.convocados ? e.convocados + ' convocados' : null,
+              e.reprogramado_de ? 'movida desde el ' + e.reprogramado_de : null,
+              e.cancelado_motivo ? 'cancelada: ' + esc(e.cancelado_motivo) : null
+            ].filter(Boolean).join(' · ')}</div>
+        </div>
+        <span class="kc-tag ${TAG[s][0]}">${TAG[s][1]}</span>
+        <div class="kc-eva">${e.ejecutado ? '' : `
+          <button class="kc-mini" data-e="editar" data-i="${e.id}">Editar</button>
+          <button class="kc-mini" data-e="mover" data-i="${e.id}">Mover</button>
+          ${e.cancelado ? '' : `<button class="kc-mini" data-e="cancelar" data-i="${e.id}">Cancelar</button>`}`}</div>
+      </div>`;
+    };
+
+    const opAnios = (CRO.anios||[CRO.anio]).includes(anio) ? (CRO.anios||[anio]) : (CRO.anios||[]).concat([anio]);
+
+    return `<div class="kc-bar2">
+        <select id="kc-anio" class="kc-sel">${opAnios.sort().reverse().map(a =>
+          `<option value="${a}"${a===anio?' selected':''}>${a}</option>`).join('')}</select>
+        <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar capacitación o responsable…"
+               value="${esc(busca)}" autocomplete="off">
+        <button class="kc-mini p" data-e="crear">+ Programar</button>
+      </div>
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('todas','Todo el año')}${chip('hecho','Dictadas')}${chip('programado','Por dictar')}
+        ${chip('atrasado','Sin dictar')}${chip('cancelado','Canceladas')}${chip('disparo','Sin fecha')}
+      </div>
+      ${n.atrasado && filtro === 'todas' ? `<div class="kc-cent mal"><div class="b">${n.atrasado}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${n.atrasado} evento(s) pasaron de fecha sin dictarse</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Ante la ARL un cronograma incumplido pesa más que uno reprogramado.
+          Movelos de fecha o cancelalos con el motivo.</div></div></div>` : ''}
+      ${Object.keys(porMes).length === 0 && !sinFecha.length
+        ? '<p class="kc-vacio">Nada con ese filtro.</p>'
+        : Object.keys(porMes).sort((a,b)=>a-b).map(m =>
+            `<div class="kc-mes">${MESES[m-1]}<span>${porMes[m].length}</span></div>` +
+            porMes[m].map(fila).join('')).join('') +
+          (sinFecha.length ? '<div class="kc-mes">No van por fecha<span>' + sinFecha.length + '</span></div>' +
+            '<p class="kc-nota" style="text-align:left;margin:0 0 10px">Estas no se programan: las dispara un hecho — que entre alguien nuevo, o que ascienda.</p>' +
+            sinFecha.map(fila).join('') : '')}`;
+  }
+
+  /* --------------------------------------------------------- diálogos */
   const opts = (sel2) => (D.cargos||[]).filter(c=>c.activo).map(c =>
     `<option value="${c.id}"${c.nombre===sel2?' selected':''}>${esc(c.nombre)}</option>`).join('');
 
-  function abrir(html, onOk) {
+  function abrir(html, onOk, okTxt) {
     const d = document.createElement('dialog');
     d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
       <button class="kc-b2" id="kcx">Cancelar</button>
-      <button class="kc-btn" id="kck">Guardar</button></div></div>`;
-    el.querySelector('.kc-wide').appendChild(d); d.showModal();
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
     d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
     d.querySelector('#kck').onclick = async () => {
       const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
-      try { await onOk(d); d.close(); d.remove(); admin(sel); }
-      catch (e) { b.disabled = false; b.textContent = 'Guardar'; alert(e.message); }
+      try { const r = await onOk(d); d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
     };
     return d;
   }
@@ -793,7 +1102,7 @@ async function admin(sel) {
         quedan en la historia; el peldaño nuevo arranca en cero.</p>
         <label for="k1">Cargo nuevo</label><select id="k1">${opts(p.sig)}</select>
         <label for="k3">Fecha del movimiento</label>
-        <input type="date" id="k3" value="${new Date().toISOString().slice(0,10)}">
+        <input type="date" id="k3" value="${iso()}">
         <label for="k2">Motivo</label><input type="text" id="k2" placeholder="Ej: ascenso con aval">`,
         d => rpc('cap_mover_cargo', { p_persona: id, p_cargo: d.querySelector('#k1').value,
           p_fecha: d.querySelector('#k3').value, p_motivo: d.querySelector('#k2').value }));
@@ -820,6 +1129,202 @@ async function admin(sel) {
           p_alias: alias, p_cargo: d.querySelector('#k1').value });
       });
   }
+
+  /* --------- capacitaciones --------- */
+  function dlgCat(accion, id) {
+    const c = (CAT.catalogo||[]).find(x => x.id === id);
+
+    if (accion === 'editar') {
+      abrir(`<h3>${esc(c.codigo)} · ${esc(c.titulo)}</h3>
+        <p>Cambiar la vigencia no reescribe el pasado: lo ya cursado conserva su fecha de vencimiento.
+           Aplica de la próxima en adelante.</p>
+        <label for="k1">Título</label><input type="text" id="k1" value="${esc(c.titulo)}">
+        <label for="k2">Cada cuánto se repite (en días · vacío = no vence)</label>
+        <input type="number" id="k2" min="0" step="1" value="${c.vigencia_dias ?? ''}"
+               placeholder="365 = una vez al año">
+        <label for="k3">Horas</label>
+        <input type="number" id="k3" min="0" step="0.5" value="${c.horas ?? ''}">
+        <label for="k4">Modalidad</label>
+        <select id="k4"><option value="">— sin definir —</option>${MODAL.map(m =>
+          `<option value="${m}"${c.modalidad===m?' selected':''}>${MODALN[m]}</option>`).join('')}</select>
+        <label for="k5">Proveedor</label>
+        <input type="text" id="k5" value="${esc(c.proveedor||'')}" placeholder="Colmena, interno, cliente…">`,
+        d => rpc('cap_cat_guardar', {
+          p_catalogo: id,
+          p_titulo: d.querySelector('#k1').value,
+          p_vigencia_dias: d.querySelector('#k2').value === '' ? null : +d.querySelector('#k2').value,
+          p_horas: d.querySelector('#k3').value === '' ? null : +d.querySelector('#k3').value,
+          p_modalidad: d.querySelector('#k4').value || null,
+          p_proveedor: d.querySelector('#k5').value || null }));
+
+    } else if (accion === 'asignar') {
+      const dest = a => a.alcance === 'cargo' ? (CAT.cargos||[])
+                      : a === 'rol' ? (CAT.roles||[]) : (CAT.actividades||[]);
+      const listado = c.asignaciones.length
+        ? c.asignaciones.map(a => `<div class="kc-asig">
+            <div><b>${esc(a.destino)}</b><span class="kc-cd"> · ${esc(a.alcance)} · ${BLOQN[a.bloqueante]}</span></div>
+            <button class="kc-mini" data-q="${a.id}">Quitar</button></div>`).join('')
+        : '<p style="color:var(--kc-cr);margin:0 0 12px">Hoy no le aplica a nadie.</p>';
+
+      const d = abrir(`<h3>A quién le aplica ${esc(c.codigo)}</h3>
+        <p>${esc(c.titulo)}</p>
+        ${listado}
+        <hr style="border:none;border-top:1px solid var(--kc-rule);margin:14px 0">
+        <label for="k1">Agregar a</label>
+        <select id="k1">
+          <option value="todos">Toda la empresa</option>
+          <option value="cargo" selected>Un cargo</option>
+          <option value="rol">Un comité o rol</option>
+          <option value="actividad">Quien haga una actividad</option>
+        </select>
+        <div id="kdest"></div>
+        <label for="k3">Nivel</label>
+        <select id="k3">
+          <option value="no">No bloquea — informativa</option>
+          <option value="operacion">Bloquea la operación — sin ella no puede hacer la tarea</option>
+          <option value="ingreso">Bloquea la vinculación — sin ella no completa el ingreso</option>
+        </select>
+        <p style="font-size:12.5px">Poné <b>vinculación</b> sólo si KALU la dicta por autoestudio.
+           Si depende de un proveedor externo, el ingreso queda varado esperándolo.</p>`,
+        dd => {
+          const al = dd.querySelector('#k1').value;
+          const de = dd.querySelector('#k2');
+          return rpc('cap_asig_agregar', { p_catalogo: id, p_alcance: al,
+            p_destino: al === 'todos' ? null : (de ? de.value : null),
+            p_bloqueante: dd.querySelector('#k3').value });
+        }, 'Agregar');
+
+      const pintarDest = () => {
+        const al = d.querySelector('#k1').value;
+        const box = d.querySelector('#kdest');
+        if (al === 'todos') { box.innerHTML = ''; return; }
+        const L = al === 'cargo' ? (CAT.cargos||[]) : al === 'rol' ? (CAT.roles||[]) : (CAT.actividades||[]);
+        box.innerHTML = `<label for="k2">${al === 'cargo' ? 'Cargo' : al === 'rol' ? 'Comité o rol' : 'Actividad'}</label>
+          <select id="k2">${L.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select>`;
+      };
+      pintarDest();
+      d.querySelector('#k1').onchange = pintarDest;
+      d.querySelectorAll('[data-q]').forEach(b => b.onclick = async () => {
+        b.disabled = true; b.textContent = 'Quitando…';
+        try { const r = await rpc('cap_asig_quitar', { p_asignacion: b.dataset.q, p_motivo: null });
+          d.close(); d.remove(); await recargar(r); }
+        catch (e) { b.disabled = false; b.textContent = 'Quitar'; alert(e.message); }
+      });
+
+    } else if (accion === 'apagar' || accion === 'prender') {
+      const off = accion === 'apagar';
+      abrir(`<h3>${off ? 'Apagar' : 'Prender'} ${esc(c.codigo)}</h3>
+        <p>${esc(c.titulo)}</p>
+        ${off ? `<p>Hoy le aplica a <b>${c.personas} persona(s)</b> y tiene
+            <b>${c.eventos - c.hechos}</b> evento(s) sin dictar este año.
+            No se borra nada: deja de aparecer en los pasaportes y lo ya cursado queda en la historia.</p>
+          <label for="k1">Motivo</label>
+          <input type="text" id="k1" placeholder="Ej: dejamos de hacer esa actividad">`
+          : '<p>Vuelve a aparecer en los pasaportes de quien la tenga asignada.</p>'}`,
+        d => rpc('cap_cat_activar', { p_catalogo: id, p_activo: !off,
+          p_motivo: off ? d.querySelector('#k1').value : null }),
+        off ? 'Apagar' : 'Prender');
+
+    } else if (accion === 'sumar') {
+      const B = CAT.biblioteca || [];
+      if (!B.length) {
+        abrir(`<h3>Biblioteca</h3><p>Tu catálogo ya tiene todas las capacitaciones de la biblioteca global.
+          Las que no usás están apagadas: filtralas con <b>Apagadas</b> y prendé la que necesites.</p>`,
+          () => {}, 'Entendido');
+        return;
+      }
+      abrir(`<h3>Sumar de la biblioteca</h3>
+        <p>Son las capacitaciones que la plataforma ya tiene armadas y tu empresa todavía no usa.
+           Se copian a tu catálogo: podés cambiarles vigencia y horas sin afectar a nadie más.</p>
+        <label for="k1">Capacitación</label>
+        <select id="k1">${B.map(b =>
+          `<option value="${b.id}">${esc(b.codigo)} · ${esc(b.titulo)}</option>`).join('')}</select>`,
+        d => rpc('cap_cat_sumar', { p_biblioteca: d.querySelector('#k1').value }), 'Sumar');
+
+    } else if (accion === 'crear') {
+      abrir(`<h3>Crear una capacitación propia</h3>
+        <p>Para lo que es de tu empresa y no está en la biblioteca de la plataforma.</p>
+        <label for="k1">Código</label><input type="text" id="k1" placeholder="Ej: P01">
+        <label for="k2">Título</label><input type="text" id="k2">
+        <label for="k3">Eje</label>
+        <select id="k3"><option value="hse">HSE</option><option value="tecnica">Técnica</option>
+          <option value="arl">ARL</option><option value="induccion">Inducción</option></select>
+        <label for="k4">Tipo</label>
+        <select id="k4"><option value="capacitacion">Capacitación</option><option value="charla">Charla</option>
+          <option value="divulgacion">Divulgación</option><option value="campana">Campaña</option>
+          <option value="curso_externo">Curso externo</option></select>
+        <label for="k5">Cada cuánto se repite (días · vacío = no vence)</label>
+        <input type="number" id="k5" min="0" step="1" placeholder="365">
+        <label for="k6">Horas</label><input type="number" id="k6" min="0" step="0.5">`,
+        d => rpc('cap_cat_crear', {
+          p_codigo: d.querySelector('#k1').value, p_titulo: d.querySelector('#k2').value,
+          p_eje: d.querySelector('#k3').value, p_tipo: d.querySelector('#k4').value,
+          p_vigencia_dias: d.querySelector('#k5').value === '' ? null : +d.querySelector('#k5').value,
+          p_horas: d.querySelector('#k6').value === '' ? null : +d.querySelector('#k6').value }), 'Crear');
+    }
+  }
+
+  /* --------- cronograma --------- */
+  function dlgEv(accion, id) {
+    const e = (CRO.eventos||[]).find(x => x.id === id);
+
+    if (accion === 'crear') {
+      abrir(`<h3>Programar una capacitación</h3>
+        <p>Queda en el cronograma del año. Los convocados salen solos de a quién le aplica.</p>
+        <label for="k1">Capacitación</label>
+        <select id="k1">${(CRO.catalogo||[]).map(c =>
+          `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.titulo)}</option>`).join('')}</select>
+        <label for="k2">Fecha</label><input type="date" id="k2" value="${iso()}">
+        <label for="k3">Responsable</label><input type="text" id="k3" placeholder="Quién la dicta">
+        <label for="k4">Lugar</label><input type="text" id="k4">
+        <label for="k5">Modalidad</label>
+        <select id="k5"><option value="">— sin definir —</option>${MODAL.map(m =>
+          `<option value="${m}">${MODALN[m]}</option>`).join('')}</select>`,
+        d => rpc('cap_evento_crear', {
+          p_catalogo: d.querySelector('#k1').value, p_fecha: d.querySelector('#k2').value,
+          p_responsable: d.querySelector('#k3').value || null,
+          p_lugar: d.querySelector('#k4').value || null,
+          p_modalidad: d.querySelector('#k5').value || null }), 'Programar');
+
+    } else if (accion === 'mover') {
+      abrir(`<h3>Mover de fecha</h3>
+        <p>${esc(e.codigo)} · ${esc(e.titulo)}<br>Hoy está para el <b>${esc(e.fecha||'sin fecha')}</b>.</p>
+        <label for="k1">Fecha nueva</label>
+        <input type="date" id="k1" value="${esc(e.fecha||iso())}">
+        <label for="k2">Motivo</label>
+        <input type="text" id="k2" placeholder="Ej: se cruzaba con la parada de planta">
+        <p style="font-size:12.5px">Queda registrada la fecha original. Ante la ARL un cronograma
+           reprogramado con motivo pesa menos que uno incumplido en silencio.</p>`,
+        d => rpc('cap_evento_mover', { p_evento: id,
+          p_fecha: d.querySelector('#k1').value, p_motivo: d.querySelector('#k2').value }), 'Mover');
+
+    } else if (accion === 'cancelar') {
+      abrir(`<h3>Cancelar el evento</h3>
+        <p>${esc(e.codigo)} · ${esc(e.titulo)} del ${esc(e.fecha||'—')}</p>
+        <p>No se borra: queda tachado en el cronograma con el motivo.
+           La capacitación sigue pendiente para quien la debía — si ya no va, apagala desde el catálogo.</p>
+        <label for="k1">Motivo</label><input type="text" id="k1" placeholder="Ej: no vino el instructor">`,
+        d => rpc('cap_evento_cancelar', { p_evento: id, p_motivo: d.querySelector('#k1').value }),
+        'Cancelar el evento');
+
+    } else if (accion === 'editar') {
+      abrir(`<h3>${esc(e.codigo)} · ${esc(e.titulo)}</h3>
+        <label for="k1">Responsable</label><input type="text" id="k1" value="${esc(e.responsable||'')}">
+        <label for="k2">Lugar</label><input type="text" id="k2" value="${esc(e.lugar||'')}">
+        <label for="k3">Modalidad</label>
+        <select id="k3"><option value="">— sin definir —</option>${MODAL.map(m =>
+          `<option value="${m}"${e.modalidad===m?' selected':''}>${MODALN[m]}</option>`).join('')}</select>
+        <label for="k4">Horas</label><input type="number" id="k4" min="0" step="0.5" value="${e.horas ?? ''}">
+        <label for="k5">Observaciones</label><textarea id="k5" rows="2">${esc(e.observaciones||'')}</textarea>`,
+        d => rpc('cap_evento_guardar', { p_evento: id,
+          p_responsable: d.querySelector('#k1').value || null,
+          p_lugar: d.querySelector('#k2').value || null,
+          p_modalidad: d.querySelector('#k3').value || null,
+          p_horas: d.querySelector('#k4').value === '' ? null : +d.querySelector('#k4').value,
+          p_observaciones: d.querySelector('#k5').value || null }));
+    }
+  }
+
   pintar();
 }
 

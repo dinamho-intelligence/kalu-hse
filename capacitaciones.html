@@ -46,23 +46,27 @@
   if (!window.KaluCap)   { linea.push('<span class="mal">✕ falta capacitador.js</span>'); return fin(); }
   linea.push('<b>✓</b> archivos');
 
-  // 2. Crear el cliente reusando el de KALU
-  let sb;
-  try { sb = window.KALU.cliente(); }
-  catch (e) { linea.push('<span class="mal">✕ config.js: ' + e.message + '</span>'); return fin(); }
-  KaluCap.init({ client: sb });
+  // 2. Conectar — init() lee config.js y el token que deja ingreso.html
+  let ses;
+  try { ses = KaluCap.init(); }
+  catch (e) { linea.push('<span class="mal">✕ ' + e.message + '</span>'); return fin(); }
   linea.push('<b>✓</b> cliente');
 
-  // 3. ¿Hay sesión iniciada?
-  const { data: s } = await sb.auth.getSession();
-  if (!s || !s.session) {
+  // 3. ¿Hay sesión de KALU?
+  if (!ses) {
     linea.push('<span class="mal">✕ sin sesión</span>');
-    return fin('Entrá primero a KALU con tu usuario y volvé a abrir esta página. ' +
-               'Sin sesión el sistema no sabe quién sos y las pantallas salen vacías.');
+    return fin('Entrá a <b>getkalu.com/ingreso.html</b> con tu usuario y, ' +
+               'en esa misma pestaña, volvé a esta página.');
   }
-  linea.push('<b>✓</b> sesión: ' + (s.session.user.email || s.session.user.id));
+  if (ses.vencida) {
+    linea.push('<span class="mal">✕ sesión vencida (' + ses.minutos + ' min)</span>');
+    return fin('KALU cierra la sesión a los 55 minutos. Volvé a entrar por ' +
+               '<b>getkalu.com/ingreso.html</b>.');
+  }
+  linea.push('<b>✓</b> sesión: ' + (ses.email || ses.nombre || 'ok'));
 
   // 4. ¿El módulo sabe quién soy?
+  const sb = KaluCap.cliente;
   const { data: quien, error: e1 } = await sb.rpc('cap_quien_soy');
   if (e1) {
     linea.push('<span class="mal">✕ rpc: ' + e1.message + '</span>');

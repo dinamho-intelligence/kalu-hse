@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KALU · Capacitador (prueba)</title>
+<style>
+  body{margin:0;background:#EEF2F0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #diag{background:#11201B;color:#A2B4AE;padding:10px 14px;font:12px/1.6 ui-monospace,Menlo,monospace}
+  #diag b{color:#4FB894}
+  #diag .mal{color:#E58074}
+  #barra{background:#fff;border-bottom:1px solid #DBE3DF;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap}
+  #barra button{font:inherit;font-size:14px;border:1px solid #C3CFCA;background:#F5F8F6;
+    color:#11201B;border-radius:7px;padding:8px 14px;cursor:pointer}
+  #barra button.on{background:#0B5D45;border-color:#0B5D45;color:#fff}
+</style>
+</head>
+<body>
+
+<div id="diag">Comprobando…</div>
+
+<div id="barra">
+  <button data-v="pasaporte" class="on">Pasaporte (trabajador)</button>
+  <button data-v="supervision">Supervisión</button>
+  <button data-v="admin">Administración</button>
+</div>
+
+<div id="capacitador"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
+<script src="config.js"></script>
+<script src="capacitador.js?v=1"></script>
+
+<script>
+(async function () {
+  const d = document.getElementById('diag');
+  const linea = [];
+  function fin(extra) {
+    d.innerHTML = linea.join(' &nbsp;·&nbsp; ') + (extra ? '<br>' + extra : '');
+  }
+
+  // 1. ¿Cargaron los archivos?
+  if (!window.supabase)  { linea.push('<span class="mal">✕ falta supabase-js</span>');  return fin(); }
+  if (!window.KALU)      { linea.push('<span class="mal">✕ falta config.js</span>');     return fin(); }
+  if (!window.KaluCap)   { linea.push('<span class="mal">✕ falta capacitador.js</span>'); return fin(); }
+  linea.push('<b>✓</b> archivos');
+
+  // 2. Crear el cliente reusando el de KALU
+  let sb;
+  try { sb = window.KALU.cliente(); }
+  catch (e) { linea.push('<span class="mal">✕ config.js: ' + e.message + '</span>'); return fin(); }
+  KaluCap.init({ client: sb });
+  linea.push('<b>✓</b> cliente');
+
+  // 3. ¿Hay sesión iniciada?
+  const { data: s } = await sb.auth.getSession();
+  if (!s || !s.session) {
+    linea.push('<span class="mal">✕ sin sesión</span>');
+    return fin('Entrá primero a KALU con tu usuario y volvé a abrir esta página. ' +
+               'Sin sesión el sistema no sabe quién sos y las pantallas salen vacías.');
+  }
+  linea.push('<b>✓</b> sesión: ' + (s.session.user.email || s.session.user.id));
+
+  // 4. ¿El módulo sabe quién soy?
+  const { data: quien, error: e1 } = await sb.rpc('cap_quien_soy');
+  if (e1) {
+    linea.push('<span class="mal">✕ rpc: ' + e1.message + '</span>');
+    return fin('Si dice «function does not exist», falta correr <b>cap_15_diagnostico.sql</b> ' +
+               'y <b>cap_14_api.sql</b> en Supabase.');
+  }
+  if (!quien || !quien.persona_id) {
+    linea.push('<span class="mal">✕ sin persona</span>');
+    return fin('Tu usuario está autenticado pero no está vinculado a ninguna persona del padrón. ' +
+               'Hasta que se vincule, el sistema no puede mostrar un pasaporte.');
+  }
+  linea.push('<b>✓</b> soy ' + quien.nombre + (quien.es_admin ? ' (admin)' : ''));
+  fin();
+
+  // 5. Mostrar
+  let actual = 'pasaporte';
+  function mostrar(v) {
+    actual = v;
+    document.querySelectorAll('#barra button').forEach(b =>
+      b.classList.toggle('on', b.dataset.v === v));
+    KaluCap[v]('#capacitador');
+  }
+  document.querySelectorAll('#barra button').forEach(b =>
+    b.onclick = () => mostrar(b.dataset.v));
+  mostrar('pasaporte');
+})();
+</script>
+
+</body>
+</html>

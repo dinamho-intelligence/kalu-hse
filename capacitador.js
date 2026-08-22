@@ -285,6 +285,18 @@ async function rpc(fn, args) {
   }
   return data;
 }
+// El color de la empresa se aplica solo si es lo bastante oscuro para
+// llevar texto claro encima. Si no, se conserva el verde del módulo:
+// vale más una interfaz legible que una fiel a la marca.
+function marca(el, emp) {
+  if (!emp) return;
+  const c = (emp.color || '').trim();
+  if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+  const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16);
+  const lum = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+  if (lum < 0.55) el.style.setProperty('--kc-ac', c);
+}
+
 function qrSvg(txt) {
   if (!global.qrcode) return `<div class="mono" style="font-size:9px;word-break:break-all">${esc(txt)}</div>`;
   const q = global.qrcode(0, 'M'); q.addData(txt); q.make();
@@ -307,7 +319,8 @@ async function pasaporte(sel, opt) {
     'No se encontró tu ficha. Puede que tu usuario todavía no esté vinculado a una persona.'));
 
   let filtro = 'todas', tab = 'pas';
-  const items = D.items || [], port = D.portada || {};
+  const items = D.items || [], port = D.portada || {}, emp = D.empresa || {};
+  marca(el, emp);
   const form = items.filter(x => x.tipo !== 'charla');
   const charlas = items.filter(x => x.tipo === 'charla');
 
@@ -396,7 +409,11 @@ async function pasaporte(sel, opt) {
     const cls = port.vencidas > 0 ? 'cr' : (port.pendientes > 0 ? 'wa' : 'ok');
     const tot = (port.al_dia||0)+(port.pendientes||0)+(port.vencidas||0)+(port.por_vencer||0);
     return `<div class="kc-cred">
-      <div class="kc-ctop"><div class="l">${esc(opt && opt.empresa || 'DINAMHO T&T')}</div>
+      <div class="kc-ctop">
+        <div class="l" style="display:flex;align-items:center;gap:9px">${
+          emp.logo ? `<img src="${esc(emp.logo)}" alt="" style="height:22px;width:auto;
+            border-radius:3px;background:#fff;padding:2px">` : ''
+        }<span>${esc(emp.nombre || (opt && opt.empresa) || 'KALU')}</span></div>
         <div class="r">Credencial SST</div></div>
       <div class="kc-cbody">
         <div class="kc-nom" style="font-size:21px;margin-bottom:3px">${esc(D.persona.nombre)}</div>
@@ -549,6 +566,7 @@ async function supervision(sel) {
   cargando(el, 'Cargando tu equipo…');
   let D, INF = null;
   try { D = await rpc('cap_mi_equipo'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
   let tab = 1;
   const hoyD = hoy();
 

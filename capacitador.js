@@ -95,8 +95,7 @@ const CSS = `
  text-transform:uppercase;color:var(--kc-ink3);border-bottom:2px solid transparent}
 .kc-tab[aria-selected=true]{color:var(--kc-ac);border-bottom-color:var(--kc-ac)}
 .kc-tab:focus-visible{outline:2px solid var(--kc-ac);outline-offset:-3px}
-.kc-fil{display:flex;gap:7px;padding:12px 16px;overflow-x:auto;scrollbar-width:none}
-.kc-fil::-webkit-scrollbar{display:none}
+.kc-fil{display:flex;flex-wrap:wrap;gap:7px;padding:12px 16px}
 .kc-chip{flex:0 0 auto;border:1px solid var(--kc-rule2);background:var(--kc-card);
  color:var(--kc-ink2);border-radius:999px;padding:6px 12px;cursor:pointer;
  font-size:12.5px;font-weight:500;white-space:nowrap}
@@ -378,7 +377,7 @@ async function pasaporte(sel, opt) {
         ${cont('por_vencer','Por vencer',form.filter(x=>x.estado==='por_vencer').length)}
         ${cont('pendiente','Pendientes',form.filter(x=>x.estado==='pendiente').length)}
         ${cont('al_dia','Al día',form.filter(x=>x.estado==='al_dia').length)}
-        ${cont('charla','Charlas semanales',charlas.length)}
+        ${cont('charla','Charlas',charlas.length)}
       </div>
       <div class="kc-list">` + (lista.length ? lista.map(x => {
         let meta;

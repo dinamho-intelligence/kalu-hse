@@ -273,6 +273,28 @@ const CSS = `
 .kc-asig{display:flex;align-items:center;gap:10px;padding:8px 0;
  border-bottom:1px solid var(--kc-rule);font-size:13.5px}
 .kc-asig>div{flex:1;min-width:0}
+
+/* --- pasar lista y convalidar --- */
+.kc dialog.ancho{max-width:660px}
+.kc-ros{max-height:44vh;overflow:auto;border:1px solid var(--kc-rule);
+ border-radius:8px;margin-bottom:12px;background:var(--kc-card2)}
+.kc-rw{display:grid;grid-template-columns:1fr 168px;gap:9px;align-items:center;
+ padding:8px 11px;border-bottom:1px solid var(--kc-rule)}
+.kc-rw:last-child{border-bottom:none}
+.kc-rw.chk{grid-template-columns:22px 1fr auto}
+.kc-rw select,.kc-rw input[type=text]{margin:0;font-size:13px;padding:6px 8px}
+.kc-rw input[type=checkbox]{width:17px;height:17px;margin:0;accent-color:var(--kc-ac)}
+.kc-rw .nm{font-size:14px;min-width:0;line-height:1.3}
+.kc-rw .nm span{display:block;font-family:var(--kc-fm);font-size:9.5px;
+ color:var(--kc-ink3);text-transform:uppercase;letter-spacing:.05em}
+.kc-rw .mot{grid-column:1/-1;margin:0}
+.kc-rw .est{font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.05em;
+ text-transform:uppercase;white-space:nowrap}
+.kc-rw .est.vencida{color:var(--kc-cr)}
+.kc-rw .est.pendiente{color:var(--kc-ink2)}
+.kc-rw .est.por_vencer{color:var(--kc-wa)}
+.kc-rw .est.al_dia{color:var(--kc-ok)}
+.kc-rap{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
 .kc-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99;
  max-width:min(560px,92vw);background:var(--kc-ink);color:var(--kc-ground);
  border-radius:9px;padding:12px 17px;font-size:13.5px;line-height:1.45;
@@ -822,6 +844,7 @@ async function admin(sel) {
         <div style="font-size:13px;color:var(--kc-ink2)">${sm
           ? 'A esta gente el sistema dejó de exigirle su formación por cargo. Mapealas antes de seguir.'
           : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>` : ''}
+      ${avisoChequeo()}
       ${tab === 1 && sm ? '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo escrito</th>' +
         '<th>Capacitaciones hoy</th><th></th></tr></thead><tbody>' +
         D.sinMapear.map(s => `<tr><td class="k">${esc(s.nombre)}</td>
@@ -886,15 +909,33 @@ async function admin(sel) {
     setTimeout(() => t.remove(), 7000);
   }
 
+  // Datos que tienen dos filas donde el sistema espera una. No rompen
+  // nada — el módulo elige una y sigue — pero conviene verlos.
+  function avisoChequeo() {
+    const q = D.chequeo;
+    if (!q || q.limpio || !(q.hallazgos || []).length) return '';
+    const H = q.hallazgos;
+    return `<div class="kc-cent mal"><div class="b">${H.length}</div><div>
+      <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Hay datos duplicados donde debería haber uno solo</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">${H.slice(0,4).map(h =>
+        esc(h.caso) + ': <b>' + esc(h.detalle) + '</b>').join(' · ')}${
+        H.length > 4 ? ' · y ' + (H.length - 4) + ' más' : ''}.
+        El módulo sigue andando y elige una, pero mientras esté así los números pueden no cuadrar.</div></div></div>`;
+  }
+
   /* ------------------------------------------------------- 1. personas */
   function vPers() {
     return '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo</th>' +
       '<th>En el padrón</th><th>Desde</th><th>Meses</th><th>Apto</th><th>Venc.</th>' +
       '<th>Tramos</th><th></th></tr></thead><tbody>' +
       (D.personas||[]).map(p => `<tr>
-        <td class="k">${esc(p.nombre)}</td><td>${esc(p.cargo||'—')}</td>
+        <td class="k">${esc(p.nombre)}</td>
+        <td>${esc(p.cargo||'—')}${p.cargos > 1
+            ? ` <span class="kc-tag no" title="Está mapeada a ${p.cargos} cargos">×${p.cargos}</span>` : ''}</td>
         <td style="color:var(--kc-ink3);font-size:13px">${esc(p.cargoTexto)}</td>
-        <td class="n">${esc(p.desde||'—')}</td><td class="n">${p.meses ?? '—'}</td>
+        <td class="n">${esc(p.desde||'—')}${p.tramosAbiertos > 1
+            ? ' <span class="kc-tag no" title="Tiene dos tramos de cargo abiertos">×2</span>' : ''}</td>
+        <td class="n">${p.meses ?? '—'}</td>
         <td><span class="kc-tag ${p.apto?'si':'no'}">${p.apto?'Sí':'No'}</span></td>
         <td class="n">${p.venc ?? 0}</td><td class="n">${p.tramos}</td>
         <td><div style="display:flex;gap:6px">
@@ -905,17 +946,96 @@ async function admin(sel) {
 
   /* --------------------------------------------------------- 2. cargos */
   function vCargos() {
-    return '<div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Área</th><th>Reporta a</th>' +
-      '<th>Personas</th><th>Alias</th><th>Rutas</th><th></th></tr></thead><tbody>' +
-      (D.cargos||[]).map(c => `<tr${c.activo?'':' style="opacity:.5"'}>
-        <td class="k">${esc(c.nombre)}</td><td style="color:var(--kc-ink3)">${esc(c.area||'—')}</td>
+    const C = D.cargos || [];
+    // Un cargo con gente y sin capacitaciones asignadas es gente sin plan.
+    const mudos = C.filter(c => c.activo && c.personas > 0 && !c.capacitaciones);
+    const alerta = mudos.length ? `<div class="kc-cent mal"><div class="b">${mudos.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${mudos.length} cargo(s) con gente y sin ninguna capacitación asignada</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${mudos.map(c => esc(c.nombre)).join(' · ')}.
+          Quien los ocupa no tiene plan de formación: su pasaporte se ve tranquilo porque no se le exige nada.</div></div></div>` : '';
+
+    return alerta + `<div class="kc-bar2">
+        <button class="kc-mini p" data-a="crear-cargo">+ Crear cargo</button>
+      </div>
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Área</th><th>Reporta a</th>` +
+      '<th>Personas</th><th>Capacit.</th><th>Variantes</th><th>Rutas</th><th></th></tr></thead><tbody>' +
+      C.map(c => `<tr${c.activo?'':' style="opacity:.5"'}>
+        <td class="k">${esc(c.nombre)}${c.activo?'':' <span class="kc-tag g">Apagado</span>'}</td>
+        <td style="color:var(--kc-ink3)">${esc(c.area||'—')}</td>
         <td style="color:var(--kc-ink3)">${esc(c.jefe||'—')}</td>
-        <td class="n">${c.personas}</td><td class="n">${c.alias}</td>
+        <td class="n">${c.personas}</td>
+        <td class="n"${c.activo && c.personas && !c.capacitaciones ? ' style="color:var(--kc-cr)"' : ''}>${c.capacitaciones}</td>
+        <td class="n">${c.alias}</td>
         <td class="n">↑${c.rutasEntran} ↓${c.rutasSalen}</td>
         <td><div style="display:flex;gap:6px">
-          <button class="kc-mini" data-a="renombrar" data-i="${c.id}">Renombrar</button>
-          <button class="kc-mini" data-a="desactivar" data-i="${c.id}">Desactivar</button></div></td>
+          <button class="kc-mini" data-a="editar-cargo" data-i="${c.id}">Editar</button>
+          <button class="kc-mini${c.activo?'':' p'}" data-a="${c.activo?'desactivar':'activar'}" data-i="${c.id}">${
+            c.activo ? 'Apagar' : 'Prender'}</button></div></td>
       </tr>`).join('') + '</tbody></table></div>';
+  }
+
+  /* --------- crear y editar un cargo --------- */
+  function dlgCargo(c) {
+    const nuevo = !c;
+    const A = D.areas || [];
+    const otros = (D.cargos || []).filter(x => x.activo && (!c || x.id !== c.id));
+
+    const d = abrir(`<h3>${nuevo ? 'Crear un cargo' : 'Editar ' + esc(c.nombre)}</h3>
+      ${nuevo
+        ? '<p>Un cargo nuevo nace sin plan de formación. Después de crearlo hay que asignarle sus capacitaciones desde la pestaña <b>Capacitaciones</b>.</p>'
+        : `<p>${c.personas} persona(s) · ${c.capacitaciones} capacitación(es) asignadas</p>`}
+      <label for="k1">Nombre</label>
+      <input type="text" id="k1" value="${esc(nuevo ? '' : c.nombre)}"
+             placeholder="Ej: Inspector END Nivel III">
+      <label for="k2">Área</label>
+      <input type="text" id="k2" list="kc-areas" value="${esc(nuevo ? '' : (c.area || ''))}"
+             placeholder="Misional, Administrativa…">
+      <datalist id="kc-areas">${A.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+      <label for="k3">Reporta a</label>
+      <select id="k3"><option value="">— nadie —</option>${otros.map(x =>
+        `<option value="${x.id}"${!nuevo && c.reporta_a === x.id ? ' selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select>
+      ${nuevo ? '' : `
+      <label>También se reconoce escrito como</label>
+      <div class="kc-ros" style="max-height:26vh">${(c.variantes || []).length
+        ? c.variantes.map(v => `<div class="kc-rw chk" style="grid-template-columns:1fr auto auto">
+            <div class="nm">${esc(v.alias)}<span>${v.gente} en el padrón</span></div>
+            <button type="button" class="kc-mini" data-q="${v.id}">Quitar</button>
+          </div>`).join('')
+        : '<div class="kc-rw"><div class="nm" style="color:var(--kc-cr)">Ninguna. Si el padrón lo escribe distinto, nadie queda ubicado en este cargo.</div></div>'}</div>
+      <label for="k4">Agregar una variante</label>
+      <div style="display:flex;gap:7px;margin-bottom:12px">
+        <input type="text" id="k4" style="margin:0" placeholder="Cómo aparece escrito en el padrón">
+        <button type="button" class="kc-mini p" id="kcadd">Agregar</button>
+      </div>
+      <p style="font-size:12.5px">Las variantes son lo que evita que «Auxiliar Tecnico I» sin tilde
+         deje a alguien sin plan de formación.</p>`}`,
+      dd => {
+        const nom = dd.querySelector('#k1').value;
+        const area = dd.querySelector('#k2').value;
+        const jefe = dd.querySelector('#k3').value || null;
+        return nuevo
+          ? rpc('cap_crear_cargo', { p_nombre: nom, p_area: area || null, p_reporta_a: jefe })
+          : rpc('cap_cargo_guardar', { p_cargo: c.id, p_nombre: nom, p_area: area,
+              p_reporta_a: jefe, p_quitar_jefe: !jefe });
+      }, nuevo ? 'Crear' : 'Guardar', !nuevo);
+
+    if (nuevo) return;
+
+    d.querySelectorAll('[data-q]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Quitando…';
+      try { const r = await rpc('cap_alias_quitar', { p_alias_id: b.dataset.q });
+        d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = 'Quitar'; alert(e.message); }
+    });
+    const add = d.querySelector('#kcadd');
+    if (add) add.onclick = async () => {
+      const val = d.querySelector('#k4').value;
+      if (!val.trim()) return;
+      add.disabled = true; add.textContent = 'Agregando…';
+      try { const r = await rpc('cap_alias_agregar', { p_cargo: c.id, p_alias: val });
+        d.close(); d.remove(); await recargar(r); }
+      catch (e) { add.disabled = false; add.textContent = 'Agregar'; alert(e.message); }
+    };
   }
 
   /* -------------------------------------------------- 3. capacitaciones */
@@ -979,6 +1099,7 @@ async function admin(sel) {
         <td><div style="display:flex;gap:6px">
           <button class="kc-mini" data-c="editar" data-i="${c.id}">Editar</button>
           <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
+          ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
           <button class="kc-mini${c.activo?'':' p'}" data-c="${c.activo?'apagar':'prender'}" data-i="${c.id}">${
             c.activo ? 'Apagar' : 'Prender'}</button></div></td>
       </tr>`).join('') + '</tbody></table></div>'
@@ -1033,7 +1154,11 @@ async function admin(sel) {
             ].filter(Boolean).join(' · ')}</div>
         </div>
         <span class="kc-tag ${TAG[s][0]}">${TAG[s][1]}</span>
-        <div class="kc-eva">${e.ejecutado ? '' : `
+        <div class="kc-eva">${
+          e.fecha && !e.cancelado && e.fecha <= hoyS
+            ? `<button class="kc-mini${e.ejecutado ? '' : ' p'}" data-e="lista" data-i="${e.id}">${
+                e.ejecutado ? 'Ver lista' : 'Pasar lista'}</button>` : ''}${
+          e.ejecutado ? '' : `
           <button class="kc-mini" data-e="editar" data-i="${e.id}">Editar</button>
           <button class="kc-mini" data-e="mover" data-i="${e.id}">Mover</button>
           ${e.cancelado ? '' : `<button class="kc-mini" data-e="cancelar" data-i="${e.id}">Cancelar</button>`}`}</div>
@@ -1071,8 +1196,9 @@ async function admin(sel) {
   const opts = (sel2) => (D.cargos||[]).filter(c=>c.activo).map(c =>
     `<option value="${c.id}"${c.nombre===sel2?' selected':''}>${esc(c.nombre)}</option>`).join('');
 
-  function abrir(html, onOk, okTxt) {
+  function abrir(html, onOk, okTxt, ancho) {
     const d = document.createElement('dialog');
+    if (ancho) d.className = 'ancho';
     d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
       <button class="kc-b2" id="kcx">Cancelar</button>
       <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
@@ -1089,6 +1215,16 @@ async function admin(sel) {
   function dlg(accion, id) {
     const p = (D.personas||[]).find(x => x.id === id);
     const c = (D.cargos||[]).find(x => x.id === id);
+
+    if (accion === 'crear-cargo')  return dlgCargo(null);
+    if (accion === 'editar-cargo') return dlgCargo(c);
+    if (accion === 'activar') {
+      return abrir(`<h3>Prender “${esc(c.nombre)}”</h3>
+        <p>Vuelve a aparecer en las listas y su plan de formación se le vuelve a exigir
+           a quien lo ocupe.</p>`,
+        () => rpc('cap_activar_cargo', { p_cargo: id }), 'Prender');
+    }
+
     if (accion === 'corregir') {
       abrir(`<h3>Corregir el cargo de ${esc(p.nombre)}</h3>
         <p>Usalo sólo si el dato estaba mal cargado. La antigüedad sigue corriendo desde el ${esc(p.desde)}.</p>
@@ -1106,16 +1242,12 @@ async function admin(sel) {
         <label for="k2">Motivo</label><input type="text" id="k2" placeholder="Ej: ascenso con aval">`,
         d => rpc('cap_mover_cargo', { p_persona: id, p_cargo: d.querySelector('#k1').value,
           p_fecha: d.querySelector('#k3').value, p_motivo: d.querySelector('#k2').value }));
-    } else if (accion === 'renombrar') {
-      abrir(`<h3>Renombrar “${esc(c.nombre)}”</h3>
-        <p>Es seguro: todo apunta al identificador. El nombre viejo queda como alias.</p>
-        <label for="k1">Nombre nuevo</label><input type="text" id="k1" value="${esc(c.nombre)}">`,
-        d => rpc('cap_renombrar_cargo', { p_cargo: id, p_nombre: d.querySelector('#k1').value }));
     } else {
-      abrir(`<h3>Desactivar “${esc(c.nombre)}”</h3>
+      abrir(`<h3>Apagar “${esc(c.nombre)}”</h3>
         <p>${c.personas ? `<b>${c.personas} persona(s)</b> tienen este cargo. Movelas primero:
-          si lo desactivás quedan sin plan de formación.` : 'Nadie ocupa este cargo.'}</p>`,
-        () => rpc('cap_desactivar_cargo', { p_cargo: id }));
+          si lo apagás quedan sin plan de formación.` : 'Nadie ocupa este cargo.'}</p>
+        <p>No se borra: queda apagado y se puede volver a prender.</p>`,
+        () => rpc('cap_desactivar_cargo', { p_cargo: id }), 'Apagar');
     }
   }
 
@@ -1225,6 +1357,10 @@ async function admin(sel) {
           p_motivo: off ? d.querySelector('#k1').value : null }),
         off ? 'Apagar' : 'Prender');
 
+    } else if (accion === 'convalidar') {
+      // Dar por cumplido lo que se hizo antes de KALU y consta en papel.
+      dlgConvalidar(id, c);
+
     } else if (accion === 'sumar') {
       const B = CAT.biblioteca || [];
       if (!B.length) {
@@ -1264,11 +1400,81 @@ async function admin(sel) {
     }
   }
 
+  /* --------- convalidar: lo que se hizo antes de KALU --------- */
+  const ESTN = { vencida:'Vencida', pendiente:'Sin registro',
+                 por_vencer:'Por vencer', al_dia:'Al día', no_aplica:'No aplica' };
+
+  async function dlgConvalidar(id, c) {
+    let R;
+    try { R = await rpc('cap_convalidar_datos', { p_catalogo: id }); }
+    catch (e) { return alert(e.message); }
+
+    const P = R.personas || [];
+    const falta = p => p.estado === 'pendiente' || p.estado === 'vencida';
+    const nf = P.filter(falta).length;
+
+    const d = abrir(`<h3>Convalidar ${esc(c.codigo)}</h3>
+      <p>${esc(c.titulo)}</p>
+      <p>Para lo que la gente <b>ya hizo antes de KALU</b> y consta en un acta, una planilla
+         o un certificado. No inventa cumplimiento: queda firmado con tu nombre y la fecha.</p>
+      <label>A quién (${nf} sin registro o vencida${nf !== P.length ? ' de ' + P.length : ''})</label>
+      <div class="kc-rap">
+        <button type="button" class="kc-mini" id="kcs1">Los que faltan</button>
+        <button type="button" class="kc-mini" id="kcs2">Todos</button>
+        <button type="button" class="kc-mini" id="kcs0">Ninguno</button>
+      </div>
+      <div class="kc-ros">${P.map(p => `<div class="kc-rw chk">
+          <input type="checkbox" class="kcp" value="${p.persona_id}"${falta(p)?' checked':''}
+                 aria-label="${esc(p.nombre)}">
+          <div class="nm">${esc(p.nombre)}<span>${esc(p.cargo || '')}</span></div>
+          <span class="est ${p.estado}">${ESTN[p.estado] || p.estado}</span>
+        </div>`).join('')}</div>
+      <label for="k1">Fecha real en que se hizo</label>
+      <input type="date" id="k1" max="${iso()}" value="${iso()}">
+      <label for="k2">En qué consta</label>
+      <input type="text" id="k2" placeholder="Ej: acta 31 de reinducción, marzo 2026">
+      <label for="k3">Enlace al soporte (opcional)</label>
+      <input type="text" id="k3" placeholder="Ruta del documento en KALU">
+      <p id="kcav" style="font-size:12.5px"></p>`,
+      dd => {
+        const sel = [...dd.querySelectorAll('.kcp:checked')].map(x => x.value);
+        if (!sel.length) throw new Error('No elegiste a nadie.');
+        return rpc('cap_convalidar', { p_catalogo: id, p_personas: sel,
+          p_fecha: dd.querySelector('#k1').value,
+          p_soporte: dd.querySelector('#k3').value || null,
+          p_motivo: dd.querySelector('#k2').value });
+      }, 'Convalidar', true);
+
+    const marcar = f => d.querySelectorAll('.kcp').forEach((x, i) => { x.checked = f(P[i]); });
+    d.querySelector('#kcs1').onclick = () => marcar(falta);
+    d.querySelector('#kcs2').onclick = () => marcar(() => true);
+    d.querySelector('#kcs0').onclick = () => marcar(() => false);
+
+    // Avisar en vivo si la fecha elegida deja a la gente vencida igual.
+    const av = d.querySelector('#kcav'), inp = d.querySelector('#k1');
+    const revisar = () => {
+      if (!c.vigencia_dias || !inp.value) { av.textContent = ''; return; }
+      const v = new Date(inp.value + 'T12:00:00');
+      v.setDate(v.getDate() + c.vigencia_dias);
+      const vencida = v < hoy();
+      av.style.color = vencida ? 'var(--kc-cr)' : 'var(--kc-ink3)';
+      av.textContent = vencida
+        ? 'Con esa fecha vencería el ' + v.toLocaleDateString('es-CO') +
+          ' — o sea, ya vencida. Queda el antecedente cargado, pero hay que reprogramarla. ' +
+          'Si hubo reinducción más reciente, poné esa fecha.'
+        : 'Con esa fecha quedan al día hasta el ' + v.toLocaleDateString('es-CO') + '.';
+    };
+    inp.oninput = revisar; revisar();
+  }
+
   /* --------- cronograma --------- */
   function dlgEv(accion, id) {
     const e = (CRO.eventos||[]).find(x => x.id === id);
 
-    if (accion === 'crear') {
+    if (accion === 'lista') {
+      dlgLista(id, e);
+
+    } else if (accion === 'crear') {
       abrir(`<h3>Programar una capacitación</h3>
         <p>Queda en el cronograma del año. Los convocados salen solos de a quién le aplica.</p>
         <label for="k1">Capacitación</label>
@@ -1323,6 +1529,74 @@ async function admin(sel) {
           p_horas: d.querySelector('#k4').value === '' ? null : +d.querySelector('#k4').value,
           p_observaciones: d.querySelector('#k5').value || null }));
     }
+  }
+
+  /* --------- pasar lista de un evento --------- */
+  const MARCAS = [
+    ['asistio',               'Asistió'],
+    ['ausente_justificado',   'Faltó con justificación'],
+    ['ausente_injustificado', 'Faltó'],
+    ['no_aplica',             'No le aplica'],
+    ['programado',            'Sin marcar']
+  ];
+
+  async function dlgLista(id, ev) {
+    let R;
+    try { R = await rpc('cap_evento_lista', { p_evento: id }); }
+    catch (e) { return alert(e.message); }
+
+    const P = R.personas || [], E = R.evento || {};
+    if (!P.length) {
+      abrir(`<h3>${esc(E.codigo || '')} · sin convocados</h3>
+        <p>Esta capacitación no le aplica a nadie todavía, así que no hay lista que pasar.
+           Asignala primero a un cargo, un comité o una actividad desde la pestaña
+           <b>Capacitaciones</b>.</p>`, () => {}, 'Entendido');
+      return;
+    }
+
+    const need = e => e === 'ausente_justificado' || e === 'no_aplica';
+
+    const d = abrir(`<h3>Lista de ${esc(E.codigo || '')}</h3>
+      <p>${esc(E.titulo || '')} · ${esc(E.fecha || '')}${
+        E.responsable ? ' · ' + esc(E.responsable) : ''}</p>
+      <div class="kc-rap">
+        <button type="button" class="kc-mini" id="kct">Todos asistieron</button>
+        <button type="button" class="kc-mini" id="kcn">Limpiar</button>
+      </div>
+      <div class="kc-ros">${P.map((p, i) => `<div class="kc-rw" data-i="${i}">
+          <div class="nm">${esc(p.nombre)}<span>${esc(p.cargo || '')}</span></div>
+          <select class="kce">${MARCAS.map(([v, t]) =>
+            `<option value="${v}"${p.estado === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <input type="text" class="kcm mot" placeholder="Motivo"
+                 value="${esc(p.motivo || '')}" style="display:${need(p.estado)?'block':'none'}">
+        </div>`).join('')}</div>
+      <label for="k1">Fecha en que se dictó</label>
+      <input type="date" id="k1" max="${iso()}"
+             value="${esc(E.realizada || E.fecha || iso())}">
+      <p style="font-size:12.5px">Al guardar, el evento queda como dictado y a cada asistente se le
+         actualiza el pasaporte con su fecha de vencimiento. Los que faltaron siguen debiéndola.</p>`,
+      dd => {
+        const marcas = [...dd.querySelectorAll('.kc-rw')].map(row => {
+          const i = +row.dataset.i;
+          return { persona_id: P[i].persona_id,
+                   estado: row.querySelector('.kce').value,
+                   motivo: row.querySelector('.kcm').value || null };
+        });
+        return rpc('cap_marcar', { p_evento: id, p_marcas: marcas,
+          p_fecha: dd.querySelector('#k1').value });
+      }, 'Guardar la lista', true);
+
+    // el campo de motivo aparece sólo cuando el estado lo exige
+    d.querySelectorAll('.kc-rw').forEach(row => {
+      const s = row.querySelector('.kce'), m = row.querySelector('.kcm');
+      s.onchange = () => { m.style.display = need(s.value) ? 'block' : 'none'; };
+    });
+    const todos = v => d.querySelectorAll('.kc-rw').forEach(row => {
+      const s = row.querySelector('.kce'); s.value = v;
+      row.querySelector('.kcm').style.display = need(v) ? 'block' : 'none';
+    });
+    d.querySelector('#kct').onclick = () => todos('asistio');
+    d.querySelector('#kcn').onclick = () => todos('programado');
   }
 
   pintar();

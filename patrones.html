@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0A0C0F">
 <title>KALU · Inteligencia de patrones</title>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   :root{--bg:#0A0C0F;--panel:#12161C;--panel2:#171C24;--line:#242B35;--nar:#F28C00;--cy:#00D4FF;--verde:#25C26E;--amber:#E8930C;--rojo:#FF3B30;--tx:#E8EDF2;--tx2:#95A0AD;--tx3:#5E6873;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -209,8 +210,11 @@ function render(){
   var html='';
   html+='<div class="kpis">'
     +kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
-  window._patHeur=patrones; window.PAYLOAD=buildPayload(ins);
-  html+='<div style="margin:6px 0 4px"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><div class="disclaimer">KALU lee estos patrones y te devuelve la lectura experta, la brecha real y el memo redactado — sin nombres y sin inventar datos.</div></div><div id="ia"></div>';
+  window._patHeur=patrones;
+  var RISK=riskTable(); window._RISK=RISK;
+  html+=riskSectionHTML(RISK);
+  window.PAYLOAD=buildPayload(ins,RISK);
+  html+='<div style="margin:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><button class="bigbtn" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div><div class="disclaimer" style="margin-bottom:8px">El índice, la tendencia y la proyección salen del motor (números reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.</div><div id="ia"></div>';
 
   html+='<h2 class="sec"><span>▸</span> Patrones detectados ('+patrones.length+')</h2>';
   if(!patrones.length){ html+='<div class="empty">No se detectaron patrones claros con los datos actuales. A medida que se carguen más tarjetas y eventos, KALU los va a ir encontrando.</div>'; }
@@ -281,8 +285,110 @@ function eventoCard(v,i){
     +'<div class="row"><span class="k">Contra las tarjetas previas</span><span class="verdict '+vBcls+'">TARJETAS</span>'+esc(vB)+'</div>'
     +'</div>';
 }
+/* ---------- Motor de índice de riesgo / tendencia / proyección / probabilidad ---------- */
+function _spanMeses(){ var ds=[]; TAR.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(d)ds.push(d.getTime());}); INV.forEach(function(v){var d=dateOf(v.fecha_evento||v.created_at);if(d)ds.push(d.getTime());}); if(!ds.length) return 1; var min=new Date(Math.min.apply(null,ds)); var m=diasEntre(min,hoy())/30; return Math.max(1,m); }
+function riskTable(){
+  var h=hoy(); var by={};
+  function ez(z){ z=(z||'').trim()||'(sin lugar)'; return by[z]||(by[z]={zona:z,ins:0,u30:0,p30:0,abiertas:0,vencidas:0,alto:0,ev:0}); }
+  TAR.filter(function(t){return (t.clase||'')==='inseguro';}).forEach(function(t){
+    var z=ez(t.lugar); z.ins++;
+    var d=dateOf(t.creado||t.fecha); var dd=d?diasEntre(d,h):null;
+    if(dd!=null){ if(dd<=30)z.u30++; else if(dd<=60)z.p30++; }
+    if((t.estado||'')!=='cerrada') z.abiertas++;
+    if(semTarjeta(t).cls==='sem-bad') z.vencidas++;
+    if(String(t.riesgo||'').toLowerCase()==='alto') z.alto++;
+  });
+  INV.forEach(function(v){ ez(invLugar(v)).ev++; });
+  var meses=_spanMeses();
+  return Object.keys(by).map(function(k){ return _score(by[k],meses); }).sort(function(a,b){return b.indice-a.indice;});
+}
+function _score(z,meses){
+  var freq=Math.min(40,z.u30*6);
+  var sev=Math.min(20,z.alto*5);
+  var gest=z.ins?Math.min(20,Math.round((z.vencidas+z.abiertas*0.4)/z.ins*20)):0;
+  var reinc=z.ins>=3?10:(z.ins>=2?5:0);
+  var acc=z.ev>0?15:0;
+  var indice=Math.min(100,Math.round(freq+sev+gest+reinc+acc));
+  var delta=z.u30-z.p30; var tend=delta>0?'up':(delta<0?'down':'flat');
+  var proy=Math.round(z.u30*0.7+z.p30*0.3);
+  var lambda=meses>0?z.ev/meses:0; if(lambda===0&&z.alto>0) lambda=Math.min(0.5,z.alto*0.03);
+  var prob=Math.round((1-Math.exp(-lambda))*100);
+  var nivel=indice>=75?'crítico':(indice>=50?'alto':(indice>=25?'medio':'bajo'));
+  return {zona:z.zona,ins:z.ins,u30:z.u30,p30:z.p30,abiertas:z.abiertas,vencidas:z.vencidas,ev:z.ev,indice:indice,nivel:nivel,tend:tend,delta:delta,proy:proy,prob:prob};
+}
+function _tendIco(t,delta){ if(t==='up') return '<span style="color:#FF8A82;font-weight:700">▲ +'+delta+'</span>'; if(t==='down') return '<span style="color:#4FD98B;font-weight:700">▼ '+delta+'</span>'; return '<span style="color:var(--tx3)">→</span>'; }
+function _nivColor(n){ return n==='crítico'?'#FF3B30':(n==='alto'?'#FF8A82':(n==='medio'?'#F0B04A':'#4FD98B')); }
+function riskSectionHTML(rows){
+  var top=(rows||[]).filter(function(r){return r.ins>0||r.ev>0;}).slice(0,12);
+  if(!top.length) return '';
+  var h='<h2 class="sec"><span>▸</span> Índice de riesgo por zona</h2>';
+  h+='<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">';
+  h+='<thead><tr style="color:var(--tx3);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">'
+    +'<th style="text-align:left;padding:8px">Zona</th><th style="padding:8px">Índice</th><th style="padding:8px">Nivel</th><th style="padding:8px">Tendencia</th><th style="padding:8px">Inseg. 30d</th><th style="padding:8px">Sin cerrar</th><th style="padding:8px">Proy. mes</th><th style="padding:8px">Prob. evento</th></tr></thead><tbody>';
+  top.forEach(function(r){
+    var col=_nivColor(r.nivel);
+    h+='<tr style="border-top:1px solid var(--line)">'
+      +'<td style="padding:8px;font-weight:700">'+esc(r.zona)+'</td>'
+      +'<td style="padding:8px;text-align:center;min-width:70px"><span style="font-weight:800;color:'+col+'">'+r.indice+'</span><div style="height:5px;background:var(--panel2);border-radius:3px;margin-top:3px"><div style="height:5px;width:'+r.indice+'%;background:'+col+';border-radius:3px"></div></div></td>'
+      +'<td style="padding:8px;text-align:center;color:'+col+';font-weight:700;text-transform:uppercase;font-size:11px">'+r.nivel+'</td>'
+      +'<td style="padding:8px;text-align:center">'+_tendIco(r.tend,r.delta)+'</td>'
+      +'<td style="padding:8px;text-align:center">'+r.u30+'</td>'
+      +'<td style="padding:8px;text-align:center">'+r.abiertas+(r.vencidas?(' <span style="color:#FF8A82">('+r.vencidas+' venc.)</span>'):'')+'</td>'
+      +'<td style="padding:8px;text-align:center">~'+r.proy+'</td>'
+      +'<td style="padding:8px;text-align:center;font-weight:800;color:'+col+'">'+r.prob+'%</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div class="disclaimer">Índice 0–100 = frecuencia reciente + severidad + gestión (sin cerrar/vencidas) + reincidencia + accidente previo. Proyección = ritmo reciente. Prob. evento = estimación (Poisson) según la tasa de accidentes observada; con pocos datos es orientativa.</div>';
+  return h;
+}
+function exportarPDF(){
+  var JS=window.jspdf&&window.jspdf.jsPDF; if(!JS){ alert('No se pudo cargar el generador de PDF.'); return; }
+  var doc=new JS({unit:'pt',format:'a4'}); var W=595,M=40,BOT=800,y=54; var IA=window._IA||{};
+  function nl(hh){ if(y+hh>BOT){doc.addPage();y=54;} }
+  function head(t){ nl(26); doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(200,50,45); doc.text(t,M,y); y+=16; }
+  function par(t,c){ if(t==null||t==='')return; doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(c?c[0]:50,c?c[1]:50,c?c[2]:50); doc.splitTextToSize(String(t),W-M*2).forEach(function(l){nl(13);doc.text(l,M,y);y+=13;}); y+=4; }
+  doc.setFillColor(242,140,0); doc.rect(0,0,W,8,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(20,20,20); doc.text('KALU · Informe de Inteligencia HSE',M,y); y+=18;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(120,120,120); doc.text('Dinamho Intelligence · '+new Date().toLocaleString('es-CO')+' · enfoque sin culpables',M,y); y+=14;
+  doc.setDrawColor(220,220,220); doc.line(M,y,W-M,y); y+=16;
+  var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
+  par('Tarjetas: '+TAR.length+'    Inseguras: '+ins+'    ATS: '+ATS.length+'    Investigaciones: '+INV.length,[30,30,30]);
+  if(IA.diagnostico){ head('Diagnóstico ejecutivo'); par(IA.diagnostico); }
+  if(IA.prioridad && (IA.prioridad.titulo||IA.prioridad.porque||IA.prioridad.accion_inmediata)){
+    head('Prioridad #1'); par(IA.prioridad.titulo,[20,20,20]); if(IA.prioridad.porque) par('Por qué: '+IA.prioridad.porque); if(IA.prioridad.accion_inmediata) par('Acción inmediata: '+IA.prioridad.accion_inmediata);
+  }
+  if(Array.isArray(IA.alertas)&&IA.alertas.length){ head('Alertas'); IA.alertas.forEach(function(a){ par('• '+(typeof a==='string'?a:(a.texto||''))); }); }
+  var RISK=(window._RISK||[]).filter(function(r){return r.ins>0||r.ev>0;}).slice(0,15);
+  if(RISK.length){
+    head('Índice de riesgo por zona');
+    doc.setFontSize(8.5); doc.setFont('helvetica','bold');doc.setTextColor(90,90,90);
+    doc.text('Zona',M,y);doc.text('Índice',300,y);doc.text('Nivel',345,y);doc.text('Tend',400,y);doc.text('Proy',445,y);doc.text('Prob',495,y);y+=12;
+    doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+    RISK.forEach(function(r){ nl(13); doc.text(String(r.zona).slice(0,48),M,y); doc.text(String(r.indice),300,y); doc.text(String(r.nivel),345,y); doc.text((r.tend==='up'?'+':(r.tend==='down'?'':'='))+r.delta,400,y); doc.text('~'+r.proy,445,y); doc.text(r.prob+'%',495,y); y+=13; });
+    y+=6;
+  }
+  var pats=(IA.patrones&&IA.patrones.length)?IA.patrones:(window._patHeur||[]).map(function(p){return {titulo:p.ti,severidad:p.sev,evidencia:p.evid,brecha:p.brecha,accion:p.accion};});
+  if(pats.length){
+    head('Patrones detectados');
+    pats.forEach(function(p){ nl(40);
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(200,50,45);
+      doc.splitTextToSize('• '+String(p.titulo||'')+'  ['+(p.severidad||'')+']',W-M*2).forEach(function(l){nl(13);doc.text(l,M,y);y+=13;});
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(50,50,50);
+      [['Evidencia',p.evidencia],['Brecha',p.brecha],['Acción',p.accion]].forEach(function(kv){ if(kv[1]){ doc.splitTextToSize(kv[0]+': '+kv[1],W-M*2-8).forEach(function(l){nl(12);doc.text(l,M+8,y);y+=12;}); } });
+      y+=6;
+    });
+  }
+  if(Array.isArray(IA.zonas)&&IA.zonas.length){ head('Lectura por zona'); IA.zonas.forEach(function(z){ par((z.zona?(z.zona+': '):'')+(z.lectura||'')); }); }
+  if(IA.proyeccion){ head('Proyección'); par(IA.proyeccion); }
+  if(Array.isArray(IA.recomendaciones)&&IA.recomendaciones.length){ head('Recomendaciones'); IA.recomendaciones.forEach(function(r,i){ var t=(typeof r==='string')?r:((r.accion||'')+(r.plazo?(' — plazo: '+r.plazo):'')+(r.responsable?(' ('+r.responsable+')'):'')); par((i+1)+'. '+t); }); }
+  if(IA.conclusion){ head('Conclusión para dirección'); par(IA.conclusion); }
+  nl(24); doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,150,150);
+  doc.splitTextToSize('Generado por KALU IA — Dinamho Intelligence. Los índices y proyecciones son estimaciones a partir de los datos cargados; el criterio final es del HSE. Enfoque sin culpables.',W-M*2).forEach(function(l){nl(11);doc.text(l,M,y);y+=11;});
+  doc.save('KALU_Inteligencia_HSE_'+new Date().toISOString().slice(0,10)+'.pdf');
+}
 /* ---------- Fase 1.5 · KALU IA sobre los patrones ---------- */
-function buildPayload(ins){
+function buildPayload(ins,RISK){
   var h=hoy();
   var porCat=topPairs(tally(ins,'categoria')).slice(0,10).map(function(p){return {categoria:p[0],n:p[1]};});
   var lugares={};
@@ -305,6 +411,7 @@ function buildPayload(ins){
     resumen:{tarjetas:TAR.length,inseguras:ins.length,ats:ATS.length,investigaciones:INV.length},
     por_categoria:porCat, por_lugar:porLugar, temporal:{ultimos_30:d30, previos_30:d60},
     reincidencia:reinc, eventos:eventos,
+    indices_riesgo:(RISK||[]).filter(function(r){return r.ins>0||r.ev>0;}).slice(0,12),
     patrones_heuristicos:(window._patHeur||[]).map(function(p){return {titulo:p.ti,severidad:p.sev,evidencia:p.evid,brecha:p.brecha};})
   };
 }
@@ -315,15 +422,29 @@ async function profundizarIA(){
     var r=await fetch(WEBHOOK_PAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datos:window.PAYLOAD,token:TOKEN})});
     if(!r.ok) throw new Error('http '+r.status);
     var d=await r.json();
+    window._IA=d;
     renderIA(d);
   }catch(e){ $('ia').innerHTML='<div class="empty" style="color:#F0B04A">No me pude conectar con KALU IA. ¿Está activo el flujo de n8n <b>kalu-patrones</b> y tiene la API key cargada?<br><span style="font-size:11px">'+esc(e.message)+'</span></div>'; }
   finally{ b.disabled=false; b.textContent='🧠 Profundizar con KALU IA'; }
 }
 function renderIA(d){
   d=d||{};
-  var h='<h2 class="sec"><span>▸</span> 🧠 Lectura de KALU IA</h2>';
-  if(d.resumen) h+='<div class="intro" style="border-left:4px solid var(--cy)"><b>Resumen:</b> '+esc(d.resumen)+'</div>';
+  var h='<h2 class="sec"><span>▸</span> 🧠 Informe de KALU IA</h2>';
+  var diag=d.diagnostico||d.resumen||'';
+  if(diag) h+='<div class="intro" style="border-left:4px solid var(--cy)"><b>Diagnóstico ejecutivo</b><div style="margin-top:6px;white-space:pre-wrap;line-height:1.7;color:var(--tx)">'+esc(diag)+'</div></div>';
+  if(d.prioridad && (d.prioridad.titulo||d.prioridad.porque||d.prioridad.accion_inmediata)){
+    h+='<div class="pat sev-alto"><div class="top"><span class="ti">⚑ Prioridad #1: '+esc(d.prioridad.titulo||'')+'</span></div>'
+      +(d.prioridad.porque?'<div class="row"><span class="k">Por qué</span>'+esc(d.prioridad.porque)+'</div>':'')
+      +(d.prioridad.accion_inmediata?'<div class="row"><span class="k">Acción inmediata</span>'+esc(d.prioridad.accion_inmediata)+'</div>':'')
+      +'</div>';
+  }
+  var al=(Array.isArray(d.alertas)?d.alertas:[]).filter(Boolean);
+  if(al.length){
+    h+='<div class="pat sev-alto" style="border-left-color:var(--rojo)"><div class="top"><span class="ti">🚨 Alertas</span></div>'
+      +al.map(function(a){return '<div class="row">• '+esc(typeof a==='string'?a:(a.texto||JSON.stringify(a)))+'</div>';}).join('')+'</div>';
+  }
   var pats=Array.isArray(d.patrones)?d.patrones:[];
+  if(pats.length) h+='<h2 class="sec"><span>▸</span> Patrones</h2>';
   pats.forEach(function(p,i){
     var sev=(p.severidad==='alto'||p.severidad==='medio'||p.severidad==='bajo')?p.severidad:'medio';
     var memo=(p.memo||('PATRÓN — '+(p.titulo||'')+'\n'+(p.evidencia||'')+'\n'+(p.accion||'')));
@@ -335,9 +456,20 @@ function renderIA(d){
       +'<div class="memo" id="memoia'+i+'">'+esc(memo)+'</div>'
       +'</div>';
   });
+  var zs=Array.isArray(d.zonas)?d.zonas:[];
+  if(zs.length){
+    h+='<h2 class="sec"><span>▸</span> Lectura por zona</h2><div class="pat">'
+      +zs.map(function(z){return '<div class="row"><b>'+esc(z.zona||'')+':</b> '+esc(z.lectura||'')+'</div>';}).join('')+'</div>';
+  }
+  if(d.proyeccion){ h+='<h2 class="sec"><span>▸</span> Proyección</h2><div class="intro">'+esc(d.proyeccion)+'</div>'; }
+  var recs=Array.isArray(d.recomendaciones)?d.recomendaciones:[];
+  if(recs.length){
+    h+='<h2 class="sec"><span>▸</span> Recomendaciones</h2><div class="pat">'
+      +recs.map(function(r,i){var t=(typeof r==='string')?r:((r.accion||'')+(r.plazo?(' — plazo: '+r.plazo):'')+(r.responsable?(' ('+r.responsable+')'):'')); return '<div class="row">'+(i+1)+'. '+esc(t)+'</div>';}).join('')+'</div>';
+  }
   var evs=Array.isArray(d.eventos)?d.eventos:[];
   if(evs.length){
-    h+='<h2 class="sec"><span>▸</span> Lectura de eventos (IA)</h2>';
+    h+='<h2 class="sec"><span>▸</span> Lectura de eventos</h2>';
     evs.forEach(function(e){
       h+='<div class="pat"><div class="top"><span class="ti">'+esc(e.id||'Evento')+'</span></div>'
         +(e.veredicto_ats?'<div class="row"><span class="k">Contra el ATS</span>'+esc(e.veredicto_ats)+'</div>':'')
@@ -345,7 +477,8 @@ function renderIA(d){
         +(e.lectura?'<div class="row">'+esc(e.lectura)+'</div>':'')+'</div>';
     });
   }
-  if(!pats.length && !evs.length && !d.resumen) h+='<div class="empty">KALU no devolvió un análisis estructurado.</div>';
+  if(d.conclusion){ h+='<div class="intro" style="border-left:4px solid var(--nar);margin-top:14px"><b>Conclusión para dirección</b><div style="margin-top:6px;white-space:pre-wrap;line-height:1.7;color:var(--tx)">'+esc(d.conclusion)+'</div></div>'; }
+  if(!diag && !pats.length && !recs.length) h+='<div class="empty">KALU no devolvió un informe estructurado.'+(d._raw?('<br><span style="font-size:11px">'+esc(d._raw)+'</span>'):'')+'</div>';
   $('ia').innerHTML=h;
 }
 function toggleMemo(i){ var m=$('memo'+i); if(m) m.classList.toggle('show'); }

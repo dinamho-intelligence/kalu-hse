@@ -81,7 +81,10 @@ const CSS = `
 .kc-band .t2{font-size:13px;color:var(--kc-ink2);margin-top:2px}
 .kc-cts{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--kc-rule);
  border:1px solid var(--kc-rule);border-radius:8px;overflow:hidden;margin-top:13px}
-.kc-ct{background:var(--kc-card2);padding:9px 4px;text-align:center}
+.kc-ct{background:var(--kc-card2);padding:9px 4px;text-align:center;border:none;
+ font:inherit;color:inherit;cursor:pointer;position:relative}
+.kc-ct[aria-pressed=true]{background:var(--kc-card);box-shadow:inset 0 -3px 0 var(--kc-ac)}
+.kc-ct:focus-visible{outline:2px solid var(--kc-ac);outline-offset:-3px}
 .kc-ct b{display:block;font-family:var(--kc-fd);font-weight:700;font-size:19px;line-height:1;
  font-variant-numeric:tabular-nums}
 .kc-ct span{display:block;font-family:var(--kc-fm);font-size:8px;letter-spacing:.06em;
@@ -96,7 +99,16 @@ const CSS = `
  text-transform:uppercase;color:var(--kc-ink3);border-bottom:2px solid transparent}
 .kc-tab[aria-selected=true]{color:var(--kc-ac);border-bottom-color:var(--kc-ac)}
 .kc-tab:focus-visible{outline:2px solid var(--kc-ac);outline-offset:-3px}
-.kc-fil{display:flex;flex-wrap:wrap;gap:7px;padding:12px 16px}
+/* La franja de categorías queda pegada arriba: se cambia de categoría
+   sin tener que volver al principio de la lista. */
+.kc-fil{display:flex;flex-wrap:wrap;gap:7px;padding:12px 16px;
+ position:sticky;top:0;z-index:6;background:var(--kc-ground);
+ box-shadow:0 6px 10px -10px rgba(17,32,27,.5)}
+.kc-wide .kc-fil{position:static;box-shadow:none;background:none}
+.kc-filtro{margin:0 16px 10px;font-size:13px;color:var(--kc-ink2);
+ display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.kc-filtro button{background:none;border:none;padding:0;cursor:pointer;
+ color:var(--kc-ac);font:inherit;text-decoration:underline}
 .kc-chip{flex:0 0 auto;border:1px solid var(--kc-rule2);background:var(--kc-card);
  color:var(--kc-ink2);border-radius:999px;padding:6px 12px;cursor:pointer;
  font-size:12.5px;font-weight:500;white-space:nowrap}
@@ -334,6 +346,8 @@ function estilos() {
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente', al_dia:'Al día' };
+const EST_P = { vencida:'vencidas', por_vencer:'que están por vencer',
+                pendiente:'pendientes', al_dia:'que están al día' };
 const EJE = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
 const nodo = sel => typeof sel === 'string' ? document.querySelector(sel) : sel;
 const hoy = () => new Date();
@@ -412,7 +426,7 @@ async function pasaporte(sel, opt) {
   if (!D || !D.persona) return error(el, new Error(
     'No se encontró tu ficha. Puede que tu usuario todavía no esté vinculado a una persona.'));
 
-  let filtro = 'todas', tab = 'pas';
+  let cat = 'todas', est = null, tab = 'pas';
   const items = D.items || [], port = D.portada || {}, emp = D.empresa || {};
   marca(el, emp);
   const form = items.filter(x => x.tipo !== 'charla');
@@ -427,8 +441,9 @@ async function pasaporte(sel, opt) {
       : (port.pendientes > 0 ? 'Ninguna vencida. Están sin dictar o sin programar.'
                              : 'Toda tu formación está vigente.');
 
-    const lista = filtro === 'charla' ? charlas
-      : form.filter(x => filtro === 'todas' || x.estado === filtro);
+    const base = cat === 'charla' ? charlas
+      : form.filter(x => cat === 'todas' || (EJE_ORDEN.includes(x.eje) ? x.eje : 'otro') === cat);
+    const lista = base.filter(x => !est || x.estado === est);
 
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wrap">
@@ -437,11 +452,13 @@ async function pasaporte(sel, opt) {
         <div class="kc-nom">${esc(D.persona.nombre)}</div>
         <div class="kc-band ${cls}"><div class="m">${cls === 'ok' ? '✓' : '!'}</div>
           <div><div class="t1">${esc(t1)}</div><div class="t2">${esc(t2)}</div></div></div>
-        <div class="kc-cts">
-          <div class="kc-ct v"><b>${port.vencidas ?? 0}</b><span>Vencidas</span></div>
-          <div class="kc-ct x"><b>${port.por_vencer ?? 0}</b><span>Por vencer</span></div>
-          <div class="kc-ct"><b>${port.pendientes ?? 0}</b><span>Pendientes</span></div>
-          <div class="kc-ct a"><b>${port.al_dia ?? 0}</b><span>Al día</span></div></div>
+        <div class="kc-cts">${[
+            ['vencida','v','Vencidas',port.vencidas],
+            ['por_vencer','x','Por vencer',port.por_vencer],
+            ['pendiente','','Pendientes',port.pendientes],
+            ['al_dia','a','Al día',port.al_dia]
+          ].map(([k,c,t,n]) => `<button class="kc-ct ${c}" type="button" data-e="${k}"
+            aria-pressed="${est===k}"><b>${n ?? 0}</b><span>${t}</span></button>`).join('')}</div>
       </div>
       <div class="kc-tabs" role="tablist">
         <button class="kc-tab" data-t="pas" role="tab" aria-selected="${tab==='pas'}">Capacitaciones</button>
@@ -451,7 +468,16 @@ async function pasaporte(sel, opt) {
     </div>`;
 
     el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => { tab = b.dataset.t; pintar(); });
-    el.querySelectorAll('.kc-chip').forEach(b => b.onclick = () => { filtro = b.dataset.f; pintar(); });
+    el.querySelectorAll('.kc-chip').forEach(b => b.onclick = () => {
+      cat = b.dataset.f; pintar();
+    });
+    // Los contadores de arriba son el filtro por estado. Tocar el que
+    // ya está activo lo suelta.
+    el.querySelectorAll('.kc-ct[data-e]').forEach(b => b.onclick = () => {
+      est = (est === b.dataset.e) ? null : b.dataset.e; pintar();
+    });
+    const limpia = el.querySelector('#kc-limpia');
+    if (limpia) limpia.onclick = () => { est = null; pintar(); };
     el.querySelectorAll('.kc-it').forEach(b => {
       const abrirCerrar = ev => {
         if (ev.target.closest('.kc-go')) return;
@@ -481,7 +507,7 @@ async function pasaporte(sel, opt) {
 
   function vistaLista(lista) {
     const cont = (k, l, n) =>
-      `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${l} · ${n}</button>`;
+      `<button class="kc-chip" data-f="${k}" aria-pressed="${cat===k}">${l} · ${n}</button>`;
     const disp = new Set((D.disponibles || []).map(d => d.catalogo_id));
 
     function tarjeta(x) {
@@ -528,21 +554,26 @@ async function pasaporte(sel, opt) {
       ejes.push([e, dele.length, grupos]);
     });
 
-    const cuerpo = ejes.map(([e, n, grupos]) => `
-      <div class="kc-eje"><span>${esc(EJE_T[e] || 'Otras')}</span><i>${n}</i></div>` +
+    const cuerpo = ejes.map(([e, n, grupos]) => (ejes.length > 1 ? `
+      <div class="kc-eje"><span>${esc(EJE_T[e] || 'Otras')}</span><i>${n}</i></div>` : '') +
       grupos.map(([a, g]) => `
         <div class="kc-sub">${esc(ALC_T[a] || 'Asignadas a vos')} · ${g.length}</div>
         <div class="kc-list">${g.map(tarjeta).join('')}</div>`).join('')).join('');
 
-    return `<div class="kc-fil">
-        ${cont('todas','Formación',form.length)}
-        ${cont('vencida','Vencidas',form.filter(x=>x.estado==='vencida').length)}
-        ${cont('por_vencer','Por vencer',form.filter(x=>x.estado==='por_vencer').length)}
-        ${cont('pendiente','Pendientes',form.filter(x=>x.estado==='pendiente').length)}
-        ${cont('al_dia','Al día',form.filter(x=>x.estado==='al_dia').length)}
-        ${cont('charla','Charlas',charlas.length)}
-      </div>` +
-      (lista.length ? cuerpo : '<p class="kc-vacio">Nada en esta categoría.</p>');
+    // Las categorías son los botones de arriba: se salta de una a otra
+    // sin scrollear. El estado se filtra desde los contadores del
+    // encabezado, que ya estaban ahí y no hacían nada.
+    const cats = [['todas', 'Todas', form.length]].concat(
+      EJE_ORDEN.map(e => [e, EJE_T[e], form.filter(x => x.eje === e).length])
+               .filter(c => c[2] > 0));
+    if (charlas.length) cats.push(['charla', 'Charlas', charlas.length]);
+
+    return `<div class="kc-fil">${cats.map(([k, l, n]) => cont(k, l, n)).join('')}</div>` +
+      (est ? `<div class="kc-filtro">Mostrando sólo las <b>${esc(EST_P[est] || est)}</b>
+        <button type="button" id="kc-limpia">quitar filtro</button></div>` : '') +
+      (lista.length ? cuerpo
+        : `<p class="kc-vacio">${est ? 'No hay ' + (EST_P[est] || '') +
+            ' en esta categoría.' : 'Nada en esta categoría.'}</p>`);
   }
 
   function vistaCred() {

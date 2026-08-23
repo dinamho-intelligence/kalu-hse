@@ -1276,11 +1276,8 @@ async function admin(sel) {
     abrir(`<h3>Mapear “${esc(alias)}”</h3>
       <p>Elegí a qué cargo normalizado corresponde esta variante.</p>
       <label for="k1">Cargo</label><select id="k1">${opts()}</select>`,
-      async d => {
-        const emp = (D.personas[0] || {}).empresa_id;
-        return rpc('cap_mapear_alias', { p_empresa: emp || null,
-          p_alias: alias, p_cargo: d.querySelector('#k1').value });
-      });
+      // la empresa sale del cargo, no del navegador
+      d => rpc('cap_mapear', { p_alias: alias, p_cargo: d.querySelector('#k1').value }));
   }
 
   /* --------- capacitaciones --------- */

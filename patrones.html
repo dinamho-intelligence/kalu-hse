@@ -475,7 +475,8 @@ function renderIA(d){
     });
   }
   if(d.conclusion){ h+='<div class="intro" style="border-left:4px solid var(--nar);margin-top:14px"><b>Conclusión para dirección</b><div style="margin-top:6px;white-space:pre-wrap;line-height:1.7;color:var(--tx)">'+esc(d.conclusion)+'</div></div>'; }
-  if(!diag && !pats.length && !recs.length) h+='<div class="empty">KALU no devolvió un informe estructurado.'+(d._raw?('<br><span style="font-size:11px">'+esc(d._raw)+'</span>'):'')+'</div>';
+  if(d._raw){ h+='<div class="disclaimer" style="margin-top:10px;white-space:pre-wrap;border-left:3px solid var(--amber);padding:8px 12px;background:var(--panel);border-radius:8px"><b>Detalle técnico (lo que devolvió la IA):</b><br>'+esc(String(d._raw).slice(0,800))+'</div>'; }
+  if(!diag && !pats.length && !recs.length) h+='<div class="empty">KALU no devolvió un informe estructurado.</div>';
   $('ia').innerHTML=h;
 }
 function toggleMemo(i){ var m=$('memo'+i); if(m) m.classList.toggle('show'); }

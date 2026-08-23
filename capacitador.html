@@ -48,7 +48,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
 <script src="config.js"></script>
-<script src="capacitador.js?v=3"></script>
+<script src="capacitador.js?v=6"></script>
 
 <script>
 (async function () {
@@ -77,18 +77,25 @@
   try { quien = await KaluCap.cliente.rpc('cap_diagnostico').then(r => r.data); }
   catch (e) { return detener('No se pudo verificar tu usuario', e.message); }
 
-  if (!quien || !quien.persona_id)
+  // Quien administra el módulo no tiene por qué estar en el padrón:
+  // puede ser alguien de sistemas o de dirección que no lleva formación
+  // propia. Sin ficha no hay pasaporte, pero la administración sí entra.
+  if (!quien || (!quien.persona_id && !quien.es_admin))
     return detener('Tu usuario no está en el padrón',
       (quien && quien.sugerencia ? quien.sugerencia : '') +
       '<br><br>Hablá con el área HSE para que te vinculen.');
 
   // el menú solo muestra lo que corresponde al rol
-  let vistas = ['pasaporte'];
-  try {
-    const eq = await KaluCap.cliente.rpc('cap_mi_equipo').then(r => r.data);
-    if (eq && (eq.equipo || []).length) vistas.push('supervision');
-  } catch (e) {}
+  let vistas = [];
+  if (quien.persona_id) {
+    vistas.push('pasaporte');
+    try {
+      const eq = await KaluCap.cliente.rpc('cap_mi_equipo').then(r => r.data);
+      if (eq && (eq.equipo || []).length) vistas.push('supervision');
+    } catch (e) {}
+  }
   if (quien.es_admin) vistas.push('admin');
+  if (!vistas.length) vistas.push('pasaporte');
 
   nav.querySelectorAll('button').forEach(b => {
     if (!vistas.includes(b.dataset.v)) b.remove();
@@ -105,7 +112,7 @@
   nav.querySelectorAll('button').forEach(b => b.onclick = () => ir(b.dataset.v));
 
   const pedida = new URLSearchParams(location.search).get('v');
-  ir(vistas.includes(pedida) ? pedida : 'pasaporte');
+  ir(vistas.includes(pedida) ? pedida : vistas[0]);
 })();
 </script>
 

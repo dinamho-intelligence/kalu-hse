@@ -91,6 +91,7 @@ const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 let TOKEN=null, MYEMP=null, MYNAME=null;
 let TAR=[], ATS=[], INV=[];
+const WEBHOOK_PAT='https://dnmintell.app.n8n.cloud/webhook/kalu-patrones';
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function sbGet(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(!r.ok) throw new Error(path+' '+r.status); return r.json(); }
@@ -204,6 +205,8 @@ function render(){
   var html='';
   html+='<div class="kpis">'
     +kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
+  window._patHeur=patrones; window.PAYLOAD=buildPayload(ins);
+  html+='<div style="margin:6px 0 4px"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><div class="disclaimer">KALU lee estos patrones y te devuelve la lectura experta, la brecha real y el memo redactado — sin nombres y sin inventar datos.</div></div><div id="ia"></div>';
 
   html+='<h2 class="sec"><span>▸</span> Patrones detectados ('+patrones.length+')</h2>';
   if(!patrones.length){ html+='<div class="empty">No se detectaron patrones claros con los datos actuales. A medida que se carguen más tarjetas y eventos, KALU los va a ir encontrando.</div>'; }
@@ -273,6 +276,73 @@ function eventoCard(v,i){
     +'<div class="row"><span class="k">Contra el ATS</span><span class="verdict '+vAcls+'">ATS</span>'+esc(vA)+'</div>'
     +'<div class="row"><span class="k">Contra las tarjetas previas</span><span class="verdict '+vBcls+'">TARJETAS</span>'+esc(vB)+'</div>'
     +'</div>';
+}
+/* ---------- Fase 1.5 · KALU IA sobre los patrones ---------- */
+function buildPayload(ins){
+  var h=hoy();
+  var porCat=topPairs(tally(ins,'categoria')).slice(0,10).map(function(p){return {categoria:p[0],n:p[1]};});
+  var lugares={};
+  ins.forEach(function(t){var l=(t.lugar||'').trim();if(!l)return;(lugares[l]=lugares[l]||{ins:0,ev:0}).ins++;});
+  INV.forEach(function(v){var l=(invLugar(v)||'').trim();if(!l)return;(lugares[l]=lugares[l]||{ins:0,ev:0}).ev++;});
+  var porLugar=Object.keys(lugares).map(function(l){return {lugar:l,inseguras:lugares[l].ins,eventos:lugares[l].ev};}).sort(function(a,b){return (b.inseguras+b.eventos*3)-(a.inseguras+a.eventos*3);}).slice(0,10);
+  var d30=0,d60=0; ins.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(!d)return;var dd=diasEntre(d,h);if(dd==null)return;if(dd<=30)d30++;else if(dd<=60)d60++;});
+  var lc={}; ins.forEach(function(t){var l=(t.lugar||'').trim(),c=(t.categoria||'').trim();if(!l||!c)return;var k=l+' / '+c;(lc[k]=lc[k]||{n:0,abiertas:0});lc[k].n++;if((t.estado||'')!=='cerrada')lc[k].abiertas++;});
+  var reinc=Object.keys(lc).filter(function(k){return lc[k].n>=2;}).map(function(k){return {lugar_categoria:k,n:lc[k].n,sin_cerrar:lc[k].abiertas};});
+  var eventos=INV.slice(0,15).map(function(v){
+    var lugar=invLugar(v); var lt=toks(lugar);
+    var inf=parseInforme(v.historial);
+    var desc=String(v.descripcion||v.titulo||'')+' '+(inf?((inf.descripcion_evento&&inf.descripcion_evento.como||'')+' '+(inf.causa_inmediata||'')):'');
+    var fev=dateOf(v.fecha_evento||v.created_at);
+    var atsC=ATS.filter(function(a){return overlap(lt,toks((a.zona||'')+' '+(a.area||'')+' '+(a.tarea||'')))>=1;}).slice(0,4).map(function(a){return {tarea:a.tarea,peligros:atsPeligrosText(a).slice(0,400)};});
+    var tPrev=TAR.filter(function(t){if((t.clase||'')!=='inseguro')return false;var td=dateOf(t.creado||t.fecha);if(!td||!fev||td>=fev)return false;return overlap(lt,toks((t.lugar||'')+' '+(t.categoria||'')+' '+(t.descripcion||'')))>=1;}).slice(0,5).map(function(t){return {categoria:t.categoria,estado:t.estado,fecha:fISO(t.creado||t.fecha),desc:String(t.descripcion||'').slice(0,120)};});
+    return {id:v.inv_id||'', texto:String(desc).slice(0,500), lugar:lugar, fecha:fISO(v.fecha_evento||v.created_at), ats_candidatos:atsC, tarjetas_previas:tPrev};
+  });
+  return {
+    resumen:{tarjetas:TAR.length,inseguras:ins.length,ats:ATS.length,investigaciones:INV.length},
+    por_categoria:porCat, por_lugar:porLugar, temporal:{ultimos_30:d30, previos_30:d60},
+    reincidencia:reinc, eventos:eventos,
+    patrones_heuristicos:(window._patHeur||[]).map(function(p){return {titulo:p.ti,severidad:p.sev,evidencia:p.evid,brecha:p.brecha};})
+  };
+}
+async function profundizarIA(){
+  var b=$('btnIA'); if(!b) return; b.disabled=true; b.textContent='KALU está analizando…';
+  $('ia').innerHTML='<div class="loading">KALU IA está leyendo los patrones y redactando la lectura experta…</div>';
+  try{
+    var r=await fetch(WEBHOOK_PAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datos:window.PAYLOAD,token:TOKEN})});
+    if(!r.ok) throw new Error('http '+r.status);
+    var d=await r.json();
+    renderIA(d);
+  }catch(e){ $('ia').innerHTML='<div class="empty" style="color:#F0B04A">No me pude conectar con KALU IA. ¿Está activo el flujo de n8n <b>kalu-patrones</b> y tiene la API key cargada?<br><span style="font-size:11px">'+esc(e.message)+'</span></div>'; }
+  finally{ b.disabled=false; b.textContent='🧠 Profundizar con KALU IA'; }
+}
+function renderIA(d){
+  d=d||{};
+  var h='<h2 class="sec"><span>▸</span> 🧠 Lectura de KALU IA</h2>';
+  if(d.resumen) h+='<div class="intro" style="border-left:4px solid var(--cy)"><b>Resumen:</b> '+esc(d.resumen)+'</div>';
+  var pats=Array.isArray(d.patrones)?d.patrones:[];
+  pats.forEach(function(p,i){
+    var sev=(p.severidad==='alto'||p.severidad==='medio'||p.severidad==='bajo')?p.severidad:'medio';
+    var memo=(p.memo||('PATRÓN — '+(p.titulo||'')+'\n'+(p.evidencia||'')+'\n'+(p.accion||'')));
+    h+='<div class="pat sev-'+sev+'"><div class="top"><span class="ti">'+esc(p.titulo||'Patrón')+'</span><span class="sev sev-'+sev+'">'+esc(sev)+'</span></div>'
+      +(p.evidencia?'<div class="row"><span class="k">Evidencia</span>'+esc(p.evidencia)+'</div>':'')
+      +(p.brecha?'<div class="row"><span class="k">Brecha</span>'+esc(p.brecha)+'</div>':'')
+      +(p.accion?'<div class="row"><span class="k">Acción</span>'+esc(p.accion)+'</div>':'')
+      +'<button class="mini" onclick="toggleMemo(\'ia'+i+'\')">📋 Memo para el HSE</button>'
+      +'<div class="memo" id="memoia'+i+'">'+esc(memo)+'</div>'
+      +'</div>';
+  });
+  var evs=Array.isArray(d.eventos)?d.eventos:[];
+  if(evs.length){
+    h+='<h2 class="sec"><span>▸</span> Lectura de eventos (IA)</h2>';
+    evs.forEach(function(e){
+      h+='<div class="pat"><div class="top"><span class="ti">'+esc(e.id||'Evento')+'</span></div>'
+        +(e.veredicto_ats?'<div class="row"><span class="k">Contra el ATS</span>'+esc(e.veredicto_ats)+'</div>':'')
+        +(e.veredicto_tarjetas?'<div class="row"><span class="k">Contra las tarjetas</span>'+esc(e.veredicto_tarjetas)+'</div>':'')
+        +(e.lectura?'<div class="row">'+esc(e.lectura)+'</div>':'')+'</div>';
+    });
+  }
+  if(!pats.length && !evs.length && !d.resumen) h+='<div class="empty">KALU no devolvió un análisis estructurado.</div>';
+  $('ia').innerHTML=h;
 }
 function toggleMemo(i){ var m=$('memo'+i); if(m) m.classList.toggle('show'); }
 function copiar(btn,i){ var m=$('memo'+i); if(!m) return; var txt=m.innerText.replace(/\s*Copiar\s*$/,'').trim(); try{ navigator.clipboard.writeText(txt); btn.textContent='✓ Copiado'; setTimeout(function(){btn.textContent='Copiar';},2000); }catch(e){ btn.textContent='(copiá manual)'; } }

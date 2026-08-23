@@ -905,6 +905,9 @@ async function admin(sel) {
     }
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => dlg(b.dataset.a, b.dataset.i));
     el.querySelectorAll('[data-map]').forEach(b => b.onclick = () => dlgMapear(b.dataset.map));
+    // la ficha se abre en lugar del panel y vuelve a esta misma pestaña
+    el.querySelectorAll('[data-ficha]').forEach(b => b.onclick = () =>
+      ficha(sel, b.dataset.ficha, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -970,8 +973,9 @@ async function admin(sel) {
         <td><span class="kc-tag ${p.apto?'si':'no'}">${p.apto?'Sí':'No'}</span></td>
         <td class="n">${p.venc ?? 0}</td><td class="n">${p.tramos}</td>
         <td><div style="display:flex;gap:6px">
+          <button class="kc-mini p" data-ficha="${p.id}">Ficha</button>
           <button class="kc-mini" data-a="corregir" data-i="${p.id}">Corregir</button>
-          <button class="kc-mini p" data-a="mover" data-i="${p.id}">Mover</button></div></td>
+          <button class="kc-mini" data-a="mover" data-i="${p.id}">Mover</button></div></td>
       </tr>`).join('') + '</tbody></table></div>';
   }
 
@@ -1639,6 +1643,388 @@ async function admin(sel) {
 }
 
 /* =================================================================
+   FICHA DE PERSONA — donde HSE valida y carga soportes
+   ================================================================= */
+async function ficha(sel, personaId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando la ficha…');
+  let F;
+  try { F = await rpc('cap_ficha_datos', { p_persona: personaId }); }
+  catch (e) { return error(el, e); }
+  if (!F || !F.persona) return error(el, new Error('Esa persona no está en tu padrón.'));
+
+  const P = F.persona, H = F.habilitacion || {};
+  const puede = F.puede_editar !== false;
+  const BLQ = { ingreso: 'Vinculación', operacion: 'Operación', no: '' };
+
+  async function recargar(r) {
+    if (r && r.aviso) aviso(r.aviso);
+    await ficha(sel, personaId, opt);
+  }
+  function aviso(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+  }
+
+  function pintar() {
+    const apto = H.apto_operacion !== false;
+    const cls  = P.vigente === false ? 'cr' : (apto ? 'ok' : 'cr');
+    const tramo = (F.tramos || [])[0] || {};
+    const prog = F.progreso || {};
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:20px 0 12px">
+        <button class="kc-mini" id="kcvolver">← Volver</button>
+      </div>
+
+      <div style="border-bottom:2px solid var(--kc-ink);padding-bottom:16px;margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:8px">FICHA DE FORMACIÓN</div>
+        <h1 style="font-size:30px;font-weight:700;line-height:1.05">${esc(P.nombre)}</h1>
+        <p style="color:var(--kc-ink2);margin:6px 0 0">${esc(P.cargo || P.cargo_texto || '—')}${
+          P.cedula ? ' · <span class="mono">' + esc(P.cedula) + '</span>' : ''}${
+          P.vigente === false ? ' · <b style="color:var(--kc-cr)">no vigente</b>' : ''}</p>
+      </div>
+
+      <div class="kc-band ${cls}" style="margin-bottom:14px">
+        <div class="m">${cls === 'ok' ? '✓' : '!'}</div>
+        <div><div class="t1">${apto ? 'Apta para operar' : 'No apta para operar'}</div>
+        <div class="t2">Vinculación ${H.ok_ingreso ?? 0} de ${H.req_ingreso ?? 0} ·
+          Operación ${H.ok_operacion ?? 0} de ${H.req_operacion ?? 0}</div></div>
+      </div>
+
+      ${(F.faltante || []).length ? `<div class="kc-p1" style="margin-bottom:18px">
+        <div style="padding:13px 16px 4px"><div class="kc-tt" style="font-size:15px">
+          Qué le falta exactamente</div></div>
+        <div style="padding:0 16px 14px">${F.faltante.map(f => `<div class="kc-asig">
+          <div><b>${esc(f.codigo)}</b> · ${esc(f.titulo)}
+            <span class="kc-cd"> · ${esc(EST[f.estado] || f.estado)}</span></div>
+          <span class="kc-tag ${f.bloqueante === 'ingreso' ? 'no' : 'wa'}">${
+            esc(BLQ[f.bloqueante] || f.bloqueante)}</span>
+          ${puede ? `<button class="kc-mini p" data-val="${f.codigo}">Validar</button>` : ''}
+        </div>`).join('')}</div></div>` : ''}
+
+      <div class="kc-tabs" style="margin-bottom:18px">
+        <button class="kc-tab" data-s="form" aria-selected="true">Formación</button>
+        <button class="kc-tab" data-s="cargo" aria-selected="false">Cargo</button>
+        <button class="kc-tab" data-s="grupos" aria-selected="false">Comités y actividades</button>
+        <button class="kc-tab" data-s="puntual" aria-selected="false">Asignado a ella</button>
+      </div>
+      <div id="kc-fs"></div></div>`;
+
+    el.querySelector('#kcvolver').onclick = () =>
+      (opt && opt.volver) ? opt.volver() : admin(sel);
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      el.querySelectorAll('.kc-tab').forEach(x =>
+        x.setAttribute('aria-selected', String(x === b)));
+      seccion(b.dataset.s);
+    });
+    seccion('form');
+  }
+
+  function seccion(s) {
+    const v = el.querySelector('#kc-fs');
+    if (s === 'form')        v.innerHTML = vForm();
+    else if (s === 'cargo')  v.innerHTML = vCargo();
+    else if (s === 'grupos') v.innerHTML = vGrupos();
+    else                     v.innerHTML = vPuntual();
+    enganchar();
+  }
+
+  /* --- formación --- */
+  function vForm() {
+    const I = F.items || [];
+    if (!I.length) return '<p class="kc-vacio">No tiene ninguna capacitación asignada.</p>';
+    return '<div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>' +
+      '<th>Estado</th><th>Última vez</th><th>Vence</th><th>Soporte</th><th></th>' +
+      '</tr></thead><tbody>' + I.map(x => `<tr>
+        <td class="k">${esc(x.codigo)}${x.bloqueante && x.bloqueante !== 'no'
+          ? ` <span class="kc-tag ${x.bloqueante === 'ingreso' ? 'no' : 'wa'}">${
+              x.bloqueante === 'ingreso' ? 'ING' : 'OPE'}</span>` : ''}</td>
+        <td><div>${esc(x.titulo)}</div>
+          <div class="kc-cd" style="margin-top:2px">${esc(x.por_que_aplica || '')}</div></td>
+        <td><span class="kc-pill ${x.estado}">${esc(EST[x.estado] || x.estado)}</span></td>
+        <td class="n">${x.ultima_vez ? fecha(x.ultima_vez) : '—'}</td>
+        <td class="n">${x.vence_el ? fecha(x.vence_el) : (x.ultima_vez ? 'no vence' : '—')}</td>
+        <td>${x.soporte
+          ? '<span class="kc-tag si" title="' + esc(x.soporte) + '">Cargado</span>'
+          : '<span style="color:var(--kc-ink3);font-size:12.5px">—</span>'}</td>
+        <td>${puede ? `<div style="display:flex;gap:6px">
+          <button class="kc-mini${x.estado === 'al_dia' ? '' : ' p'}"
+            data-v2="${x.catalogo_id}">Validar</button>
+          <button class="kc-mini" data-sop="${x.catalogo_id}">Soporte</button></div>` : ''}</td>
+      </tr>`).join('') + '</tbody></table></div>';
+  }
+
+  /* --- cargo y antigüedad --- */
+  function vCargo() {
+    const t = (F.tramos || [])[0] || {};
+    const g = F.progreso || {};
+    const EDU = { bachiller:'Bachiller', tecnico:'Técnico', tecnologo:'Tecnólogo',
+                  profesional:'Profesional', especialista:'Especialista' };
+    return `<div class="kc-p1" style="margin-bottom:14px"><div style="padding:16px 18px">
+        <div class="kc-cd">TRAMO ABIERTO</div>
+        <div class="kc-tt" style="font-size:19px;margin:4px 0 8px">${esc(t.cargo || '—')}</div>
+        <p style="margin:0 0 4px;font-size:14.5px">Desde el <b>${
+          t.desde ? fecha(t.desde) : '—'}</b>${
+          g.meses_en_el_cargo != null ? ' · lleva <b>' + g.meses_en_el_cargo + ' meses</b>' : ''}</p>
+        <p style="margin:0;font-size:14px;color:var(--kc-ink2)">Origen ${
+          esc(t.origen || '—')} · Nivel educativo ${esc(EDU[t.educacion] || '—')}</p>
+        ${t.observacion ? `<p class="kc-cd" style="margin-top:8px">${esc(t.observacion)}</p>` : ''}
+        ${puede ? '<button class="kc-mini p" id="kcant" style="margin-top:12px">Corregir la antigüedad</button>' : ''}
+      </div></div>
+      ${g.cargo_siguiente ? `<div class="kc-p1" style="margin-bottom:14px"><div style="padding:16px 18px">
+        <div class="kc-cd">PRÓXIMO PELDAÑO</div>
+        <div class="kc-tt" style="font-size:17px;margin:4px 0 10px">${esc(g.cargo_siguiente)}</div>
+        <div class="kc-lks">
+          <div class="kc-lk ${g.candado_cursos?'on':'off'}"><div class="i">${g.candado_cursos?'✓':'○'}</div>
+            <div class="l">${g.cursos_cumplidos ?? 0}/${g.cursos_requeridos ?? 0} cursos</div></div>
+          <div class="kc-lk ${g.candado_tiempo?'on':'off'}"><div class="i">${g.candado_tiempo?'✓':'○'}</div>
+            <div class="l">${g.meses_faltantes ? g.meses_faltantes + ' meses' : 'tiempo'}</div></div>
+          <div class="kc-lk ${g.candado_aval?'on':'off'}"><div class="i">${g.candado_aval?'✓':'○'}</div>
+            <div class="l">aval</div></div>
+        </div></div></div>` : ''}
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Desde</th><th>Hasta</th>
+        <th>Origen</th><th>Observación</th></tr></thead><tbody>${
+        (F.tramos || []).map(x => `<tr><td class="k">${esc(x.cargo)}</td>
+          <td class="n">${fecha(x.desde)}</td>
+          <td class="n">${x.hasta ? fecha(x.hasta) : '—'}</td>
+          <td>${esc(x.origen || '—')}</td>
+          <td style="color:var(--kc-ink3);font-size:13px">${esc(x.observacion || '')}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+  }
+
+  /* --- comités y actividades --- */
+  function vGrupos() {
+    const marc = (lista, actuales, clase) => lista.length
+      ? '<div class="kc-ros">' + lista.map(x => `<div class="kc-rw chk">
+          <input type="checkbox" class="${clase}" value="${x.id}"${
+            actuales.includes(x.id) ? ' checked' : ''}${puede ? '' : ' disabled'}
+            aria-label="${esc(x.nombre)}">
+          <div class="nm">${esc(x.nombre)}<span>${x.gente} persona(s) hoy</span></div>
+        </div>`).join('') + '</div>'
+      : '<p class="kc-vacio">Nada cargado todavía.</p>';
+
+    return `<div class="kc-p1" style="margin-bottom:14px"><div style="padding:16px 18px">
+        <div class="kc-tt" style="font-size:17px;margin-bottom:4px">Comités y roles</div>
+        <p style="margin:0 0 12px;font-size:13.5px;color:var(--kc-ink2)">De acá salen las
+          capacitaciones que no dependen del cargo sino de estar en un comité.</p>
+        ${marc(F.roles_todos || [], F.roles || [], 'kcrol')}
+        ${puede ? '<button class="kc-btn" id="kcroles" style="margin-top:10px;font-size:14px;padding:9px">Guardar comités</button>' : ''}
+      </div></div>
+      <div class="kc-p1"><div style="padding:16px 18px">
+        <div class="kc-tt" style="font-size:17px;margin-bottom:4px">Actividades de riesgo</div>
+        <p style="margin:0 0 12px;font-size:13.5px;color:var(--kc-ink2)">Qué hace esta persona
+          en la práctica. Soldar, operar el puente grúa, hacer videoscopía. Cada una arrastra
+          su propia formación, aunque no esté en la descripción del cargo.</p>
+        ${marc(F.actividades_todas || [], F.actividades || [], 'kcact')}
+        ${puede ? '<button class="kc-btn" id="kcacts" style="margin-top:10px;font-size:14px;padding:9px">Guardar actividades</button>' : ''}
+      </div></div>`;
+  }
+
+  /* --- asignado puntualmente --- */
+  function vPuntual() {
+    const M = F.manuales || [];
+    return `<p style="font-size:14.5px;color:var(--kc-ink2);margin:0 0 14px;max-width:66ch">
+        Para lo que le toca a <b>esta persona</b> y no a todo su cargo: va a una plataforma
+        marina, reemplaza a alguien en el puente grúa, la piden con un curso puntual para un
+        contrato. Lleva motivo, y si querés, plazo.</p>
+      ${puede ? '<button class="kc-mini p" id="kcpunt" style="margin-bottom:14px">+ Asignar algo puntual</button>' : ''}
+      ${M.length ? '<div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>' +
+        '<th>Por qué</th><th>Plazo</th><th>Nivel</th><th></th></tr></thead><tbody>' +
+        M.map(m => `<tr><td class="k">${esc(m.codigo)}</td><td>${esc(m.titulo)}</td>
+          <td style="color:var(--kc-ink2);font-size:13.5px">${esc(m.motivo)}</td>
+          <td class="n">${m.plazo ? fecha(m.plazo) : '—'}</td>
+          <td>${m.bloqueante !== 'no'
+            ? `<span class="kc-tag ${m.bloqueante === 'ingreso' ? 'no' : 'wa'}">${
+                esc(BLQ[m.bloqueante])}</span>` : '—'}</td>
+          <td>${puede ? `<button class="kc-mini" data-quit="${m.id}">Quitar</button>` : ''}</td>
+        </tr>`).join('') + '</tbody></table></div>'
+        : '<p class="kc-vacio">No tiene nada asignado a título personal.</p>'}`;
+  }
+
+  /* --- diálogos --- */
+  function abrir(html, onOk, okTxt, ancho) {
+    const d = document.createElement('dialog');
+    if (ancho) d.className = 'ancho';
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try { const r = await onOk(d); d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  function dlgValidar(catalogoId) {
+    const it = (F.items || []).find(x => x.catalogo_id === catalogoId) || {};
+    abrir(`<h3>Validar ${esc(it.codigo || '')}</h3>
+      <p>${esc(it.titulo || '')}</p>
+      <p>Para lo que <b>ya hizo</b> y consta en un acta, una planilla o un certificado.
+         El vencimiento se calcula desde la fecha real, no desde hoy.</p>
+      <label for="k1">Fecha en que la hizo</label>
+      <input type="date" id="k1" max="${iso()}" value="${iso()}">
+      <label for="k2">En qué consta</label>
+      <input type="text" id="k2" placeholder="Ej: acta 31 de reinducción, marzo 2026">
+      <label for="k3">Enlace o ruta del soporte (opcional)</label>
+      <input type="text" id="k3" placeholder="Se puede cargar después con el botón Soporte">`,
+      d => rpc('cap_convalidar', {
+        p_catalogo: catalogoId, p_personas: [personaId],
+        p_fecha: d.querySelector('#k1').value,
+        p_soporte: d.querySelector('#k3').value || null,
+        p_motivo: d.querySelector('#k2').value }), 'Validar');
+  }
+
+  function dlgSoporte(catalogoId) {
+    const it = (F.items || []).find(x => x.catalogo_id === catalogoId) || {};
+    if (!it.ultima_vez) {
+      abrir(`<h3>Todavía no hay qué respaldar</h3>
+        <p>${esc(it.codigo || '')} · ${esc(it.titulo || '')}</p>
+        <p>Esta persona no tiene esa capacitación cumplida. Primero <b>Validar</b> con la
+           fecha real, y después subir el soporte.</p>`, () => {}, 'Entendido');
+      return;
+    }
+    const d = abrir(`<h3>Soporte de ${esc(it.codigo || '')}</h3>
+      <p>${esc(it.titulo || '')} · hecha el ${fecha(it.ultima_vez)}</p>
+      <label for="k0">Archivo</label>
+      <input type="file" id="k0" accept=".pdf,.jpg,.jpeg,.png">
+      <p id="kcsub" style="font-size:12.5px;margin:-6px 0 12px"></p>
+      <label for="k1">O pegá la ruta / enlace donde ya está</label>
+      <input type="text" id="k1" value="${esc(it.soporte || '')}" placeholder="documentos/…">
+      <label for="k2">Nombre del documento</label>
+      <input type="text" id="k2" value="${esc((it.codigo || '') + ' — ' + (it.titulo || ''))}">
+      <label for="k3">Emitido por</label>
+      <input type="text" id="k3" value="externo" placeholder="Colmena, Ingetest, interno…">`,
+      async dd => {
+        let ruta = dd.querySelector('#k1').value.trim();
+        const f = dd.querySelector('#k0').files[0];
+        if (f) ruta = await subir(f, it.codigo);
+        if (!ruta) throw new Error('Elegí un archivo o pegá la ruta donde está el documento.');
+        return rpc('cap_soporte', { p_persona: personaId, p_catalogo: catalogoId,
+          p_storage_path: ruta, p_nombre: dd.querySelector('#k2').value,
+          p_emitido_por: dd.querySelector('#k3').value });
+      }, 'Guardar el soporte');
+
+    // Subida al bucket de la plataforma. Si el bucket no deja escribir,
+    // se dice qué pasó y queda la opción de pegar la ruta a mano.
+    async function subir(file, codigo) {
+      const nota = d.querySelector('#kcsub');
+      nota.style.color = 'var(--kc-ink3)';
+      nota.textContent = 'Subiendo el archivo…';
+      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+      const ruta = 'capacitador/' + (P.empresa_id || 'sin-empresa') + '/' + personaId +
+                   '/' + (codigo || 'doc') + '-' + Date.now() + '.' + ext;
+      const st = sb && sb.storage;
+      if (!st) throw new Error('No se puede subir desde acá. Pegá la ruta del documento.');
+      const { error: e } = await st.from('documentos')
+        .upload(ruta, file, { upsert: false, contentType: file.type || undefined });
+      if (e) {
+        nota.style.color = 'var(--kc-cr)';
+        nota.textContent = 'No se pudo subir: ' + e.message +
+          ' · Guardá el documento donde lo guardan siempre y pegá acá la ruta.';
+        throw new Error('El archivo no se subió. Mirá el aviso de arriba.');
+      }
+      nota.style.color = 'var(--kc-ok)';
+      nota.textContent = 'Archivo subido.';
+      return ruta;
+    }
+  }
+
+  function dlgAntiguedad() {
+    const t = (F.tramos || [])[0] || {};
+    abrir(`<h3>Antigüedad en el cargo</h3>
+      <p>${esc(t.cargo || '')}. Usalo si la fecha estaba mal cargada. <b>No es un ascenso</b>:
+         para eso está Mover, que cierra el tramo y abre uno nuevo.</p>
+      <label for="k1">Desde cuándo está en este cargo</label>
+      <input type="date" id="k1" max="${iso()}" value="${esc(t.desde || iso())}">
+      <label for="k2">Origen</label>
+      <select id="k2">
+        <option value="interno"${t.origen === 'interno' ? ' selected' : ''}>Interno — venía de otro cargo en la empresa</option>
+        <option value="externo"${t.origen === 'externo' ? ' selected' : ''}>Externo — entró directo a este cargo</option>
+      </select>
+      <label for="k3">Nivel educativo</label>
+      <select id="k3"><option value="">— sin definir —</option>${
+        ['bachiller','tecnico','tecnologo','profesional','especialista'].map(x =>
+          `<option value="${x}"${t.educacion === x ? ' selected' : ''}>${
+            x.charAt(0).toUpperCase() + x.slice(1)}</option>`).join('')}</select>
+      <label for="k4">Motivo</label>
+      <input type="text" id="k4" placeholder="Ej: la fecha real está en el contrato">
+      <p style="font-size:12.5px">El origen y el nivel educativo cambian cuánto tiempo se le
+         pide para el próximo peldaño, tal como lo define el A.MA001.</p>`,
+      d => rpc('cap_persona_antiguedad', { p_persona: personaId,
+        p_desde: d.querySelector('#k1').value,
+        p_origen: d.querySelector('#k2').value || null,
+        p_educacion: d.querySelector('#k3').value || null,
+        p_motivo: d.querySelector('#k4').value || null }));
+  }
+
+  function dlgPuntual() {
+    abrir(`<h3>Asignar algo puntual a ${esc(P.nombre)}</h3>
+      <p>Le va a aparecer en el pasaporte como pendiente, con el motivo a la vista.</p>
+      <label for="k1">Capacitación</label>
+      <select id="k1">${(F.catalogo || []).map(c =>
+        `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.titulo)}</option>`).join('')}</select>
+      <label for="k2">Por qué a ella</label>
+      <input type="text" id="k2" placeholder="Ej: va a plataforma marina en septiembre">
+      <label for="k3">Plazo (opcional)</label>
+      <input type="date" id="k3">
+      <label for="k4">Nivel</label>
+      <select id="k4">
+        <option value="no">No bloquea — informativa</option>
+        <option value="operacion">Bloquea la operación</option>
+        <option value="ingreso">Bloquea la vinculación</option>
+      </select>`,
+      d => rpc('cap_asignar_persona', { p_persona: personaId,
+        p_catalogo: d.querySelector('#k1').value,
+        p_motivo: d.querySelector('#k2').value,
+        p_plazo: d.querySelector('#k3').value || null,
+        p_bloqueante: d.querySelector('#k4').value }), 'Asignar');
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-v2]').forEach(b => b.onclick = () => dlgValidar(b.dataset.v2));
+    el.querySelectorAll('[data-sop]').forEach(b => b.onclick = () => dlgSoporte(b.dataset.sop));
+    el.querySelectorAll('[data-val]').forEach(b => b.onclick = () => {
+      const it = (F.items || []).find(x => x.codigo === b.dataset.val);
+      if (it) dlgValidar(it.catalogo_id);
+    });
+    el.querySelectorAll('[data-quit]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Quitando…';
+      try { await rpc('cap_desasignar_persona', { p_id: b.dataset.quit });
+        await recargar({ aviso: 'Asignación quitada. Lo ya cursado queda en su historia.' }); }
+      catch (e) { b.disabled = false; b.textContent = 'Quitar'; alert(e.message); }
+    });
+    const ant = el.querySelector('#kcant'); if (ant) ant.onclick = dlgAntiguedad;
+    const pun = el.querySelector('#kcpunt'); if (pun) pun.onclick = dlgPuntual;
+
+    const gr = el.querySelector('#kcroles');
+    if (gr) gr.onclick = async () => {
+      gr.disabled = true; gr.textContent = 'Guardando…';
+      const ids = [...el.querySelectorAll('.kcrol:checked')].map(x => x.value);
+      try { const r = await rpc('cap_persona_roles', { p_persona: personaId, p_roles: ids });
+        await recargar(r); }
+      catch (e) { gr.disabled = false; gr.textContent = 'Guardar comités'; alert(e.message); }
+    };
+    const ga = el.querySelector('#kcacts');
+    if (ga) ga.onclick = async () => {
+      ga.disabled = true; ga.textContent = 'Guardando…';
+      const ids = [...el.querySelectorAll('.kcact:checked')].map(x => x.value);
+      try { const r = await rpc('cap_persona_actividades', { p_persona: personaId, p_act: ids });
+        await recargar(r); }
+      catch (e) { ga.disabled = false; ga.textContent = 'Guardar actividades'; alert(e.message); }
+    };
+  }
+
+  pintar();
+}
+
+/* =================================================================
    VERIFICAR CREDENCIAL — para el supervisor que escanea
    ================================================================= */
 async function verificar(sel, token) {
@@ -1757,7 +2143,7 @@ function init(cfg) {
   return s;
 }
 
-global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, verificar,
+global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, ficha, verificar,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B5D45">
+<meta name="robots" content="noindex, nofollow">
+<title>Verificar credencial · KALU</title>
+<style>
+  :root{color-scheme:light dark}
+  body{margin:0;background:#EEF2F0;
+       font-family:"Barlow",-apple-system,"Segoe UI",Roboto,sans-serif}
+  @media (prefers-color-scheme:dark){body{background:#0F1714}}
+
+  #marca{background:#fff;border-bottom:1px solid #DBE3DF;padding:11px 16px;
+         display:flex;align-items:center;gap:8px}
+  @media (prefers-color-scheme:dark){#marca{background:#16211D;border-color:#25332E}}
+  #marca b{font-family:"Barlow Semi Condensed",Arial,sans-serif;font-weight:700;
+           font-size:16px;color:#0B5D45}
+  #marca span{font-family:"Roboto Mono",ui-monospace,monospace;font-size:9.5px;
+              letter-spacing:.09em;text-transform:uppercase;color:#7E918B;margin-left:auto}
+
+  #aviso{margin:24px auto;max-width:440px;background:#F6DEDA;border-left:3px solid #A82D22;
+         border-radius:9px;padding:16px 18px;font-size:14.5px;color:#4B605A;line-height:1.5}
+  #aviso b{display:block;color:#A82D22;font-size:15px;margin-bottom:6px;
+           font-family:"Barlow Semi Condensed",Arial,sans-serif}
+  #carga{padding:60px 20px;text-align:center;color:#7E918B;font-size:14px}
+</style>
+</head>
+<body>
+
+<div id="marca"><b>KALU</b><span>Verificación de credencial</span></div>
+
+<div id="carga">Verificando…</div>
+<div id="v"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="capacitador.js?v=7"></script>
+
+<script>
+/* Página pública: no pide usuario. `cap_verificar` está concedida a
+   `anon`, así que el HSE del cliente escanea y ve el estado sin tener
+   cuenta en KALU. Devuelve estado, no datos. */
+(function () {
+  var carga = document.getElementById('carga');
+
+  function detener(titulo, cuerpo) {
+    carga.style.display = 'none';
+    document.getElementById('v').innerHTML =
+      '<div id="aviso"><b>' + titulo + '</b>' + cuerpo + '</div>';
+  }
+
+  if (!window.KALU || !window.supabase || !window.KaluCap)
+    return detener('No se pudo cargar la página',
+      'Faltan archivos. Recargá y si sigue igual avisá a quien te pasó el código.');
+
+  try { KaluCap.init(); }
+  catch (e) { return detener('No se pudo conectar', e.message); }
+
+  var token = new URLSearchParams(location.search).get('c');
+  carga.style.display = 'none';
+  KaluCap.verificar('#v', token);
+})();
+</script>
+
+</body>
+</html>

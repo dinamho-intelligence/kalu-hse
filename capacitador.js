@@ -145,8 +145,9 @@ const CSS = `
  text-transform:uppercase;color:var(--kc-ink3)}
 .kc-fld .v{font-family:var(--kc-fm);font-size:13px;margin-top:1px}
 .kc-fld+.kc-fld{margin-top:8px}
-.kc-qr{width:112px;height:112px;background:#fff;padding:6px;border-radius:7px;
+.kc-qr{width:134px;height:134px;background:#fff;padding:4px;border-radius:7px;
  border:1px solid var(--kc-rule)}
+@media (max-width:380px){.kc-qr{width:118px;height:118px}}
 .kc-qr svg{display:block;width:100%;height:100%}
 .kc-cfoot{border-top:1px solid var(--kc-rule);padding:11px 17px;display:flex;
  align-items:center;gap:9px;font-size:12.5px}
@@ -366,14 +367,30 @@ function marca(el, emp) {
   if (lum < 0.55) el.style.setProperty('--kc-ac', c);
 }
 
+/* La dirección que guarda el QR. Sale de dónde está publicada la
+   página, así que si mañana el módulo vive en otro dominio el código
+   sigue apuntando bien sin tocar nada. */
+function urlVerificar(token) {
+  const base = global.location
+    ? global.location.origin + global.location.pathname.replace(/[^/]*$/, '')
+    : 'https://getkalu.com/';
+  return base + 'verificar.html?c=' + encodeURIComponent(token || '');
+}
+
 function qrSvg(txt) {
   if (!global.qrcode) return `<div class="mono" style="font-size:9px;word-break:break-all">${esc(txt)}</div>`;
   const q = global.qrcode(0, 'M'); q.addData(txt); q.make();
-  const n = q.getModuleCount(); let p = '';
+  const n = q.getModuleCount();
+  // Zona de silencio: sin este margen blanco de 4 módulos alrededor, la
+  // cámara no encuentra el código. Va adentro del SVG y no en el CSS,
+  // para que no dependa de dónde se dibuje.
+  const m = 4, t = n + m * 2;
+  let p = '';
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
-    if (q.isDark(r, c)) p += `M${c} ${r}h1v1h-1z`;
-  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img"
-    aria-label="Código de la credencial"><path d="${p}" fill="#11201B"/></svg>`;
+    if (q.isDark(r, c)) p += `M${c + m} ${r + m}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges" role="img"
+    aria-label="Código de la credencial"><rect width="${t}" height="${t}" fill="#fff"/>
+    <path d="${p}" fill="#11201B"/></svg>`;
 }
 
 /* =================================================================
@@ -492,10 +509,10 @@ async function pasaporte(sel, opt) {
             <div class="kc-fld"><div class="k">Cédula</div><div class="v">${esc(D.persona.cedula||'—')}</div></div>
             <div class="kc-fld"><div class="k">Formación vigente</div>
               <div class="v">${port.al_dia ?? 0} de ${tot}</div></div>
-            <div class="kc-fld"><div class="k">Verificada</div>
+            <div class="kc-fld"><div class="k">Emitida</div>
               <div class="v">${hoy().toLocaleDateString('es-CO')}</div></div>
           </div>
-          <div class="kc-qr">${qrSvg(D.persona.token || '')}</div>
+          <div class="kc-qr">${qrSvg(urlVerificar(D.persona.token))}</div>
         </div>
       </div>
       <div class="kc-cfoot"><span class="kc-dot ${cls}"></span><span>${
@@ -503,8 +520,9 @@ async function pasaporte(sel, opt) {
         : (port.pendientes > 0 ? 'Sin vencidas · ' + port.pendientes + ' pendientes'
                                : 'Formación al día')}</span></div>
     </div>
-    <p class="kc-nota">El supervisor escanea el código y ve tu estado en tiempo real.
-      El código no guarda el estado: lo consulta.</p>`;
+    <p class="kc-nota">El supervisor escanea el código con la cámara y se le abre tu estado
+      de hoy. El código no guarda nada: lo consulta en el momento, así que una captura
+      vieja no sirve.</p>`;
   }
 
   pintar();
@@ -1625,24 +1643,74 @@ async function admin(sel) {
    ================================================================= */
 async function verificar(sel, token) {
   estilos(); const el = nodo(sel); if (!el) return;
+
+  if (!token) {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wrap"><div class="kc-hero">
+      <div class="kc-cargo">KALU · Verificación</div>
+      <div class="kc-nom">Escaneá una credencial</div>
+      <p style="color:var(--kc-ink2);font-size:14.5px;margin:14px 0 0">
+        Esta página muestra si una persona está habilitada para operar. Se abre sola
+        al escanear el código de su credencial con la cámara del celular.</p>
+      <p class="kc-nota" style="text-align:left;margin:16px 0 0">No hace falta tener
+        usuario de KALU.</p>
+    </div></div>`;
+    return;
+  }
+
   cargando(el, 'Verificando…');
   let r;
   try { r = await rpc('cap_verificar', { p_token: token }); } catch (e) { return error(el, e); }
+
   if (!r || !r.valido) {
     el.className = 'kc';
-    el.innerHTML = `<div class="kc-err"><b>Credencial no válida</b>Ese código no corresponde a nadie.</div>`;
+    el.innerHTML = `<div class="kc-wrap"><div class="kc-hero">
+      <div class="kc-band cr"><div class="m">!</div>
+        <div><div class="t1">Credencial no válida</div>
+        <div class="t2">Ese código no corresponde a ninguna persona.</div></div></div>
+      <p class="kc-nota" style="text-align:left;margin-top:14px">Puede ser un código
+        viejo, mal escaneado, o de otra plataforma. Pedí que abran la credencial de
+        nuevo desde KALU.</p></div></div>`;
     return;
   }
-  const cls = r.apto_operacion ? 'ok' : 'cr';
+
+  // La baja de la persona manda sobre cualquier otra cosa.
+  const baja = !r.vigente;
+  const cls  = baja ? 'cr' : (r.apto_operacion ? 'ok' : 'cr');
+  const t1   = baja ? 'No vigente'
+                    : (r.apto_operacion ? 'Apto para operar' : 'No apto para operar');
+  const t2   = baja ? 'Esta persona ya no figura activa en la empresa.'
+                    : (r.apto_operacion
+                        ? 'Tiene al día toda la formación que su cargo exige.'
+                        : [r.vencidas ? r.vencidas + ' vencida(s)' : null,
+                           r.pendientes ? r.pendientes + ' sin registro' : null]
+                          .filter(Boolean).join(' · ') || 'Le falta formación obligatoria.');
+
+  const ct = (n, t, c) => `<div class="kc-ct ${c}"><b>${n}</b><span>${t}</span></div>`;
+
   el.className = 'kc';
-  el.innerHTML = `<div class="kc-wrap"><div class="kc-hero">
-    <div class="kc-cargo">${esc(r.cargo)}</div>
-    <div class="kc-nom">${esc(r.nombre)}</div>
-    <div class="kc-band ${cls}"><div class="m">${r.apto_operacion?'✓':'!'}</div>
-      <div><div class="t1">${r.apto_operacion ? 'Apto para operar' : 'No apto'}</div>
-      <div class="t2">${r.vencidas} vencida(s) · ${r.pendientes} pendiente(s)</div></div></div>
-    <p class="kc-nota">Verificado el ${new Date(r.verificado).toLocaleString('es-CO')}</p>
-  </div></div>`;
+  el.innerHTML = `<div class="kc-wrap">
+    <div class="kc-hero">
+      <div class="kc-cargo">${esc(r.empresa || '')}</div>
+      <div class="kc-nom">${esc(r.nombre)}</div>
+      <div style="font-size:14px;color:var(--kc-ink2);margin:-9px 0 15px">${
+        esc(r.cargo || '')}${r.cedula ? ' · <span class="mono">' + esc(r.cedula) + '</span>' : ''}</div>
+      <div class="kc-band ${cls}"><div class="m">${cls === 'ok' ? '✓' : '!'}</div>
+        <div><div class="t1">${t1}</div><div class="t2">${esc(t2)}</div></div></div>
+      <div class="kc-cts">
+        ${ct(r.vencidas ?? 0,   'Vencidas',   'v')}
+        ${ct(r.por_vencer ?? 0, 'Por vencer', 'x')}
+        ${ct(r.pendientes ?? 0, 'Pendientes', '')}
+        ${ct(r.al_dia ?? 0,     'Al día',     'a')}
+      </div>
+    </div>
+    <p class="kc-nota" style="text-align:left">Consultado el ${
+      new Date(r.verificado).toLocaleString('es-CO')}. Este estado se calcula en el
+      momento: no es una captura ni un archivo guardado.</p>
+    <p class="kc-nota" style="text-align:left;margin-top:-4px">«No apto» no significa que
+      la persona no pueda estar en el sitio: significa que le falta formación que su
+      cargo exige. La decisión de asignarle o no la tarea la toma quien supervisa.</p>
+  </div>`;
 }
 
 /* ------------------------------------------------------------------ init

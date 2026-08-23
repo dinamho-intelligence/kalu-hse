@@ -108,8 +108,12 @@ async function login(){
     const pf=await sbGet('perfiles?select=nombre,email,rol,empresa_id,estado,acceso_consola,es_super&id=eq.'+(d.user&&d.user.id));
     const p0=(pf&&pf[0])||{};
     if(p0.estado && p0.estado!=='activo'){ e.textContent='Tu cuenta está inactiva.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
-    const ok=(p0.rol==='hse'||p0.rol==='supervisor'||p0.rol==='admin'||p0.acceso_consola===true||p0.es_super===true);
-    if(!ok){ e.textContent='Acceso solo para HSE y supervisores.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
+    // Inteligencia sensible: solo Coordinador HSE (líder), Dirección/gerencia, Admin o Super.
+    var lider=false, direccion=false;
+    try{ var r1=await fetch(SB_URL+'/rest/v1/rpc/soy_hse_lider',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); lider=((await r1.json())===true); }catch(_){}
+    try{ var r2=await fetch(SB_URL+'/rest/v1/rpc/soy_direccion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); direccion=((await r2.json())===true); }catch(_){}
+    const ok=(p0.es_super===true || p0.rol==='admin' || lider || direccion);
+    if(!ok){ e.textContent='Acceso solo para Coordinador HSE, Dirección o Admin.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
     MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||email;
     $('who').textContent=MYNAME;
     $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');

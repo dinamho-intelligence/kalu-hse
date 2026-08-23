@@ -151,85 +151,62 @@ function tally(arr,key){ var m={}; arr.forEach(function(r){ var k=r[key]; if(k==
 function topPairs(m){ return Object.keys(m).map(function(k){return [k,m[k]];}).sort(function(a,b){return b[1]-a[1];}); }
 function render(){
   var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';});
+  var meta=_metaDatos(); window._META=meta;
+  var RISK=riskTable(); window._RISK=RISK;
   var patrones=[];
 
-  // 1) Categorías calientes (tarjetas inseguras)
+  // 1) Categorías calientes
   topPairs(tally(ins,'categoria')).forEach(function(p){
     if(p[1]>=3){
       var sinCerrar=ins.filter(function(t){return (t.categoria||'')===p[0] && (t.estado||'')!=='cerrada';}).length;
-      patrones.push({
-        sev: p[1]>=6?'alto':(p[1]>=4?'medio':'bajo'),
-        ti:'Concentración en "'+p[0]+'"',
-        evid: p[1]+' tarjetas inseguras de esta categoría'+(sinCerrar?(' · '+sinCerrar+' todavía sin cerrar'):''),
-        brecha: sinCerrar>p[1]/2 ? 'Cumplimiento / cierre (se detecta pero no se corrige a tiempo)' : 'Foco de riesgo recurrente en esta categoría',
-        accion:'Revisar los controles de "'+p[0]+'" y priorizar el cierre de las pendientes.',
-        dim:'categoria'
-      });
+      patrones.push({ sev:p[1]>=6?'alto':(p[1]>=4?'medio':'bajo'), ti:'Concentración en "'+p[0]+'"',
+        evid:p[1]+' tarjetas inseguras de categoría "'+p[0]+'"'+(sinCerrar?(' · '+sinCerrar+' sin cerrar'):''),
+        brecha:(sinCerrar>p[1]/2?'Cumplimiento / cierre (se detecta pero no se corrige a tiempo)':'Foco de riesgo recurrente en esta categoría'),
+        accion:'Revisar los controles de "'+p[0]+'" y priorizar el cierre de las pendientes.', dim:'categoria' });
     }
   });
-
-  // 2) Lugares calientes (inseguras + eventos)
-  var porLugar={};
-  ins.forEach(function(t){ var l=(t.lugar||'').trim(); if(!l) return; (porLugar[l]=porLugar[l]||{ins:0,ev:0}); porLugar[l].ins++; });
-  INV.forEach(function(v){ var l=(invLugar(v)||'').trim(); if(!l) return; (porLugar[l]=porLugar[l]||{ins:0,ev:0}); porLugar[l].ev++; });
-  Object.keys(porLugar).map(function(l){return [l,porLugar[l]];}).sort(function(a,b){return (b[1].ins+b[1].ev*3)-(a[1].ins+a[1].ev*3);}).forEach(function(p){
-    var tot=p[1].ins+p[1].ev;
-    if(tot>=3 || p[1].ev>=1 && p[1].ins>=2){
-      patrones.push({
-        sev: p[1].ev>=1?'alto':(tot>=5?'medio':'bajo'),
-        ti:'Zona caliente: '+p[0],
-        evid: p[1].ins+' tarjetas inseguras'+(p[1].ev?(' y '+p[1].ev+' investigación(es) de accidente'):'')+' en este lugar',
-        brecha: p[1].ev? 'Zona con eventos Y señales previas: brecha de supervisión/control en el sitio' : 'Acumulación de condiciones inseguras en un mismo lugar',
-        accion:'Inspección focalizada en '+p[0]+' y verificación de controles de las tareas de esa zona.',
-        dim:'lugar'
-      });
-    }
+  // 2) Zonas calientes (desde el índice, ya canónico)
+  RISK.filter(function(r){return (r.ins>=3)||(r.ev>=1 && r.ins>=2);}).slice(0,8).forEach(function(r){
+    patrones.push({ sev:r.ev>=1?'alto':(r.ins>=5?'medio':'bajo'), ti:'Zona caliente: '+r.zona,
+      evid:r.ins+' inseguras'+(r.ev?(' y '+r.ev+' investigación(es) de accidente'):'')+(r.problema?(' · problema principal: "'+r.problema+'"'+(r.problema_n>1?(' ('+r.problema_n+' veces)'):'')):''),
+      brecha:(r.ev?'Zona con eventos y señales previas: brecha de supervisión/control':'Acumulación de condiciones inseguras en el mismo lugar'),
+      accion:'Inspección focalizada en '+r.zona+' y verificación de controles.', dim:'lugar' });
   });
-
-  // 3) Racha reciente (últimos 30 días vs 30 anteriores)
-  var h=hoy(); var d30=0,d60=0;
-  ins.forEach(function(t){ var d=dateOf(t.creado||t.fecha); if(!d) return; var dd=diasEntre(d,h); if(dd==null) return; if(dd<=30) d30++; else if(dd<=60) d60++; });
-  if(d30>=3 && d30 > d60){
-    patrones.push({ sev: d30>=d60*2?'alto':'medio', ti:'Racha en aumento (últimos 30 días)',
-      evid: d30+' inseguras en los últimos 30 días vs '+d60+' en los 30 anteriores',
+  // 3) Racha (SOLO si NO es el primer período en KALU)
+  if(!meta.base){
+    var h=hoy(),d30=0,d60=0;
+    ins.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(!d)return;var dd=diasEntre(d,h);if(dd==null)return;if(dd<=30)d30++;else if(dd<=60)d60++;});
+    if(d30>=3 && d30>d60){ patrones.push({ sev:d30>=d60*2?'alto':'medio', ti:'Racha en aumento (últimos 30 días)',
+      evid:d30+' inseguras en los últimos 30 días vs '+d60+' en los 30 anteriores',
       brecha:'Deterioro reciente — algo cambió (personal nuevo, ritmo, tarea nueva)',
-      accion:'Revisar qué cambió en el último mes y reforzar la supervisión.', dim:'temporal' });
+      accion:'Revisar qué cambió en el último mes y reforzar la supervisión.', dim:'temporal' }); }
   }
+  // 4) Reincidencia (explícita: QUÉ problema y cuántas veces)
+  RISK.filter(function(r){return (r.problema_n>=2) && r.problema;}).slice(0,8).forEach(function(r){
+    patrones.push({ sev:r.abiertas>=2?'alto':'medio', ti:'Reincidencia en '+r.zona,
+      evid:'"'+r.problema+'" se repite '+r.problema_n+' veces en '+r.zona+(r.abiertas?(' · '+r.abiertas+' sin cerrar'):''),
+      brecha:'El mismo problema vuelve en el mismo lugar — el control aplicado no es duradero',
+      accion:'Solución de fondo (ingeniería/procedimiento) para "'+r.problema+'" en '+r.zona+'.', dim:'reincidencia' });
+  });
 
-  // 4) Reincidencia lugar + categoría
-  var lc={};
-  ins.forEach(function(t){ var l=(t.lugar||'').trim(), c=(t.categoria||'').trim(); if(!l||!c) return; var k=l+' ⁄ '+c; (lc[k]=lc[k]||{n:0,abiertas:0}); lc[k].n++; if((t.estado||'')!=='cerrada') lc[k].abiertas++; });
-  Object.keys(lc).forEach(function(k){ var o=lc[k]; if(o.n>=3){
-    patrones.push({ sev:o.abiertas>=2?'alto':'medio', ti:'Reincidencia: '+k,
-      evid:o.n+' inseguras del mismo tipo en el mismo lugar'+(o.abiertas?(' · '+o.abiertas+' sin cerrar'):''),
-      brecha:'El problema se repite en el mismo punto — el control aplicado no es duradero',
-      accion:'Solución de fondo (ingeniería/procedimiento), no solo corrección puntual, en '+k.split(' ⁄ ')[0]+'.', dim:'reincidencia' });
-  }});
-
-  // ----- Render patrones -----
-  var html='';
-  html+='<div class="kpis">'
-    +kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
   window._patHeur=patrones;
-  var RISK=riskTable(); window._RISK=RISK;
-  html+=riskSectionHTML(RISK);
   window.PAYLOAD=buildPayload(ins,RISK);
-  html+='<div style="margin:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><button class="bigbtn" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div><div class="disclaimer" style="margin-bottom:8px">El índice, la tendencia y la proyección salen del motor (números reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.</div><div id="ia"></div>';
+
+  var html='';
+  html+='<div class="kpis">'+kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
+  if(meta.base){ html+='<div class="disclaimer" style="border-left:3px solid var(--cy);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">📅 <b style="color:var(--tx)">Primer período en KALU</b> — los datos arrancan el '+esc(meta.inicio||'—')+' ('+meta.dias+' días de operación). No hay base de comparación previa: lo que se ve NO es "deterioro", es la línea base en construcción.</div>'; }
+  html+=riskSectionHTML(RISK);
+  html+='<div style="margin:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><button class="bigbtn" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div><div class="disclaimer" style="margin-bottom:8px">Los números salen del motor (reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.</div><div id="ia"></div>';
 
   html+='<h2 class="sec"><span>▸</span> Patrones detectados ('+patrones.length+')</h2>';
-  if(!patrones.length){ html+='<div class="empty">No se detectaron patrones claros con los datos actuales. A medida que se carguen más tarjetas y eventos, KALU los va a ir encontrando.</div>'; }
-  else {
-    patrones.sort(function(a,b){ var o={alto:0,medio:1,bajo:2}; return o[a.sev]-o[b.sev]; });
-    patrones.forEach(function(p,i){ html+=patCard(p,i); });
-  }
+  if(!patrones.length){ html+='<div class="empty">No se detectaron patrones claros con los datos actuales.</div>'; }
+  else { patrones.sort(function(a,b){var o={alto:0,medio:1,bajo:2};return o[a.sev]-o[b.sev];}); patrones.forEach(function(p,i){ html+=patCard(p,i); }); }
 
-  // ----- Triangulación por evento (el cruce evento↔ATS↔tarjeta) -----
   html+='<h2 class="sec"><span>▸</span> ¿Lo vimos venir? · cruce de cada investigación con ATS y tarjetas</h2>';
   if(!INV.length){ html+='<div class="empty">No hay investigaciones cargadas para cruzar.</div>'; }
   else { INV.forEach(function(v,i){ html+=eventoCard(v,i); }); }
 
-  html+='<div class="disclaimer" style="margin-top:20px">Análisis preliminar por coincidencia de lugar, categoría y palabras clave. KALU orienta; el veredicto final lo pone el HSE. En una próxima fase esto se afina con IA y se suman turno y experiencia del personal.</div>';
-
+  html+='<div class="disclaimer" style="margin-top:20px">Análisis preliminar por coincidencia de lugar, categoría y palabras clave. KALU orienta; el veredicto final lo pone el HSE.</div>';
   $('out').innerHTML=html;
 }
 function kpi(n,l){ return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
@@ -288,9 +265,18 @@ function eventoCard(v,i){
 /* ---------- Motor de índice de riesgo / tendencia / proyección / probabilidad ---------- */
 function _spanMeses(){ var ds=[]; TAR.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(d)ds.push(d.getTime());}); INV.forEach(function(v){var d=dateOf(v.fecha_evento||v.created_at);if(d)ds.push(d.getTime());}); if(!ds.length) return 1; var min=new Date(Math.min.apply(null,ds)); var m=diasEntre(min,hoy())/30; return Math.max(1,m); }
 function _esVencida(t){ if((t.estado||'')==='cerrada') return false; var fl=dateOf(t.fecha_limite); if(!fl) return false; return diasEntre(hoy(),fl)<0; }
+/* Normalización provisoria de zonas: junta duplicados obvios (Área/Zona de lavado -> lavado) */
+var _ZNOISE={area:1,zona:1,sector:1,sitio:1,lugar:1,el:1,la:1,los:1,las:1,de:1,del:1,en:1};
+function _zonaKey(l){ l=(l==null?'':String(l)).trim(); if(!l) return '(sin lugar)'; var t=norm(l).replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(function(w){return w && !_ZNOISE[w];}); var k=t.join(' ').trim(); return k||'(sin lugar)'; }
+function _repLabel(lab){ var best='',n=-1; Object.keys(lab||{}).forEach(function(k){ if(lab[k]>n){n=lab[k];best=k;} }); return best||'(sin lugar)'; }
+function _topCat(cats){ var best='',n=0; Object.keys(cats||{}).forEach(function(k){ if(cats[k]>n){n=cats[k];best=k;} }); return best?{cat:best,n:n}:null; }
+/* Meta: desde cuándo hay datos en KALU (para no confundir "arranque" con "deterioro") */
+function _metaDatos(){ var ds=[]; TAR.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(d)ds.push(d.getTime());}); INV.forEach(function(v){var d=dateOf(v.fecha_evento||v.created_at);if(d)ds.push(d.getTime());}); var ini=ds.length?new Date(Math.min.apply(null,ds)):null; var dias=ini?diasEntre(ini,hoy()):0; return {inicio: ini?ini.toISOString().slice(0,10):null, dias:dias, base:(ds.length? dias<=45 : true), registros: TAR.length+INV.length+ATS.length}; }
+/* Lo positivo, cuantificado */
+function _positivo(){ var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';}); var seg=TAR.filter(function(t){return (t.clase||'')==='seguro';}).length; var cerr=ins.filter(function(t){return (t.estado||'')==='cerrada';}); var pct=ins.length?Math.round(cerr.length/ins.length*100):0; var difs=cerr.map(function(t){var c=dateOf(t.creado||t.fecha),f=dateOf(t.cerrada_at);if(!c||!f)return null;var d=diasEntre(c,f);return d>=0?d:null;}).filter(function(x){return x!=null;}); var prom=difs.length?Math.round(difs.reduce(function(a,b){return a+b;},0)/difs.length):null; return {seguras:seg, cerradas:cerr.length, inseguras:ins.length, pct_cierre:pct, tiempo_prom_cierre_dias:prom}; }
 function riskTable(){
   var h=hoy(); var by={};
-  function ez(z){ z=(z||'').trim()||'(sin lugar)'; return by[z]||(by[z]={zona:z,ins:0,u30:0,p30:0,abiertas:0,vencidas:0,alto:0,ev:0}); }
+  function ez(l){ var k=_zonaKey(l); var o=by[k]||(by[k]={key:k,_lab:{},ins:0,u30:0,p30:0,abiertas:0,vencidas:0,alto:0,ev:0,cats:{}}); var lab=(l==null||String(l).trim()==='')?'(sin lugar)':String(l).trim(); o._lab[lab]=(o._lab[lab]||0)+1; return o; }
   TAR.filter(function(t){return (t.clase||'')==='inseguro';}).forEach(function(t){
     var z=ez(t.lugar); z.ins++;
     var d=dateOf(t.creado||t.fecha); var dd=d?diasEntre(d,h):null;
@@ -298,26 +284,28 @@ function riskTable(){
     if((t.estado||'')!=='cerrada') z.abiertas++;
     if(_esVencida(t)) z.vencidas++;
     if(String(t.riesgo||'').toLowerCase()==='alto') z.alto++;
+    var c=(t.categoria||'').trim(); if(c) z.cats[c]=(z.cats[c]||0)+1;
   });
   INV.forEach(function(v){ ez(invLugar(v)).ev++; });
-  var meses=_spanMeses();
-  return Object.keys(by).map(function(k){ return _score(by[k],meses); }).sort(function(a,b){return b.indice-a.indice;});
+  var meses=_spanMeses(); var base=_metaDatos().base;
+  return Object.keys(by).map(function(k){ return _score(by[k],meses,base); }).sort(function(a,b){return b.indice-a.indice;});
 }
-function _score(z,meses){
+function _score(z,meses,base){
   var freq=Math.min(40,z.u30*6);
   var sev=Math.min(20,z.alto*5);
   var gest=z.ins?Math.min(20,Math.round((z.vencidas+z.abiertas*0.4)/z.ins*20)):0;
   var reinc=z.ins>=3?10:(z.ins>=2?5:0);
   var acc=z.ev>0?15:0;
   var indice=Math.min(100,Math.round(freq+sev+gest+reinc+acc));
-  var delta=z.u30-z.p30; var tend=delta>0?'up':(delta<0?'down':'flat');
+  var delta=z.u30-z.p30; var tend = base ? 'new' : (delta>0?'up':(delta<0?'down':'flat'));
   var proy=Math.round(z.u30*0.7+z.p30*0.3);
   var lambda=meses>0?z.ev/meses:0; if(lambda===0&&z.alto>0) lambda=Math.min(0.5,z.alto*0.03);
   var prob=Math.round((1-Math.exp(-lambda))*100);
   var nivel=indice>=75?'crítico':(indice>=50?'alto':(indice>=25?'medio':'bajo'));
-  return {zona:z.zona,ins:z.ins,u30:z.u30,p30:z.p30,abiertas:z.abiertas,vencidas:z.vencidas,ev:z.ev,indice:indice,nivel:nivel,tend:tend,delta:delta,proy:proy,prob:prob};
+  var tc=_topCat(z.cats);
+  return {zona:_repLabel(z._lab), problema:(tc?tc.cat:''), problema_n:(tc?tc.n:0), ins:z.ins,u30:z.u30,p30:z.p30,abiertas:z.abiertas,vencidas:z.vencidas,ev:z.ev,indice:indice,nivel:nivel,tend:tend,delta:delta,proy:proy,prob:prob};
 }
-function _tendIco(t,delta){ if(t==='up') return '<span style="color:#FF8A82;font-weight:700">▲ +'+delta+'</span>'; if(t==='down') return '<span style="color:#4FD98B;font-weight:700">▼ '+delta+'</span>'; return '<span style="color:var(--tx3)">→</span>'; }
+function _tendIco(t,delta){ if(t==='new') return '<span style="color:#7fd6f0;font-weight:700">nuevo</span>'; if(t==='up') return '<span style="color:#FF8A82;font-weight:700">▲ +'+delta+'</span>'; if(t==='down') return '<span style="color:#4FD98B;font-weight:700">▼ '+delta+'</span>'; return '<span style="color:var(--tx3)">→</span>'; }
 function _nivColor(n){ return n==='crítico'?'#FF3B30':(n==='alto'?'#FF8A82':(n==='medio'?'#F0B04A':'#4FD98B')); }
 function riskSectionHTML(rows){
   var top=(rows||[]).filter(function(r){return r.ins>0||r.ev>0;}).slice(0,12);
@@ -329,7 +317,7 @@ function riskSectionHTML(rows){
   top.forEach(function(r){
     var col=_nivColor(r.nivel);
     h+='<tr style="border-top:1px solid var(--line)">'
-      +'<td style="padding:8px;font-weight:700">'+esc(r.zona)+'</td>'
+      +'<td style="padding:8px;font-weight:700">'+esc(r.zona)+(r.problema?('<div style="font-size:11px;color:var(--tx3);font-weight:400">principal: '+esc(r.problema)+(r.problema_n>1?(' ×'+r.problema_n):'')+'</div>'):'')+'</td>'
       +'<td style="padding:8px;text-align:center;min-width:70px"><span style="font-weight:800;color:'+col+'">'+r.indice+'</span><div style="height:5px;background:var(--panel2);border-radius:3px;margin-top:3px"><div style="height:5px;width:'+r.indice+'%;background:'+col+';border-radius:3px"></div></div></td>'
       +'<td style="padding:8px;text-align:center;color:'+col+';font-weight:700;text-transform:uppercase;font-size:11px">'+r.nivel+'</td>'
       +'<td style="padding:8px;text-align:center">'+_tendIco(r.tend,r.delta)+'</td>'
@@ -355,11 +343,13 @@ function exportarPDF(){
   doc.setDrawColor(220,220,220); doc.line(M,y,W-M,y); y+=16;
   var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
   par('Tarjetas: '+TAR.length+'    Inseguras: '+ins+'    ATS: '+ATS.length+'    Investigaciones: '+INV.length,[30,30,30]);
+  var _m=window._META||{}; if(_m.inicio){ par('Datos desde: '+_m.inicio+' ('+_m.dias+' días en KALU)'+(_m.base?' — primer período, sin base de comparación previa.':''),[110,110,110]); }
   if(IA.diagnostico){ head('Diagnóstico ejecutivo'); par(IA.diagnostico); }
   if(IA.prioridad && (IA.prioridad.titulo||IA.prioridad.porque||IA.prioridad.accion_inmediata)){
     head('Prioridad #1'); par(IA.prioridad.titulo,[20,20,20]); if(IA.prioridad.porque) par('Por qué: '+IA.prioridad.porque); if(IA.prioridad.accion_inmediata) par('Acción inmediata: '+IA.prioridad.accion_inmediata);
   }
   if(Array.isArray(IA.alertas)&&IA.alertas.length){ head('Alertas'); IA.alertas.forEach(function(a){ par('• '+(typeof a==='string'?a:(a.texto||''))); }); }
+  if(Array.isArray(IA.logros)&&IA.logros.length){ head('Lo que está funcionando'); IA.logros.forEach(function(x){ par('• '+(typeof x==='string'?x:(x.texto||''))); }); }
   var RISK=(window._RISK||[]).filter(function(r){return r.ins>0||r.ev>0;}).slice(0,15);
   if(RISK.length){
     head('Índice de riesgo por zona');
@@ -392,13 +382,10 @@ function exportarPDF(){
 function buildPayload(ins,RISK){
   var h=hoy();
   var porCat=topPairs(tally(ins,'categoria')).slice(0,10).map(function(p){return {categoria:p[0],n:p[1]};});
-  var lugares={};
-  ins.forEach(function(t){var l=(t.lugar||'').trim();if(!l)return;(lugares[l]=lugares[l]||{ins:0,ev:0}).ins++;});
-  INV.forEach(function(v){var l=(invLugar(v)||'').trim();if(!l)return;(lugares[l]=lugares[l]||{ins:0,ev:0}).ev++;});
-  var porLugar=Object.keys(lugares).map(function(l){return {lugar:l,inseguras:lugares[l].ins,eventos:lugares[l].ev};}).sort(function(a,b){return (b.inseguras+b.eventos*3)-(a.inseguras+a.eventos*3);}).slice(0,10);
   var d30=0,d60=0; ins.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(!d)return;var dd=diasEntre(d,h);if(dd==null)return;if(dd<=30)d30++;else if(dd<=60)d60++;});
-  var lc={}; ins.forEach(function(t){var l=(t.lugar||'').trim(),c=(t.categoria||'').trim();if(!l||!c)return;var k=l+' / '+c;(lc[k]=lc[k]||{n:0,abiertas:0});lc[k].n++;if((t.estado||'')!=='cerrada')lc[k].abiertas++;});
-  var reinc=Object.keys(lc).filter(function(k){return lc[k].n>=2;}).map(function(k){return {lugar_categoria:k,n:lc[k].n,sin_cerrar:lc[k].abiertas};});
+  var RZ=(RISK||[]).filter(function(r){return r.ins>0||r.ev>0;});
+  var por_zona=RZ.slice(0,12).map(function(r){return {zona:r.zona, indice:r.indice, nivel:r.nivel, tendencia:r.tend, inseguras:r.ins, sin_cerrar:r.abiertas, vencidas:r.vencidas, eventos:r.ev, proyeccion_mes:r.proy, prob_evento_pct:r.prob, problema_principal:r.problema, problema_veces:r.problema_n};});
+  var reinc=RZ.filter(function(r){return (r.problema_n>=2)||(r.ins>=2&&r.abiertas>=1);}).slice(0,12).map(function(r){return {zona:r.zona, problema:(r.problema||'(varios)'), veces:(r.problema_n||r.ins), sin_cerrar:r.abiertas};});
   var eventos=INV.slice(0,15).map(function(v){
     var lugar=invLugar(v); var lt=toks(lugar);
     var inf=parseInforme(v.historial);
@@ -409,10 +396,14 @@ function buildPayload(ins,RISK){
     return {id:v.inv_id||'', texto:String(desc).slice(0,500), lugar:lugar, fecha:fISO(v.fecha_evento||v.created_at), ats_candidatos:atsC, tarjetas_previas:tPrev};
   });
   return {
+    meta:_metaDatos(),
     resumen:{tarjetas:TAR.length,inseguras:ins.length,ats:ATS.length,investigaciones:INV.length},
-    por_categoria:porCat, por_lugar:porLugar, temporal:{ultimos_30:d30, previos_30:d60},
-    reincidencia:reinc, eventos:eventos,
-    indices_riesgo:(RISK||[]).filter(function(r){return r.ins>0||r.ev>0;}).slice(0,12),
+    positivo:_positivo(),
+    por_categoria:porCat,
+    indices_riesgo:por_zona,
+    temporal:{ultimos_30:d30, previos_30:d60},
+    reincidencia:reinc,
+    eventos:eventos,
     patrones_heuristicos:(window._patHeur||[]).map(function(p){return {titulo:p.ti,severidad:p.sev,evidencia:p.evid,brecha:p.brecha};})
   };
 }
@@ -443,6 +434,11 @@ function renderIA(d){
   if(al.length){
     h+='<div class="pat sev-alto" style="border-left-color:var(--rojo)"><div class="top"><span class="ti">🚨 Alertas</span></div>'
       +al.map(function(a){return '<div class="row">• '+esc(typeof a==='string'?a:(a.texto||JSON.stringify(a)))+'</div>';}).join('')+'</div>';
+  }
+  var logros=(Array.isArray(d.logros)?d.logros:[]).filter(Boolean);
+  if(logros.length){
+    h+='<div class="pat sev-bajo" style="border-left-color:var(--verde)"><div class="top"><span class="ti">✅ Lo que está funcionando</span></div>'
+      +logros.map(function(x){return '<div class="row">• '+esc(typeof x==='string'?x:(x.texto||JSON.stringify(x)))+'</div>';}).join('')+'</div>';
   }
   var pats=Array.isArray(d.patrones)?d.patrones:[];
   if(pats.length) h+='<h2 class="sec"><span>▸</span> Patrones</h2>';

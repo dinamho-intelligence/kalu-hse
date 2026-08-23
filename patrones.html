@@ -287,6 +287,7 @@ function eventoCard(v,i){
 }
 /* ---------- Motor de índice de riesgo / tendencia / proyección / probabilidad ---------- */
 function _spanMeses(){ var ds=[]; TAR.forEach(function(t){var d=dateOf(t.creado||t.fecha);if(d)ds.push(d.getTime());}); INV.forEach(function(v){var d=dateOf(v.fecha_evento||v.created_at);if(d)ds.push(d.getTime());}); if(!ds.length) return 1; var min=new Date(Math.min.apply(null,ds)); var m=diasEntre(min,hoy())/30; return Math.max(1,m); }
+function _esVencida(t){ if((t.estado||'')==='cerrada') return false; var fl=dateOf(t.fecha_limite); if(!fl) return false; return diasEntre(hoy(),fl)<0; }
 function riskTable(){
   var h=hoy(); var by={};
   function ez(z){ z=(z||'').trim()||'(sin lugar)'; return by[z]||(by[z]={zona:z,ins:0,u30:0,p30:0,abiertas:0,vencidas:0,alto:0,ev:0}); }
@@ -295,7 +296,7 @@ function riskTable(){
     var d=dateOf(t.creado||t.fecha); var dd=d?diasEntre(d,h):null;
     if(dd!=null){ if(dd<=30)z.u30++; else if(dd<=60)z.p30++; }
     if((t.estado||'')!=='cerrada') z.abiertas++;
-    if(semTarjeta(t).cls==='sem-bad') z.vencidas++;
+    if(_esVencida(t)) z.vencidas++;
     if(String(t.riesgo||'').toLowerCase()==='alto') z.alto++;
   });
   INV.forEach(function(v){ ez(invLugar(v)).ev++; });

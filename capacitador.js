@@ -838,6 +838,12 @@ async function admin(sel) {
       <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:6px">
         <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · ADMINISTRACIÓN</div>
         <h1 style="font-size:30px;font-weight:700">Capacitador</h1></div>
+      ${D.puede_editar === false ? `<div class="kc-cent" style="background:var(--kc-card2)">
+        <div class="b" style="background:var(--kc-ink3)">👁</div><div>
+        <div class="kc-tt" style="font-size:15px">Estás mirando, no editando</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Tu acceso al módulo es de sólo lectura.
+          Para poder cambiar cosas, en <b>Accesos → HSE</b> hay que ponerte nivel
+          «Ver y modificar».</div></div></div>` : ''}
       ${tab <= 2 ? `<div class="kc-cent ${sm?'mal':'ok'}"><div class="b">${sm||'✓'}</div><div>
         <div class="kc-tt" style="font-size:15px;color:${sm?'var(--kc-cr)':'var(--kc-ok)'}">${
           sm ? sm+' persona(s) con el cargo sin mapear' : 'Todos los cargos mapeados'}</div>
@@ -872,6 +878,13 @@ async function admin(sel) {
   }
 
   function enganchar(v) {
+    // Sólo lectura: se ven los datos, no los botones que escriben.
+    if (D.puede_editar === false) {
+      el.querySelectorAll('[data-a],[data-c],[data-e],[data-map]').forEach(b => {
+        if (b.dataset.e === 'lista') { b.textContent = 'Ver lista'; return; }
+        b.remove();
+      });
+    }
     el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => dlg(b.dataset.a, b.dataset.i));
     el.querySelectorAll('[data-map]').forEach(b => b.onclick = () => dlgMapear(b.dataset.map));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
@@ -1021,7 +1034,15 @@ async function admin(sel) {
 
     if (nuevo) return;
 
+    // Quitar una variante con gente detrás deja a esa gente sin plan de
+    // formación. Se pregunta antes, no después.
     d.querySelectorAll('[data-q]').forEach(b => b.onclick = async () => {
+      const v = (c.variantes || []).find(x => x.id === b.dataset.q) || {};
+      if (v.gente > 0 && !confirm(
+            v.gente + ' persona(s) tienen el cargo escrito exactamente «' + v.alias +
+            '» en el padrón.\n\nSi quitás esta variante, el sistema deja de reconocerlas y ' +
+            'quedan sin plan de formación por cargo hasta que las vuelvas a mapear.\n\n¿Seguimos?'))
+        return;
       b.disabled = true; b.textContent = 'Quitando…';
       try { const r = await rpc('cap_alias_quitar', { p_alias_id: b.dataset.q });
         d.close(); d.remove(); await recargar(r); }

@@ -602,7 +602,8 @@ var NOTIF=null;
 var NOTIF_MODS=[
   {k:'tarjetas_diario',       t:'📋 Tarjetas · cierre diario',       d:'Resumen diario con las tarjetas del día.'},
   {k:'ats_aprobacion',        t:'🦺 ATS · esperando aprobación',     d:'Aviso cuando un ATS queda esperando la aprobación del HSE (después del supervisor).'},
-  {k:'investigacion_iniciada',t:'🔎 Investigación · iniciada',       d:'Aviso cuando se inicia una investigación.'}
+  {k:'investigacion_iniciada',t:'🔎 Investigación · iniciada',       d:'Aviso cuando se inicia una investigación.'},
+  {k:'patrones_direccion',    t:'🧠 Patrones · alerta a Dirección',  d:'Correos de dirección/gerencia que reciben el aviso cuando KALU detecta un patrón fuerte.'}
 ];
 async function loadNotif(){
   $('notifLoading').style.display='';

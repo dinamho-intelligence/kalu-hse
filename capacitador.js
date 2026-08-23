@@ -103,6 +103,14 @@ const CSS = `
 .kc-chip[aria-pressed=true]{background:var(--kc-ac);border-color:var(--kc-ac);color:var(--kc-ground)}
 
 /* --- lista de capacitaciones --- */
+.kc-eje{display:flex;align-items:center;gap:10px;margin:22px 16px 2px;
+ font-family:var(--kc-fd);font-weight:700;font-size:17px;letter-spacing:-.01em}
+.kc-eje:first-child{margin-top:6px}
+.kc-eje span{flex:0 0 auto}
+.kc-eje::after{content:'';flex:1;height:2px;background:var(--kc-ink);opacity:.14}
+.kc-eje i{font-family:var(--kc-fm);font-style:normal;font-size:11px;color:var(--kc-ink3)}
+.kc-sub{margin:13px 16px 7px;font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.09em;
+ text-transform:uppercase;color:var(--kc-ink3)}
 .kc-list{padding:0 16px;display:flex;flex-direction:column;gap:9px}
 .kc-it{background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:9px;
  box-shadow:var(--kc-sh);overflow:hidden;display:flex;text-align:left;width:100%;
@@ -126,7 +134,7 @@ const CSS = `
 .kc-it.open .kc-why{display:block}
 .kc-why b{font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.06em;
  text-transform:uppercase;color:var(--kc-ink3);display:block;margin-bottom:3px;font-weight:500}
-.kc-go{margin-top:9px;background:var(--kc-ac);color:var(--kc-ground);border:none;
+.kc-go{display:block;margin-top:11px;background:var(--kc-ac);color:var(--kc-ground);border:none;
  border-radius:7px;padding:9px 14px;font-family:var(--kc-fd);font-weight:600;
  font-size:14px;cursor:pointer}
 .kc-vacio{text-align:center;color:var(--kc-ink3);padding:36px 20px;font-size:14px}
@@ -444,9 +452,16 @@ async function pasaporte(sel, opt) {
 
     el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => { tab = b.dataset.t; pintar(); });
     el.querySelectorAll('.kc-chip').forEach(b => b.onclick = () => { filtro = b.dataset.f; pintar(); });
-    el.querySelectorAll('.kc-it').forEach(b => b.onclick = ev => {
-      if (ev.target.closest('.kc-go')) return;
-      b.classList.toggle('open');
+    el.querySelectorAll('.kc-it').forEach(b => {
+      const abrirCerrar = ev => {
+        if (ev.target.closest('.kc-go')) return;
+        b.classList.toggle('open');
+        b.setAttribute('aria-expanded', String(b.classList.contains('open')));
+      };
+      b.onclick = abrirCerrar;
+      b.onkeydown = ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirCerrar(ev); }
+      };
     });
     el.querySelectorAll('.kc-go').forEach(b => b.onclick = ev => {
       ev.stopPropagation();
@@ -454,10 +469,71 @@ async function pasaporte(sel, opt) {
     });
   }
 
+  // El pasaporte se lee en dos niveles: primero de qué se trata
+  // (seguridad, ARL, plan de carrera) y dentro de cada uno de dónde le
+  // viene: a todos, por el cargo, por el comité, por lo que hace.
+  const EJE_T = { induccion:'Inducción', hse:'Seguridad y salud',
+                  arl:'ARL', tecnica:'Plan de carrera' };
+  const EJE_ORDEN = ['induccion','hse','arl','tecnica'];
+  const ALC_T = { todos:'Para todo el personal', cargo:'Por tu cargo',
+                  rol:'Por tu comité', actividad:'Por lo que hacés' };
+  const ALC_ORDEN = ['todos','cargo','rol','actividad'];
+
   function vistaLista(lista) {
     const cont = (k, l, n) =>
       `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${l} · ${n}</button>`;
     const disp = new Set((D.disponibles || []).map(d => d.catalogo_id));
+
+    function tarjeta(x) {
+      let meta;
+      if (x.estado === 'pendiente') meta = 'Sin registro de asistencia';
+      else if (x.estado === 'al_dia' && !x.vence_el) meta = 'Hecha el ' + fecha(x.ultima_vez) + ' · no vence';
+      else if (x.estado === 'vencida') meta = 'Venció el ' + fecha(x.vence_el) + ' · hace ' + Math.abs(dias(x.vence_el)) + ' días';
+      else if (x.estado === 'por_vencer') meta = 'Vence el ' + fecha(x.vence_el) + ' · en ' + dias(x.vence_el) + ' días';
+      else meta = 'Hecha el ' + fecha(x.ultima_vez) + ' · vence ' + fecha(x.vence_el);
+      const puede = disp.has(x.catalogo_id);
+      // div y no button: adentro va otro botón ("Hacerla ahora") y el
+      // HTML no admite botones anidados — el navegador lo expulsa de la
+      // tarjeta y queda suelto en la lista.
+      return `<div class="kc-it" role="button" tabindex="0" aria-expanded="false">
+        <div class="kc-st ${x.estado}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="kc-bd">
+            <div class="kc-r1"><span class="kc-cd">${esc(x.codigo[0])}-${esc(x.codigo.slice(1))}${
+              x.bloqueante && x.bloqueante !== 'no'
+                ? ' · ' + (x.bloqueante === 'ingreso' ? 'obligatoria' : 'para operar') : ''}</span>
+              <span class="kc-pill ${x.estado}">${EST[x.estado]}</span></div>
+            <div class="kc-tt">${esc(x.titulo)}</div>
+            <div class="kc-mt">${esc(meta)}</div>
+          </div>
+          <div class="kc-why"><b>Por qué me aplica</b>${esc(x.por_que_aplica)}
+            ${x.certificable ? ' · Genera certificado' : ''}
+            ${puede ? `<button class="kc-go" data-c="${x.catalogo_id}">${
+              x.estado === 'por_vencer' ? 'Renovarla ahora'
+                : x.estado === 'vencida' ? 'Rehacerla ahora' : 'Hacerla ahora'}</button>` : ''}
+          </div>
+        </div></div>`;
+    }
+
+    // agrupar: eje → alcance
+    const ejes = [];
+    EJE_ORDEN.concat(['otro']).forEach(e => {
+      const dele = lista.filter(x => (EJE_ORDEN.includes(x.eje) ? x.eje : 'otro') === e);
+      if (!dele.length) return;
+      const grupos = [];
+      ALC_ORDEN.concat(['otro']).forEach(a => {
+        const g = dele.filter(x => (ALC_ORDEN.includes(x.alcance) ? x.alcance : 'otro') === a);
+        if (g.length) grupos.push([a, g]);
+      });
+      ejes.push([e, dele.length, grupos]);
+    });
+
+    const cuerpo = ejes.map(([e, n, grupos]) => `
+      <div class="kc-eje"><span>${esc(EJE_T[e] || 'Otras')}</span><i>${n}</i></div>` +
+      grupos.map(([a, g]) => `
+        <div class="kc-sub">${esc(ALC_T[a] || 'Asignadas a vos')} · ${g.length}</div>
+        <div class="kc-list">${g.map(tarjeta).join('')}</div>`).join('')).join('');
+
     return `<div class="kc-fil">
         ${cont('todas','Formación',form.length)}
         ${cont('vencida','Vencidas',form.filter(x=>x.estado==='vencida').length)}
@@ -465,30 +541,8 @@ async function pasaporte(sel, opt) {
         ${cont('pendiente','Pendientes',form.filter(x=>x.estado==='pendiente').length)}
         ${cont('al_dia','Al día',form.filter(x=>x.estado==='al_dia').length)}
         ${cont('charla','Charlas',charlas.length)}
-      </div>
-      <div class="kc-list">` + (lista.length ? lista.map(x => {
-        let meta;
-        if (x.estado === 'pendiente') meta = 'Sin registro de asistencia';
-        else if (x.estado === 'al_dia' && !x.vence_el) meta = 'Hecha el ' + fecha(x.ultima_vez) + ' · no vence';
-        else if (x.estado === 'vencida') meta = 'Venció el ' + fecha(x.vence_el) + ' · hace ' + Math.abs(dias(x.vence_el)) + ' días';
-        else if (x.estado === 'por_vencer') meta = 'Vence el ' + fecha(x.vence_el) + ' · en ' + dias(x.vence_el) + ' días';
-        else meta = 'Hecha el ' + fecha(x.ultima_vez) + ' · vence ' + fecha(x.vence_el);
-        const puede = disp.has(x.catalogo_id);
-        return `<button class="kc-it" type="button">
-          <div class="kc-st ${x.estado}"></div>
-          <div style="flex:1;min-width:0">
-            <div class="kc-bd">
-              <div class="kc-r1"><span class="kc-cd">${esc(x.codigo[0])}-${esc(x.codigo.slice(1))} · ${EJE[x.eje]||x.eje}</span>
-                <span class="kc-pill ${x.estado}">${EST[x.estado]}</span></div>
-              <div class="kc-tt">${esc(x.titulo)}</div>
-              <div class="kc-mt">${esc(meta)}</div>
-            </div>
-            <div class="kc-why"><b>Por qué me aplica</b>${esc(x.por_que_aplica)}
-              ${x.certificable ? ' · Genera certificado' : ''}
-              ${puede ? `<button class="kc-go" data-c="${x.catalogo_id}">Hacerla ahora</button>` : ''}
-            </div>
-          </div></button>`;
-      }).join('') : '<p class="kc-vacio">Nada en esta categoría.</p>') + `</div>`;
+      </div>` +
+      (lista.length ? cuerpo : '<p class="kc-vacio">Nada en esta categoría.</p>');
   }
 
   function vistaCred() {
@@ -544,8 +598,38 @@ async function curso(sel, catalogoId, opt) {
     pant[pant.length - 1].push(b);
   });
   const Q = C.preguntas || [];
-  let i = 0, resp = {}, fin = null, enviando = false;
   const TOT = pant.length + Q.length;
+  // Retoma donde dejó. El avance se guarda solo, así que puede cerrar
+  // el celular en el bloque 9 y seguir mañana desde otro aparato.
+  let resp = Object.assign({}, C.respuestas || {});
+  let i = Math.min(Math.max(0, C.posicion | 0), Math.max(0, TOT - 1));
+  let retomado = i > 0 || Object.keys(resp).length > 0;
+  let fin = null, enviando = false, guardando = false;
+
+  // Fire and forget: si falla, el curso sigue igual. Lo peor que puede
+  // pasar es perder el último paso, no interrumpir a quien está leyendo.
+  let ultimo = -1;
+  function guardar() {
+    if (!C.intento_id || i === ultimo) return;
+    ultimo = i; guardando = true; sello();
+    rpc('cap_guardar_avance', { p_intento: C.intento_id, p_posicion: i, p_respuestas: resp })
+      .then(() => { guardando = false; C.guardado_en = new Date().toISOString(); sello(); })
+      .catch(() => { guardando = false; sello(); });
+  }
+  function avisoRetomado() {
+    if (!retomado) return '';
+    retomado = false;
+    return `<div class="kc-avi" style="background:var(--kc-acs);border-left-color:var(--kc-ac)">
+      Seguís donde habías dejado${C.guardado_en
+        ? ', el ' + new Date(C.guardado_en).toLocaleDateString('es-CO') : ''}.
+      Podés salir cuando quieras: el avance se guarda solo.</div>`;
+  }
+
+  function sello() {
+    const s = el.querySelector('#kc-sello');
+    if (!s) return;
+    s.textContent = guardando ? 'guardando…' : (C.guardado_en ? 'guardado' : '');
+  }
 
   function bloque(b) {
     if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
@@ -565,12 +649,20 @@ async function curso(sel, catalogoId, opt) {
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wrap">
       <div class="kc-top"><div style="display:flex;gap:10px;align-items:center;margin-bottom:9px">
-        <div style="min-width:0"><div class="kc-cd">Autoestudio · intento ${C.numero} de 2</div>
+        <div style="min-width:0"><div class="kc-cd">Autoestudio · intento ${C.numero} de 2
+          <span id="kc-sello" style="color:var(--kc-ok)"></span></div>
         <div class="kc-tt" id="kc-ct"></div></div>
-        <div class="kc-cd" style="margin-left:auto" id="kc-paso"></div></div>
+        <div style="margin-left:auto;text-align:right;flex:0 0 auto">
+          <div class="kc-cd" id="kc-paso"></div>
+          <button class="kc-mini" id="kc-salir" style="margin-top:5px">Salir</button></div></div>
         <div class="kc-bar"><i id="kc-bi"></i></div></div>
       <div class="kc-main" id="kc-m"></div>
       <div class="kc-foot"><button class="kc-btn" id="kc-b"></button></div></div>`;
+    el.querySelector('#kc-salir').onclick = () => {
+      guardar();
+      if (opt && opt.volver) opt.volver(); else pasaporte(sel);
+    };
+    sello();
     render();
   }
 
@@ -583,23 +675,25 @@ async function curso(sel, catalogoId, opt) {
 
     if (i < pant.length) {
       el.querySelector('#kc-paso').textContent = `Lectura ${i+1}/${pant.length}`;
-      m.innerHTML = pant[i].map(bloque).join('');
+      m.innerHTML = avisoRetomado() + pant[i].map(bloque).join('');
       b.disabled = false;
       b.textContent = i === pant.length - 1 ? 'Empezar las preguntas' : 'Seguir';
-      b.onclick = () => { i++; window.scrollTo(0,0); render(); };
+      b.onclick = () => { i++; guardar(); window.scrollTo(0,0); render(); };
       return;
     }
     const k = i - pant.length, q = Q[k];
     el.querySelector('#kc-paso').textContent = `Pregunta ${k+1}/${Q.length}`;
-    m.innerHTML = `<p class="kc-cd" style="margin-bottom:8px">PREGUNTA ${k+1} DE ${Q.length}</p>
+    m.innerHTML = avisoRetomado() +
+      `<p class="kc-cd" style="margin-bottom:8px">PREGUNTA ${k+1} DE ${Q.length}</p>
       <p class="kc-q">${esc(q.enunciado)}</p><div class="kc-ops">` +
       q.opciones.map(o => `<button class="kc-op" type="button" data-o="${o.id}"
         aria-pressed="${resp[q.id]===o.id}">${esc(o.texto)}</button>`).join('') + '</div>';
-    m.querySelectorAll('.kc-op').forEach(x => x.onclick = () => { resp[q.id] = x.dataset.o; render(); });
+    m.querySelectorAll('.kc-op').forEach(x => x.onclick = () => {
+      resp[q.id] = x.dataset.o; ultimo = -1; guardar(); render(); });
     b.disabled = !resp[q.id] || enviando;
     b.textContent = k === Q.length - 1 ? 'Entregar' : 'Siguiente';
     b.onclick = async () => {
-      if (k < Q.length - 1) { i++; window.scrollTo(0,0); return render(); }
+      if (k < Q.length - 1) { i++; guardar(); window.scrollTo(0,0); return render(); }
       enviando = true; b.disabled = true; b.textContent = 'Corrigiendo…';
       try { fin = await rpc('cap_entregar', { p_intento: C.intento_id, p_respuestas: resp }); }
       catch (e) { enviando = false; return error(el, e); }

@@ -3,95 +3,116 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>KALU · Capacitador (prueba)</title>
+<meta name="theme-color" content="#0B5D45">
+<title>Capacitador · KALU</title>
+<link rel="manifest" href="manifest.json">
 <style>
-  body{margin:0;background:#EEF2F0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  #diag{background:#11201B;color:#A2B4AE;padding:10px 14px;font:12px/1.6 ui-monospace,Menlo,monospace}
-  #diag b{color:#4FB894}
-  #diag .mal{color:#E58074}
-  #barra{background:#fff;border-bottom:1px solid #DBE3DF;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap}
-  #barra button{font:inherit;font-size:14px;border:1px solid #C3CFCA;background:#F5F8F6;
-    color:#11201B;border-radius:7px;padding:8px 14px;cursor:pointer}
-  #barra button.on{background:#0B5D45;border-color:#0B5D45;color:#fff}
+  :root{color-scheme:light dark}
+  body{margin:0;background:#EEF2F0;
+       font-family:"Barlow",-apple-system,"Segoe UI",Roboto,sans-serif}
+  @media (prefers-color-scheme:dark){body{background:#0F1714}}
+
+  /* barra superior: solo aparece para quien tiene más de una vista */
+  #nav{display:none;background:#fff;border-bottom:1px solid #DBE3DF;
+       padding:9px 14px;gap:7px;flex-wrap:wrap;align-items:center}
+  @media (prefers-color-scheme:dark){#nav{background:#16211D;border-color:#25332E}}
+  #nav.on{display:flex}
+  #nav .marca{font-family:"Barlow Semi Condensed",Arial,sans-serif;font-weight:700;
+       font-size:16px;color:#0B5D45;margin-right:6px}
+  #nav button{font:inherit;font-size:13.5px;border:1px solid #C3CFCA;background:#F5F8F6;
+       color:#11201B;border-radius:7px;padding:7px 13px;cursor:pointer}
+  #nav button.on{background:#0B5D45;border-color:#0B5D45;color:#fff}
+  #nav a.salir{margin-left:auto;font-size:13px;color:#7E918B;text-decoration:none}
+
+  #aviso{margin:24px auto;max-width:440px;background:#F6DEDA;border-left:3px solid #A82D22;
+       border-radius:9px;padding:16px 18px;font-size:14.5px;color:#4B605A;line-height:1.5}
+  #aviso b{display:block;color:#A82D22;font-size:15px;margin-bottom:6px;
+       font-family:"Barlow Semi Condensed",Arial,sans-serif}
+  #aviso a{color:#0B5D45;font-weight:600}
+  #carga{padding:60px 20px;text-align:center;color:#7E918B;font-size:14px}
 </style>
 </head>
 <body>
 
-<div id="diag">Comprobando…</div>
-
-<div id="barra">
-  <button data-v="pasaporte" class="on">Pasaporte (trabajador)</button>
-  <button data-v="supervision">Supervisión</button>
+<nav id="nav">
+  <span class="marca">KALU · Capacitador</span>
+  <button data-v="pasaporte" class="on">Mi pasaporte</button>
+  <button data-v="supervision">Mi equipo</button>
   <button data-v="admin">Administración</button>
-</div>
+  <a class="salir" href="app.html">Volver a módulos</a>
+</nav>
 
-<div id="capacitador"></div>
+<div id="carga">Cargando…</div>
+<div id="cap"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
 <script src="config.js"></script>
-<script src="capacitador.js?v=1"></script>
+<script src="capacitador.js?v=8"></script>
 
 <script>
 (async function () {
-  const d = document.getElementById('diag');
-  const linea = [];
-  function fin(extra) {
-    d.innerHTML = linea.join(' &nbsp;·&nbsp; ') + (extra ? '<br>' + extra : '');
+  const carga = document.getElementById('carga');
+  const nav   = document.getElementById('nav');
+
+  function detener(titulo, cuerpo) {
+    carga.style.display = 'none';
+    document.getElementById('cap').innerHTML =
+      '<div id="aviso"><b>' + titulo + '</b>' + cuerpo + '</div>';
   }
 
-  // 1. ¿Cargaron los archivos?
-  if (!window.supabase)  { linea.push('<span class="mal">✕ falta supabase-js</span>');  return fin(); }
-  if (!window.KALU)      { linea.push('<span class="mal">✕ falta config.js</span>');     return fin(); }
-  if (!window.KaluCap)   { linea.push('<span class="mal">✕ falta capacitador.js</span>'); return fin(); }
-  linea.push('<b>✓</b> archivos');
+  if (!window.KALU || !window.supabase || !window.KaluCap)
+    return detener('No se pudo cargar el módulo',
+      'Faltan archivos de la página. Recargá con Ctrl+F5 y si sigue igual avisá a soporte.');
 
-  // 2. Conectar — init() lee config.js y el token que deja ingreso.html
   let ses;
-  try { ses = KaluCap.init(); }
-  catch (e) { linea.push('<span class="mal">✕ ' + e.message + '</span>'); return fin(); }
-  linea.push('<b>✓</b> cliente');
+  try { ses = KaluCap.init(); } catch (e) { return detener('No se pudo conectar', e.message); }
 
-  // 3. ¿Hay sesión de KALU?
-  if (!ses) {
-    linea.push('<span class="mal">✕ sin sesión</span>');
-    return fin('Entrá a <b>getkalu.com/ingreso.html</b> con tu usuario y, ' +
-               'en esa misma pestaña, volvé a esta página.');
-  }
-  if (ses.vencida) {
-    linea.push('<span class="mal">✕ sesión vencida (' + ses.minutos + ' min)</span>');
-    return fin('KALU cierra la sesión a los 55 minutos. Volvé a entrar por ' +
-               '<b>getkalu.com/ingreso.html</b>.');
-  }
-  linea.push('<b>✓</b> sesión: ' + (ses.email || ses.nombre || 'ok'));
+  if (!ses || ses.vencida)
+    return detener('Tu sesión no está activa',
+      'Entrá de nuevo por <a href="ingreso.html">ingreso.html</a> y volvé a esta página.');
 
-  // 4. ¿El módulo sabe quién soy?
-  const sb = KaluCap.cliente;
-  const { data: quien, error: e1 } = await sb.rpc('cap_quien_soy');
-  if (e1) {
-    linea.push('<span class="mal">✕ rpc: ' + e1.message + '</span>');
-    return fin('Si dice «function does not exist», falta correr <b>cap_15_diagnostico.sql</b> ' +
-               'y <b>cap_14_api.sql</b> en Supabase.');
-  }
-  if (!quien || !quien.persona_id) {
-    linea.push('<span class="mal">✕ sin persona</span>');
-    return fin('Tu usuario está autenticado pero no está vinculado a ninguna persona del padrón. ' +
-               'Hasta que se vincule, el sistema no puede mostrar un pasaporte.');
-  }
-  linea.push('<b>✓</b> soy ' + quien.nombre + (quien.es_admin ? ' (admin)' : ''));
-  fin();
+  // ¿quién soy y qué puedo ver?
+  let quien;
+  try { quien = await KaluCap.cliente.rpc('cap_diagnostico').then(r => r.data); }
+  catch (e) { return detener('No se pudo verificar tu usuario', e.message); }
 
-  // 5. Mostrar
-  let actual = 'pasaporte';
-  function mostrar(v) {
-    actual = v;
-    document.querySelectorAll('#barra button').forEach(b =>
-      b.classList.toggle('on', b.dataset.v === v));
-    KaluCap[v]('#capacitador');
+  // Quien administra el módulo no tiene por qué estar en el padrón:
+  // puede ser alguien de sistemas o de dirección que no lleva formación
+  // propia. Sin ficha no hay pasaporte, pero la administración sí entra.
+  if (!quien || (!quien.persona_id && !quien.es_admin))
+    return detener('Tu usuario no está en el padrón',
+      (quien && quien.sugerencia ? quien.sugerencia : '') +
+      '<br><br>Hablá con el área HSE para que te vinculen.');
+
+  // el menú solo muestra lo que corresponde al rol
+  let vistas = [];
+  if (quien.persona_id) {
+    vistas.push('pasaporte');
+    try {
+      const eq = await KaluCap.cliente.rpc('cap_mi_equipo').then(r => r.data);
+      if (eq && (eq.equipo || []).length) vistas.push('supervision');
+    } catch (e) {}
   }
-  document.querySelectorAll('#barra button').forEach(b =>
-    b.onclick = () => mostrar(b.dataset.v));
-  mostrar('pasaporte');
+  if (quien.es_admin) vistas.push('admin');
+  if (!vistas.length) vistas.push('pasaporte');
+
+  nav.querySelectorAll('button').forEach(b => {
+    if (!vistas.includes(b.dataset.v)) b.remove();
+  });
+  if (vistas.length > 1) nav.classList.add('on');
+
+  carga.style.display = 'none';
+
+  function ir(v) {
+    nav.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    KaluCap[v]('#cap');
+    history.replaceState(null, '', '?v=' + v);
+  }
+  nav.querySelectorAll('button').forEach(b => b.onclick = () => ir(b.dataset.v));
+
+  const pedida = new URLSearchParams(location.search).get('v');
+  ir(vistas.includes(pedida) ? pedida : vistas[0]);
 })();
 </script>
 

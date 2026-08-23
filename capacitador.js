@@ -1749,7 +1749,8 @@ async function ficha(sel, personaId, opt) {
         <td class="n">${x.ultima_vez ? fecha(x.ultima_vez) : '—'}</td>
         <td class="n">${x.vence_el ? fecha(x.vence_el) : (x.ultima_vez ? 'no vence' : '—')}</td>
         <td>${x.soporte
-          ? '<span class="kc-tag si" title="' + esc(x.soporte) + '">Cargado</span>'
+          ? `<button class="kc-mini" data-ver="${esc(x.soporte)}"
+              title="${esc(x.soporte)}">Ver</button>`
           : '<span style="color:var(--kc-ink3);font-size:12.5px">—</span>'}</td>
         <td>${puede ? `<div style="display:flex;gap:6px">
           <button class="kc-mini${x.estado === 'al_dia' ? '' : ' p'}"
@@ -1917,9 +1918,19 @@ async function ficha(sel, personaId, opt) {
       const nota = d.querySelector('#kcsub');
       nota.style.color = 'var(--kc-ink3)';
       nota.textContent = 'Subiendo el archivo…';
-      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
-      const ruta = 'capacitador/' + (P.empresa_id || 'sin-empresa') + '/' + personaId +
-                   '/' + (codigo || 'doc') + '-' + Date.now() + '.' + ext;
+      // Ruta: empresa / módulo / persona / archivo.
+      // La empresa va primera a propósito. Es la convención de QA/QC,
+      // la única de las que hay en el bucket que separa por empresa
+      // (`foldername(name)[1] = mi_empresa()`). Los módulos viejos
+      // guardan en la raíz y sólo funcionan porque hay una política
+      // abierta que los tapa; el día que se cierre, esto ya cumple.
+      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase()
+        .replace(/[^a-z0-9]/g, '').slice(0, 5) || 'pdf';
+      const cod = String(codigo || 'doc').replace(/[^A-Za-z0-9_-]/g, '');
+      if (!P.empresa_id) throw new Error('No se pudo determinar tu empresa para guardar el archivo.');
+      const ruta = P.empresa_id + '/capacitador/' + personaId + '/' +
+                   cod + '-' + iso().replace(/-/g, '') + '-' +
+                   Math.random().toString(16).slice(2, 8) + '.' + ext;
       const st = sb && sb.storage;
       if (!st) throw new Error('No se puede subir desde acá. Pegá la ruta del documento.');
       const { error: e } = await st.from('documentos')
@@ -1990,6 +2001,24 @@ async function ficha(sel, personaId, opt) {
   function enganchar() {
     el.querySelectorAll('[data-v2]').forEach(b => b.onclick = () => dlgValidar(b.dataset.v2));
     el.querySelectorAll('[data-sop]').forEach(b => b.onclick = () => dlgSoporte(b.dataset.sop));
+
+    // El bucket `documentos` es privado: para abrir un soporte hay que
+    // pedir un enlace firmado, que dura un minuto.
+    el.querySelectorAll('[data-ver]').forEach(b => b.onclick = async () => {
+      const ruta = b.dataset.ver;
+      if (/^https?:\/\//i.test(ruta)) { global.open(ruta, '_blank', 'noopener'); return; }
+      b.disabled = true; b.textContent = 'Abriendo…';
+      try {
+        const { data, error: e } = await sb.storage.from('documentos')
+          .createSignedUrl(ruta, 60);
+        if (e || !data || !data.signedUrl) throw new Error((e && e.message) || 'sin enlace');
+        global.open(data.signedUrl, '_blank', 'noopener');
+      } catch (e) {
+        alert('No se pudo abrir el documento.\n\n' + e.message +
+              '\n\nRuta guardada: ' + ruta);
+      }
+      b.disabled = false; b.textContent = 'Ver';
+    });
     el.querySelectorAll('[data-val]').forEach(b => b.onclick = () => {
       const it = (F.items || []).find(x => x.codigo === b.dataset.val);
       if (it) dlgValidar(it.catalogo_id);

@@ -373,7 +373,7 @@ async function login(){
     const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
     const d=await r.json();
     if(!r.ok||!d.access_token){e.textContent='Correo o contraseña incorrectos.';b.disabled=false;b.textContent='Ingresar';return;}
-    TOKEN=d.access_token;
+        TOKEN=d.access_token; _saveSession(d);
     // Candado por rol Y estado: la consola es SOLO para HSE/supervisores activos. Falla cerrado.
     let rolOk=false, estadoBloqueado=false;
     try{
@@ -399,7 +399,8 @@ async function login(){
       e.textContent='Acceso solo para HSE y supervisores.';
       TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return;
     }
-    MYEMAIL=email; $('who').textContent=email;
+        MYEMAIL=email; $('who').textContent=email;
+    _idleMin=(typeof _gestor!=='undefined'&&_gestor)?60:15; await _sellarSesion(); _armarGuards();
     $('scLogin').classList.add('hide'); $('scDash').classList.remove('hide'); $('lo').classList.remove('hide');
     cargar();
     if(OPERADOR) aplicarModoOperador();
@@ -416,7 +417,7 @@ async function login(){
     }catch(_){}
   }catch(err){e.textContent='Error de conexión. Probá de nuevo.';b.disabled=false;b.textContent='Ingresar';}
 }
-function salir(){ TOKEN=null; location.reload(); }
+function salir(){ _forzarSalida(''); }
 async function sbGet(path){
   const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
   if(!r.ok) throw new Error(path+' '+r.status);
@@ -1831,6 +1832,54 @@ function toast(m,err){
 }
 /* logAud opcional: si la consola no lo define, no rompe */
 if(typeof logAud==='undefined'){ function logAud(){} }
+</script>
+  <script>
+/* ===== KALU · sesión compartida (localStorage) + único por equipo + auto-cierre por inactividad ===== */
+(function(){
+  var SB_REF='nignqeipzlemwfrwmpip';
+  window.SESS_KEY='sb-'+SB_REF+'-auth-token';
+  window.LOGOUT_KEY='kalu_logout';
+  window.MY_SESION=null; window._idleMin=15;
+  var _idleTimer=null, _pollTimer=null;
+  window._saveSession=function(d){ try{ localStorage.setItem(window.SESS_KEY, JSON.stringify(d)); }catch(_){} };
+  window._readSession=function(){ try{ return JSON.parse(localStorage.getItem(window.SESS_KEY)||'null'); }catch(_){ return null; } };
+  window._clearSession=function(){ try{ localStorage.removeItem(window.SESS_KEY); localStorage.removeItem('kalu_sid'); }catch(_){} };
+  window._refrescarToken=async function(rt){ if(!rt) return null; try{ var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); var d=await r.json(); if(!r.ok||!d.access_token) return null; window._saveSession(d); return d; }catch(_){ return null; } };
+  function _uuid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2); }
+  window._sellarSesion=async function(){ window.MY_SESION=_uuid(); try{ localStorage.setItem('kalu_sid',window.MY_SESION); }catch(_){} try{ await sbRpc('kalu_set_sesion',{p_sid:window.MY_SESION}); }catch(_){} };
+  window._chequearSesion=async function(){ if(!TOKEN||!MYID) return; try{ var r=await sbGet('perfiles?select=sesion_id&id=eq.'+MYID); var sid=(r&&r[0]&&r[0].sesion_id)||null; if(sid && window.MY_SESION && sid!==window.MY_SESION){ window._forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.'); } }catch(_){} };
+  function _resetIdle(){ if(_idleTimer)clearTimeout(_idleTimer); _idleTimer=setTimeout(function(){ window._forzarSalida('Cerramos tu sesión por inactividad.'); }, (window._idleMin||15)*60000); }
+  window._armarGuards=function(){ ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(ev){ window.addEventListener(ev,_resetIdle,{passive:true}); }); _resetIdle(); if(_pollTimer)clearInterval(_pollTimer); _pollTimer=setInterval(window._chequearSesion,30000); document.addEventListener('visibilitychange',function(){ if(!document.hidden) window._chequearSesion(); }); window.addEventListener('storage',function(e){ if(e.key===window.LOGOUT_KEY){ _cerrarLocal(); } }); };
+  function _cerrarLocal(){ try{ TOKEN=null; }catch(_){} try{ if(_idleTimer)clearTimeout(_idleTimer); if(_pollTimer)clearInterval(_pollTimer); }catch(_){} location.href='index.html'; }
+  window._forzarSalida=function(msg){ window._clearSession(); try{ localStorage.setItem(window.LOGOUT_KEY, String(Date.now())); }catch(_){} if(msg){ try{ alert(msg); }catch(_){} } _cerrarLocal(); };
+  window._restaurarSesion=async function(){
+    var s=window._readSession(); if(!s||!s.access_token) return;
+    var sess=s; var now=Math.floor(Date.now()/1000);
+    if(s.expires_at && s.expires_at < now+60){ sess=await window._refrescarToken(s.refresh_token); if(!sess){ window._clearSession(); return; } }
+    TOKEN=sess.access_token;
+    try{
+      MYID=(sess.user&&sess.user.id)||null;
+      var pf=await sbGet('perfiles?select=*&id=eq.'+MYID); var p0=(pf&&pf[0])||{};
+      var rol=p0.rol||'', est=p0.estado||'';
+      MYEMP=p0.empresa_id||null; MYNAME=(p0.nombre||(sess.user&&sess.user.email)||''); MYCED=(p0.cedula||''); MYEMAIL=(sess.user&&sess.user.email)||'';
+      cargarBranding(MYEMP);
+      var rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true);
+      var _gestor=(p0.es_super===true)||rol==='hse'||rol==='supervisor'||rol==='admin';
+      OPERADOR=(rolOk && !_gestor);
+      if((est&&est!=='activo')||!rolOk){ window._clearSession(); TOKEN=null; return; }
+      window._idleMin=_gestor?60:15; window.MY_SESION=localStorage.getItem('kalu_sid')||null;
+      $('who').textContent=MYEMAIL;
+      $('scLogin').classList.add('hide'); $('scDash').classList.remove('hide'); $('lo').classList.remove('hide');
+      cargar();
+      if(OPERADOR) aplicarModoOperador();
+      try{ var _rr=await fetch(SB_URL+'/rest/v1/rpc/soy_hse_lider',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); window.PUEDE_EXP=((await _rr.json())===true); }catch(_){ window.PUEDE_EXP=false; }
+      if(!window.PUEDE_EXP){ var _te=document.getElementById('tabExp'); if(_te)_te.style.display='none'; }
+      try{ var _rd=await fetch(SB_URL+'/rest/v1/rpc/soy_direccion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); if((await _rd.json())===true){ var _td=document.getElementById('tabDir'); if(_td)_td.style.display=''; } }catch(_){}
+      window._armarGuards();
+    }catch(_){ window._clearSession(); TOKEN=null; }
+  };
+  window._restaurarSesion();
+})();
 </script>
 </body>
 </html>

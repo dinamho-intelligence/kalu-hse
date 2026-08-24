@@ -141,10 +141,12 @@ function render(){
       h+='<div style="margin-top:6px">';
       x.cuentas.forEach(function(c){
         var ico=!c.existe?'<span style="color:#9fb0c0">✖ no existe</span>':(c.entro?'<span style="color:#4FD98B">✅ entró</span>':'<span style="color:#F0B04A">⏳ pendiente</span>');
-        h+='<span class="cta">'+esc(c.email)+' · '+ico+'</span>';
+        var pf=c.existe?(c.perfil?' · <span style="color:#7fd6f0">con ficha</span>':' · <span style="color:#F0B04A">sin ficha</span>'):'';
+        h+='<span class="cta">'+esc(c.email)+' · '+ico+pf+'</span>';
       });
       h+='</div>';
     } else { h+='<div class="meta" style="color:var(--tx3);margin-top:4px">Sin cuentas asociadas.</div>'; }
+    if(x.reparar){ h+='<div style="margin-top:8px"><button class="bigbtn" style="padding:8px 14px;font-size:13px;background:var(--cy);color:#04222b" onclick="repararCuenta(\''+esc(x.cedula)+'\')">🔧 Crear ficha + enviar correo de clave</button></div>'; }
     h+='</div>';
   });
   $('out').innerHTML=h;
@@ -166,6 +168,15 @@ function copiarReinvitar(){
   var txt=mails.join(', ');
   try{ navigator.clipboard.writeText(txt); alert('Copiados '+mails.length+' correos al portapapeles.'); }
   catch(e){ prompt('Copiá los correos:', txt); }
+}
+async function repararCuenta(ced){
+  if(!confirm('¿Crear la ficha (perfil) para esta cédula y enviarle a la persona un correo para que ponga su clave?')) return;
+  try{
+    const r=await fetch(WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'reparar_cuenta',token:TOKEN,cedula:ced})});
+    const d=await r.json();
+    if(d&&d.ok){ alert('✅ '+(d.message||'Listo')+(d.password?('\n\nClave temporal: '+d.password):'')); cargar(); }
+    else alert('No se pudo reparar: '+((d&&d.message)||'error'));
+  }catch(e){ alert('Error: '+e.message); }
 }
 ['email','pass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(ev){ if(ev.key==='Enter') login(); }); });
 </script>

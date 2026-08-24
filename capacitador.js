@@ -2923,17 +2923,27 @@ async function arranque(sel) {
 
   async function traerA() {
     if (!A) { A = await rpc('cap_arranque_cargos'); prop = null; }
-    if (!prop) prop = (A.grupos || []).map(g => ({
-      clave: g.clave,
-      nombre: g.sugerido,
-      area: '',
-      variantes: (g.variantes || []).map(v => v.texto),
-      gente: g.gente,
-      juntar: !!g.juntar,
-      parecidos: g.parecidos || [],
-      yaExiste: g.ya_existe || null,
-      crear: !g.ya_existe
-    }));
+    if (!prop) prop = (A.grupos || []).map(g => {
+      // Un cargo puede estar resuelto de dos formas: porque existe con
+      // ese mismo nombre, o porque el texto del padrón ya está mapeado a
+      // un cargo que se llama distinto («Supervisor De División» ya
+      // apunta a «Supervisor de División (Dimensional)»). Si no se mira
+      // lo segundo, la pantalla ofrece crear un cargo que ya está, y
+      // queda uno nuevo vacío al lado del que tiene la gente.
+      const map = (g.variantes || []).map(v => v.ya_mapeado).filter(Boolean);
+      const resuelto = g.ya_existe || (map.length ? map[0] : null);
+      return {
+        clave: g.clave,
+        nombre: g.sugerido,
+        area: '',
+        variantes: (g.variantes || []).map(v => v.texto),
+        gente: g.gente,
+        juntar: !!g.juntar,
+        parecidos: g.parecidos || [],
+        yaExiste: resuelto,
+        crear: !resuelto
+      };
+    });
     return A;
   }
   async function traerG() { if (!G) G = await rpc('cap_grupos_datos'); return G; }
@@ -3044,13 +3054,14 @@ async function arranque(sel) {
       <h2 style="font-size:20px;margin:4px 0 4px">Del padrón al organigrama</h2>
       <div class="kc-cent ok"><div class="b">✓</div><div>
         <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">
-          Los ${yaHay} cargos del padrón ya están creados</div>
-        <div style="font-size:13px;color:var(--kc-ink2)">Si alguien carga a una persona con el
-        cargo escrito de una forma nueva, va a aparecer acá para agruparlo.</div></div></div>` : `
+          Los ${yaHay} cargos del padrón ya están resueltos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Cada forma de escribir el cargo que hay
+        en el padrón apunta a un cargo que existe. Si mañana alguien carga a una persona con una
+        escritura nueva, va a aparecer acá para agruparla.</div></div></div>` : `
       <h2 style="font-size:20px;margin:4px 0 4px">Del padrón al organigrama</h2>
       <p class="kc-nota">Estas son las formas en que el cargo aparece escrito en el padrón, ya
       agrupadas. Revisá los nombres —van a ser los definitivos— y destildá lo que no sea un cargo
-      operativo.${yaHay ? ` Otros ${yaHay} ya existen y no se tocan.` : ''}
+      operativo.${yaHay ? ` Otros ${yaHay} ya están resueltos y no se tocan.` : ''}
       ${A.sin_cargo ? ` <b>${A.sin_cargo} persona(s)</b> no tienen cargo escrito: eso se arregla
       en el padrón de KALU.` : ''}</p>
       <div class="kc-sc"><table><thead><tr>
@@ -3283,13 +3294,19 @@ async function arranque(sel) {
       catch (e) { be.disabled = false; be.textContent = 'Encender el módulo'; alert(e.message); }
     };
     const ba = v.querySelector('#kc-apagar');
-    if (ba) ba.onclick = () => abrir(
-      `<h3>Apagar el módulo</h3>
-       <p>La tarjeta desaparece del menú de todos. Los datos quedan intactos y se puede volver a
-          encender cuando quieras.</p>
-       <label for="k1">Motivo</label>
-       <input type="text" id="k1" placeholder="Ej: falta terminar de cargar la matriz">`,
-      d => rpc('cap_modulo_apagar', { p_motivo: d.querySelector('#k1').value }), 'Apagar');
+    if (ba) ba.onclick = () => {
+      const e = D.empresa || {};
+      abrir(`<h3>Apagar el módulo</h3>
+       <p>La tarjeta del Capacitador desaparece del menú de <b>toda la empresa</b>. Los datos
+          quedan intactos —pasaportes, asistencias y certificados— y se puede volver a encender
+          cuando quieras, pero mientras esté apagado nadie va a poder entrar.</p>
+       <label for="k1">Escribí <b>${esc(e.slug || e.nombre || '')}</b> para confirmar</label>
+       <input type="text" id="k1" placeholder="${esc(e.slug || '')}">
+       <label for="k2">Motivo</label>
+       <input type="text" id="k2" placeholder="Ej: falta terminar de cargar la matriz">`,
+      d => rpc('cap_modulo_apagar', { p_confirmar: d.querySelector('#k1').value,
+                                      p_motivo: d.querySelector('#k2').value }), 'Apagar');
+    };
   }
 
   await pintar();

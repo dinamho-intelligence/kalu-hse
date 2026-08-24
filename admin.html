@@ -714,7 +714,7 @@ async function viewUsuarios(){
   _USERS=us; _BYUSER={}; acc.forEach(function(a){ (_BYUSER[a.usuario_id]=_BYUSER[a.usuario_id]||[]).push(a); });
   EST={}; ESTLOADED=false;
   try{ const ec=await n8n("estado_cuentas",{}); if(ec&&ec.cuentas){ ec.cuentas.forEach(function(c){ EST[c.id]=c; }); ESTLOADED=true; } }catch(e){}
-  let h='<div class="toolbar">'+selectorEmpresa()+(ME.es_super?'<button class="btn btn-cy btn-sm" style="align-self:flex-end" onclick="crearSuper()">＋ Crear super-admin</button>':'')+'</div>';
+    let h='<div class="toolbar">'+selectorEmpresa()+(ME.es_super?'<button class="btn btn-cy btn-sm" style="align-self:flex-end" onclick="crearSuper()">＋ Crear super-admin</button>':'')+'<button class="btn btn-b btn-sm" style="align-self:flex-end" onclick="location.href=\'cuentas.html\'">🔍 Revisor de cuentas</button>'+'</div>';
   h+='<h2 class="sec">Usuarios registrados · rol y accesos</h2>';
   h+='<div class="note" style="margin-bottom:14px"><b>Accesos</b> = a qué módulos entra y con qué rol (con permisos que podés destildar) y en qué <b>nivel</b> (solo ver 👁 o ver y modificar). <b>Consola</b> y <b>rol de empresa</b> son aparte. Nada se borra: se da de baja.</div>';
   if(!us.length){ h+='<div class="empty">Todavía no hay usuarios registrados en esta empresa.</div>'; $("#view").innerHTML=h; return; }

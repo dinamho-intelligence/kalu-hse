@@ -68,7 +68,6 @@
 </head>
 <body>
 <div class="bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
-
 <div class="stage">
   <!-- LOGIN -->
   <div class="login" id="loginView">
@@ -89,7 +88,6 @@
     </div>
     <div class="foot">¿Problemas para entrar? Escribinos a <a href="mailto:info@dinamho.co">info@dinamho.co</a></div>
   </div>
-
   <!-- PORTAL -->
   <div class="portal" id="portalView">
     <div class="phead">
@@ -107,7 +105,6 @@
     </div>
   </div>
 </div>
-
 <script>
 const $ = s => document.querySelector(s);
 function esc(s){return (s==null?"":String(s)).replace(/[<>&"]/g,function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];});}
@@ -115,6 +112,23 @@ function esc(s){return (s==null?"":String(s)).replace(/[<>&"]/g,function(c){retu
 const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
 let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[], SB_EMPRESA_NOMBRE="", SB_BRANDING={};
+/* ===== KALU · sesión compartida (localStorage) + único por equipo + auto-cierre por inactividad ===== */
+const SB_REF="nignqeipzlemwfrwmpip";
+const SESS_KEY="sb-"+SB_REF+"-auth-token";
+const LOGOUT_KEY="kalu_logout";
+let MY_SESION=null, MY_UID=null, IDLE_MIN=15, _idleTimer=null, _pollTimer=null, RESTORING=false;
+function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
+function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
+function clearSession(){ try{ localStorage.removeItem(SESS_KEY); localStorage.removeItem("kalu_sid"); }catch(_){} }
+async function refrescarToken(rt){ if(!rt) return null; try{ const d=await sbFetch("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:JSON.stringify({refresh_token:rt})}); if(!d||!d.access_token) return null; saveSession(d); return d; }catch(_){ return null; } }
+function _uuid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2); }
+async function sellarSesion(){ MY_SESION=_uuid(); try{ localStorage.setItem("kalu_sid",MY_SESION); }catch(_){} try{ await sbFetch("/rest/v1/rpc/kalu_set_sesion",{method:"POST",body:JSON.stringify({p_sid:MY_SESION})}); }catch(_){} }
+async function chequearSesion(){ if(!SB_TOKEN||!MY_UID) return; try{ const r=await sbFetch("/rest/v1/perfiles?id=eq."+MY_UID+"&select=sesion_id"); const sid=(r&&r[0]&&r[0].sesion_id)||null; if(sid && MY_SESION && sid!==MY_SESION){ forzarSalida("Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión."); } }catch(_){} }
+function resetIdle(){ if(_idleTimer)clearTimeout(_idleTimer); _idleTimer=setTimeout(function(){ forzarSalida("Cerramos tu sesión por inactividad."); }, (IDLE_MIN||15)*60000); }
+function armarGuards(){ ["mousemove","mousedown","keydown","touchstart","scroll","click"].forEach(function(ev){ window.addEventListener(ev,resetIdle,{passive:true}); }); resetIdle(); if(_pollTimer)clearInterval(_pollTimer); _pollTimer=setInterval(chequearSesion,30000); document.addEventListener("visibilitychange",function(){ if(!document.hidden) chequearSesion(); }); window.addEventListener("storage",function(e){ if(e.key===LOGOUT_KEY){ cerrarLocal(); } }); }
+function cerrarLocal(){ SB_TOKEN=null; try{ if(_idleTimer)clearTimeout(_idleTimer); if(_pollTimer)clearInterval(_pollTimer); }catch(_){} location.href="index.html"; }
+function forzarSalida(msg){ clearSession(); try{ localStorage.setItem(LOGOUT_KEY, String(Date.now())); }catch(_){} if(msg){ try{ alert(msg); }catch(_){} } cerrarLocal(); }
+function focusEmail(){ setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80); }
 /* Catálogo del portal. Cada app declara a qué MÓDULO pertenece (mod). El portal
    le muestra a cada empresa SOLO los módulos que tiene contratados en empresas.modulos. */
 const PORTAL=[
@@ -128,7 +142,6 @@ const PORTAL=[
   {mod:"qaqc", href:"editor-informes-qaqc.html", ic:"📝", cls:"g", nombre:"QA/QC · Editor de informes", desc:"El asegurador arma su informe en la oficina."},
   {mod:"ndt",  href:"#",                      ic:"🔬", cls:"c", nombre:"NDT",                     desc:"Ensayos no destructivos.", soon:true}
 ];
-
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
   if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
@@ -137,18 +150,14 @@ async function sbFetch(path, opts){
   if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
   return data;
 }
-/* Sesión compartida entre módulos (mismo navegador, misma pestaña) */
-function guardarSesion(){ try{ sessionStorage.setItem("kalu_ses", JSON.stringify({ token:SB_TOKEN, empresa:SB_EMPRESA, email:SB_EMAIL, nombre:SB_NOMBRE, ts:Date.now() })); }catch(e){} }
-function leerSesion(){ try{ const s=JSON.parse(sessionStorage.getItem("kalu_ses")||"null"); if(s&&s.token&&(Date.now()-s.ts)<55*60*1000) return s; }catch(e){} return null; }
-function borrarSesion(){ try{ sessionStorage.removeItem("kalu_ses"); }catch(e){} }
-
 async function sbLoginPass(email,password){
   const d=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:email,password:password})});
-  SB_TOKEN=d.access_token; SB_EMAIL=email;
+  SB_TOKEN=d.access_token; SB_EMAIL=email; saveSession(d);
 }
 async function cargarPerfilYPortal(){
   const u=await sbFetch("/auth/v1/user",{});
   if(u&&u.email) SB_EMAIL=u.email;
+  MY_UID=u.id;
   const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado");
   if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil asignado. Contactá a tu administrador.");
   const p=perf[0];
@@ -165,9 +174,13 @@ async function cargarPerfilYPortal(){
       SB_BRANDING=(emp[0].branding&&typeof emp[0].branding==='object')?emp[0].branding:{};
     }
   }catch(e){ if(String(e.message).indexOf("inactiva")>=0) throw e; /* si RLS bloquea, queda sin módulos y avisamos abajo */ }
-  guardarSesion(); mostrarPortal();
+  /* sesión única por equipo + auto-cierre por inactividad (60 min para gestores, 15 el resto) */
+  IDLE_MIN=(p.es_super||["hse","supervisor","admin"].indexOf(p.rol)>=0)?60:15;
+  if(RESTORING){ MY_SESION=localStorage.getItem("kalu_sid")||null; } else { await sellarSesion(); }
+  armarGuards();
+  mostrarPortal();
 }
-  async function olvideClave(){
+async function olvideClave(){
   const email=($("#g_email").value||"").trim(), err=$("#g_err");
   if(!email){ err.style.color="#ff6b6b"; err.textContent="Escribí tu email arriba y volvé a tocar el enlace."; err.style.display="block"; return; }
   try{
@@ -221,13 +234,17 @@ function mostrarPortal(){
   }
   $("#mods").innerHTML = cards.join("");
 }
-function salir(){ borrarSesion(); SB_TOKEN=SB_EMPRESA=SB_EMAIL=SB_NOMBRE=null; $("#portalView").style.display="none"; $("#loginView").style.display="block"; }
-
-/* Si ya hay sesión activa, re-leer perfil/módulos frescos y mostrar el portal */
-(function(){
-  const s=leerSesion();
-  if(s){ SB_TOKEN=s.token; SB_EMAIL=s.email; cargarPerfilYPortal().catch(function(){ $("#loginView").style.display="block"; $("#portalView").style.display="none"; setTimeout(function(){var e=$("#g_email");if(e)e.focus();},60); }); }
-  else { setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80); }
+function salir(){ forzarSalida(""); }
+/* Si ya hay sesión activa en el cajón compartido, restaurarla y mostrar el portal */
+(async function(){
+  const s=readSession();
+  if(s && s.access_token){
+    let sess=s; const now=Math.floor(Date.now()/1000);
+    if(s.expires_at && s.expires_at < now+60){ sess=await refrescarToken(s.refresh_token); if(!sess){ clearSession(); focusEmail(); return; } }
+    SB_TOKEN=sess.access_token; SB_EMAIL=(sess.user&&sess.user.email)||"";
+    RESTORING=true;
+    cargarPerfilYPortal().catch(function(){ clearSession(); SB_TOKEN=null; $("#loginView").style.display="block"; $("#portalView").style.display="none"; focusEmail(); }).finally(function(){ RESTORING=false; });
+  } else { focusEmail(); }
 })();
 </script>
 </body>

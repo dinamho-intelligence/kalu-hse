@@ -39,6 +39,7 @@
   <button data-v="pasaporte" class="on">Mi pasaporte</button>
   <button data-v="supervision">Mi equipo</button>
   <button data-v="admin">Administración</button>
+  <button data-v="arranque">Puesta en marcha</button>
   <a class="salir" href="app.html">Volver a módulos</a>
 </nav>
 
@@ -48,7 +49,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
 <script src="config.js"></script>
-<script src="capacitador.js?v=12"></script>
+<script src="capacitador.js?v=13"></script>
 
 <script>
 (async function () {
@@ -94,7 +95,7 @@
       if (eq && (eq.equipo || []).length) vistas.push('supervision');
     } catch (e) {}
   }
-  if (quien.es_admin) vistas.push('admin');
+  if (quien.es_admin) { vistas.push('admin'); vistas.push('arranque'); }
   if (!vistas.length) vistas.push('pasaporte');
 
   nav.querySelectorAll('button').forEach(b => {

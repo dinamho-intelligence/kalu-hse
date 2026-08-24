@@ -84,6 +84,7 @@
       <div class="fld"><label>Contraseña</label><input id="g_pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" /></div>
       <div class="err" id="g_err"></div>
       <button class="btn btn-primary" id="g_btn" style="width:100%" onclick="doLogin()">Ingresar →</button>
+     <div style="text-align:center;margin-top:12px"><a href="#" onclick="olvideClave();return false;" style="color:var(--muted);font-size:13px">¿Olvidaste tu contraseña?</a></div>
     </div>
     <div class="foot">¿Problemas para entrar? Escribinos a <a href="mailto:info@dinamho.co">info@dinamho.co</a></div>
   </div>
@@ -164,6 +165,14 @@ async function cargarPerfilYPortal(){
     }
   }catch(e){ if(String(e.message).indexOf("inactiva")>=0) throw e; /* si RLS bloquea, queda sin módulos y avisamos abajo */ }
   guardarSesion(); mostrarPortal();
+}
+  async function olvideClave(){
+  const email=($("#g_email").value||"").trim(), err=$("#g_err");
+  if(!email){ err.style.color="#ff6b6b"; err.textContent="Escribí tu email arriba y volvé a tocar el enlace."; err.style.display="block"; return; }
+  try{
+    await sbFetch("/auth/v1/recover?redirect_to="+encodeURIComponent("https://getkalu.com/set-password.html"),{method:"POST",body:JSON.stringify({email:email})});
+    err.style.color="#34d399"; err.textContent="Te enviamos un correo para poner una nueva contraseña. Revisá tu bandeja (y spam)."; err.style.display="block";
+  }catch(e){ err.style.color="#ff6b6b"; err.textContent="No se pudo enviar el correo. Probá de nuevo."; err.style.display="block"; }
 }
 async function doLogin(){
   const email=$("#g_email").value.trim(), pass=$("#g_pass").value, err=$("#g_err"), btn=$("#g_btn");

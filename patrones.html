@@ -94,7 +94,7 @@ const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 let TOKEN=null, MYEMP=null, MYNAME=null;
 let TAR=[], ATS=[], INV=[];
-let INFORMES=[], PENDINGINF=null;
+let INFORMES=[], PENDINGINF=null, PUEDEIA=false;
 const WEBHOOK_PAT='https://dnmintell.app.n8n.cloud/webhook/kalu-patrones';
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -120,6 +120,8 @@ async function login(){
     const ok=(p0.es_super===true || p0.rol==='admin' || lider || direccion);
     if(!ok){ e.textContent='Acceso solo para Coordinador HSE, Dirección o Admin.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
     MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||email;
+    PUEDEIA=(p0.es_super===true || p0.rol==='admin' || direccion);
+    try{ var eb=await sbGet('empresas?select=razon_social,branding&id=eq.'+MYEMP); var e0=(eb&&eb[0])||{}; window.BRAND=Object.assign({razon_social:e0.razon_social||''}, (e0.branding||{})); }catch(_){ window.BRAND=null; }
     $('who').textContent=MYNAME;
     $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
     cargarRegistro();
@@ -204,7 +206,11 @@ function render(){
   window._TEND=_tendenciaMensual();
   html+=tendenciaHTML(window._TEND);
   html+=riskSectionHTML(RISK);
-  html+='<div style="margin:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><button class="bigbtn" id="btnPDF" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div><div class="disclaimer" style="margin-bottom:8px">Los números salen del motor (reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.</div><div id="ia"></div>';
+  html+='<div style="margin:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap">'
+    +(PUEDEIA?'<button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button>':'')
+    +'<button class="bigbtn" id="btnPDF" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div>'
+    +'<div class="disclaimer" style="margin-bottom:8px">Los números salen del motor (reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.'
+    +(PUEDEIA?'':' <b style="color:var(--tx2)">El análisis profundo con IA lo genera un gerente o admin</b> (los informes semanales/mensuales llegan automáticos).')+'</div><div id="ia"></div>';
 
   html+='<h2 class="sec"><span>▸</span> Patrones detectados ('+patrones.length+')</h2>';
   if(!patrones.length){ html+='<div class="empty">No se detectaron patrones claros con los datos actuales.</div>'; }
@@ -341,24 +347,27 @@ function riskSectionHTML(rows){
 }
 function _sevColorP(s){ s=String(s||'').toLowerCase(); return s==='alto'?'#e23b3b':(s==='medio'?'#E8930C':'#1f9d57'); }
 function _nivColorP(n){ return n==='crítico'?'#c0392b':(n==='alto'?'#e23b3b':(n==='medio'?'#E8930C':'#1f9d57')); }
-function exportarPDF(){
+function _colorBrand(c){ if(!c) return '#F28C00'; c=String(c).trim(); if(c[0]!=='#') c='#'+c; return /^#[0-9a-fA-F]{3,8}$/.test(c)?c:'#F28C00'; }
+async function _logoData(url){ if(!url) return null; try{ var r=await fetch(url,{mode:'cors'}); if(!r.ok) return null; var b=await r.blob(); return await new Promise(function(res){ var fr=new FileReader(); fr.onload=function(){res(fr.result);}; fr.onerror=function(){res(null);}; fr.readAsDataURL(b); }); }catch(e){ return null; } }
+async function exportarPDF(){
   var JS=window.jspdf&&window.jspdf.jsPDF, H2C=window.html2canvas;
   if(!JS){ alert('No se pudo cargar el generador de PDF (revisá tu conexión).'); return; }
   var btn=document.getElementById('btnPDF'), btxt=btn?btn.textContent:'';
   if(btn){ btn.disabled=true; btn.textContent='⏳ Generando…'; }
-  var IA=window._IA||{}, M=window._META||{}, POS=(_positivo()||{}), SNAP=window._SNAP||null;
+  var IA=window._IA||{}, M=window._META||{}, POS=(_positivo()||{}), SNAP=window._SNAP||null, BR=window.BRAND||{};
   var RISK=(window._RISK||[]).filter(function(r){return r.ins>0||r.ev>0;});
   var ins=SNAP?(SNAP.inseguras||0):TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
   var kTar=SNAP?(SNAP.tarjetas||0):TAR.length, kAts=SNAP?(SNAP.ats||0):ATS.length, kInv=SNAP?(SNAP.investigaciones||0):INV.length, kPct=SNAP?(SNAP.pct_cierre||0):(POS.pct_cierre!=null?POS.pct_cierre:0);
-  var C='#F28C00', CD='#0aa3c2', OK='#1f9d57', RED='#e23b3b';
-  function box(bc,inner){ return '<div style="background:#fff;border:1px solid #e6e8ee;border-left:5px solid '+bc+';border-radius:10px;padding:13px 16px;margin:0 0 11px;page-break-inside:avoid">'+inner+'</div>'; }
-  function h2(t){ return '<div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#9a6a12;margin:20px 0 9px">'+esc(t)+'</div>'; }
+  var C=_colorBrand(BR.color), CD='#0aa3c2', OK='#1f9d57', RED='#e23b3b';
+  var nombreEmp=BR.nombre||BR.razon_social||'Dinamho Intelligence';
+  var logo=await _logoData(BR.logo_url);
+  function box(bc,inner){ return '<div style="background:#fff;border:1px solid #e6e8ee;border-left:5px solid '+bc+';border-radius:10px;padding:13px 16px;margin:0 0 11px">'+inner+'</div>'; }
+  function h2(t){ return '<div data-h="1" style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#9a6a12;margin:20px 0 9px">'+esc(t)+'</div>'; }
   function tile(n,l,col){ return '<div style="flex:1;min-width:110px;background:#f6f7f9;border:1px solid #e6e8ee;border-radius:10px;padding:12px 10px;text-align:center"><div style="font-size:25px;font-weight:800;line-height:1;color:'+(col||'#12161c')+'">'+n+'</div><div style="font-size:10px;color:#6b7385;text-transform:uppercase;letter-spacing:.4px;margin-top:5px">'+l+'</div></div>'; }
   var h='';
-  h+='<div style="height:9px;background:'+C+'"></div><div style="padding:24px 28px 30px">';
-  h+='<div style="font-size:23px;font-weight:800;color:#12161c;line-height:1.1">Informe de Inteligencia HSE</div>';
-  h+='<div style="font-size:12px;color:#6b7385;margin-top:4px">KALU · Dinamho Intelligence · '+new Date().toLocaleDateString('es-CO')+' · enfoque sin culpables</div>';
-  if(M.inicio) h+='<div style="font-size:12px;color:#6b7385;margin-top:2px">Datos desde <b style="color:#3a4150">'+esc(M.inicio)+'</b> · '+M.dias+' días en KALU'+(M.base?' · primer período, sin base de comparación previa':'')+'</div>';
+  h+='<div style="height:9px;background:'+C+'"></div><div data-report="1" style="padding:22px 28px 30px">';
+  h+='<div style="display:flex;align-items:center;gap:14px">'+(logo?'<img src="'+logo+'" style="height:46px;max-width:160px;object-fit:contain">':'')+'<div><div style="font-size:22px;font-weight:800;color:#12161c;line-height:1.1">Informe de Inteligencia HSE</div><div style="font-size:12px;color:#6b7385;margin-top:3px">'+esc(nombreEmp)+' · '+new Date().toLocaleDateString('es-CO')+' · enfoque sin culpables</div></div></div>';
+  if(M.inicio) h+='<div style="font-size:12px;color:#6b7385;margin-top:8px">Datos desde <b style="color:#3a4150">'+esc(M.inicio)+'</b> · '+M.dias+' días en KALU'+(M.base?' · primer período, sin base de comparación previa':'')+'</div>';
   h+='<div style="display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 4px">'+tile(kTar,'Tarjetas')+tile(ins,'Inseguras',RED)+tile(kPct+'%','% cierre',OK)+tile(kAts,'ATS')+tile(kInv,'Investigaciones')+'</div>';
   var TEND=window._TEND||[];
   if(TEND.length>=1){ h+=h2('Tendencia mensual'); var _rws=TEND.slice(-8);
@@ -409,12 +418,30 @@ function exportarPDF(){
     finish(); return;
   }
   H2C(wrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:820}).then(function(canvas){
+    // Puntos de corte = borde inferior de cada bloque (nunca en medio de un cuadro; los títulos no son corte válido)
+    var scale=canvas.height/(wrap.scrollHeight||canvas.height);
+    var cont=wrap.querySelector('[data-report]')||wrap;
+    var wrapTop=wrap.getBoundingClientRect().top;
+    var cuts=[]; var kids=cont.children;
+    for(var i=0;i<kids.length;i++){ var el=kids[i]; if(el.getAttribute&&el.getAttribute('data-h')==='1') continue; var b=(el.getBoundingClientRect().bottom-wrapTop)*scale; if(b>1) cuts.push(b); }
+    cuts.push(canvas.height);
     try{document.body.removeChild(wrap);}catch(_){}
     var pdf=new JS({unit:'pt',format:'a4'}), pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
-    var imgData=canvas.toDataURL('image/jpeg',0.92);
-    var imgH=pw*canvas.height/canvas.width, pos=0, left=imgH;
-    pdf.addImage(imgData,'JPEG',0,pos,pw,imgH,undefined,'FAST'); left-=ph;
-    while(left>0){ pos-=ph; pdf.addPage(); pdf.addImage(imgData,'JPEG',0,pos,pw,imgH,undefined,'FAST'); left-=ph; }
+    var pageHpx=Math.floor(ph*canvas.width/pw);
+    var start=0, first=true, guard=0;
+    while(start<canvas.height-1 && guard++<300){
+      var limit=start+pageHpx, end=0;
+      for(var j=0;j<cuts.length;j++){ if(cuts[j]>start+10 && cuts[j]<=limit+1 && cuts[j]>end) end=cuts[j]; }
+      if(end<=start) end=Math.min(limit,canvas.height); // un bloque más alto que la hoja → corte duro, ordenado
+      var sh=Math.max(1,Math.round(end-start));
+      var tmp=document.createElement('canvas'); tmp.width=canvas.width; tmp.height=sh;
+      var ctx=tmp.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,tmp.width,tmp.height);
+      ctx.drawImage(canvas,0,start,canvas.width,sh,0,0,canvas.width,sh);
+      var img=tmp.toDataURL('image/jpeg',0.92); var hpt=sh*pw/canvas.width;
+      if(!first) pdf.addPage();
+      pdf.addImage(img,'JPEG',0,0,pw,hpt,undefined,'FAST');
+      first=false; start=end;
+    }
     pdf.save('KALU_Inteligencia_HSE_'+new Date().toISOString().slice(0,10)+'.pdf');
     finish();
   }).catch(function(e){ try{document.body.removeChild(wrap);}catch(_){} alert('No se pudo generar el PDF: '+((e&&e.message)||e)); finish(); });
@@ -575,13 +602,13 @@ function pintarRegistro(){
       +'<button class="mini" style="margin:0" onclick="copiarLink(this,\''+_linkInforme(ya.id)+'\')">🔗 Copiar link</button></div>';
   } else {
     h+='<div style="background:rgba(232,147,12,.1);border:1px solid rgba(232,147,12,.4);border-left:4px solid var(--amber);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
-      +'<div style="flex:1;min-width:200px"><b style="color:#F0B04A">📅 Falta el informe de la semana pasada</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(sp.etiqueta)+' — generalo una vez y queda guardado, con su link, para todos.</div></div>'
-      +'<button class="mini" id="btnSem" style="background:rgba(232,147,12,.15);border-color:var(--amber);color:#F0B04A;margin:0" onclick="generarSemanal()">Generar y guardar</button></div>';
+      +'<div style="flex:1;min-width:200px"><b style="color:#F0B04A">📅 Falta el informe de la semana pasada</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(sp.etiqueta)+(PUEDEIA?' — generalo una vez y queda guardado, con su link, para todos.':' — lo genera un gerente o admin (o llega automático).')+'</div></div>'
+      +(PUEDEIA?'<button class="mini" id="btnSem" style="background:rgba(232,147,12,.15);border-color:var(--amber);color:#F0B04A;margin:0" onclick="generarSemanal()">Generar y guardar</button>':'')+'</div>';
   }
   if(INFORMES.length){
     h+='<details style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px"><summary style="cursor:pointer;font-size:12px;color:var(--tx2);font-weight:700">📁 Informes guardados ('+INFORMES.length+')</summary><div style="margin-top:6px">';
     INFORMES.slice(0,40).forEach(function(x){
-      var badge=x.tipo==='mensual'?'MES':(x.tipo==='semanal'?'SEM':'MAN');
+      var badge={semanal:'SEM',mensual:'MES',trimestral:'TRI',anual:'AÑO'}[x.tipo]||'MAN';
       h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line);flex-wrap:wrap">'
         +'<span style="font-size:9.5px;font-weight:800;color:var(--nar);background:rgba(242,140,0,.12);border-radius:6px;padding:2px 7px">'+badge+'</span>'
         +'<span style="flex:1;min-width:150px;font-size:13px">'+esc(x.etiqueta||x.clave)+'</span>'
@@ -617,10 +644,18 @@ async function guardarInforme(tipo){
   var rec;
   if(tipo==='semanal'){ var sp=_semanaPasada(); rec={empresa_id:MYEMP,tipo:'semanal',periodo_desde:sp.desde,periodo_hasta:sp.hasta,clave:sp.clave,etiqueta:sp.etiqueta}; }
   else { var n=hoy(); rec={empresa_id:MYEMP,tipo:'manual',periodo_desde:_ymd(n),periodo_hasta:_ymd(n),clave:'man-'+Date.now(),etiqueta:'Informe manual · '+_fmtCorta(n)+' '+n.getFullYear()}; }
-  rec.resumen=resumen; rec.payload=window.PAYLOAD||null; rec.ia=window._IA||null; rec.snap_html=($('out')?$('out').innerHTML:''); rec.creado_nombre=MYNAME;
+  rec.resumen=resumen; rec.payload=Object.assign({}, window.PAYLOAD||{}, {_branding:window.BRAND||null}); rec.ia=window._IA||null; rec.snap_html=($('out')?$('out').innerHTML:''); rec.creado_nombre=MYNAME;
   await sbPost('informes_hse?on_conflict=empresa_id,clave',rec,'return=representation,resolution=merge-duplicates');
 }
 
+function volverVivo(){
+  window._SNAP=null; window._IA=null;
+  try{ history.replaceState(null,'',location.pathname); }catch(_){}
+  var ib=$('introBox'); if(ib) ib.classList.remove('hide');
+  var out=$('out'); if(out) out.innerHTML='';
+  cargarRegistro();
+  try{ window.scrollTo(0,0); }catch(_){}
+}
 async function openInforme(id){
   if(!TOKEN){ PENDINGINF=id; return; }
   try{
@@ -631,16 +666,30 @@ async function openInforme(id){
   }catch(e){ alert('No se pudo abrir el informe: '+((e&&e.message)||e)); }
 }
 function renderSaved(rec){
-  window._SNAP=rec.resumen||null; window._IA=rec.ia||{}; window._META=(rec.payload&&rec.payload.meta)||{}; window._TEND=null;
-  window._RISK=((rec.payload&&rec.payload.indices_riesgo)||[]).map(function(r){ return {zona:r.zona,indice:r.indice,nivel:r.nivel,tend:r.tendencia,delta:0,proy:r.proyeccion_mes,prob:r.prob_evento_pct,problema:r.problema_principal,problema_n:r.problema_veces,ins:r.inseguras,ev:r.eventos,abiertas:r.sin_cerrar,vencidas:r.vencidas}; });
+  var pl=rec.payload||{};
+  window._SNAP=rec.resumen||null; window._IA=rec.ia||{}; window._META=pl.meta||{}; window._TEND=pl._tend||null; window.BRAND=pl._branding||window.BRAND||null;
+  window._RISK=((pl.indices_riesgo)||[]).map(function(r){ return {zona:r.zona,indice:r.indice,nivel:r.nivel,tend:r.tendencia,delta:0,proy:r.proyeccion_mes,prob:r.prob_evento_pct,problema:r.problema_principal,problema_n:r.problema_veces,ins:r.inseguras,u30:r.inseguras_30,ev:r.eventos,abiertas:r.sin_cerrar,vencidas:r.vencidas}; });
   var ib=$('introBox'); if(ib) ib.classList.add('hide');
-  var reg=$('reg'); if(reg) reg.innerHTML='<div style="margin-bottom:12px"><a href="'+location.pathname+'" style="color:var(--cy);font-size:13px;text-decoration:none">← Volver al análisis en vivo</a></div>'
+  var auto=(rec.tipo==='mensual'||rec.tipo==='trimestral'||rec.tipo==='anual'||!rec.snap_html);
+  var reg=$('reg'); if(reg) reg.innerHTML='<div style="margin-bottom:12px"><a href="javascript:void(0)" onclick="volverVivo()" style="color:var(--cy);font-size:13px;text-decoration:none;cursor:pointer">← Volver al análisis en vivo</a></div>'
     +'<div style="background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--nar);border-radius:12px;padding:12px 16px;margin-bottom:12px"><b>📄 '+esc(rec.etiqueta||rec.clave)+'</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">Informe guardado el '+fISO(rec.creado_at)+(rec.creado_nombre?(' por '+esc(rec.creado_nombre)):'')+' · vista de solo lectura</div>'
     +'<button class="bigbtn" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff;margin-top:10px;padding:10px 18px;font-size:14px" onclick="exportarPDF()">⬇ Exportar este informe (PDF)</button></div>';
   var out=$('out');
   if(out){
-    out.innerHTML=rec.snap_html||'<div class="empty">Este informe no guardó una vista para mostrar.</div>';
-    ['btnIA','btnPDF'].forEach(function(id){ var el=out.querySelector('#'+id); if(el&&el.parentNode) el.parentNode.style.display='none'; });
+    if(rec.snap_html){
+      out.innerHTML=rec.snap_html;
+      ['btnIA','btnPDF'].forEach(function(id){ var el=out.querySelector('#'+id); if(el&&el.parentNode) el.parentNode.style.display='none'; });
+    } else {
+      // Reconstruir la vista desde los datos guardados (informes automáticos)
+      var meta=window._META||{}, res=rec.resumen||{};
+      var hh='<div class="kpis">'+kpi(res.tarjetas||0,'Tarjetas')+kpi(res.inseguras||0,'Inseguras')+kpi(res.ats||0,'ATS')+kpi(res.investigaciones||0,'Investigaciones')+'</div>';
+      if(meta.base){ hh+='<div class="disclaimer" style="border-left:3px solid var(--cy);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">📅 <b style="color:var(--tx)">Primer período en KALU</b> — los datos arrancan el '+esc(meta.inicio||'—')+' ('+meta.dias+' días). Es la línea base en construcción, no un "deterioro".</div>'; }
+      hh+=tendenciaHTML(window._TEND);
+      hh+=riskSectionHTML(window._RISK||[]);
+      hh+='<div id="ia"></div>';
+      out.innerHTML=hh;
+      try{ renderIA(window._IA||{}); }catch(_){}
+    }
   }
   try{ window.scrollTo(0,0); }catch(_){}
 }

@@ -295,6 +295,97 @@ const CSS = `
  border-bottom:1px solid var(--kc-rule);font-size:13.5px}
 .kc-asig>div{flex:1;min-width:0}
 
+
+
+/* --- generador con IA --- */
+.kc-gen{display:flex;flex-direction:column;gap:10px}
+.kc-gi{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-rule2);
+ border-radius:9px;padding:13px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+ box-shadow:var(--kc-sh)}
+.kc-gi.borrador{border-left-color:var(--kc-wa)}
+.kc-gi.publicada{border-left-color:var(--kc-ok)}
+.kc-gi.error{border-left-color:var(--kc-cr)}
+.kc-gi.procesando,.kc-gi.pendiente{border-left-color:var(--kc-ac)}
+.kc-gi .n{flex:1;min-width:0}
+.kc-gi .n b{font-family:var(--kc-fd);font-size:16px;display:block}
+.kc-gi .n span{font-size:12.5px;color:var(--kc-ink3)}
+.kc-bl{background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:9px;
+ padding:12px 14px;margin-bottom:9px}
+.kc-bl .top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.kc-bl select{margin:0;width:auto;min-width:120px;font-size:12.5px;padding:5px 8px}
+.kc-bl .mv{margin-left:auto;display:flex;gap:5px}
+.kc-bl textarea,.kc-bl input[type=text]{display:block;width:100%;margin:0 0 7px;
+ font:inherit;font-size:14px;padding:8px 11px;border:1px solid var(--kc-rule2);
+ border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);resize:vertical}
+.kc-op2 input[type=text]{margin:0}
+.kc-bl textarea:last-child,.kc-bl input:last-child{margin-bottom:0}
+.kc-op2{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.kc-op2 input[type=radio]{width:17px;height:17px;margin:0;flex:0 0 auto;accent-color:var(--kc-ok)}
+.kc-op2 input[type=text]{margin:0;flex:1}
+.kc-secc{font-family:var(--kc-fd);font-weight:700;font-size:19px;margin:22px 0 10px;
+ display:flex;align-items:center;gap:10px}
+.kc-secc::after{content:'';flex:1;height:1px;background:var(--kc-rule)}
+.kc-drop{border:2px dashed var(--kc-rule2);border-radius:10px;padding:20px;text-align:center;
+ color:var(--kc-ink3);font-size:14px;margin-bottom:12px;background:var(--kc-card2)}
+.kc-drop b{display:block;color:var(--kc-ink);font-family:var(--kc-fd);font-size:16px;
+ margin-bottom:4px}
+.kc-arch{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.kc-arch div{display:flex;gap:9px;align-items:center;font-size:13px;padding:6px 10px;
+ background:var(--kc-card2);border-radius:6px}
+.kc-arch span{margin-left:auto;font-family:var(--kc-fm);font-size:10.5px;color:var(--kc-ink3)}
+
+/* --- certificado imprimible --- */
+.kc-cert{max-width:800px;margin:0 auto;background:#fff;color:#11201B;
+ border:1px solid var(--kc-rule);box-shadow:var(--kc-sh);padding:0;overflow:hidden}
+.kc-cert *{color:inherit}
+.kc-cbar{height:9px;background:var(--kc-cert-color,#0B5D45)}
+.kc-cin{padding:44px 54px 38px}
+.kc-chead{display:flex;align-items:flex-start;gap:16px;
+ border-bottom:1px solid #DBE3DF;padding-bottom:18px;margin-bottom:30px}
+.kc-chead img{height:44px;width:auto}
+.kc-chead .e{font-family:var(--kc-fd);font-weight:700;font-size:20px;line-height:1.1}
+.kc-chead .n{font-family:var(--kc-fm);font-size:10.5px;color:#7E918B;margin-top:3px}
+.kc-chead .d{margin-left:auto;text-align:right;font-family:var(--kc-fm);font-size:9.5px;
+ color:#7E918B;line-height:1.7}
+.kc-ctit{font-family:var(--kc-fm);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+ color:var(--kc-cert-color,#0B5D45);text-align:center;margin-bottom:8px}
+.kc-cque{font-family:var(--kc-fd);font-size:15px;color:#4B605A;text-align:center;margin-bottom:22px}
+.kc-cnom{font-family:var(--kc-fd);font-weight:700;font-size:38px;line-height:1.05;
+ text-align:center;margin-bottom:6px;text-wrap:balance}
+.kc-cced{font-family:var(--kc-fm);font-size:12px;color:#4B605A;text-align:center;margin-bottom:26px}
+.kc-ccur{text-align:center;margin-bottom:28px}
+.kc-ccur .k{font-family:var(--kc-fm);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+ color:#7E918B;margin-bottom:7px}
+.kc-ccur .t{font-family:var(--kc-fd);font-weight:600;font-size:25px;line-height:1.15;
+ text-wrap:balance;max-width:30ch;margin:0 auto}
+.kc-ccur .o{font-size:14px;color:#4B605A;margin-top:9px;max-width:60ch;
+ margin-left:auto;margin-right:auto}
+.kc-cdat{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#DBE3DF;
+ border:1px solid #DBE3DF;margin-bottom:26px}
+.kc-cdat>div{background:#F5F8F6;padding:11px 12px;text-align:center}
+.kc-cdat .k{font-family:var(--kc-fm);font-size:8.5px;letter-spacing:.09em;
+ text-transform:uppercase;color:#7E918B;margin-bottom:4px}
+.kc-cdat .v{font-family:var(--kc-fd);font-weight:600;font-size:15px}
+.kc-cpie{display:flex;gap:26px;align-items:flex-end;border-top:1px solid #DBE3DF;padding-top:20px}
+.kc-cfirma{flex:1}
+.kc-cfirma .l{border-top:1px solid #11201B;padding-top:6px;margin-top:38px;max-width:250px;
+ font-family:var(--kc-fd);font-weight:600;font-size:13.5px}
+.kc-cfirma .r{font-family:var(--kc-fm);font-size:9.5px;color:#7E918B;margin-top:2px}
+.kc-cqr{width:96px;flex:0 0 auto;text-align:center}
+.kc-cqr svg{width:96px;height:96px;display:block}
+.kc-cqr span{font-family:var(--kc-fm);font-size:8px;color:#7E918B;display:block;margin-top:5px}
+.kc-cleg{font-family:var(--kc-fm);font-size:8.5px;color:#7E918B;line-height:1.7;
+ margin:18px 0 0;max-width:64ch}
+.kc-cacc{max-width:800px;margin:0 auto 16px;display:flex;gap:9px;flex-wrap:wrap;
+ align-items:center}
+@media print{
+  @page{size:A4 portrait;margin:0}
+  body{background:#fff!important}
+  .kc-cacc,.kc-noimp{display:none!important}
+  .kc-cert{box-shadow:none;border:none;max-width:none;margin:0}
+  .kc-cin{padding:26mm 22mm}
+}
+
 /* --- pasar lista y convalidar --- */
 .kc dialog.ancho{max-width:660px}
 .kc-ros{max-height:44vh;overflow:auto;border:1px solid var(--kc-rule);
@@ -463,8 +554,9 @@ async function pasaporte(sel, opt) {
       <div class="kc-tabs" role="tablist">
         <button class="kc-tab" data-t="pas" role="tab" aria-selected="${tab==='pas'}">Capacitaciones</button>
         <button class="kc-tab" data-t="cred" role="tab" aria-selected="${tab==='cred'}">Credencial</button>
+        <button class="kc-tab" data-t="certs" role="tab" aria-selected="${tab==='certs'}">Certificados</button>
       </div>
-      ${tab === 'pas' ? vistaLista(lista) : vistaCred()}
+      ${tab === 'pas' ? vistaLista(lista) : tab === 'cred' ? vistaCred() : vistaCerts()}
     </div>`;
 
     el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => { tab = b.dataset.t; pintar(); });
@@ -489,9 +581,13 @@ async function pasaporte(sel, opt) {
         if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirCerrar(ev); }
       };
     });
-    el.querySelectorAll('.kc-go').forEach(b => b.onclick = ev => {
+    el.querySelectorAll('.kc-go[data-c]').forEach(b => b.onclick = ev => {
       ev.stopPropagation();
       curso(sel, b.dataset.c, { volver: () => pasaporte(sel, opt) });
+    });
+    el.querySelectorAll('[data-cert]').forEach(b => b.onclick = ev => {
+      ev.stopPropagation();
+      certificado(sel, b.dataset.cert, { volver: () => pasaporte(sel, opt) });
     });
   }
 
@@ -574,6 +670,35 @@ async function pasaporte(sel, opt) {
       (lista.length ? cuerpo
         : `<p class="kc-vacio">${est ? 'No hay ' + (EST_P[est] || '') +
             ' en esta categoría.' : 'Nada en esta categoría.'}</p>`);
+  }
+
+  // Certificados: sólo lo certificable y cumplido. Las charlas quedan
+  // en el pasaporte pero no emiten papel.
+  let CERTS = null;
+  function vistaCerts() {
+    if (CERTS === null) {
+      rpc('cap_mis_certificados').then(r => { CERTS = r || []; pintar(); })
+        .catch(e => { CERTS = []; pintar(); });
+      return '<div class="kc-carga">Buscando tus certificados…</div>';
+    }
+    if (!CERTS.length) return `<p class="kc-vacio">Todavía no tenés capacitaciones
+      cumplidas que emitan certificado.<br><br>Las charlas y divulgaciones quedan en tu
+      pasaporte, pero no certifican.</p>`;
+    return '<div class="kc-list" style="padding-top:14px">' + CERTS.map(c => `
+      <div class="kc-it" style="cursor:default">
+        <div class="kc-st ${c.vigente ? 'al_dia' : 'vencida'}"></div>
+        <div style="flex:1;min-width:0"><div class="kc-bd">
+          <div class="kc-r1"><span class="kc-cd">${esc(c.codigo)}${
+            c.consecutivo ? ' · ' + esc(c.consecutivo) : ''}</span>
+            ${c.vigente ? '' : '<span class="kc-pill vencida">Vencido</span>'}</div>
+          <div class="kc-tt">${esc(c.titulo)}</div>
+          <div class="kc-mt">${c.fecha ? fecha(c.fecha) : ''}${
+            c.horas ? ' · ' + Number(c.horas) + ' h' : ''}${
+            c.nota != null ? ' · nota ' + Number(c.nota) + '%' : ''}${
+            c.vence_el ? ' · vence ' + fecha(c.vence_el) : ' · no vence'}</div>
+          <button class="kc-go" data-cert="${c.asistencia_id}">Descargar</button>
+        </div></div>
+      </div>`).join('') + '</div>';
   }
 
   function vistaCred() {
@@ -1237,6 +1362,7 @@ async function admin(sel) {
       <div class="kc-bar2">
         <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar por código o título…"
                value="${esc(busca)}" autocomplete="off">
+        <button class="kc-mini p" data-c="ia">✦ Armar con IA</button>
         <button class="kc-mini" data-c="crear">+ Crear propia</button>
         <button class="kc-mini" data-c="sumar">Sumar de la biblioteca${
           (CAT.biblioteca||[]).length ? ' · ' + CAT.biblioteca.length : ''}</button>
@@ -1521,6 +1647,10 @@ async function admin(sel) {
         d => rpc('cap_cat_activar', { p_catalogo: id, p_activo: !off,
           p_motivo: off ? d.querySelector('#k1').value : null }),
         off ? 'Apagar' : 'Prender');
+
+    } else if (accion === 'ia') {
+      // el generador se abre en lugar del panel y vuelve a esta pestaña
+      generador(sel, { volver: () => admin(sel) });
 
     } else if (accion === 'convalidar') {
       // Dar por cumplido lo que se hizo antes de KALU y consta en papel.
@@ -2179,6 +2309,482 @@ async function ficha(sel, personaId, opt) {
 }
 
 /* =================================================================
+   GENERADOR — armar una capacitación con IA a partir de documentos
+   ================================================================= */
+async function generador(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando…');
+  let D, abierto = null, R = null, archivos = [], reloj = null;
+
+  const EST_G = { pendiente:'En cola', procesando:'La IA está trabajando',
+                  borrador:'Borrador listo para revisar', publicada:'Publicada',
+                  error:'Falló', anulada:'Anulada' };
+  const TIPOS = [['titulo','Título'],['texto','Párrafo'],['lista','Lista'],
+                 ['aviso','Aviso destacado'],['separador','Separador']];
+
+  async function traer(id) {
+    D = await rpc('cap_generacion_datos', { p_id: id || null });
+    if (D.uno && D.uno.resultado) R = JSON.parse(JSON.stringify(D.uno.resultado));
+  }
+  function toast(t) {
+    const x = document.createElement('div');
+    x.className = 'kc-toast'; x.textContent = t;
+    document.body.appendChild(x); setTimeout(() => x.remove(), 7000);
+  }
+  function parar() { if (reloj) { clearInterval(reloj); reloj = null; } }
+
+  try { await traer(null); } catch (e) { return error(el, e); }
+
+  /* ---------------------------------------------------------- lista */
+  function vLista() {
+    const L = D.lista || [];
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:22px 0 12px">
+        ${opt && opt.volver ? '<button class="kc-mini" id="kcv">← Volver</button>' : ''}
+      </div>
+      <div style="border-bottom:2px solid var(--kc-ink);padding-bottom:14px;margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:8px">KALU · CAPACITADOR</div>
+        <h1 style="font-size:30px;font-weight:700">Armar una capacitación con IA</h1>
+        <p style="color:var(--kc-ink2);margin:8px 0 0;max-width:66ch">Subís el procedimiento,
+          las fotos, el instructivo — lo que tengas — y la IA arma el contenido y las preguntas.
+          <b>Queda como borrador:</b> lo leés, lo corregís y recién ahí lo publicás. El contenido
+          de una capacitación obligatoria lo firma una persona, no una máquina.</p>
+      </div>
+      ${D.puede_editar !== false
+        ? '<button class="kc-mini p" id="kcnueva" style="margin-bottom:16px">+ Nueva</button>' : ''}
+      ${L.length ? '<div class="kc-gen">' + L.map(g => `
+        <div class="kc-gi ${esc(g.estado)}">
+          <div class="n"><b>${esc(g.codigo ? g.codigo + ' · ' : '')}${esc(g.titulo)}</b>
+            <span>${esc(EST_G[g.estado] || g.estado)}${
+              g.bloques ? ' · ' + g.bloques + ' bloques y ' + g.preguntas + ' preguntas' : ''}${
+              g.fuentes ? ' · ' + g.fuentes + ' archivo(s)' : ''}${
+              g.pedido_por ? ' · pidió ' + esc(g.pedido_por) : ''}</span>
+            ${g.error ? `<span style="color:var(--kc-cr)">${esc(g.error)}</span>` : ''}</div>
+          ${g.estado === 'borrador'
+            ? `<button class="kc-mini p" data-rev="${g.id}">Revisar y publicar</button>` : ''}
+          ${g.estado === 'error'
+            ? `<button class="kc-mini" data-rei="${g.id}">Reintentar</button>` : ''}
+          ${g.estado === 'publicada' ? '<span class="kc-tag si">Publicada</span>' : ''}
+          ${['pendiente','procesando'].includes(g.estado)
+            ? '<span class="kc-tag n">Esperando</span>' : ''}
+        </div>`).join('') + '</div>'
+        : '<p class="kc-vacio">Todavía no armaste ninguna.</p>'}
+    </div>`;
+
+    const v = el.querySelector('#kcv'); if (v) v.onclick = () => { parar(); opt.volver(); };
+    const n = el.querySelector('#kcnueva'); if (n) n.onclick = vNueva;
+    el.querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
+      abierto = b.dataset.rev; await traer(abierto); vRevisar();
+    });
+    el.querySelectorAll('[data-rei]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { await rpc('cap_generar_reintentar', { p_id: b.dataset.rei });
+        await traer(null); vLista(); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+
+    // mientras haya algo en la cola, refrescar solo
+    parar();
+    if (L.some(g => ['pendiente','procesando'].includes(g.estado))) {
+      reloj = setInterval(async () => {
+        try { await traer(null); if (!abierto) vLista(); } catch (e) {}
+      }, 15000);
+    }
+  }
+
+  /* ----------------------------------------------------------- nueva */
+  function vNueva() {
+    parar();
+    archivos = [];
+    el.innerHTML = `<div class="kc-wide" style="max-width:720px">
+      <div style="padding:22px 0 12px"><button class="kc-mini" id="kcatras">← Volver</button></div>
+      <h1 style="font-size:26px;font-weight:700;margin-bottom:16px">Nueva capacitación con IA</h1>
+
+      <div class="kc-p1"><div style="padding:18px 20px">
+        <label for="k1" class="kc-cd" style="display:block;margin-bottom:5px">De qué capacitación se trata</label>
+        <select id="k1" style="width:100%;font:inherit;padding:9px 11px;border:1px solid var(--kc-rule2);
+          border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);margin-bottom:12px">
+          <option value="">— es una nueva —</option>
+          ${(D.catalogo || []).map(c =>
+            `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.titulo)}</option>`).join('')}
+        </select>
+        <div id="knueva">
+          <label class="kc-cd">Código</label>
+          <input type="text" id="k2" placeholder="Ej: T21" style="width:100%;font:inherit;
+            padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+            background:var(--kc-card2);color:var(--kc-ink);margin-bottom:12px">
+        </div>
+        <label class="kc-cd">Título</label>
+        <input type="text" id="k3" style="width:100%;font:inherit;padding:9px 11px;
+          border:1px solid var(--kc-rule2);border-radius:7px;background:var(--kc-card2);
+          color:var(--kc-ink);margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+          <div><label class="kc-cd">Eje</label>
+            <select id="k4" style="width:100%;font:inherit;padding:9px 11px;border:1px solid var(--kc-rule2);
+              border-radius:7px;background:var(--kc-card2);color:var(--kc-ink)">
+              <option value="hse">Seguridad y salud</option><option value="tecnica">Plan de carrera</option>
+              <option value="arl">ARL</option><option value="induccion">Inducción</option></select></div>
+          <div><label class="kc-cd">Vigencia (días)</label>
+            <input type="number" id="k5" min="0" placeholder="365" style="width:100%;font:inherit;
+              padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+              background:var(--kc-card2);color:var(--kc-ink)"></div>
+          <div><label class="kc-cd">Horas</label>
+            <input type="number" id="k6" min="0" step="0.5" style="width:100%;font:inherit;
+              padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+              background:var(--kc-card2);color:var(--kc-ink)"></div>
+          <div><label class="kc-cd">Preguntas</label>
+            <input type="number" id="k7" min="4" max="30" value="8" style="width:100%;font:inherit;
+              padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+              background:var(--kc-card2);color:var(--kc-ink)"></div>
+        </div>
+      </div></div>
+
+      <div class="kc-secc">El material</div>
+      <div class="kc-drop" id="kcdrop">
+        <b>Subí los documentos</b>
+        Procedimientos, instructivos, matrices, fotos del equipo o del sitio.
+        PDF, Word, imágenes.<br><br>
+        <input type="file" id="kcfiles" multiple accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp">
+      </div>
+      <div class="kc-arch" id="kclista"></div>
+
+      <label class="kc-cd">Qué querés que tenga en cuenta</label>
+      <textarea id="k8" rows="4" placeholder="Ej: que quede claro cuándo se descarta un EPP y quién lo inspecciona antes de cada turno. Público: auxiliares técnicos, sin formación previa."
+        style="width:100%;font:inherit;padding:10px 12px;border:1px solid var(--kc-rule2);
+        border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);margin-bottom:6px"></textarea>
+      <p class="kc-nota" style="text-align:left;margin:0 0 16px">Cuanto más concreto, mejor sale.
+        Si no subís nada, la IA escribe sólo con esto — y para una capacitación obligatoria eso
+        no alcanza.</p>
+
+      <div class="kc-row" style="max-width:420px">
+        <button class="kc-b2" id="kccan">Cancelar</button>
+        <button class="kc-btn" id="kcgen">Pedir el borrador</button>
+      </div>
+      <p id="kcest" style="font-size:13px;color:var(--kc-ink3);margin-top:12px"></p>
+    </div>`;
+
+    const sel1 = el.querySelector('#k1'), cajaN = el.querySelector('#knueva');
+    sel1.onchange = () => {
+      const c = (D.catalogo || []).find(x => x.id === sel1.value);
+      cajaN.style.display = sel1.value ? 'none' : 'block';
+      if (c) el.querySelector('#k3').value = c.titulo;
+    };
+    el.querySelector('#kcatras').onclick = async () => { await traer(null); vLista(); };
+    el.querySelector('#kccan').onclick = async () => { await traer(null); vLista(); };
+
+    const inp = el.querySelector('#kcfiles');
+    inp.onchange = () => {
+      [...inp.files].forEach(f => archivos.push(f));
+      inp.value = ''; pintarArch();
+    };
+    function pintarArch() {
+      el.querySelector('#kclista').innerHTML = archivos.map((f, i) =>
+        `<div>${esc(f.name)}<span>${Math.round(f.size/1024)} KB</span>
+          <button class="kc-mini" data-q="${i}">Quitar</button></div>`).join('');
+      el.querySelectorAll('#kclista [data-q]').forEach(b => b.onclick = () => {
+        archivos.splice(+b.dataset.q, 1); pintarArch();
+      });
+    }
+
+    el.querySelector('#kcgen').onclick = async () => {
+      const b = el.querySelector('#kcgen'), est = el.querySelector('#kcest');
+      b.disabled = true;
+      try {
+        const subidas = [];
+        for (let i = 0; i < archivos.length; i++) {
+          const f = archivos[i];
+          est.textContent = `Subiendo ${i+1} de ${archivos.length}: ${f.name}…`;
+          subidas.push(await subir(f));
+        }
+        est.textContent = 'Encolando el pedido…';
+        await rpc('cap_generar_pedir', {
+          p_titulo: el.querySelector('#k3').value,
+          p_instrucciones: el.querySelector('#k8').value || null,
+          p_fuentes: subidas,
+          p_catalogo: sel1.value || null,
+          p_codigo: sel1.value ? null : el.querySelector('#k2').value,
+          p_eje: el.querySelector('#k4').value,
+          p_vigencia_dias: el.querySelector('#k5').value === '' ? null : +el.querySelector('#k5').value,
+          p_horas: el.querySelector('#k6').value === '' ? null : +el.querySelector('#k6').value,
+          p_n_preguntas: +el.querySelector('#k7').value || 8 });
+        toast('Pedido encolado. Cuando el borrador esté listo aparece acá para revisar.');
+        await traer(null); vLista();
+      } catch (e) {
+        b.disabled = false; est.textContent = '';
+        alert(e.message);
+      }
+    };
+
+    async function subir(file) {
+      const emp = (D.lista || [])[0] ? null : null;   // la ruta no depende del listado
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
+        .replace(/[^a-z0-9]/g,'').slice(0,5) || 'bin';
+      const ruta = (D.empresa_id || 'empresa') + '/capacitador/fuentes/' +
+        iso().replace(/-/g,'') + '-' + Math.random().toString(16).slice(2,8) + '.' + ext;
+      const st = sb && sb.storage;
+      if (!st) throw new Error('No se puede subir desde acá.');
+      const { error: e } = await st.from('documentos')
+        .upload(ruta, file, { upsert: false, contentType: file.type || undefined });
+      if (e) throw new Error('No se pudo subir «' + file.name + '»: ' + e.message);
+      return { nombre: file.name, storage_path: ruta, tipo_mime: file.type, bytes: file.size };
+    }
+  }
+
+  /* -------------------------------------------------------- revisión */
+  function vRevisar() {
+    parar();
+    const g = D.uno || {};
+    R = R || { bloques: [], preguntas: [] };
+    R.bloques = R.bloques || []; R.preguntas = R.preguntas || [];
+
+    el.innerHTML = `<div class="kc-wide" style="max-width:820px">
+      <div style="padding:22px 0 12px"><button class="kc-mini" id="kcatras">← Volver</button></div>
+      <div style="border-bottom:2px solid var(--kc-ink);padding-bottom:14px;margin-bottom:8px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:8px">BORRADOR PARA REVISAR</div>
+        <h1 style="font-size:26px;font-weight:700">${esc(g.codigo ? g.codigo + ' · ' : '')}${
+          esc(g.titulo || '')}</h1>
+      </div>
+      ${g.resultado && g.resultado.resumen
+        ? `<p style="color:var(--kc-ink2);margin:14px 0">${esc(g.resultado.resumen)}</p>` : ''}
+      ${(g.resultado && (g.resultado.advertencias || []).length)
+        ? `<div class="kc-cent mal"><div class="b">!</div><div>
+            <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">La IA dejó avisos</div>
+            <div style="font-size:13px;color:var(--kc-ink2)">${
+              g.resultado.advertencias.map(esc).join(' · ')}</div></div></div>` : ''}
+      <p class="kc-nota" style="text-align:left;margin:0 0 6px">Leelo completo antes de publicar.
+        Lo que quede acá es lo que va a leer la gente y lo que se le va a evaluar.</p>
+
+      <div class="kc-secc">Contenido<button class="kc-mini" id="kcaddb"
+        style="margin-left:auto;order:3">+ Bloque</button></div>
+      <div id="kcbl"></div>
+
+      <div class="kc-secc">Preguntas<button class="kc-mini" id="kcaddp"
+        style="margin-left:auto;order:3">+ Pregunta</button></div>
+      <div id="kcpr"></div>
+
+      <div class="kc-row" style="max-width:520px;margin-top:22px">
+        <button class="kc-b2" id="kcguardar">Guardar sin publicar</button>
+        <button class="kc-btn" id="kcpub">Revisado — publicar</button>
+      </div>
+      <p class="kc-nota" style="text-align:left">Al publicar queda registrado que lo aprobaste vos.</p>
+    </div>`;
+
+    el.querySelector('#kcatras').onclick = async () => {
+      abierto = null; await traer(null); vLista();
+    };
+    pintarB(); pintarP();
+
+    el.querySelector('#kcaddb').onclick = () => {
+      R.bloques.push({ tipo:'texto', texto:'' }); pintarB();
+    };
+    el.querySelector('#kcaddp').onclick = () => {
+      R.preguntas.push({ enunciado:'', opciones:[{texto:'',correcta:true},{texto:'',correcta:false}] });
+      pintarP();
+    };
+    el.querySelector('#kcguardar').onclick = () => guardar(false);
+    el.querySelector('#kcpub').onclick = () => {
+      const mal = validar();
+      if (mal) return alert(mal);
+      if (!confirm('Publicar «' + (g.titulo || '') + '».\n\nDesde ese momento la gente que la ' +
+                   'tenga pendiente la puede hacer, y lo que responda cuenta.\n\n¿Lo leíste todo?'))
+        return;
+      guardar(true);
+    };
+
+    function validar() {
+      if (!R.bloques.length) return 'No puede quedar sin contenido.';
+      if (R.bloques.some(b => !String(b.texto || '').trim() && b.tipo !== 'separador'))
+        return 'Hay un bloque vacío.';
+      if (!R.preguntas.length) return 'No puede quedar sin preguntas.';
+      for (let i = 0; i < R.preguntas.length; i++) {
+        const q = R.preguntas[i];
+        if (!String(q.enunciado || '').trim()) return 'La pregunta ' + (i+1) + ' está vacía.';
+        const ops = q.opciones || [];
+        if (ops.length < 2) return 'La pregunta ' + (i+1) + ' necesita al menos dos opciones.';
+        if (ops.some(o => !String(o.texto || '').trim()))
+          return 'La pregunta ' + (i+1) + ' tiene una opción vacía.';
+        if (ops.filter(o => o.correcta).length !== 1)
+          return 'La pregunta ' + (i+1) + ' tiene que tener exactamente una respuesta correcta.';
+      }
+      return null;
+    }
+
+    async function guardar(publicar) {
+      const b1 = el.querySelector('#kcguardar'), b2 = el.querySelector('#kcpub');
+      b1.disabled = b2.disabled = true;
+      try {
+        await rpc('cap_borrador_guardar', { p_id: g.id, p_resultado: R });
+        if (publicar) {
+          const r = await rpc('cap_publicar', { p_id: g.id });
+          toast((r && r.aviso) || 'Publicada.');
+        } else toast('Borrador guardado.');
+        abierto = null; await traer(null); vLista();
+      } catch (e) { b1.disabled = b2.disabled = false; alert(e.message); }
+    }
+
+    function pintarB() {
+      el.querySelector('#kcbl').innerHTML = R.bloques.map((b, i) => `
+        <div class="kc-bl" data-i="${i}">
+          <div class="top">
+            <select class="bt">${TIPOS.map(([v,t]) =>
+              `<option value="${v}"${b.tipo===v?' selected':''}>${t}</option>`).join('')}</select>
+            <span class="kc-cd">${i+1} de ${R.bloques.length}</span>
+            <div class="mv">
+              <button class="kc-mini bu">↑</button><button class="kc-mini bd">↓</button>
+              <button class="kc-mini bx">✕</button></div>
+          </div>
+          ${b.tipo === 'separador' ? ''
+            : `<textarea class="bx1" rows="${b.tipo==='titulo'?1:3}"
+                 placeholder="${b.tipo==='lista'
+                   ? 'CASCO — protege de golpes|GAFAS — protege de proyección'
+                   : 'Texto del bloque'}">${esc(b.texto || '')}</textarea>
+               <input type="text" class="bx2" placeholder="Nota al pie (opcional)"
+                 value="${esc(b.nota || '')}">`}
+        </div>`).join('');
+      el.querySelectorAll('#kcbl .kc-bl').forEach(d => {
+        const i = +d.dataset.i;
+        d.querySelector('.bt').onchange = e => { R.bloques[i].tipo = e.target.value; pintarB(); };
+        const t1 = d.querySelector('.bx1'); if (t1) t1.oninput = e => R.bloques[i].texto = e.target.value;
+        const t2 = d.querySelector('.bx2'); if (t2) t2.oninput = e => R.bloques[i].nota = e.target.value;
+        d.querySelector('.bu').onclick = () => { if (i > 0) {
+          [R.bloques[i-1], R.bloques[i]] = [R.bloques[i], R.bloques[i-1]]; pintarB(); } };
+        d.querySelector('.bd').onclick = () => { if (i < R.bloques.length-1) {
+          [R.bloques[i+1], R.bloques[i]] = [R.bloques[i], R.bloques[i+1]]; pintarB(); } };
+        d.querySelector('.bx').onclick = () => { R.bloques.splice(i,1); pintarB(); };
+      });
+    }
+
+    function pintarP() {
+      el.querySelector('#kcpr').innerHTML = R.preguntas.map((q, i) => `
+        <div class="kc-bl" data-i="${i}">
+          <div class="top"><span class="kc-cd">PREGUNTA ${i+1}</span>
+            <div class="mv"><button class="kc-mini qx">✕</button></div></div>
+          <textarea class="qe" rows="2" placeholder="Enunciado">${esc(q.enunciado || '')}</textarea>
+          <div class="qops">${(q.opciones || []).map((o, j) => `
+            <div class="kc-op2" data-j="${j}">
+              <input type="radio" name="q${i}" class="oc"${o.correcta?' checked':''}
+                aria-label="Correcta">
+              <input type="text" class="ot" value="${esc(o.texto || '')}" placeholder="Opción">
+              <button class="kc-mini ox">✕</button>
+            </div>`).join('')}</div>
+          <div style="display:flex;gap:7px;margin:6px 0 8px">
+            <button class="kc-mini qadd">+ Opción</button>
+            <span class="kc-cd" style="align-self:center">La marcada es la correcta</span></div>
+          <input type="text" class="qx1" placeholder="Explicación que se muestra al corregir"
+            value="${esc(q.explicacion || '')}">
+        </div>`).join('');
+      el.querySelectorAll('#kcpr .kc-bl').forEach(d => {
+        const i = +d.dataset.i;
+        d.querySelector('.qe').oninput = e => R.preguntas[i].enunciado = e.target.value;
+        d.querySelector('.qx1').oninput = e => R.preguntas[i].explicacion = e.target.value;
+        d.querySelector('.qx').onclick = () => { R.preguntas.splice(i,1); pintarP(); };
+        d.querySelector('.qadd').onclick = () => {
+          (R.preguntas[i].opciones = R.preguntas[i].opciones || []).push({texto:'',correcta:false});
+          pintarP(); };
+        d.querySelectorAll('.kc-op2').forEach(o => {
+          const j = +o.dataset.j;
+          o.querySelector('.oc').onchange = () => {
+            R.preguntas[i].opciones.forEach((x, k) => x.correcta = (k === j)); };
+          o.querySelector('.ot').oninput = e => R.preguntas[i].opciones[j].texto = e.target.value;
+          o.querySelector('.ox').onclick = () => {
+            R.preguntas[i].opciones.splice(j,1); pintarP(); };
+        });
+      });
+    }
+  }
+
+  if (abierto) vRevisar(); else vLista();
+}
+
+/* =================================================================
+   CERTIFICADO — se imprime a PDF desde el navegador
+   ================================================================= */
+async function certificado(sel, asistenciaId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Emitiendo el certificado…');
+  let D;
+  try { D = await rpc('cap_certificado_datos', { p_asistencia: asistenciaId }); }
+  catch (e) { return error(el, e); }
+  if (!D) return error(el, new Error('No se pudo emitir el certificado.'));
+
+  const E = D.empresa || {}, P = D.persona || {}, C = D.capacitacion || {},
+        A = D.asistencia || {}, V = D.evaluacion, CE = D.certificado || {},
+        CT = D.control || {};
+  const col = E.color || '#0B5D45';
+  const nota = V && V.nota != null ? Number(V.nota) : null;
+  const legal = (C.base_legal || []).filter(Boolean);
+
+  el.className = 'kc';
+  el.innerHTML = `
+    <div class="kc-cacc">
+      ${opt && opt.volver ? '<button class="kc-mini" id="kcv">← Volver</button>' : ''}
+      <button class="kc-mini p" id="kcimp">Descargar o imprimir</button>
+      <span class="kc-cd">Se abre el diálogo de impresión: elegí «Guardar como PDF».</span>
+    </div>
+    <div class="kc-cert" style="--kc-cert-color:${esc(col)}">
+      <div class="kc-cbar"></div>
+      <div class="kc-cin">
+
+        <div class="kc-chead">
+          ${E.logo ? `<img src="${esc(E.logo)}" alt="">` : ''}
+          <div><div class="e">${esc(E.razon_social || E.nombre || '')}</div>
+            ${E.nit ? `<div class="n">NIT ${esc(E.nit)}</div>` : ''}</div>
+          <div class="d">${esc(CT.codigo || 'A.FR014')} · versión ${esc(CT.version || '001')}<br>
+            ${esc(CE.consecutivo || '')}</div>
+        </div>
+
+        <p class="kc-ctit">Certificado de formación</p>
+        <p class="kc-cque">La empresa hace constar que</p>
+        <div class="kc-cnom">${esc(P.nombre || '')}</div>
+        <div class="kc-cced">${P.cedula ? 'C.C. ' + esc(P.cedula) : ''}${
+          P.cargo ? ' · ' + esc(P.cargo) : ''}</div>
+
+        <div class="kc-ccur">
+          <div class="k">${nota != null && V.aprobado ? 'Asistió y aprobó' : 'Asistió a'}</div>
+          <div class="t">${esc(C.codigo || '')} · ${esc(C.titulo || '')}</div>
+          ${C.objetivo ? `<p class="o">${esc(C.objetivo)}</p>` : ''}
+        </div>
+
+        <div class="kc-cdat">
+          <div><div class="k">Fecha</div><div class="v">${A.fecha ? fecha(A.fecha) : '—'}</div></div>
+          <div><div class="k">Intensidad</div><div class="v">${
+            C.horas != null ? Number(C.horas) + ' h' : '—'}</div></div>
+          <div><div class="k">Vigencia</div><div class="v">${
+            A.vence_el ? 'hasta ' + fecha(A.vence_el) : 'No vence'}</div></div>
+          <div><div class="k">${nota != null ? 'Calificación' : 'Modalidad'}</div>
+            <div class="v">${nota != null ? nota + '%'
+              : esc(C.modalidad || '—')}</div></div>
+        </div>
+
+        <div class="kc-cpie">
+          <div class="kc-cfirma">
+            <div class="l">${esc(D.responsable || E.razon_social || E.nombre || '')}</div>
+            <div class="r">${D.responsable ? 'Responsable del SG-SST'
+              : 'Emitido por ' + esc(CE.emitido_por || 'KALU')} ·
+              ${CE.emitido_el ? new Date(CE.emitido_el).toLocaleDateString('es-CO') : ''}</div>
+          </div>
+          <div class="kc-cqr">${qrSvg(urlVerificar(P.token))}
+            <span>Verificar</span></div>
+        </div>
+
+        <p class="kc-cleg">
+          ${legal.length ? 'Marco legal: ' + esc(legal.join(' · ')) + '. ' : ''}Documento
+          emitido electrónicamente por KALU; no requiere firma autógrafa. El código de arriba
+          consulta el estado de formación vigente de la persona al momento de escanearlo.
+          ${A.origen === 'historico'
+            ? 'Formación acreditada con soporte documental anterior a la puesta en marcha del sistema.'
+            : ''}
+        </p>
+      </div>
+    </div>`;
+
+  const v = el.querySelector('#kcv');
+  if (v) v.onclick = () => opt.volver();
+  el.querySelector('#kcimp').onclick = () => global.print();
+}
+
+/* =================================================================
    VERIFICAR CREDENCIAL — para el supervisor que escanea
    ================================================================= */
 async function verificar(sel, token) {
@@ -2297,7 +2903,8 @@ function init(cfg) {
   return s;
 }
 
-global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, ficha, verificar,
+global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, ficha,
+                   certificado, generador, verificar,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

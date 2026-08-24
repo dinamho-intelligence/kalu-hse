@@ -80,7 +80,8 @@
   </div>
 
   <div class="hide" id="scApp">
-    <div class="intro">
+    <div id="reg"></div>
+    <div class="intro" id="introBox">
       <b>¿Qué hace esto?</b> KALU cruza tus <b>tarjetas</b>, <b>ATS</b> e <b>investigaciones</b> para encontrar <b>patrones</b> que a simple vista no se ven: dónde se repiten los problemas, si una tarjeta ya lo había avisado, si el ATS tenía el control y no se cumplió.
       <div class="disclaimer">⚖️ Enfoque <b>sin culpables</b>: se señala el patrón, el área, la categoría y la brecha del sistema — nunca a una persona por nombre. Es un análisis preliminar para orientar al HSE; el criterio final es humano.</div>
       <button class="bigbtn" id="btnRun" onclick="analizar()">🔎 Buscar patrones</button>
@@ -93,10 +94,12 @@ const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 let TOKEN=null, MYEMP=null, MYNAME=null;
 let TAR=[], ATS=[], INV=[];
+let INFORMES=[], PENDINGINF=null;
 const WEBHOOK_PAT='https://dnmintell.app.n8n.cloud/webhook/kalu-patrones';
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function sbGet(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(!r.ok) throw new Error(path+' '+r.status); return r.json(); }
+async function sbPost(path,body,prefer){ const r=await fetch(SB_URL+'/rest/v1/'+path,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:(prefer||'return=representation')},body:JSON.stringify(body)}); if(!r.ok){ var t=''; try{t=await r.text();}catch(_){} throw new Error(path+' '+r.status+' '+String(t).slice(0,200)); } return r.json(); }
 /* ---------- Login (solo gestores HSE) ---------- */
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value, e=$('loginErr'); e.textContent='';
@@ -119,6 +122,8 @@ async function login(){
     MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||email;
     $('who').textContent=MYNAME;
     $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
+    cargarRegistro();
+    if(PENDINGINF){ var _p=PENDINGINF; PENDINGINF=null; openInforme(_p); }
   }catch(err){ e.textContent='Error de conexión.'; b.disabled=false; b.textContent='Ingresar'; }
 }
 /* ---------- Helpers de texto/fecha ---------- */
@@ -196,6 +201,8 @@ function render(){
   var html='';
   html+='<div class="kpis">'+kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
   if(meta.base){ html+='<div class="disclaimer" style="border-left:3px solid var(--cy);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">📅 <b style="color:var(--tx)">Primer período en KALU</b> — los datos arrancan el '+esc(meta.inicio||'—')+' ('+meta.dias+' días de operación). No hay base de comparación previa: lo que se ve NO es "deterioro", es la línea base en construcción.</div>'; }
+  window._TEND=_tendenciaMensual();
+  html+=tendenciaHTML(window._TEND);
   html+=riskSectionHTML(RISK);
   html+='<div style="margin:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap"><button class="bigbtn" id="btnIA" onclick="profundizarIA()">🧠 Profundizar con KALU IA</button><button class="bigbtn" id="btnPDF" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div><div class="disclaimer" style="margin-bottom:8px">Los números salen del motor (reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.</div><div id="ia"></div>';
 
@@ -339,9 +346,10 @@ function exportarPDF(){
   if(!JS){ alert('No se pudo cargar el generador de PDF (revisá tu conexión).'); return; }
   var btn=document.getElementById('btnPDF'), btxt=btn?btn.textContent:'';
   if(btn){ btn.disabled=true; btn.textContent='⏳ Generando…'; }
-  var IA=window._IA||{}, M=window._META||{}, POS=(_positivo()||{});
+  var IA=window._IA||{}, M=window._META||{}, POS=(_positivo()||{}), SNAP=window._SNAP||null;
   var RISK=(window._RISK||[]).filter(function(r){return r.ins>0||r.ev>0;});
-  var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
+  var ins=SNAP?(SNAP.inseguras||0):TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
+  var kTar=SNAP?(SNAP.tarjetas||0):TAR.length, kAts=SNAP?(SNAP.ats||0):ATS.length, kInv=SNAP?(SNAP.investigaciones||0):INV.length, kPct=SNAP?(SNAP.pct_cierre||0):(POS.pct_cierre!=null?POS.pct_cierre:0);
   var C='#F28C00', CD='#0aa3c2', OK='#1f9d57', RED='#e23b3b';
   function box(bc,inner){ return '<div style="background:#fff;border:1px solid #e6e8ee;border-left:5px solid '+bc+';border-radius:10px;padding:13px 16px;margin:0 0 11px;page-break-inside:avoid">'+inner+'</div>'; }
   function h2(t){ return '<div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#9a6a12;margin:20px 0 9px">'+esc(t)+'</div>'; }
@@ -351,7 +359,13 @@ function exportarPDF(){
   h+='<div style="font-size:23px;font-weight:800;color:#12161c;line-height:1.1">Informe de Inteligencia HSE</div>';
   h+='<div style="font-size:12px;color:#6b7385;margin-top:4px">KALU · Dinamho Intelligence · '+new Date().toLocaleDateString('es-CO')+' · enfoque sin culpables</div>';
   if(M.inicio) h+='<div style="font-size:12px;color:#6b7385;margin-top:2px">Datos desde <b style="color:#3a4150">'+esc(M.inicio)+'</b> · '+M.dias+' días en KALU'+(M.base?' · primer período, sin base de comparación previa':'')+'</div>';
-  h+='<div style="display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 4px">'+tile(TAR.length,'Tarjetas')+tile(ins,'Inseguras',RED)+tile((POS.pct_cierre!=null?POS.pct_cierre:0)+'%','% cierre',OK)+tile(ATS.length,'ATS')+tile(INV.length,'Investigaciones')+'</div>';
+  h+='<div style="display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 4px">'+tile(kTar,'Tarjetas')+tile(ins,'Inseguras',RED)+tile(kPct+'%','% cierre',OK)+tile(kAts,'ATS')+tile(kInv,'Investigaciones')+'</div>';
+  var TEND=window._TEND||[];
+  if(TEND.length>=1){ h+=h2('Tendencia mensual'); var _rws=TEND.slice(-8);
+    var _tt='<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="color:#9aa3b0;font-size:9.5px;text-transform:uppercase"><th style="text-align:left;padding:6px">Mes</th><th style="padding:6px">Tarjetas</th><th style="padding:6px">Inseguras</th><th style="padding:6px">% cierre</th><th style="padding:6px">Eventos</th></tr></thead><tbody>';
+    _rws.forEach(function(o){ _tt+='<tr style="border-top:1px solid #eceef2"><td style="padding:6px"><b>'+esc(_mesLabel(o.ym)+' '+o.ym.slice(0,4))+'</b></td><td style="padding:6px;text-align:center">'+o.tot+'</td><td style="padding:6px;text-align:center;color:#e23b3b;font-weight:700">'+o.ins+'</td><td style="padding:6px;text-align:center;color:#1f9d57;font-weight:700">'+o.pct+'%</td><td style="padding:6px;text-align:center">'+o.ev+'</td></tr>'; });
+    _tt+='</tbody></table>'; h+=box('#0aa3c2',_tt);
+  }
   if(IA.diagnostico) h+='<div style="margin-top:14px">'+box(CD,'<div style="font-size:13px;font-weight:800;color:#12161c;margin-bottom:5px">Diagnóstico ejecutivo</div><div style="font-size:12.5px;line-height:1.62;color:#2a3140;white-space:pre-wrap">'+esc(IA.diagnostico)+'</div>')+'</div>';
   var P=IA.prioridad||{};
   if(P.titulo||P.porque||P.accion_inmediata) h+=box(RED,'<div style="font-size:14px;font-weight:800;color:#12161c">⚑ Prioridad #1: '+esc(P.titulo||'')+'</div>'+(P.porque?'<div style="font-size:12.5px;line-height:1.6;color:#2a3140;margin-top:6px"><b style="color:#b23b34">Por qué:</b> '+esc(P.porque)+'</div>':'')+(P.accion_inmediata?'<div style="font-size:12.5px;line-height:1.6;color:#2a3140;margin-top:3px"><b style="color:#b23b34">Acción inmediata:</b> '+esc(P.accion_inmediata)+'</div>':''));
@@ -438,9 +452,7 @@ async function profundizarIA(){
   var b=$('btnIA'); if(!b) return; b.disabled=true; b.textContent='KALU está analizando…';
   $('ia').innerHTML='<div class="loading">KALU IA está leyendo los patrones y redactando la lectura experta…</div>';
   try{
-    var r=await fetch(WEBHOOK_PAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datos:window.PAYLOAD,token:TOKEN})});
-    if(!r.ok) throw new Error('http '+r.status);
-    var d=await r.json();
+    var d=await fetchIA();
     window._IA=d;
     renderIA(d);
   }catch(e){ $('ia').innerHTML='<div class="empty" style="color:#F0B04A">No me pude conectar con KALU IA. ¿Está activo el flujo de n8n <b>kalu-patrones</b> y tiene la API key cargada?<br><span style="font-size:11px">'+esc(e.message)+'</span></div>'; }
@@ -508,6 +520,133 @@ function renderIA(d){
 }
 function toggleMemo(i){ var m=$('memo'+i); if(m) m.classList.toggle('show'); }
 function copiar(btn,i){ var m=$('memo'+i); if(!m) return; var txt=m.innerText.replace(/\s*Copiar\s*$/,'').trim(); try{ navigator.clipboard.writeText(txt); btn.textContent='✓ Copiado'; setTimeout(function(){btn.textContent='Copiar';},2000); }catch(e){ btn.textContent='(copiá manual)'; } }
+/* ===================================================================
+   Registro de informes (guardados + link) + Tendencia mensual
+   =================================================================== */
+var _MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function _mesLabel(ym){ var m=parseInt(String(ym).slice(5,7),10)-1; return _MES[m]||ym; }
+function _ymd(d){ var m=d.getMonth()+1,day=d.getDate(); return d.getFullYear()+'-'+(m<10?'0'+m:m)+'-'+(day<10?'0'+day:day); }
+function _fmtCorta(d){ return d.getDate()+' '+_MES[d.getMonth()]; }
+function _isoWeekNum(d){ var dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); var day=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-day+3); var ft=new Date(Date.UTC(dt.getUTCFullYear(),0,4)); var w=1+Math.round(((dt-ft)/86400000-3+((ft.getUTCDay()+6)%7))/7); return {year:dt.getUTCFullYear(),week:w}; }
+function _semanaPasada(){ var t=hoy(); var dow=(t.getDay()+6)%7; var thisMon=new Date(t); thisMon.setDate(t.getDate()-dow); var lastMon=new Date(thisMon); lastMon.setDate(thisMon.getDate()-7); var lastSun=new Date(thisMon); lastSun.setDate(thisMon.getDate()-1); var wk=_isoWeekNum(lastMon); var ww=(wk.week<10?'0'+wk.week:''+wk.week); var rango=(lastMon.getMonth()===lastSun.getMonth())?(lastMon.getDate()+'–'+_fmtCorta(lastSun)):(_fmtCorta(lastMon)+'–'+_fmtCorta(lastSun)); return {desde:_ymd(lastMon),hasta:_ymd(lastSun),clave:'sem-'+wk.year+'-W'+ww,etiqueta:'Semana '+wk.week+' · '+rango+' '+lastSun.getFullYear()}; }
+
+function _tendenciaMensual(){
+  var M={};
+  TAR.forEach(function(t){ var s=fISO(t.creado||t.fecha); if(!s) return; var ym=s.slice(0,7); var o=M[ym]||(M[ym]={ym:ym,tot:0,ins:0,seg:0,cerr:0,ev:0}); o.tot++; var cl=(t.clase||''); if(cl==='inseguro'){ o.ins++; if((t.estado||'')==='cerrada') o.cerr++; } else if(cl==='seguro'){ o.seg++; } });
+  INV.forEach(function(v){ var s=fISO(v.fecha_evento||v.created_at); if(!s) return; var ym=s.slice(0,7); var o=M[ym]||(M[ym]={ym:ym,tot:0,ins:0,seg:0,cerr:0,ev:0}); o.ev++; });
+  return Object.keys(M).sort().map(function(k){ var o=M[k]; o.pct=o.ins?Math.round(o.cerr/o.ins*100):0; return o; });
+}
+function tendenciaHTML(arr){
+  if(!arr||!arr.length) return '';
+  var rows=arr.slice(-8);
+  var maxIns=Math.max.apply(null,rows.map(function(o){return o.ins;}).concat([1]));
+  var h='<h2 class="sec"><span>▸</span> 📈 Tendencia mensual <span style="color:var(--tx3);font-size:11px;text-transform:none;letter-spacing:0">— ¿mejora o empeora?</span></h2>';
+  h+='<div class="pat" style="border-left-color:var(--cy)">';
+  h+='<div style="display:flex;gap:10px;align-items:flex-end;height:118px;padding:4px 0 2px;overflow-x:auto">';
+  rows.forEach(function(o,i){ var hpx=Math.round(o.ins/maxIns*88)+4; var prev=i>0?rows[i-1]:null; var col=(o.ins===0)?'var(--verde)':(prev&&o.ins>prev.ins?'var(--rojo)':(prev&&o.ins<prev.ins?'var(--verde)':'var(--amber)'));
+    h+='<div style="flex:1;min-width:44px;text-align:center;display:flex;flex-direction:column;justify-content:flex-end;height:100%"><div style="font-size:11px;font-weight:800;color:'+col+'">'+o.ins+'</div><div style="height:'+hpx+'px;background:'+col+';border-radius:5px 5px 0 0;margin:3px auto 0;width:68%"></div><div style="font-size:10px;color:var(--tx3);margin-top:4px">'+_mesLabel(o.ym)+'</div></div>';
+  });
+  h+='</div>';
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px"><tr style="color:var(--tx3);font-size:10px;text-transform:uppercase"><td style="padding:5px 6px">Mes</td><td style="padding:5px;text-align:center">Tarjetas</td><td style="padding:5px;text-align:center">Inseguras</td><td style="padding:5px;text-align:center">% cierre</td><td style="padding:5px;text-align:center">Eventos</td></tr>';
+  function delta(cur,pr,masEsMejor){ if(pr==null) return ''; var d=cur-pr; if(d===0) return ' <span style="color:var(--tx3)">→</span>'; var up=d>0; var bueno=masEsMejor?up:!up; var c=bueno?'var(--verde)':'var(--rojo)'; return ' <span style="color:'+c+';font-size:11px">'+(up?'▲':'▼')+Math.abs(d)+'</span>'; }
+  rows.forEach(function(o,i){ var prev=i>0?rows[i-1]:null;
+    h+='<tr style="border-top:1px solid var(--line)"><td style="padding:6px">'+_mesLabel(o.ym)+' '+o.ym.slice(0,4)+'</td><td style="padding:6px;text-align:center">'+o.tot+'</td><td style="padding:6px;text-align:center">'+o.ins+delta(o.ins,prev?prev.ins:null,false)+'</td><td style="padding:6px;text-align:center">'+o.pct+'%'+delta(o.pct,prev?prev.pct:null,true)+'</td><td style="padding:6px;text-align:center">'+o.ev+'</td></tr>';
+  });
+  h+='</table>';
+  if(arr.length<2) h+='<div class="disclaimer" style="margin-top:8px">Todavía es el primer período — cuando cierre el mes vas a ver acá, mes a mes, si el riesgo baja o sube.</div>';
+  h+='</div>';
+  return h;
+}
+
+async function cargarRegistro(){
+  try{ INFORMES=await sbGet('informes_hse?select=id,tipo,etiqueta,clave,periodo_desde,periodo_hasta,resumen,creado_at,creado_nombre&order=creado_at.desc'); }catch(e){ INFORMES=[]; }
+  pintarRegistro();
+}
+function _linkInforme(id){ return location.origin+location.pathname+'?informe='+id; }
+function pintarRegistro(){
+  var reg=$('reg'); if(!reg) return;
+  var sp=_semanaPasada();
+  var ya=INFORMES.filter(function(x){return x.tipo==='semanal';}).filter(function(x){return x.clave===sp.clave;})[0];
+  var h='';
+  if(ya){
+    h+='<div style="background:rgba(37,194,110,.1);border:1px solid rgba(37,194,110,.4);border-left:4px solid var(--verde);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:200px"><b style="color:#4FD98B">✅ El informe semanal ya está creado</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(ya.etiqueta||sp.etiqueta)+' · guardado el '+fISO(ya.creado_at)+(ya.creado_nombre?(' por '+esc(ya.creado_nombre)):'')+'</div></div>'
+      +'<button class="mini" style="background:rgba(37,194,110,.15);border-color:var(--verde);color:#4FD98B;margin:0" onclick="openInforme(\''+ya.id+'\')">Ver informe</button>'
+      +'<button class="mini" style="margin:0" onclick="copiarLink(this,\''+_linkInforme(ya.id)+'\')">🔗 Copiar link</button></div>';
+  } else {
+    h+='<div style="background:rgba(232,147,12,.1);border:1px solid rgba(232,147,12,.4);border-left:4px solid var(--amber);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:200px"><b style="color:#F0B04A">📅 Falta el informe de la semana pasada</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(sp.etiqueta)+' — generalo una vez y queda guardado, con su link, para todos.</div></div>'
+      +'<button class="mini" id="btnSem" style="background:rgba(232,147,12,.15);border-color:var(--amber);color:#F0B04A;margin:0" onclick="generarSemanal()">Generar y guardar</button></div>';
+  }
+  if(INFORMES.length){
+    h+='<details style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px"><summary style="cursor:pointer;font-size:12px;color:var(--tx2);font-weight:700">📁 Informes guardados ('+INFORMES.length+')</summary><div style="margin-top:6px">';
+    INFORMES.slice(0,40).forEach(function(x){
+      var badge=x.tipo==='mensual'?'MES':(x.tipo==='semanal'?'SEM':'MAN');
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line);flex-wrap:wrap">'
+        +'<span style="font-size:9.5px;font-weight:800;color:var(--nar);background:rgba(242,140,0,.12);border-radius:6px;padding:2px 7px">'+badge+'</span>'
+        +'<span style="flex:1;min-width:150px;font-size:13px">'+esc(x.etiqueta||x.clave)+'</span>'
+        +'<span style="font-size:11px;color:var(--tx3);font-family:monospace">'+fISO(x.creado_at)+'</span>'
+        +'<button class="mini" style="margin:0;padding:4px 10px" onclick="openInforme(\''+x.id+'\')">Ver</button>'
+        +'<button class="mini" style="margin:0;padding:4px 10px" onclick="copiarLink(this,\''+_linkInforme(x.id)+'\')">🔗</button></div>';
+    });
+    h+='</div></details>';
+  }
+  reg.innerHTML=h;
+}
+function copiarLink(btn,url){ try{ navigator.clipboard.writeText(url); var o=btn.textContent; btn.textContent='✓ Copiado'; setTimeout(function(){btn.textContent=o;},1600); }catch(e){ prompt('Copiá el link del informe:',url); } }
+
+async function fetchIA(){ var r=await fetch(WEBHOOK_PAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datos:window.PAYLOAD,token:TOKEN})}); if(!r.ok) throw new Error('http '+r.status); return r.json(); }
+
+async function generarSemanal(){
+  var b=$('btnSem'); if(b){ b.disabled=true; b.textContent='Generando…'; }
+  try{
+    if(!window.PAYLOAD){ await analizar(); }
+    if(!window.PAYLOAD) throw new Error('No hay datos para analizar.');
+    if(!window._IA){ if(b) b.textContent='KALU IA…'; var d=await fetchIA(); window._IA=d; renderIA(d); }
+    await guardarInforme('semanal');
+    await cargarRegistro();
+    alert('✅ Informe semanal guardado. Ya podés compartir el link desde el listado.');
+  }catch(e){ alert('No se pudo generar/guardar el informe: '+((e&&e.message)||e)); }
+  finally{ if(b){ b.disabled=false; b.textContent='Generar y guardar'; } }
+}
+async function guardarInforme(tipo){
+  if(!MYEMP){ throw new Error('Tu perfil no tiene empresa asignada.'); }
+  var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
+  var idx=(window._RISK||[]).map(function(r){return r.indice;});
+  var resumen={tarjetas:TAR.length,inseguras:ins,ats:ATS.length,investigaciones:INV.length,pct_cierre:(_positivo().pct_cierre||0),indice_max:(idx.length?Math.max.apply(null,idx):0)};
+  var rec;
+  if(tipo==='semanal'){ var sp=_semanaPasada(); rec={empresa_id:MYEMP,tipo:'semanal',periodo_desde:sp.desde,periodo_hasta:sp.hasta,clave:sp.clave,etiqueta:sp.etiqueta}; }
+  else { var n=hoy(); rec={empresa_id:MYEMP,tipo:'manual',periodo_desde:_ymd(n),periodo_hasta:_ymd(n),clave:'man-'+Date.now(),etiqueta:'Informe manual · '+_fmtCorta(n)+' '+n.getFullYear()}; }
+  rec.resumen=resumen; rec.payload=window.PAYLOAD||null; rec.ia=window._IA||null; rec.snap_html=($('out')?$('out').innerHTML:''); rec.creado_nombre=MYNAME;
+  await sbPost('informes_hse?on_conflict=empresa_id,clave',rec,'return=representation,resolution=merge-duplicates');
+}
+
+async function openInforme(id){
+  if(!TOKEN){ PENDINGINF=id; return; }
+  try{
+    var rows=await sbGet('informes_hse?select=*&id=eq.'+encodeURIComponent(id));
+    var rec=rows&&rows[0];
+    if(!rec){ alert('No se encontró el informe (o no tenés acceso).'); return; }
+    renderSaved(rec);
+  }catch(e){ alert('No se pudo abrir el informe: '+((e&&e.message)||e)); }
+}
+function renderSaved(rec){
+  window._SNAP=rec.resumen||null; window._IA=rec.ia||{}; window._META=(rec.payload&&rec.payload.meta)||{}; window._TEND=null;
+  window._RISK=((rec.payload&&rec.payload.indices_riesgo)||[]).map(function(r){ return {zona:r.zona,indice:r.indice,nivel:r.nivel,tend:r.tendencia,delta:0,proy:r.proyeccion_mes,prob:r.prob_evento_pct,problema:r.problema_principal,problema_n:r.problema_veces,ins:r.inseguras,ev:r.eventos,abiertas:r.sin_cerrar,vencidas:r.vencidas}; });
+  var ib=$('introBox'); if(ib) ib.classList.add('hide');
+  var reg=$('reg'); if(reg) reg.innerHTML='<div style="margin-bottom:12px"><a href="'+location.pathname+'" style="color:var(--cy);font-size:13px;text-decoration:none">← Volver al análisis en vivo</a></div>'
+    +'<div style="background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--nar);border-radius:12px;padding:12px 16px;margin-bottom:12px"><b>📄 '+esc(rec.etiqueta||rec.clave)+'</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">Informe guardado el '+fISO(rec.creado_at)+(rec.creado_nombre?(' por '+esc(rec.creado_nombre)):'')+' · vista de solo lectura</div>'
+    +'<button class="bigbtn" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff;margin-top:10px;padding:10px 18px;font-size:14px" onclick="exportarPDF()">⬇ Exportar este informe (PDF)</button></div>';
+  var out=$('out');
+  if(out){
+    out.innerHTML=rec.snap_html||'<div class="empty">Este informe no guardó una vista para mostrar.</div>';
+    ['btnIA','btnPDF'].forEach(function(id){ var el=out.querySelector('#'+id); if(el&&el.parentNode) el.parentNode.style.display='none'; });
+  }
+  try{ window.scrollTo(0,0); }catch(_){}
+}
+
+(function(){ try{ var inf=new URLSearchParams(location.search).get('informe'); if(inf){ PENDINGINF=inf; var sub=document.querySelector('.login .sub'); if(sub) sub.textContent='// INICIÁ SESIÓN PARA VER EL INFORME COMPARTIDO'; } }catch(_){} })();
+
 ['email','pass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(ev){ if(ev.key==='Enter') login(); }); });
 </script>
 </body>

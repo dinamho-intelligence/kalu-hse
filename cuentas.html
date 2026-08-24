@@ -142,7 +142,8 @@ function render(){
       x.cuentas.forEach(function(c){
         var ico=!c.existe?'<span style="color:#9fb0c0">✖ no existe</span>':(c.entro?'<span style="color:#4FD98B">✅ entró</span>':'<span style="color:#F0B04A">⏳ pendiente</span>');
         var pf=c.existe?(c.perfil?' · <span style="color:#7fd6f0">con ficha</span>':' · <span style="color:#F0B04A">sin ficha</span>'):'';
-        h+='<span class="cta">'+esc(c.email)+' · '+ico+pf+'</span>';
+        var qt=c.quitable?' · <a href="javascript:void(0)" onclick="quitarDup(\''+esc(x.cedula)+'\',\''+esc(c.email)+'\')" style="color:#FF8A82;font-weight:700;text-decoration:none">🗑 quitar</a>':'';
+        h+='<span class="cta">'+esc(c.email)+' · '+ico+pf+qt+'</span>';
       });
       h+='</div>';
     } else { h+='<div class="meta" style="color:var(--tx3);margin-top:4px">Sin cuentas asociadas.</div>'; }
@@ -168,6 +169,15 @@ function copiarReinvitar(){
   var txt=mails.join(', ');
   try{ navigator.clipboard.writeText(txt); alert('Copiados '+mails.length+' correos al portapapeles.'); }
   catch(e){ prompt('Copiá los correos:', txt); }
+}
+async function quitarDup(ced,email){
+  if(!confirm('¿Quitar del sistema la cuenta duplicada '+email+'?\n\nSolo se quita si NUNCA entró y la persona tiene otra cuenta activa. Esta acción borra esa cuenta de acceso.')) return;
+  try{
+    const r=await fetch(WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'quitar_duplicado',token:TOKEN,cedula:ced,email:email})});
+    const d=await r.json();
+    if(d&&d.ok){ alert('✅ '+(d.message||'Duplicado quitado')); cargar(); }
+    else alert('No se pudo quitar: '+((d&&d.message)||'error'));
+  }catch(e){ alert('Error: '+e.message); }
 }
 async function repararCuenta(ced){
   if(!confirm('¿Crear la ficha (perfil) para esta cédula y enviarle a la persona un correo para que ponga su clave?')) return;

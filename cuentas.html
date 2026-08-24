@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0C0F">
+<title>KALU · Revisor de cuentas</title>
+<style>
+  :root{--bg:#0A0C0F;--panel:#12161C;--panel2:#171C24;--line:#242B35;--nar:#F28C00;--cy:#00D4FF;--verde:#25C26E;--amber:#E8930C;--rojo:#FF3B30;--tx:#E8EDF2;--tx2:#95A0AD;--tx3:#5E6873;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:radial-gradient(1200px 700px at 15% -10%,#131A22 0%,var(--bg) 55%);color:var(--tx);font-family:Arial,"Segoe UI",system-ui,sans-serif;min-height:100vh;}
+  header{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:12px 22px;background:rgba(10,12,15,.95);border-bottom:1px solid rgba(242,140,0,.2);backdrop-filter:blur(10px);}
+  .brand b{font-size:13px;font-weight:800;letter-spacing:1px}
+  .brand span{font-size:9px;font-weight:700;letter-spacing:2px;color:var(--nar);display:block;margin-top:1px}
+  .htitle{font-size:14px;font-weight:700;border-left:1px solid var(--line);padding-left:12px}
+  .hright{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .who{font-size:12px;color:var(--tx2);font-family:monospace}
+  .lo{background:var(--panel2);border:1px solid var(--line);color:var(--tx2);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 22px 60px}
+  .login{max-width:380px;margin:60px auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:30px 26px}
+  .login h1{font-size:20px;color:var(--nar);text-align:center;letter-spacing:1px;margin-bottom:2px}
+  .login .sub{text-align:center;color:var(--tx3);font-size:11px;font-family:monospace;margin-bottom:20px;letter-spacing:.5px}
+  label{display:block;font-size:11px;color:var(--tx2);margin:12px 0 5px;letter-spacing:.4px}
+  input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--tx);font-size:15px;padding:12px 13px;outline:none}
+  input:focus{border-color:var(--nar)}
+  .btn{width:100%;margin-top:20px;padding:13px;border:none;border-radius:11px;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F}
+  .btn:disabled{opacity:.6;cursor:default}
+  .err{color:#FF7A70;font-size:12.5px;text-align:center;margin-top:12px;min-height:16px}
+  .bigbtn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F;border:none;border-radius:12px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer}
+  .bigbtn:disabled{opacity:.6;cursor:default}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:16px 0}
+  @media(max-width:800px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;cursor:pointer}
+  .kpi.sel{border-color:var(--nar)}
+  .kpi .n{font-size:24px;font-weight:800;line-height:1}
+  .kpi .l{font-size:10.5px;color:var(--tx2);margin-top:5px;text-transform:uppercase;letter-spacing:.3px}
+  .intro{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--tx2);line-height:1.6}
+  .intro b{color:var(--tx)}
+  .row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+  .row .nm{font-size:15px;font-weight:700}
+  .row .meta{font-size:12px;color:var(--tx2);margin-top:2px}
+  .cta{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:20px;margin:6px 6px 0 0;border:1px solid var(--line)}
+  .st{font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+  .st.ok{background:rgba(37,194,110,.15);color:#4FD98B}
+  .st.pend{background:rgba(232,147,12,.16);color:#F0B04A}
+  .st.dup{background:rgba(255,59,48,.16);color:#FF8A82}
+  .st.sin{background:rgba(120,140,160,.15);color:#9fb0c0}
+  .st.okdup{background:rgba(0,212,255,.14);color:#7fd6f0}
+  .empty{color:var(--tx2);text-align:center;padding:26px;border:2px dashed var(--line);border-radius:12px}
+  .loading{text-align:center;color:var(--tx2);padding:40px;font-family:monospace}
+  .hide{display:none!important}
+  .tools{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 14px}
+</style>
+</head>
+<body>
+<header>
+  <svg width="32" height="32" viewBox="0 0 40 40" fill="none"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="12" font-weight="700" font-family="Arial">DI</text></svg>
+  <div class="brand"><b>KALU · Cuentas</b><span>DINAMHO INTELLIGENCE</span></div>
+  <div class="htitle">Revisor de cuentas</div>
+  <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="location.href=location.pathname">Salir</button></div>
+</header>
+<div class="wrap">
+  <div class="login" id="scLogin">
+    <h1>KALU · Cuentas</h1>
+    <div class="sub">// SOLO ADMIN / SUPER-ADMIN</div>
+    <label>Correo</label><input id="email" type="email" autocomplete="off" placeholder="tu@empresa.com">
+    <label>Contraseña</label><input id="pass" type="password" autocomplete="off" placeholder="••••••••">
+    <button class="btn" id="btnLogin" onclick="login()">Ingresar</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <div class="hide" id="scApp">
+    <div class="intro">
+      <b>¿Qué es esto?</b> Un mapa <b>de solo lectura</b> de las cuentas de acceso vs. el padrón. Te muestra quién <b>ya entró</b>, quién quedó <b>pendiente</b> (invitación vencida), quién tiene <b>cuentas duplicadas</b> y quién <b>no tiene cuenta</b>. No borra ni manda nada — el borrado y el reenvío se hacen aparte.
+    </div>
+    <div id="out"><div class="empty">Cargando…</div></div>
+  </div>
+</div>
+<script>
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+const WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-admin';
+let TOKEN=null, DATA=null, FILT='all';
+function $(id){return document.getElementById(id);}
+function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+async function sbGet(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(!r.ok) throw new Error(path+' '+r.status); return r.json(); }
+async function login(){
+  const email=$('email').value.trim(), pass=$('pass').value, e=$('loginErr'); e.textContent='';
+  if(!email||!pass){ e.textContent='Completá correo y contraseña.'; return; }
+  const b=$('btnLogin'); b.disabled=true; b.textContent='Ingresando…';
+  try{
+    const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
+    const d=await r.json();
+    if(!r.ok||!d.access_token){ e.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
+    TOKEN=d.access_token;
+    const pf=await sbGet('perfiles?select=nombre,rol,es_super,estado&id=eq.'+(d.user&&d.user.id));
+    const p0=(pf&&pf[0])||{};
+    if(!(p0.es_super===true || p0.rol==='admin')){ e.textContent='Solo Admin o Super-admin.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
+    $('who').textContent=p0.nombre||email;
+    $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
+    cargar();
+  }catch(err){ e.textContent='Error de conexión.'; b.disabled=false; b.textContent='Ingresar'; }
+}
+async function cargar(){
+  $('out').innerHTML='<div class="loading">Revisando cuentas de Auth vs. padrón…</div>';
+  try{
+    const r=await fetch(WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'revisar_cuentas',token:TOKEN})});
+    const d=await r.json();
+    if(!d || d.ok!==true){ $('out').innerHTML='<div class="empty" style="color:#F0B04A">No se pudo revisar: '+esc((d&&d.message)||'respuesta inesperada')+'</div>'; return; }
+    DATA=d; render();
+  }catch(e){ $('out').innerHTML='<div class="empty" style="color:#FF8A82">Error al consultar: '+esc(e.message)+'</div>'; }
+}
+function kpi(n,l,key,cls){ return '<div class="kpi'+(FILT===key?' sel':'')+'" onclick="setFilt(\''+key+'\')"><div class="n" style="color:'+cls+'">'+n+'</div><div class="l">'+l+'</div></div>'; }
+function setFilt(k){ FILT=k; render(); }
+function render(){
+  var R=DATA.resumen||{}, C=DATA.cuentas||[];
+  var h='<div class="kpis">'
+    + kpi(R.total||0,'Padrón','all','var(--tx)')
+    + kpi(R.pendiente||0,'Pendientes','pendiente','var(--amber)')
+    + kpi((R.duplicado_pendiente||0),'Duplicados','duplicado_pendiente','var(--rojo)')
+    + kpi(R.sin_cuenta||0,'Sin cuenta','sin_cuenta','#9fb0c0')
+    + kpi((R.ok||0)+(R.ok_con_duplicado||0),'Ya entraron','ok','var(--verde)')
+    + '</div>';
+  var lista=C.filter(function(x){
+    if(FILT==='all') return true;
+    if(FILT==='ok') return x.estado==='ok'||x.estado==='ok_con_duplicado';
+    return x.estado===FILT;
+  });
+  // herramienta: copiar correos de los filtrados que convenga reinvitar
+  var reinv=C.filter(function(x){return x.estado==='pendiente'||x.estado==='sin_cuenta';});
+  h+='<div class="tools">'
+    +'<button class="bigbtn" onclick="copiarReinvitar()">📋 Copiar correos a reinvitar ('+reinv.length+')</button>'
+    +'<button class="bigbtn" style="background:var(--panel2);color:var(--tx);border:1px solid var(--line)" onclick="cargar()">↻ Actualizar</button>'
+    +'</div>';
+  if(!lista.length){ h+='<div class="empty">No hay personas en este filtro.</div>'; $('out').innerHTML=h; return; }
+  lista.forEach(function(x){
+    var st=stBadge(x.estado);
+    h+='<div class="row"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(x.nombre||'(sin nombre)')+'</span> '+st+'<div style="flex:1"></div><span class="meta">C.C. '+esc(x.cedula||'—')+'</span></div>';
+    h+='<div class="meta">Padrón: '+(x.correo_padron?esc(x.correo_padron):'<span style="color:var(--tx3)">(sin correo)</span>')+'</div>';
+    if(x.cuentas&&x.cuentas.length){
+      h+='<div style="margin-top:6px">';
+      x.cuentas.forEach(function(c){
+        var ico=!c.existe?'<span style="color:#9fb0c0">✖ no existe</span>':(c.entro?'<span style="color:#4FD98B">✅ entró</span>':'<span style="color:#F0B04A">⏳ pendiente</span>');
+        h+='<span class="cta">'+esc(c.email)+' · '+ico+'</span>';
+      });
+      h+='</div>';
+    } else { h+='<div class="meta" style="color:var(--tx3);margin-top:4px">Sin cuentas asociadas.</div>'; }
+    h+='</div>';
+  });
+  $('out').innerHTML=h;
+}
+function stBadge(e){
+  if(e==='ok') return '<span class="st ok">ya entró</span>';
+  if(e==='ok_con_duplicado') return '<span class="st okdup">entró · con duplicado</span>';
+  if(e==='pendiente') return '<span class="st pend">pendiente</span>';
+  if(e==='duplicado_pendiente') return '<span class="st dup">duplicado pendiente</span>';
+  if(e==='sin_cuenta') return '<span class="st sin">sin cuenta</span>';
+  return '<span class="st">'+esc(e)+'</span>';
+}
+function copiarReinvitar(){
+  var C=(DATA&&DATA.cuentas)||[];
+  var mails=C.filter(function(x){return x.estado==='pendiente'||x.estado==='sin_cuenta';})
+             .map(function(x){return x.correo_padron;}).filter(Boolean);
+  mails=Array.from(new Set(mails.map(function(m){return String(m).toLowerCase();})));
+  if(!mails.length){ alert('No hay correos para reinvitar en el padrón.'); return; }
+  var txt=mails.join(', ');
+  try{ navigator.clipboard.writeText(txt); alert('Copiados '+mails.length+' correos al portapapeles.'); }
+  catch(e){ prompt('Copiá los correos:', txt); }
+}
+['email','pass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(ev){ if(ev.key==='Enter') login(); }); });
+</script>
+</body>
+</html>

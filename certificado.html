@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B5D45">
+<meta name="robots" content="noindex, nofollow">
+<title>Certificado · KALU</title>
+<style>
+  :root{color-scheme:light}
+  body{margin:0;background:#EEF2F0;padding:22px 16px 40px;
+       font-family:"Barlow",-apple-system,"Segoe UI",Roboto,sans-serif}
+  #aviso{margin:24px auto;max-width:520px;background:#F6DEDA;border-left:3px solid #A82D22;
+         border-radius:9px;padding:16px 18px;font-size:14.5px;color:#4B605A;line-height:1.5}
+  #aviso b{display:block;color:#A82D22;font-size:15px;margin-bottom:6px;
+           font-family:"Barlow Semi Condensed",Arial,sans-serif}
+  #aviso a{color:#0B5D45;font-weight:600}
+  #carga{padding:60px 20px;text-align:center;color:#7E918B;font-size:14px}
+  @media print{body{background:#fff;padding:0}}
+</style>
+</head>
+<body>
+
+<div id="carga">Emitiendo el certificado…</div>
+<div id="c"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
+<script src="config.js"></script>
+<script src="capacitador.js?v=12"></script>
+
+<script>
+/* El certificado se arma en el navegador y se guarda como PDF desde el
+   diálogo de impresión. No hay generador de PDF del lado del servidor:
+   el navegador ya lo hace, y así el documento sale con las fuentes y
+   los colores de la empresa sin depender de otra librería. */
+(async function () {
+  var carga = document.getElementById('carga');
+  function detener(t, c) {
+    carga.style.display = 'none';
+    document.getElementById('c').innerHTML = '<div id="aviso"><b>' + t + '</b>' + c + '</div>';
+  }
+
+  if (!window.KALU || !window.supabase || !window.KaluCap)
+    return detener('No se pudo cargar la página',
+      'Faltan archivos. Recargá con Ctrl+F5 y si sigue igual avisá a soporte.');
+
+  var ses;
+  try { ses = KaluCap.init(); } catch (e) { return detener('No se pudo conectar', e.message); }
+  if (!ses || ses.vencida)
+    return detener('Tu sesión no está activa',
+      'Entrá de nuevo por <a href="ingreso.html">ingreso.html</a> y volvé a esta página.');
+
+  var a = new URLSearchParams(location.search).get('a');
+  if (!a) return detener('Falta el certificado',
+    'Entrá desde tu pasaporte, pestaña <b>Certificados</b>.');
+
+  carga.style.display = 'none';
+  KaluCap.certificado('#c', a);
+})();
+</script>
+
+</body>
+</html>

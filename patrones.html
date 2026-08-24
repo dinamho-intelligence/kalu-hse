@@ -67,7 +67,7 @@
   <svg class="hex" viewBox="0 0 40 40" fill="none"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="12" font-weight="700" font-family="Arial">DI</text></svg>
   <div class="brand"><b>KALU · Patrones</b><span>DINAMHO INTELLIGENCE</span></div>
   <div class="htitle">Inteligencia HSE</div>
-  <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="location.reload()">Salir</button></div>
+  <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="cerrarSesion()">Salir</button></div>
 </header>
 <div class="wrap">
   <div class="login" id="scLogin">
@@ -100,6 +100,11 @@ function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function sbGet(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(!r.ok) throw new Error(path+' '+r.status); return r.json(); }
 async function sbPost(path,body,prefer){ const r=await fetch(SB_URL+'/rest/v1/'+path,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:(prefer||'return=representation')},body:JSON.stringify(body)}); if(!r.ok){ var t=''; try{t=await r.text();}catch(_){} throw new Error(path+' '+r.status+' '+String(t).slice(0,200)); } return r.json(); }
+/* ---------- Sesión persistente ---------- */
+function _saveSess(d){ try{ localStorage.setItem('kalu_sess', JSON.stringify({ at:d.access_token, rt:d.refresh_token, exp:Date.now()+((d.expires_in||3600)*1000), uid:(d.user&&d.user.id)||d.uid||null })); }catch(_){} }
+function _clearSess(){ try{ localStorage.removeItem('kalu_sess'); }catch(_){} }
+function cerrarSesion(){ _clearSess(); TOKEN=null; location.href=location.pathname; }
+async function _refresh(rt){ if(!rt) return false; try{ var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); var d=await r.json(); if(!r.ok||!d.access_token) return false; TOKEN=d.access_token; if(!d.uid){ try{ d.uid=JSON.parse(localStorage.getItem('kalu_sess')).uid; }catch(_){} } _saveSess(d); return true; }catch(_){ return false; } }
 /* ---------- Login (solo gestores HSE) ---------- */
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value, e=$('loginErr'); e.textContent='';
@@ -109,24 +114,41 @@ async function login(){
     const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
     const d=await r.json();
     if(!r.ok||!d.access_token){ e.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
-    TOKEN=d.access_token;
-    const pf=await sbGet('perfiles?select=nombre,email,rol,empresa_id,estado,acceso_consola,es_super&id=eq.'+(d.user&&d.user.id));
-    const p0=(pf&&pf[0])||{};
-    if(p0.estado && p0.estado!=='activo'){ e.textContent='Tu cuenta está inactiva.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
-    // Inteligencia sensible: solo Coordinador HSE (líder), Dirección/gerencia, Admin o Super.
-    var lider=false, direccion=false;
-    try{ var r1=await fetch(SB_URL+'/rest/v1/rpc/soy_hse_lider',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); lider=((await r1.json())===true); }catch(_){}
-    try{ var r2=await fetch(SB_URL+'/rest/v1/rpc/soy_direccion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); direccion=((await r2.json())===true); }catch(_){}
-    const ok=(p0.es_super===true || p0.rol==='admin' || lider || direccion);
-    if(!ok){ e.textContent='Acceso solo para Coordinador HSE, Dirección o Admin.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
-    MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||email;
-    PUEDEIA=(p0.es_super===true || p0.rol==='admin' || direccion);
-    try{ var eb=await sbGet('empresas?select=razon_social,branding&id=eq.'+MYEMP); var e0=(eb&&eb[0])||{}; window.BRAND=Object.assign({razon_social:e0.razon_social||''}, (e0.branding||{})); }catch(_){ window.BRAND=null; }
-    $('who').textContent=MYNAME;
-    $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
-    cargarRegistro();
-    if(PENDINGINF){ var _p=PENDINGINF; PENDINGINF=null; openInforme(_p); }
+    TOKEN=d.access_token; _saveSess(d);
+    try{ await afterAuth((d.user&&d.user.id), email); }
+    catch(err){ e.textContent=(err&&err.message)||'No autorizado.'; TOKEN=null; _clearSess(); b.disabled=false; b.textContent='Ingresar'; }
   }catch(err){ e.textContent='Error de conexión.'; b.disabled=false; b.textContent='Ingresar'; }
+}
+async function afterAuth(uid, emailFallback){
+  const pf=await sbGet('perfiles?select=nombre,email,rol,empresa_id,estado,acceso_consola,es_super&id=eq.'+uid);
+  const p0=(pf&&pf[0])||{};
+  if(p0.estado && p0.estado!=='activo'){ throw new Error('Tu cuenta está inactiva.'); }
+  var lider=false, direccion=false;
+  try{ var r1=await fetch(SB_URL+'/rest/v1/rpc/soy_hse_lider',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); lider=((await r1.json())===true); }catch(_){}
+  try{ var r2=await fetch(SB_URL+'/rest/v1/rpc/soy_direccion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:'{}'}); direccion=((await r2.json())===true); }catch(_){}
+  const ok=(p0.es_super===true || p0.rol==='admin' || lider || direccion);
+  if(!ok){ throw new Error('Acceso solo para Coordinador HSE, Dirección o Admin.'); }
+  MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||emailFallback||p0.email||'';
+  PUEDEIA=(p0.es_super===true || p0.rol==='admin' || direccion);
+  try{ var eb=await sbGet('empresas?select=razon_social,branding&id=eq.'+MYEMP); var e0=(eb&&eb[0])||{}; window.BRAND=Object.assign({razon_social:e0.razon_social||''}, (e0.branding||{})); }catch(_){ window.BRAND=null; }
+  $('who').textContent=MYNAME;
+  $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
+  cargarRegistro();
+  if(PENDINGINF){ var _p=PENDINGINF; PENDINGINF=null; openInforme(_p); }
+}
+async function restoreSession(){
+  var s; try{ s=JSON.parse(localStorage.getItem('kalu_sess')||'null'); }catch(_){ s=null; }
+  if(!s||!s.at) return false;
+  TOKEN=s.at;
+  if(!s.exp || Date.now() > s.exp-60000){ if(!await _refresh(s.rt)){ _clearSess(); TOKEN=null; return false; } try{ s=JSON.parse(localStorage.getItem('kalu_sess')); }catch(_){} }
+  var uid=s&&s.uid;
+  try{
+    var r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
+    if(!r.ok){ if(!await _refresh(s&&s.rt)){ _clearSess(); TOKEN=null; return false; } try{ var s2=JSON.parse(localStorage.getItem('kalu_sess')); uid=s2.uid; }catch(_){} }
+    else { var u=await r.json(); uid=u.id||uid; }
+  }catch(_){ _clearSess(); TOKEN=null; return false; }
+  if(!uid){ _clearSess(); TOKEN=null; return false; }
+  try{ await afterAuth(uid); return true; }catch(e){ _clearSess(); TOKEN=null; return false; }
 }
 /* ---------- Helpers de texto/fecha ---------- */
 const STOP={de:1,la:1,el:1,en:1,y:1,a:1,los:1,las:1,del:1,un:1,una:1,con:1,por:1,para:1,se:1,que:1,al:1,su:1,es:1,o:1,mal:1,estado:1,area:1,zona:1};
@@ -695,6 +717,8 @@ function renderSaved(rec){
 }
 
 (function(){ try{ var inf=new URLSearchParams(location.search).get('informe'); if(inf){ PENDINGINF=inf; var sub=document.querySelector('.login .sub'); if(sub) sub.textContent='// INICIÁ SESIÓN PARA VER EL INFORME COMPARTIDO'; } }catch(_){} })();
+// Restaurar sesión guardada (evita re-login al recargar o abrir un link del correo)
+restoreSession();
 
 ['email','pass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(ev){ if(ev.key==='Enter') login(); }); });
 </script>

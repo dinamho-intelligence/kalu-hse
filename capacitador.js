@@ -411,6 +411,34 @@ const CSS = `
  max-width:min(560px,92vw);background:var(--kc-ink);color:var(--kc-ground);
  border-radius:9px;padding:12px 17px;font-size:13.5px;line-height:1.45;
  box-shadow:0 8px 30px -8px rgba(0,0,0,.5)}
+
+/* ---- puesta en marcha ---- */
+.kc-pasos{display:flex;flex-direction:column;gap:9px}
+.kc-paso{display:flex;gap:13px;align-items:flex-start;background:var(--kc-card);
+ border:1px solid var(--kc-rule);border-left:3px solid var(--kc-rule2);
+ border-radius:10px;padding:14px 16px}
+.kc-paso.ok{border-left-color:var(--kc-ok)}
+.kc-paso.no{border-left-color:var(--kc-cr)}
+.kc-paso.opt{border-left-color:var(--kc-rule2);opacity:.78}
+.kc-paso .n{flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;
+ font-family:var(--kc-fd);font-weight:700;font-size:13px;background:var(--kc-card2);
+ color:var(--kc-ink3)}
+.kc-paso.ok .n{background:var(--kc-oks);color:var(--kc-ok)}
+.kc-paso.no .n{background:var(--kc-crs);color:var(--kc-cr)}
+.kc-paso .c{flex:1 1 auto;min-width:0}
+.kc-paso .d{font-size:13.5px;color:var(--kc-ink2);margin-top:3px}
+.kc-paso .ojo{font-size:12.5px;color:var(--kc-wa);margin-top:5px}
+.kc-in{font:inherit;font-size:13.5px;color:inherit;background:var(--kc-card);
+ border:1px solid var(--kc-rule2);border-radius:7px;padding:6px 9px;max-width:100%}
+.kc-in:disabled{background:var(--kc-card2);color:var(--kc-ink3)}
+.kc-in.nom{min-width:300px;width:100%}
+.kc-in.area{min-width:120px;width:100%}
+.kc-off{opacity:.45}
+.kc-chip2{display:inline-block;font-size:11.5px;background:var(--kc-card2);
+ border:1px solid var(--kc-rule);border-radius:999px;padding:2px 9px;margin:2px 3px 2px 0;
+ color:var(--kc-ink2)}
+.kc-chip2.j{background:var(--kc-acs);border-color:var(--kc-ac);color:var(--kc-ac)}
+
 @media (max-width:640px){
   .kc-ev{flex-wrap:wrap}
   .kc-evb{flex:1 1 100%;order:3}
@@ -2869,6 +2897,404 @@ async function verificar(sel, token) {
 const CLAVE = 'kalu_ses';
 const VIDA  = 55 * 60 * 1000;   // el mismo límite que usa ingreso.html
 
+/* =================================================================
+   ARRANQUE — poner una empresa en marcha
+
+   La pantalla que faltaba. Hasta hoy una empresa entraba al módulo
+   porque alguien leía sus documentos y escribía SQL; acá se carga
+   sola, en el orden correcto, y en cada paso dice qué le falta.
+
+   El paso difícil es el primero. El padrón trae el cargo como texto
+   libre —«Ingeniero de Aseguramiento Calidad» y «Ingeniero de
+   Aseguramiento de Calidad» son dos filas distintas para la base— así
+   que la pantalla propone las agrupaciones y una persona las confirma.
+   Nunca al revés: un cargo mal fusionado se lleva puesto el plan de
+   formación de quien lo ocupa.
+   ================================================================= */
+async function arranque(sel) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Mirando cómo está la empresa…');
+
+  let D, A = null, G = null, C = null, prop = null;
+  try { D = await rpc('cap_arranque_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  let tab = 1;
+
+  async function traerA() {
+    if (!A) { A = await rpc('cap_arranque_cargos'); prop = null; }
+    if (!prop) prop = (A.grupos || []).map(g => ({
+      clave: g.clave,
+      nombre: g.sugerido,
+      area: '',
+      variantes: (g.variantes || []).map(v => v.texto),
+      gente: g.gente,
+      juntar: !!g.juntar,
+      parecidos: g.parecidos || [],
+      yaExiste: g.ya_existe || null,
+      crear: !g.ya_existe
+    }));
+    return A;
+  }
+  async function traerG() { if (!G) G = await rpc('cap_grupos_datos'); return G; }
+  async function traerC() { if (!C) C = await rpc('cap_admin_datos'); return C; }
+
+  async function recargar(r) {
+    A = null; G = null; C = null; prop = null;
+    try { D = await rpc('cap_arranque_datos'); } catch (e) {}
+    await pintar();
+    if (r && r.aviso) toast(r.aviso);
+  }
+
+  function toast(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    (el.querySelector('.kc-wide') || el).appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+  }
+
+  function abrir(html, onOk, okTxt) {
+    const d = document.createElement('dialog');
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try { const r = await onOk(d); d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  /* ------------------------------------------------------------- armazón */
+  async function pintar() {
+    const e = D.empresa || {};
+    const faltan = (D.pasos || []).filter(p => !p.hecho && !p.opcional).length;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · PUESTA EN MARCHA</div>
+        <h1 style="font-size:30px;font-weight:700">${esc(e.nombre || 'Esta empresa')}</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">
+          ${e.personas || 0} personas en el padrón · ${e.usuarios || 0} con usuario ·
+          módulo <b>${e.modulo_encendido ? 'encendido' : 'apagado'}</b></div></div>
+
+      <div class="kc-cent ${faltan ? 'mal' : 'ok'}">
+        <div class="b">${faltan || '✓'}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:${faltan ? 'var(--kc-cr)' : 'var(--kc-ok)'}">
+          ${faltan ? faltan + ' paso(s) sin hacer' : 'La empresa está lista'}</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${faltan
+          ? 'Mientras falte alguno, encender el módulo le muestra a la gente una pantalla incompleta.'
+          : 'Todo lo necesario está cargado.'}</div></div></div>
+
+      <div class="kc-tabs" style="margin:18px 0 20px">
+        <button class="kc-tab" data-t="1" aria-selected="${tab === 1}">Qué falta</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab === 2}">Organigrama</button>
+        <button class="kc-tab" data-t="3" aria-selected="${tab === 3}">Comités y actividades</button>
+        <button class="kc-tab" data-t="4" aria-selected="${tab === 4}">Encender</button>
+      </div>
+      <div id="kc-v"><div class="kc-carga">Cargando…</div></div></div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      if (+b.dataset.t !== tab) { tab = +b.dataset.t; pintar(); }
+    });
+
+    const v = el.querySelector('#kc-v');
+    if (tab === 1)      v.innerHTML = vFalta();
+    else if (tab === 2) { await traerA(); await traerC(); v.innerHTML = vOrg(); }
+    else if (tab === 3) { await traerG(); v.innerHTML = vGrupos(); }
+    else                v.innerHTML = vEncender();
+    enganchar(v);
+  }
+
+  /* -------------------------------------------------------- 1. qué falta */
+  const IR = { cargos:2, comites:3, encender:4 };
+
+  function vFalta() {
+    return `<div class="kc-pasos">${(D.pasos || []).map((p, i) => `
+      <div class="kc-paso ${p.hecho ? 'ok' : (p.opcional ? 'opt' : 'no')}">
+        <div class="n">${p.hecho ? '✓' : i + 1}</div>
+        <div class="c">
+          <div class="kc-tt">${esc(p.titulo)}${p.opcional
+            ? ' <span style="font-weight:400;color:var(--kc-ink3);font-size:12px">· opcional</span>' : ''}</div>
+          <div class="d">${esc(p.detalle || '')}</div>
+          ${p.ojo ? `<div class="ojo">${esc(p.ojo)}</div>` : ''}
+        </div>
+        ${IR[p.clave] ? `<button class="kc-mini p" data-ir="${IR[p.clave]}">Ir</button>` : ''}
+      </div>`).join('')}</div>
+      <p class="kc-nota" style="margin-top:14px">Los pasos que no tienen botón se hacen en
+      <b>Administración</b>: el catálogo y las asignaciones en «Capacitaciones», y lo ya dictado
+      en «Cronograma».</p>`;
+  }
+
+  /* ------------------------------------------------------ 2. organigrama */
+  function vOrg() {
+    const cargos = (C && C.cargos || []).filter(c => c.activo);
+    const pend = (prop || []).filter(p => p.crear).length;
+
+    // Los que ya existen no se vuelven a listar: ocupan pantalla y no se
+    // pueden tocar. Se cuentan en una línea y listo.
+    const nuevos = (prop || []).map((p, i) => ({ p, i })).filter(x => !x.p.yaExiste);
+    const yaHay  = (prop || []).length - nuevos.length;
+
+    const propuesta = !(prop || []).length ? '' : (!nuevos.length ? `
+      <h2 style="font-size:20px;margin:4px 0 4px">Del padrón al organigrama</h2>
+      <div class="kc-cent ok"><div class="b">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">
+          Los ${yaHay} cargos del padrón ya están creados</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Si alguien carga a una persona con el
+        cargo escrito de una forma nueva, va a aparecer acá para agruparlo.</div></div></div>` : `
+      <h2 style="font-size:20px;margin:4px 0 4px">Del padrón al organigrama</h2>
+      <p class="kc-nota">Estas son las formas en que el cargo aparece escrito en el padrón, ya
+      agrupadas. Revisá los nombres —van a ser los definitivos— y destildá lo que no sea un cargo
+      operativo.${yaHay ? ` Otros ${yaHay} ya existen y no se tocan.` : ''}
+      ${A.sin_cargo ? ` <b>${A.sin_cargo} persona(s)</b> no tienen cargo escrito: eso se arregla
+      en el padrón de KALU.` : ''}</p>
+      <div class="kc-sc"><table><thead><tr>
+        <th style="width:34px"></th><th>Cargo</th><th>Área</th><th class="n">Gente</th>
+        <th>Escrito en el padrón como</th></tr></thead><tbody>
+        ${nuevos.map(({ p, i }) => `<tr class="${p.crear ? '' : 'kc-off'}">
+          <td><input type="checkbox" data-chk="${i}" ${p.crear ? 'checked' : ''}></td>
+          <td><input class="kc-in nom" data-nom="${i}" value="${esc(p.nombre)}">
+              ${p.parecidos.length ? `<div class="kc-mch b" title="No los juntó: decidilo vos">
+                 se parece a ${esc(p.parecidos.join(' · '))}</div>` : ''}</td>
+          <td><input class="kc-in area" data-area="${i}" value="${esc(p.area)}" placeholder="—"></td>
+          <td class="n">${p.gente}</td>
+          <td>${p.variantes.map(t => `<span class="kc-chip2${p.juntar ? ' j' : ''}">${esc(t)}</span>`).join('')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>
+      <div class="kc-row" style="margin:14px 0 26px">
+        <button class="kc-btn" id="kc-crear" ${pend ? '' : 'disabled'}>
+          ${pend ? 'Crear ' + pend + ' cargo(s)' : 'No hay ninguno tildado'}</button></div>`);
+
+    const jerarquia = !cargos.length ? '' : `
+      <h2 style="font-size:20px;margin:26px 0 4px">Quién le reporta a quién</h2>
+      <p class="kc-nota">De esto sale «Mi equipo»: un supervisor ve la formación de la gente cuyos
+      cargos cuelgan del suyo. Un cargo sin jefe no es un error —el gerente no reporta a nadie—
+      pero si están todos sin jefe, nadie supervisa a nadie.</p>
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th class="n">Gente</th>
+        <th>Reporta a</th></tr></thead><tbody>
+        ${cargos.map(c => `<tr>
+          <td class="k">${esc(c.nombre)}</td>
+          <td class="n">${c.personas || 0}</td>
+          <td><select class="kc-in" data-jefe="${esc(c.nombre)}">
+            <option value="">— nadie —</option>
+            ${cargos.filter(o => o.id !== c.id).map(o =>
+              `<option ${o.id === c.reporta_a ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}
+          </select></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="kc-row" style="margin:14px 0 10px">
+        <button class="kc-btn" id="kc-jer">Guardar la línea de reporte</button></div>`;
+
+    return propuesta + jerarquia ||
+      '<p class="kc-nota">No hay cargos escritos en el padrón todavía.</p>';
+  }
+
+  /* --------------------------------------------- 3. comités y actividades */
+  function vGrupos() {
+    const lista = (arr, tipo, vacio) => !arr.length
+      ? `<p class="kc-nota">${vacio}</p>`
+      : `<div class="kc-sc"><table><thead><tr><th>Nombre</th><th class="n">Gente</th>
+          <th class="n">Capacit.</th><th></th></tr></thead><tbody>
+          ${arr.map(x => `<tr class="${x.activo ? '' : 'kc-off'}">
+            <td class="k">${esc(x.nombre)}
+              ${x.descripcion || x.proceso
+                ? `<div class="kc-mch">${esc(x.descripcion || x.proceso)}</div>` : ''}
+              ${x.gente && !x.capacitaciones
+                ? '<div class="kc-mch b">tiene gente y ninguna capacitación exigida</div>' : ''}</td>
+            <td class="n">${x.gente}</td><td class="n">${x.capacitaciones}</td>
+            <td><button class="kc-mini" data-ed="${tipo}:${x.id}">Editar</button>
+                <button class="kc-mini" data-on="${tipo}:${x.id}">${x.activo ? 'Apagar' : 'Prender'}</button></td>
+          </tr>`).join('')}</tbody></table></div>`;
+
+    return `
+      <h2 style="font-size:20px;margin:4px 0 4px">Comités y roles</h2>
+      <p class="kc-nota">COPASST, comité de convivencia, brigada de emergencia. Pertenecer a uno
+      obliga a formación propia —el COPASST tiene sus 50 horas— que no depende del cargo.</p>
+      ${lista(G.comites, 'comite', 'Todavía no hay ninguno. Sin el comité creado no se le puede exigir su formación a nadie.')}
+      <div class="kc-row" style="margin:12px 0 26px">
+        <button class="kc-mini p" id="kc-ncom">+ Nuevo comité</button></div>
+
+      <h2 style="font-size:20px;margin:0 0 4px">Actividades de riesgo</h2>
+      <p class="kc-nota">Alturas, espacios confinados, izaje, radiación. No las hace todo el mundo,
+      y quien las hace necesita formación aparte de la de su cargo.</p>
+      ${lista(G.actividades, 'actividad', 'Todavía no hay ninguna.')}
+      <div class="kc-row" style="margin:12px 0 10px">
+        <button class="kc-mini p" id="kc-nact">+ Nueva actividad</button></div>`;
+  }
+
+  /* ---------------------------------------------------------- 4. encender */
+  function vEncender() {
+    const e = D.empresa || {};
+    const paso = (D.pasos || []).find(p => p.clave === 'encender') || {};
+    const faltan = (D.pasos || []).filter(p => !p.hecho && !p.opcional && p.clave !== 'encender');
+
+    if (e.modulo_encendido) return `
+      <div class="kc-cent ok" style="margin-bottom:16px"><div class="b">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">El módulo está encendido</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">La tarjeta del Capacitador aparece en el
+        menú de KALU para toda la empresa.</div></div></div>
+      <p class="kc-nota">Apagarlo saca la tarjeta del menú. <b>No borra nada</b>: los pasaportes,
+      las asistencias y los certificados quedan como están, sólo dejan de mostrarse.</p>
+      <div class="kc-row" style="margin-top:14px">
+        <button class="kc-b2" id="kc-apagar">Apagar el módulo</button></div>`;
+
+    return `
+      <div class="kc-cent" style="background:var(--kc-was);margin-bottom:16px">
+        <div class="b" style="background:var(--kc-wa)">!</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          Esto lo ve ${paso.numero || 0} persona(s) al instante</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Encender el módulo hace aparecer la tarjeta
+        en el menú de todos los que ya entran a KALU. No hay forma de mostrárselo a unos pocos
+        primero.</div></div></div>
+
+      ${faltan.length ? `<div class="kc-cent mal" style="margin-bottom:16px">
+        <div class="b">${faltan.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Todavía falta cargar cosas</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(faltan.map(f => f.titulo).join(' · '))}.
+        Si encendés ahora, la gente entra a un pasaporte incompleto y el módulo pierde credibilidad
+        el primer día.</div></div></div>` : ''}
+
+      <p class="kc-nota">Para confirmar, escribí el nombre corto de la empresa:
+        <b>${esc(e.slug || e.nombre || '')}</b></p>
+      <div class="kc-row" style="margin-top:10px">
+        <input class="kc-in" id="kc-conf" placeholder="${esc(e.slug || '')}" style="flex:1 1 200px">
+        <button class="kc-btn" id="kc-encender" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Encender el módulo</button></div>`;
+  }
+
+  /* ------------------------------------------------------------- eventos */
+  function enganchar(v) {
+    if (D.puede_editar === false) v.querySelectorAll('button:not([data-ir])').forEach(b => b.remove());
+
+    v.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { tab = +b.dataset.ir; pintar(); });
+
+    /* --- organigrama: la propuesta se edita en memoria, no se guarda sola --- */
+    v.querySelectorAll('[data-chk]').forEach(c => c.onchange = () => {
+      prop[+c.dataset.chk].crear = c.checked;
+      const b = v.querySelector('#kc-crear');
+      const n = prop.filter(p => p.crear).length;
+      if (b) { b.disabled = !n; b.textContent = n ? `Crear ${n} cargo(s)` : 'No hay nada nuevo para crear'; }
+      c.closest('tr').classList.toggle('kc-off', !c.checked);
+    });
+    v.querySelectorAll('[data-nom]').forEach(i =>
+      i.oninput = () => { prop[+i.dataset.nom].nombre = i.value; });
+    v.querySelectorAll('[data-area]').forEach(i =>
+      i.oninput = () => { prop[+i.dataset.area].area = i.value; });
+
+    const bc = v.querySelector('#kc-crear');
+    if (bc) bc.onclick = async () => {
+      const van = prop.filter(p => p.crear && p.nombre.trim());
+      if (!van.length) return;
+      bc.disabled = true; bc.textContent = 'Creando…';
+      try {
+        const r = await rpc('cap_cargos_crear_lote', { p_grupos: prop.map(p => ({
+          nombre: p.nombre.trim(), area: p.area.trim(),
+          variantes: p.variantes, omitir: !p.crear })) });
+        if ((r.choques || []).length) {
+          alert('Se crearon los cargos, pero estas formas de escribirlo ya apuntaban a otro ' +
+                'cargo y no las moví:\n\n' +
+                r.choques.map(c => `· «${c.variante}» → ${c.ya_apunta_a}`).join('\n'));
+        }
+        await recargar(r);
+      } catch (e) {
+        bc.disabled = false; bc.textContent = 'Crear cargos'; alert(e.message);
+      }
+    };
+
+    const bj = v.querySelector('#kc-jer');
+    if (bj) bj.onclick = async () => {
+      const pares = [...v.querySelectorAll('[data-jefe]')].map(s => ({
+        cargo: s.dataset.jefe, reporta_a: s.value }));
+      bj.disabled = true; bj.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_cargos_jerarquia', { p_pares: pares });
+        if ((r.problemas || []).length)
+          alert('No pude aplicar todo:\n\n' +
+                r.problemas.map(p => `· ${p.cargo}: ${p.motivo}`).join('\n'));
+        await recargar({ aviso: `Línea de reporte guardada en ${r.aplicados} cargo(s). ` +
+          `Sin jefe: ${(r.sin_jefe || []).length}.` });
+      } catch (e) {
+        bj.disabled = false; bj.textContent = 'Guardar la línea de reporte'; alert(e.message);
+      }
+    };
+
+    /* --- comités y actividades --- */
+    const nc = v.querySelector('#kc-ncom');
+    if (nc) nc.onclick = () => abrir(
+      `<h3>Comité nuevo</h3>
+       <p>Pertenecer a un comité obliga a formación propia. Después de crearlo hay que asignarle
+          sus capacitaciones en Administración, y sumarle gente desde la ficha de cada persona.</p>
+       <label for="k1">Nombre</label>
+       <input type="text" id="k1" placeholder="Ej: COPASST">
+       <label for="k2">Para qué es</label>
+       <input type="text" id="k2" placeholder="Ej: Comité paritario de seguridad y salud">`,
+      d => rpc('cap_comite_crear', { p_nombre: d.querySelector('#k1').value,
+                                     p_descripcion: d.querySelector('#k2').value }), 'Crear');
+
+    const na = v.querySelector('#kc-nact');
+    if (na) na.onclick = () => abrir(
+      `<h3>Actividad de riesgo nueva</h3>
+       <p>Una tarea que no hace todo el mundo y que exige formación aparte de la del cargo.</p>
+       <label for="k1">Nombre</label>
+       <input type="text" id="k1" placeholder="Ej: Trabajo en alturas">
+       <label for="k2">Proceso</label>
+       <input type="text" id="k2" placeholder="Ej: Operaciones en campo">`,
+      d => rpc('cap_actividad_crear', { p_nombre: d.querySelector('#k1').value,
+                                        p_proceso: d.querySelector('#k2').value }), 'Crear');
+
+    v.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => {
+      const [tipo, id] = b.dataset.ed.split(':');
+      const x = (tipo === 'comite' ? G.comites : G.actividades).find(y => y.id === id);
+      abrir(`<h3>Editar “${esc(x.nombre)}”</h3>
+        <label for="k1">Nombre</label><input type="text" id="k1" value="${esc(x.nombre)}">
+        <label for="k2">${tipo === 'comite' ? 'Para qué es' : 'Proceso'}</label>
+        <input type="text" id="k2" value="${esc(x.descripcion || x.proceso || '')}">`,
+        d => tipo === 'comite'
+          ? rpc('cap_comite_guardar', { p_id: id, p_nombre: d.querySelector('#k1').value,
+                                        p_descripcion: d.querySelector('#k2').value })
+          : rpc('cap_actividad_guardar', { p_id: id, p_nombre: d.querySelector('#k1').value,
+                                           p_proceso: d.querySelector('#k2').value }));
+    });
+
+    v.querySelectorAll('[data-on]').forEach(b => b.onclick = () => {
+      const [tipo, id] = b.dataset.on.split(':');
+      const x = (tipo === 'comite' ? G.comites : G.actividades).find(y => y.id === id);
+      abrir(`<h3>${x.activo ? 'Apagar' : 'Prender'} “${esc(x.nombre)}”</h3>
+        <p>${x.activo
+          ? (x.gente ? `<b>${x.gente} persona(s)</b> figuran acá. Apagándolo dejan de tener que
+                        cumplir la formación que sale de esto.`
+                     : 'No hay nadie asignado.') + ' No se borra: se puede volver a prender.'
+          : 'Vuelve a aparecer y su formación se vuelve a exigir.'}</p>`,
+        () => tipo === 'comite' ? rpc('cap_comite_activar', { p_id: id })
+                                : rpc('cap_actividad_activar', { p_id: id }),
+        x.activo ? 'Apagar' : 'Prender');
+    });
+
+    /* --- el interruptor --- */
+    const be = v.querySelector('#kc-encender');
+    if (be) be.onclick = async () => {
+      const t = (v.querySelector('#kc-conf') || {}).value || '';
+      be.disabled = true; be.textContent = 'Encendiendo…';
+      try { await recargar(await rpc('cap_modulo_encender', { p_confirmar: t })); }
+      catch (e) { be.disabled = false; be.textContent = 'Encender el módulo'; alert(e.message); }
+    };
+    const ba = v.querySelector('#kc-apagar');
+    if (ba) ba.onclick = () => abrir(
+      `<h3>Apagar el módulo</h3>
+       <p>La tarjeta desaparece del menú de todos. Los datos quedan intactos y se puede volver a
+          encender cuando quieras.</p>
+       <label for="k1">Motivo</label>
+       <input type="text" id="k1" placeholder="Ej: falta terminar de cargar la matriz">`,
+      d => rpc('cap_modulo_apagar', { p_motivo: d.querySelector('#k1').value }), 'Apagar');
+  }
+
+  await pintar();
+}
+
 function sesion() {
   try {
     const s = JSON.parse(sessionStorage.getItem(CLAVE) || 'null');
@@ -2904,7 +3330,7 @@ function init(cfg) {
 }
 
 global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, ficha,
-                   certificado, generador, verificar,
+                   certificado, generador, verificar, arranque,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

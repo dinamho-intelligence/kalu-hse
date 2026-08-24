@@ -362,6 +362,7 @@
     <input class="login-input" id="login-pass" type="password" autocomplete="off" placeholder="••••••••" />
     <button class="login-btn" id="login-btn" onclick="hacerLogin()">Ingresar</button>
     <div class="login-error" id="login-error"></div>
+    <div style="text-align:center;margin-top:10px"><a href="#" onclick="olvideClave();return false;" style="color:#8A909C;text-decoration:none;font-size:12.5px;">¿Olvidaste tu contraseña?</a></div>
     <div class="login-foot">Acceso exclusivo para empresas registradas.<br><a href="#" onclick="verRegistro();return false;" style="color:#F28C00;text-decoration:none;font-weight:700;">Crear cuenta nueva</a></div>
     <div style="text-align:center;margin-top:16px;"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px;">← Volver al inicio</a></div>
   </div>
@@ -1736,6 +1737,24 @@ async function iniciarSesion(){
       btn.disabled=false; btn.textContent='Registrarme';
     }catch(e){ msg.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Registrarme'; }
   }
+    async function olvideClave(){
+  const err=document.getElementById('login-error');
+  let ident=(document.getElementById('login-email').value||'').trim();
+  err.style.color='#FF5A4E';
+  if(!ident){ err.textContent='Escribí tu cédula o correo arriba y volvé a tocar el enlace.'; return; }
+  try{
+    let email=ident;
+    if(/^\d+$/.test(ident)){
+      const { data:mail, error:e2 } = await sb.rpc('email_por_cedula', { ced: ident });
+      if(e2 || !mail){ err.textContent='Esa cédula no está registrada.'; return; }
+      email=mail;
+    }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo:'https://getkalu.com/set-password.html' });
+    if(error){ err.textContent='No se pudo enviar: '+error.message; return; }
+    err.style.color='#25C26E';
+    err.innerHTML='Te enviamos un correo para poner una nueva contraseña. Revisá tu bandeja (y spam).';
+  }catch(e){ err.textContent='Error de conexión. Probá de nuevo.'; }
+}
   async function hacerLogin(){
     const ident=(document.getElementById('login-email').value||'').trim();
     const pass=document.getElementById('login-pass').value||'';

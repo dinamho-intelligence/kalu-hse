@@ -15,8 +15,11 @@
        KaluCap.admin('#cap');            // admin.html — HSE / operaciones
      </script>
 
-   init() sin argumentos alcanza: lee window.KALU (config.js) y el token
-   que ingreso.html deja en sessionStorage bajo 'kalu_ses'.
+   Sesión compartida: lee window.KALU (config.js) y el token que
+   ingreso.html deja en localStorage bajo 'sb-<ref>-auth-token'.
+   En páginas standalone usá  await KaluCap.iniciar()  (renueva token y
+   prende el candado de sesión); init() sigue existiendo, sincrónico,
+   para hosts que ya lo llamaban así.
 
    La librería de QR es opcional: sin ella la credencial muestra el
    código en texto en vez del cuadro.
@@ -2889,13 +2892,23 @@ async function verificar(sel, token) {
 
 /* ------------------------------------------------------------------ init
 
-   KALU no usa el login de supabase-js: llama al endpoint de auth y se
-   guarda el token en sessionStorage bajo la clave 'kalu_ses'. Por eso
-   sb.auth.getSession() siempre viene vacío. El cliente se arma con ese
-   token en el header Authorization.
+   KALU comparte la sesión entre todos los módulos: ingreso.html guarda
+   el token en localStorage (el "cajón compartido") bajo la clave
+   'sb-<ref>-auth-token', con el objeto crudo de auth de Supabase
+   { access_token, refresh_token, expires_at, user, ... }.
+   Antes capacitador leía su propio 'kalu_ses' en sessionStorage, por eso
+   pedía re-loguear. Ahora lee el cajón compartido: si estás logueado en
+   KALU, entrás acá sin volver a loguearte.
+
+   Además respeta el candado del resto de la plataforma:
+     · único por equipo  → poll de perfiles.sesion_id contra kalu_sid
+     · auto-cierre        → por inactividad (15 min, 60 para gestores)
+     · cierre en cadena   → si cerrás sesión en otra pestaña (kalu_logout)
    ------------------------------------------------------------------- */
-const CLAVE = 'kalu_ses';
-const VIDA  = 55 * 60 * 1000;   // el mismo límite que usa ingreso.html
+const SB_REF     = 'nignqeipzlemwfrwmpip';
+const SESS_KEY   = 'sb-' + SB_REF + '-auth-token';
+const LOGOUT_KEY = 'kalu_logout';
+let   _uid = null, _mySid = null, _idleMin = 15, _idleT = null, _pollT = null;
 
 /* =================================================================
    ARRANQUE — poner una empresa en marcha
@@ -3312,17 +3325,95 @@ async function arranque(sel) {
   await pintar();
 }
 
+/* ---- cajón compartido (localStorage) ---- */
+function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
+function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
+function _limpiarCajon() { try { localStorage.removeItem(SESS_KEY); localStorage.removeItem('kalu_sid'); } catch (e) {} }
+
+/* Lee la sesión que dejó ingreso.html en el cajón compartido. El objeto
+   guardado es el crudo de Supabase: { access_token, refresh_token,
+   expires_at (epoch en SEGUNDOS), user{ id, email } }. */
 function sesion() {
   try {
-    const s = JSON.parse(sessionStorage.getItem(CLAVE) || 'null');
-    if (!s || !s.token) return null;
-    return { token: s.token, email: s.email, nombre: s.nombre,
-             empresa: s.empresa,
-             vencida: (Date.now() - (s.ts || 0)) > VIDA,
-             minutos: Math.round((Date.now() - (s.ts || 0)) / 60000) };
+    const s = _leerCajon();
+    if (!s || !s.access_token) return null;
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      token:   s.access_token,
+      refresh: s.refresh_token || null,
+      email:   (s.user && s.user.email) || '',
+      uid:     (s.user && s.user.id) || null,
+      expira:  s.expires_at || 0,
+      vencida: s.expires_at ? (s.expires_at <= now) : false
+    };
   } catch (e) { return null; }
 }
 
+/* Renueva el token sin re-loguear (usa el refresh_token del cajón). */
+async function _refrescar(rt) {
+  if (!rt) return null;
+  const K = global.KALU || {};
+  try {
+    const r = await fetch(K.SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: K.SB_KEY },
+      body: JSON.stringify({ refresh_token: rt })
+    });
+    const d = await r.json();
+    if (!r.ok || !d || !d.access_token) return null;
+    _guardarCajon(d);
+    return d;
+  } catch (e) { return null; }
+}
+
+/* ---- candado: único por equipo + inactividad + cierre en cadena ---- */
+function _cerrarLocal() {
+  try { if (_idleT) clearTimeout(_idleT); if (_pollT) clearInterval(_pollT); } catch (e) {}
+  location.href = 'index.html';
+}
+function _forzarSalida(msg) {
+  _limpiarCajon();
+  try { localStorage.setItem(LOGOUT_KEY, String(Date.now())); } catch (e) {}
+  if (msg) { try { alert(msg); } catch (e) {} }
+  _cerrarLocal();
+}
+function _resetIdle() {
+  if (_idleT) clearTimeout(_idleT);
+  _idleT = setTimeout(function () {
+    _forzarSalida('Cerramos tu sesión por inactividad.');
+  }, (_idleMin || 15) * 60000);
+}
+async function _chequearSesion() {
+  if (!_uid || !_mySid) return;
+  try {
+    const r = await sb.from('perfiles').select('sesion_id').eq('id', _uid).maybeSingle();
+    const sid = (r && r.data && r.data.sesion_id) || null;
+    if (sid && _mySid && sid !== _mySid)
+      _forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.');
+  } catch (e) {}
+}
+async function _armarGuards() {
+  // el rol define cuánta inactividad se tolera (gestores 60, resto 15)
+  try {
+    const r = await sb.from('perfiles').select('rol,es_super').eq('id', _uid).maybeSingle();
+    const p = (r && r.data) || {};
+    const gestor = p.es_super === true || ['hse', 'supervisor', 'admin'].indexOf(p.rol) >= 0;
+    _idleMin = gestor ? 60 : 15;
+  } catch (e) { _idleMin = 15; }
+  try { _mySid = localStorage.getItem('kalu_sid') || null; } catch (e) { _mySid = null; }
+  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(function (ev) {
+    window.addEventListener(ev, _resetIdle, { passive: true });
+  });
+  _resetIdle();
+  if (_pollT) clearInterval(_pollT);
+  _pollT = setInterval(_chequearSesion, 30000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) _chequearSesion(); });
+  window.addEventListener('storage', function (e) { if (e.key === LOGOUT_KEY) _cerrarLocal(); });
+}
+
+/* Arma el cliente de Supabase con el token vigente en el header.
+   SINCRÓNICO y retrocompatible: los hosts que ya lo llamaban así
+   (p.ej. app.html) siguen funcionando sin cambios. */
 function init(cfg) {
   cfg = cfg || {};
   if (cfg.client) { sb = cfg.client; return sesion(); }
@@ -3340,13 +3431,29 @@ function init(cfg) {
   const s = sesion();
   sb = global.supabase.createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: (s && !s.vencida)
-      ? { Authorization: 'Bearer ' + s.token } : {} }
+    global: { headers: (s && !s.vencida) ? { Authorization: 'Bearer ' + s.token } : {} }
   });
   return s;
 }
 
-global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, ficha,
+/* Entrada recomendada para páginas standalone (capacitador.html):
+   renueva el token si hace falta ANTES de armar el cliente, y prende el
+   candado de sesión. Pasá { guardias:false } si el host ya lo maneja. */
+async function iniciar(cfg) {
+  cfg = cfg || {};
+  let s = sesion();
+  if (s && s.refresh) {
+    const now = Math.floor(Date.now() / 1000);
+    if (s.vencida || (s.expira && s.expira - now < 120)) {
+      if (await _refrescar(s.refresh)) s = sesion();
+    }
+  }
+  init(cfg);                       // arma el cliente leyendo el cajón ya renovado
+  if (s && !s.vencida && cfg.guardias !== false) { _uid = s.uid; _armarGuards(); }
+  return s;
+}
+
+global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque,
                    get cliente() { return sb; } };
 

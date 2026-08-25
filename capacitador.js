@@ -453,6 +453,21 @@ const CSS = `
 .kc-dlg .kc-dst input{width:auto;flex:0 0 auto;margin:0;padding:0}
 .kc-dlg .kc-dst.ya{opacity:.5;cursor:default}
 .kc-dlg .kc-dst:hover{background:var(--kc-card2);border-radius:5px}
+.kc-vq{display:flex;gap:13px;align-items:flex-start;background:var(--kc-card);
+ border:1px solid var(--kc-rule);border-left:3px solid var(--kc-ok);border-radius:10px;
+ padding:14px 16px;margin-bottom:9px}
+.kc-vq.mal{border-left-color:var(--kc-cr)}
+.kc-vq .n{flex:0 0 auto;font-family:var(--kc-fm);font-size:11px;color:var(--kc-ink3);
+ padding-top:3px;white-space:nowrap}
+.kc-vq .q{flex:1 1 auto;min-width:0}
+.kc-vo{list-style:none;margin:9px 0 0;padding:0}
+.kc-vo li{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--kc-ink2);
+ padding:4px 0}
+.kc-vo li.ok{color:var(--kc-ok);font-weight:600}
+.kc-vo li .m{flex:0 0 14px;color:var(--kc-ok);font-weight:700}
+.kc-vexp{margin-top:9px;font-size:13.5px;color:var(--kc-ink2);background:var(--kc-card2);
+ border-radius:8px;padding:9px 12px}
+
 
 
 
@@ -1235,6 +1250,8 @@ async function admin(sel) {
       ficha(sel, b.dataset.ficha, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-plan]').forEach(b => b.onclick = () =>
       planCargo(sel, b.dataset.plan, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-ver]').forEach(b => b.onclick = () =>
+      verCurso(sel, b.dataset.ver, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -1474,6 +1491,7 @@ async function admin(sel) {
         <td class="n"${c.personas===0?' style="color:var(--kc-cr)"':''}>${c.personas}</td>
         <td class="n">${c.hechos}/${c.eventos}</td>
         <td><div style="display:flex;gap:6px">
+          <button class="kc-mini" data-ver="${c.id}">Ver</button>
           <button class="kc-mini" data-c="editar" data-i="${c.id}">Editar</button>
           <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
           ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
@@ -3668,6 +3686,120 @@ async function planCargo(sel, cargoId, opt) {
   pintar();
 }
 
+/* =================================================================
+   VER UNA CAPACITACIÓN — lo que publicaste, tal como se ve
+
+   Antes de esto, quien publicaba una capacitación no la volvía a ver:
+   el contenido sólo se abría desde el pasaporte de un trabajador al
+   que le aplicara, y sólo si era de autoestudio.
+
+   Muestra el material como lo ve el trabajador, y abajo la evaluación
+   con la respuesta correcta marcada y la explicación — que el
+   trabajador no ve. Eso último es lo que importa cuando el borrador lo
+   escribió una máquina: si la IA se equivocó en cuál opción es la
+   buena, acá se ve antes de que alguien repruebe una pregunta que
+   contestó bien.
+
+   Mirar no es cursar: no abre ningún intento ni registra nada.
+   ================================================================= */
+async function verCurso(sel, catalogoId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Abriendo la capacitación…');
+
+  let V;
+  try { V = await rpc('cap_ver_curso', { p_catalogo: catalogoId }); }
+  catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const EJEN = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
+  const vig = d => d == null ? 'No vence' : (d % 365 === 0 ? (d/365) + (d===365?' año':' años')
+                 : d % 30 === 0 ? (d/30) + ' meses' : d + ' días');
+
+  // mismo dibujo que usa el trabajador, para que lo que se ve acá sea
+  // exactamente lo que va a ver él
+  function bloque(b) {
+    if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
+    if (b.tipo === 'aviso')  return `<div class="kc-avi">${esc(b.texto)}</div>` +
+      (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+    if (b.tipo === 'lista')  return '<ul class="kc-ul">' + String(b.texto||'').split('|').map(x => {
+        const m = x.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\s—\s(.*)$/);
+        return `<li>${m ? '<b>'+esc(m[1])+'</b> — '+esc(m[2]) : esc(x)}</li>`;
+      }).join('') + '</ul>' + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+    if (b.tipo === 'imagen') return `<img src="${esc(b.url)}" alt="${esc(b.nota||'')}"
+      style="width:100%;border-radius:8px;margin-bottom:14px">`;
+    if (b.tipo === 'separador') return '<hr style="border:none;border-top:1px solid var(--kc-rule);margin:20px 0">';
+    return `<p class="kc-p">${esc(b.texto)}</p>` + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+  }
+
+  const c = V.capacitacion || {}, a = V.alcance || {};
+  const avisos = V.avisos || [], cont = V.contenido || [], preg = V.preguntas || [];
+
+  const chip = t => `<span class="kc-chip2">${esc(t)}</span>`;
+
+  el.className = 'kc';
+  el.innerHTML = `<div class="kc-wide">
+    <button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver a Capacitaciones</button>
+
+    <div style="padding:0 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:14px">
+      <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">
+        ASÍ SE VE ${esc(c.codigo || '')}</div>
+      <h1 style="font-size:27px;font-weight:700">${esc(c.titulo || '')}</h1>
+      ${c.objetivo ? `<p style="color:var(--kc-ink2);font-size:14.5px;margin:8px 0 0;max-width:70ch">${esc(c.objetivo)}</p>` : ''}
+      <div style="margin-top:11px">
+        ${chip(EJEN[c.eje] || c.eje || '—')}${chip(c.tipo || '—')}
+        ${chip(vig(c.vigencia_dias))}${c.horas ? chip(c.horas + ' h') : ''}
+        ${c.certificable ? chip('Certifica') : chip('No certifica')}
+        ${c.autoestudio ? chip('Autoestudio') : chip('No es autoestudio')}
+        ${c.propia ? chip('Propia de la empresa') : chip('De la biblioteca')}
+        ${c.activo ? '' : chip('Apagada')}
+        ${chip('versión ' + (c.version ?? 1))}
+      </div>
+      <div style="color:var(--kc-ink2);font-size:13.5px;margin-top:10px">
+        Le aplica a <b>${a.personas || 0}</b> persona(s) · ${a.asignaciones || 0} asignación(es) ·
+        ${a.asistencias || 0} asistencia(s) registradas</div>
+    </div>
+
+    ${avisos.map(t => `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:9px">
+      <div class="b" style="background:var(--kc-wa)">!</div>
+      <div style="font-size:13.5px;color:var(--kc-ink2)">${esc(t)}</div></div>`).join('')}
+
+    <h2 style="font-size:20px;margin:22px 0 4px">El material</h2>
+    <p class="kc-nota">Tal cual lo ve el trabajador en el teléfono.</p>
+    ${cont.length
+      ? `<div class="kc-bl" style="margin-top:12px">${cont.map(bloque).join('')}</div>`
+      : `<p class="kc-nota" style="color:var(--kc-cr)">No tiene contenido cargado. Se puede
+         registrar como charla presencial, pero nadie la puede hacer desde el teléfono.</p>`}
+
+    <h2 style="font-size:20px;margin:30px 0 4px">La evaluación</h2>
+    <p class="kc-nota">La respuesta correcta y la explicación <b>sólo las ves vos</b>. El
+    trabajador ve las opciones sin marcar, y la explicación recién cuando termina.</p>
+    ${preg.length ? preg.map((q, i) => `
+      <div class="kc-vq ${q.correctas === 1 ? '' : 'mal'}">
+        <div class="n">${i + 1}${q.activa ? '' : ' · apagada'}</div>
+        <div class="q">
+          <div class="kc-tt" style="font-size:15.5px">${esc(q.enunciado)}</div>
+          ${q.correctas !== 1 ? `<div class="kc-mch b">${q.correctas === 0
+            ? 'ninguna opción está marcada como correcta — esta pregunta no se puede aprobar'
+            : q.correctas + ' opciones marcadas como correctas — el sistema sólo espera una'}</div>` : ''}
+          <ul class="kc-vo">${(q.opciones || []).map(o =>
+            `<li class="${o.correcta ? 'ok' : ''}">
+               <span class="m">${o.correcta ? '✓' : ''}</span>${esc(o.texto)}</li>`).join('')}</ul>
+          ${q.explicacion ? `<div class="kc-vexp"><b>Por qué:</b> ${esc(q.explicacion)}</div>` : ''}
+        </div>
+      </div>`).join('')
+      : `<p class="kc-nota" style="color:var(--kc-cr)">No tiene preguntas. Sin evaluación no se
+         puede aprobar por autoestudio.</p>`}
+
+    <p class="kc-nota" style="margin:26px 0 10px">Mirar esto <b>no cuenta</b> como haber hecho la
+    capacitación: no se abrió ningún intento y no quedó registrado nada a tu nombre.</p>
+    </div>`;
+
+  el.querySelector('#kc-volver').onclick = () => {
+    if (opt.volver) opt.volver(); else admin(sel);
+  };
+}
+
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
 function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -3797,7 +3929,7 @@ async function iniciar(cfg) {
 }
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
-                   certificado, generador, verificar, arranque, planCargo,
+                   certificado, generador, verificar, arranque, planCargo, verCurso,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

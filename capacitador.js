@@ -445,6 +445,15 @@ const CSS = `
  background:var(--kc-card);border-top:1px solid var(--kc-rule2);padding:12px 16px;margin-top:14px;
  border-radius:0 0 10px 10px;box-shadow:0 -6px 18px -14px rgba(0,0,0,.5)}
 .kc-guardar span{font-size:13.5px;color:var(--kc-ink2)}
+.kc-lista{max-height:240px;overflow-y:auto;border:1px solid var(--kc-rule2);border-radius:8px;
+ padding:6px 10px;margin-top:4px;background:var(--kc-card)}
+.kc-dlg .kc-dst{display:flex;gap:10px;align-items:center;padding:5px 2px;
+ font-family:var(--kc-fb);font-size:14px;letter-spacing:0;text-transform:none;
+ color:var(--kc-ink);margin:0;cursor:pointer}
+.kc-dlg .kc-dst input{width:auto;flex:0 0 auto;margin:0;padding:0}
+.kc-dlg .kc-dst.ya{opacity:.5;cursor:default}
+.kc-dlg .kc-dst:hover{background:var(--kc-card2);border-radius:5px}
+
 
 
 @media (max-width:640px){
@@ -1716,19 +1725,42 @@ async function admin(sel) {
            Si depende de un proveedor externo, el ingreso queda varado esperándolo.</p>`,
         dd => {
           const al = dd.querySelector('#k1').value;
-          const de = dd.querySelector('#k2');
-          return rpc('cap_asig_agregar', { p_catalogo: id, p_alcance: al,
-            p_destino: al === 'todos' ? null : (de ? de.value : null),
+          const dest = [...dd.querySelectorAll('.kdst:checked')].map(x => x.value);
+          if (al !== 'todos' && !dest.length)
+            throw new Error('Marcá al menos uno. Podés marcar varios de una vez.');
+          return rpc('cap_asig_varios', { p_catalogo: id, p_alcance: al,
+            p_destinos: al === 'todos' ? null : dest,
             p_bloqueante: dd.querySelector('#k3').value });
         }, 'Agregar');
 
+      // Una misma capacitación casi nunca le toca a un solo cargo. Con un
+      // desplegable había que repetir el diálogo una vez por cargo, y en el
+      // medio es fácil saltearse uno — que es peor que no asignarla, porque
+      // el tablero se ve verde igual.
       const pintarDest = () => {
         const al = d.querySelector('#k1').value;
         const box = d.querySelector('#kdest');
         if (al === 'todos') { box.innerHTML = ''; return; }
         const L = al === 'cargo' ? (CAT.cargos||[]) : al === 'rol' ? (CAT.roles||[]) : (CAT.actividades||[]);
-        box.innerHTML = `<label for="k2">${al === 'cargo' ? 'Cargo' : al === 'rol' ? 'Comité o rol' : 'Actividad'}</label>
-          <select id="k2">${L.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select>`;
+        const tit = al === 'cargo' ? 'Cargos' : al === 'rol' ? 'Comités y roles' : 'Actividades';
+        const ya = new Set((c.asignaciones||[]).filter(a => a.alcance === al).map(a => a.destino));
+
+        box.innerHTML = !L.length
+          ? `<p style="color:var(--kc-cr);margin:10px 0 0">Todavía no hay ${tit.toLowerCase()}
+             cargados en esta empresa.</p>`
+          : `<label>${tit} — marcá todos los que correspondan</label>
+             <div class="kc-lista">${L.map(x => `<label class="kc-dst${ya.has(x.nombre) ? ' ya' : ''}">
+               <input type="checkbox" class="kdst" value="${x.id}" ${ya.has(x.nombre) ? 'disabled' : ''}>
+               <span>${esc(x.nombre)}${ya.has(x.nombre) ? ' · ya la tiene' : ''}</span></label>`).join('')}</div>
+             <div class="kc-row" style="margin:7px 0 0;gap:7px">
+               <button type="button" class="kc-mini" id="kdall">Marcar todos</button>
+               <button type="button" class="kc-mini" id="kdnone">Ninguno</button></div>`;
+
+        const todos = box.querySelector('#kdall'), nada = box.querySelector('#kdnone');
+        if (todos) todos.onclick = () =>
+          box.querySelectorAll('.kdst:not(:disabled)').forEach(x => x.checked = true);
+        if (nada) nada.onclick = () =>
+          box.querySelectorAll('.kdst').forEach(x => x.checked = false);
       };
       pintarDest();
       d.querySelector('#k1').onchange = pintarDest;

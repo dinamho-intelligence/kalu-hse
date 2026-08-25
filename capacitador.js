@@ -1150,7 +1150,6 @@ async function admin(sel) {
           ? 'A esta gente el sistema dejó de exigirle su formación por cargo. Mapealas antes de seguir.'
           : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>` : ''}
       ${avisoChequeo()}
-      ${tab === 1 && sm ? vSinMapear() : ''}
       <div class="kc-tabs" style="margin:18px 0 20px">
         <button class="kc-tab" data-t="1" aria-selected="${tab===1}">Personas</button>
         <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos</button>
@@ -1164,7 +1163,10 @@ async function admin(sel) {
     });
 
     const v = el.querySelector('#kc-v');
-    if (tab === 1)      v.innerHTML = vPers();
+    // La lista de sin mapear vive DENTRO de Personas, no arriba de las
+    // pestañas: si va arriba, en una empresa nueva empuja la navegación
+    // fuera de la pantalla y parece que las pestañas no existen.
+    if (tab === 1)      v.innerHTML = (sm ? vSinMapear() : '') + vPers();
     else if (tab === 2) v.innerHTML = vCargos();
     else if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
     else                { await traerCro(); v.innerHTML = vCro(); }

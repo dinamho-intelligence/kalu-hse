@@ -1610,13 +1610,42 @@ async function iniciarSesion(){
   // ===== AUTENTICACIÓN KALU (Supabase) — PLATAFORMA unificada (Fase 4) =====
   const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
-  const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+  const sb = window.supabase.createClient(SB_URL, SB_ANON, { auth: { storage: window.localStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   window.kaluAuth = { token:null, perfil:null };
+    /* ===== candado: sesión única por equipo + auto-cierre por inactividad ===== */
+  const LOGOUT_KEY='kalu_logout';
+  window.MY_SESION=null; window.__uid=null; let _idleMin=15,_idleT=null,_pollT=null;
+  function _uuid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2); }
+  async function _sellarSesion(){ window.MY_SESION=_uuid(); try{ localStorage.setItem('kalu_sid',window.MY_SESION); }catch(_){}
+    try{ await sb.rpc('kalu_set_sesion',{p_sid:window.MY_SESION}); }catch(_){} }
+  async function _chequearSesion(){
+    const uid=window.__uid; if(!uid||!window.MY_SESION) return;
+    try{ const { data } = await sb.from('perfiles').select('sesion_id').eq('id',uid).maybeSingle();
+      const sid=(data&&data.sesion_id)||null;
+      if(sid && window.MY_SESION && sid!==window.MY_SESION) _forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.');
+    }catch(_){}
+  }
+  function _resetIdle(){ if(_idleT)clearTimeout(_idleT); _idleT=setTimeout(function(){ _forzarSalida('Cerramos tu sesión por inactividad.'); }, (_idleMin||15)*60000); }
+  function _cerrarLocal(){ try{ if(_idleT)clearTimeout(_idleT); if(_pollT)clearInterval(_pollT); }catch(_){} location.href='index.html'; }
+  async function _forzarSalida(msg){ try{ await sb.auth.signOut(); }catch(_){} try{ localStorage.removeItem('kalu_sid'); }catch(_){}
+    try{ localStorage.setItem(LOGOUT_KEY,String(Date.now())); }catch(_){} window.kaluAuth={token:null,perfil:null};
+    if(msg){ try{ alert(msg); }catch(_){} } _cerrarLocal(); }
+  function _armarGuards(){
+    const p=(window.kaluAuth&&window.kaluAuth.perfil)||{};
+    const gestor=p.es_super===true||['hse','supervisor','admin'].indexOf(p.rol)>=0;
+    _idleMin=gestor?60:15;
+    ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(ev){ window.addEventListener(ev,_resetIdle,{passive:true}); });
+    _resetIdle();
+    if(_pollT)clearInterval(_pollT); _pollT=setInterval(_chequearSesion,30000);
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden)_chequearSesion(); });
+    window.addEventListener('storage',function(e){ if(e.key===LOGOUT_KEY)_cerrarLocal(); });
+  }
   async function cargarPerfil(){
     try{
-      const { data:{ user } } = await sb.auth.getUser();
+            const { data:{ user } } = await sb.auth.getUser();
       if(!user) return null;
-      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado,acceso_consola,cedula').eq('id', user.id).single();
+      window.__uid = user.id;
+      const { data } = await sb.from('perfiles').select('nombre,email,rol,empresa_id,estado,acceso_consola,cedula,es_super').eq('id', user.id).single();
       window.kaluAuth.perfil = data || { rol:'trabajador', nombre:user.email, email:user.email, empresa_id:null, estado:'activo', acceso_consola:false, cedula:null };
     }catch(e){ window.kaluAuth.perfil = window.kaluAuth.perfil || { rol:'trabajador', estado:'activo' }; }
     return window.kaluAuth.perfil;
@@ -1775,14 +1804,16 @@ async function iniciarSesion(){
       window.kaluAuth.token = data.session.access_token;
       await cargarPerfil();
       if(await rechazarSiInactivo(t=>{ err.textContent=t; })){ document.getElementById('login-pass').value=''; btn.disabled=false; btn.textContent='Ingresar'; return; }
-      aplicarRol();
+            aplicarRol();
+      await _sellarSesion(); _armarGuards();
       document.getElementById('login-pass').value='';
       btn.disabled=false; btn.textContent='Ingresar';
       mostrarLogin(false);
     }catch(e){ err.textContent='Error de conexión. Probá de nuevo.'; btn.disabled=false; btn.textContent='Ingresar'; }
   }
-  async function hacerLogout(){
+    async function hacerLogout(){
     try{ await sb.auth.signOut(); }catch(e){}
+    try{ localStorage.removeItem('kalu_sid'); localStorage.setItem('kalu_logout',String(Date.now())); }catch(_){}
     window.kaluAuth={ token:null, perfil:null };
     location.href='/';
   }
@@ -1793,7 +1824,7 @@ async function iniciarSesion(){
   (async ()=>{
     try{
       const { data:{ session } } = await sb.auth.getSession();
-      if(session){ window.kaluAuth.token=session.access_token; await cargarPerfil(); if(await rechazarSiInactivo(t=>{ var le=document.getElementById('login-error'); if(le) le.textContent=t; })){ mostrarLogin(true); } else { aplicarRol(); mostrarLogin(false); } }
+      if(session){ window.kaluAuth.token=session.access_token; await cargarPerfil(); if(await rechazarSiInactivo(t=>{ var le=document.getElementById('login-error'); if(le) le.textContent=t; })){ mostrarLogin(true); } else { aplicarRol(); window.MY_SESION=localStorage.getItem('kalu_sid')||null; _armarGuards(); mostrarLogin(false); } }
       else { mostrarLogin(true); }
     }catch(e){ mostrarLogin(true); }
   })();

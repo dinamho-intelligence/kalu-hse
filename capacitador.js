@@ -15,11 +15,8 @@
        KaluCap.admin('#cap');            // admin.html — HSE / operaciones
      </script>
 
-   Sesión compartida: lee window.KALU (config.js) y el token que
-   ingreso.html deja en localStorage bajo 'sb-<ref>-auth-token'.
-   En páginas standalone usá  await KaluCap.iniciar()  (renueva token y
-   prende el candado de sesión); init() sigue existiendo, sincrónico,
-   para hosts que ya lo llamaban así.
+   init() sin argumentos alcanza: lee window.KALU (config.js) y el token
+   que ingreso.html deja en sessionStorage bajo 'kalu_ses'.
 
    La librería de QR es opcional: sin ella la credencial muestra el
    código en texto en vez del cuadro.
@@ -1150,12 +1147,7 @@ async function admin(sel) {
           ? 'A esta gente el sistema dejó de exigirle su formación por cargo. Mapealas antes de seguir.'
           : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>` : ''}
       ${avisoChequeo()}
-      ${tab === 1 && sm ? '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo escrito</th>' +
-        '<th>Capacitaciones hoy</th><th></th></tr></thead><tbody>' +
-        D.sinMapear.map(s => `<tr><td class="k">${esc(s.nombre)}</td>
-          <td>${esc(s.cargo_texto)}</td><td class="n">${s.capacitaciones_hoy}</td>
-          <td><button class="kc-mini p" data-map="${esc(s.cargo_texto)}">Mapear</button></td></tr>`).join('') +
-        '</tbody></table></div>' : ''}
+      ${tab === 1 && sm ? vSinMapear() : ''}
       <div class="kc-tabs" style="margin:18px 0 20px">
         <button class="kc-tab" data-t="1" aria-selected="${tab===1}">Personas</button>
         <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos</button>
@@ -1174,6 +1166,39 @@ async function admin(sel) {
     else if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
     else                { await traerCro(); v.innerHTML = vCro(); }
     enganchar(v);
+  }
+
+  /* Lo que falta mapear, agrupado por cómo está escrito el cargo.
+     Antes iba una fila por persona: en una empresa recién cargada eso son
+     cien filas que dicen lo mismo, y empujan las pestañas tan abajo que la
+     pantalla parece otra. Mapear trabaja sobre el texto del cargo, no
+     sobre la persona, así que una fila por texto alcanza. */
+  function vSinMapear() {
+    const g = {};
+    (D.sinMapear || []).forEach(s => {
+      const k = s.cargo_texto || '—';
+      (g[k] = g[k] || { txt: k, gente: 0, caps: 0 });
+      g[k].gente++; g[k].caps += (s.capacitaciones_hoy || 0);
+    });
+    const filas = Object.values(g).sort((a, b) => b.gente - a.gente);
+    const TOPE = 12, ver = filas.slice(0, TOPE), resto = filas.length - ver.length;
+
+    return `${filas.length > 5 ? `<div class="kc-cent" style="background:var(--kc-was)">
+        <div class="b" style="background:var(--kc-wa)">${filas.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          Esto es una empresa sin organigrama, no una lista de correcciones</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Mapear de a uno sirve cuando alguien
+        escribe una variante nueva. Con ${filas.length} cargos sin definir conviene ir a
+        <b>Puesta en marcha</b>, que los arma todos juntos y de paso agrupa las formas repetidas
+        de escribir lo mismo.</div></div></div>` : ''}
+      <div class="kc-sc"><table><thead><tr><th>Cargo escrito en el padrón</th>
+        <th class="n">Personas</th><th class="n">Capacitaciones hoy</th><th></th></tr></thead><tbody>
+        ${ver.map(f => `<tr><td class="k">${esc(f.txt)}</td>
+          <td class="n">${f.gente}</td><td class="n">${f.caps}</td>
+          <td><button class="kc-mini p" data-map="${esc(f.txt)}">Mapear</button></td></tr>`).join('')}
+        ${resto > 0 ? `<tr><td colspan="4" style="color:var(--kc-ink3);font-size:13px">
+          y ${resto} forma(s) más de escribir un cargo, sin mapear</td></tr>` : ''}
+      </tbody></table></div>`;
   }
 
   function enganchar(v) {
@@ -2892,23 +2917,13 @@ async function verificar(sel, token) {
 
 /* ------------------------------------------------------------------ init
 
-   KALU comparte la sesión entre todos los módulos: ingreso.html guarda
-   el token en localStorage (el "cajón compartido") bajo la clave
-   'sb-<ref>-auth-token', con el objeto crudo de auth de Supabase
-   { access_token, refresh_token, expires_at, user, ... }.
-   Antes capacitador leía su propio 'kalu_ses' en sessionStorage, por eso
-   pedía re-loguear. Ahora lee el cajón compartido: si estás logueado en
-   KALU, entrás acá sin volver a loguearte.
-
-   Además respeta el candado del resto de la plataforma:
-     · único por equipo  → poll de perfiles.sesion_id contra kalu_sid
-     · auto-cierre        → por inactividad (15 min, 60 para gestores)
-     · cierre en cadena   → si cerrás sesión en otra pestaña (kalu_logout)
+   KALU no usa el login de supabase-js: llama al endpoint de auth y se
+   guarda el token en sessionStorage bajo la clave 'kalu_ses'. Por eso
+   sb.auth.getSession() siempre viene vacío. El cliente se arma con ese
+   token en el header Authorization.
    ------------------------------------------------------------------- */
-const SB_REF     = 'nignqeipzlemwfrwmpip';
-const SESS_KEY   = 'sb-' + SB_REF + '-auth-token';
-const LOGOUT_KEY = 'kalu_logout';
-let   _uid = null, _mySid = null, _idleMin = 15, _idleT = null, _pollT = null;
+const CLAVE = 'kalu_ses';
+const VIDA  = 55 * 60 * 1000;   // el mismo límite que usa ingreso.html
 
 /* =================================================================
    ARRANQUE — poner una empresa en marcha
@@ -3325,95 +3340,17 @@ async function arranque(sel) {
   await pintar();
 }
 
-/* ---- cajón compartido (localStorage) ---- */
-function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
-function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
-function _limpiarCajon() { try { localStorage.removeItem(SESS_KEY); localStorage.removeItem('kalu_sid'); } catch (e) {} }
-
-/* Lee la sesión que dejó ingreso.html en el cajón compartido. El objeto
-   guardado es el crudo de Supabase: { access_token, refresh_token,
-   expires_at (epoch en SEGUNDOS), user{ id, email } }. */
 function sesion() {
   try {
-    const s = _leerCajon();
-    if (!s || !s.access_token) return null;
-    const now = Math.floor(Date.now() / 1000);
-    return {
-      token:   s.access_token,
-      refresh: s.refresh_token || null,
-      email:   (s.user && s.user.email) || '',
-      uid:     (s.user && s.user.id) || null,
-      expira:  s.expires_at || 0,
-      vencida: s.expires_at ? (s.expires_at <= now) : false
-    };
+    const s = JSON.parse(sessionStorage.getItem(CLAVE) || 'null');
+    if (!s || !s.token) return null;
+    return { token: s.token, email: s.email, nombre: s.nombre,
+             empresa: s.empresa,
+             vencida: (Date.now() - (s.ts || 0)) > VIDA,
+             minutos: Math.round((Date.now() - (s.ts || 0)) / 60000) };
   } catch (e) { return null; }
 }
 
-/* Renueva el token sin re-loguear (usa el refresh_token del cajón). */
-async function _refrescar(rt) {
-  if (!rt) return null;
-  const K = global.KALU || {};
-  try {
-    const r = await fetch(K.SB_URL + '/auth/v1/token?grant_type=refresh_token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: K.SB_KEY },
-      body: JSON.stringify({ refresh_token: rt })
-    });
-    const d = await r.json();
-    if (!r.ok || !d || !d.access_token) return null;
-    _guardarCajon(d);
-    return d;
-  } catch (e) { return null; }
-}
-
-/* ---- candado: único por equipo + inactividad + cierre en cadena ---- */
-function _cerrarLocal() {
-  try { if (_idleT) clearTimeout(_idleT); if (_pollT) clearInterval(_pollT); } catch (e) {}
-  location.href = 'index.html';
-}
-function _forzarSalida(msg) {
-  _limpiarCajon();
-  try { localStorage.setItem(LOGOUT_KEY, String(Date.now())); } catch (e) {}
-  if (msg) { try { alert(msg); } catch (e) {} }
-  _cerrarLocal();
-}
-function _resetIdle() {
-  if (_idleT) clearTimeout(_idleT);
-  _idleT = setTimeout(function () {
-    _forzarSalida('Cerramos tu sesión por inactividad.');
-  }, (_idleMin || 15) * 60000);
-}
-async function _chequearSesion() {
-  if (!_uid || !_mySid) return;
-  try {
-    const r = await sb.from('perfiles').select('sesion_id').eq('id', _uid).maybeSingle();
-    const sid = (r && r.data && r.data.sesion_id) || null;
-    if (sid && _mySid && sid !== _mySid)
-      _forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.');
-  } catch (e) {}
-}
-async function _armarGuards() {
-  // el rol define cuánta inactividad se tolera (gestores 60, resto 15)
-  try {
-    const r = await sb.from('perfiles').select('rol,es_super').eq('id', _uid).maybeSingle();
-    const p = (r && r.data) || {};
-    const gestor = p.es_super === true || ['hse', 'supervisor', 'admin'].indexOf(p.rol) >= 0;
-    _idleMin = gestor ? 60 : 15;
-  } catch (e) { _idleMin = 15; }
-  try { _mySid = localStorage.getItem('kalu_sid') || null; } catch (e) { _mySid = null; }
-  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(function (ev) {
-    window.addEventListener(ev, _resetIdle, { passive: true });
-  });
-  _resetIdle();
-  if (_pollT) clearInterval(_pollT);
-  _pollT = setInterval(_chequearSesion, 30000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) _chequearSesion(); });
-  window.addEventListener('storage', function (e) { if (e.key === LOGOUT_KEY) _cerrarLocal(); });
-}
-
-/* Arma el cliente de Supabase con el token vigente en el header.
-   SINCRÓNICO y retrocompatible: los hosts que ya lo llamaban así
-   (p.ej. app.html) siguen funcionando sin cambios. */
 function init(cfg) {
   cfg = cfg || {};
   if (cfg.client) { sb = cfg.client; return sesion(); }
@@ -3431,29 +3368,13 @@ function init(cfg) {
   const s = sesion();
   sb = global.supabase.createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: (s && !s.vencida) ? { Authorization: 'Bearer ' + s.token } : {} }
+    global: { headers: (s && !s.vencida)
+      ? { Authorization: 'Bearer ' + s.token } : {} }
   });
   return s;
 }
 
-/* Entrada recomendada para páginas standalone (capacitador.html):
-   renueva el token si hace falta ANTES de armar el cliente, y prende el
-   candado de sesión. Pasá { guardias:false } si el host ya lo maneja. */
-async function iniciar(cfg) {
-  cfg = cfg || {};
-  let s = sesion();
-  if (s && s.refresh) {
-    const now = Math.floor(Date.now() / 1000);
-    if (s.vencida || (s.expira && s.expira - now < 120)) {
-      if (await _refrescar(s.refresh)) s = sesion();
-    }
-  }
-  init(cfg);                       // arma el cliente leyendo el cajón ya renovado
-  if (s && !s.vencida && cfg.guardias !== false) { _uid = s.uid; _armarGuards(); }
-  return s;
-}
-
-global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
+global.KaluCap = { init, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque,
                    get cliente() { return sb; } };
 

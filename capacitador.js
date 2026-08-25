@@ -441,6 +441,11 @@ const CSS = `
  border:1px solid var(--kc-rule);border-radius:999px;padding:2px 9px;margin:2px 3px 2px 0;
  color:var(--kc-ink2)}
 .kc-chip2.j{background:var(--kc-acs);border-color:var(--kc-ac);color:var(--kc-ac)}
+.kc-guardar{position:sticky;bottom:0;display:none;gap:14px;align-items:center;justify-content:flex-end;
+ background:var(--kc-card);border-top:1px solid var(--kc-rule2);padding:12px 16px;margin-top:14px;
+ border-radius:0 0 10px 10px;box-shadow:0 -6px 18px -14px rgba(0,0,0,.5)}
+.kc-guardar span{font-size:13.5px;color:var(--kc-ink2)}
+
 
 @media (max-width:640px){
   .kc-ev{flex-wrap:wrap}
@@ -1219,6 +1224,8 @@ async function admin(sel) {
     // la ficha se abre en lugar del panel y vuelve a esta misma pestaña
     el.querySelectorAll('[data-ficha]').forEach(b => b.onclick = () =>
       ficha(sel, b.dataset.ficha, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-plan]').forEach(b => b.onclick = () =>
+      planCargo(sel, b.dataset.plan, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -1314,6 +1321,8 @@ async function admin(sel) {
         <td class="n">${c.alias}</td>
         <td class="n">↑${c.rutasEntran} ↓${c.rutasSalen}</td>
         <td><div style="display:flex;gap:6px">
+          <button class="kc-mini${c.activo && c.personas && !c.capacitaciones ? ' p' : ''}" data-plan="${c.id}">Plan${
+            c.capacitaciones ? ' · ' + c.capacitaciones : ''}</button>
           <button class="kc-mini" data-a="editar-cargo" data-i="${c.id}">Editar</button>
           <button class="kc-mini${c.activo?'':' p'}" data-a="${c.activo?'desactivar':'activar'}" data-i="${c.id}">${
             c.activo ? 'Apagar' : 'Prender'}</button></div></td>
@@ -1425,8 +1434,12 @@ async function admin(sel) {
                value="${esc(busca)}" autocomplete="off">
         <button class="kc-mini p" data-c="ia">✦ Armar con IA</button>
         <button class="kc-mini" data-c="crear">+ Crear propia</button>
-        <button class="kc-mini" data-c="sumar">Sumar de la biblioteca${
-          (CAT.biblioteca||[]).length ? ' · ' + CAT.biblioteca.length : ''}</button>
+        ${(CAT.biblioteca||[]).length
+          ? `<button class="kc-mini p" data-c="traer">Traer la biblioteca entera · ${CAT.biblioteca.length}</button>
+             <button class="kc-mini" data-c="sumar">Sumar una</button>`
+          : ''}
+        ${n.activas ? `<button class="kc-mini" data-c="apagartodas">Apagar todas</button>` : ''}
+        ${n.apagadas ? `<button class="kc-mini" data-c="prendertodas">Prender todas · ${n.apagadas}</button>` : ''}
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
@@ -1617,6 +1630,37 @@ async function admin(sel) {
   /* --------- capacitaciones --------- */
   function dlgCat(accion, id) {
     const c = (CAT.catalogo||[]).find(x => x.id === id);
+
+    if (accion === 'traer') {
+      return abrir(`<h3>Traer la biblioteca entera</h3>
+        <p>Suma a esta empresa las <b>${(CAT.biblioteca||[]).length}</b> capacitaciones de la
+           biblioteca que todavía no tiene, y las deja prendidas.</p>
+        <p>La mayoría son exigidas por norma —Decreto 1072, Resolución 0312, Ley 1010— así que
+           lo raro no es tenerlas: es no tenerlas. Después se apaga una por una lo que no aplique,
+           o todas de golpe con «Apagar todas».</p>
+        <p>Estar en el catálogo <b>no se lo exige a nadie todavía</b>: eso se define en el plan de
+           cada cargo.</p>`,
+        () => rpc('cap_biblioteca_traer'), 'Traer todas');
+    }
+
+    if (accion === 'apagartodas') {
+      return abrir(`<h3>Apagar todas</h3>
+        <p>Deja el catálogo en cero para armarlo desde la lista propia de la empresa. Afecta a las
+           <b>${n.activas}</b> que están prendidas.</p>
+        <p><b>No se borra nada.</b> Las asistencias, los certificados y el historial quedan como
+           están; esas capacitaciones dejan de exigirse, nada más. Se puede volver a prender.</p>
+        <label for="k1">Motivo</label>
+        <input type="text" id="k1" placeholder="Ej: HSE arma la matriz propia de la empresa">`,
+        dd => rpc('cap_catalogo_masivo', { p_prender: false,
+          p_motivo: dd.querySelector('#k1').value }), 'Apagar todas');
+    }
+
+    if (accion === 'prendertodas') {
+      return abrir(`<h3>Prender todas</h3>
+        <p>Vuelve a prender las <b>${n.apagadas}</b> que están apagadas. Las que ya estaban
+           prendidas quedan como están.</p>`,
+        () => rpc('cap_catalogo_masivo', { p_prender: true }), 'Prender todas');
+    }
 
     if (accion === 'editar') {
       abrir(`<h3>${esc(c.codigo)} · ${esc(c.titulo)}</h3>
@@ -3355,6 +3399,243 @@ async function arranque(sel) {
   await pintar();
 }
 
+/* =================================================================
+   PLAN DE UN CARGO — qué formación se le exige a quien lo ocupa
+
+   Se abre desde Cargos. Muestra todo el catálogo activo de la empresa
+   con una casilla por capacitación: se tilda lo que le toca y se guarda
+   una sola vez. Antes esto era un diálogo por capacitación; con 67
+   capacitaciones y 34 cargos, nadie lo hacía.
+
+   El botón de copiar es lo que hace llevaderos 34 cargos. Dos cargos
+   parecidos comparten casi todo, así que se arma uno y se copia. Copiar
+   no confirma nada solo: deja el plan cargado para que alguien lo
+   revise, y lo dice en el aviso.
+   ================================================================= */
+async function planCargo(sel, cargoId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Cargando el plan…');
+
+  let P, cambios = {}, q = '', filtro = 'todas';
+  try { P = await rpc('cap_plan_cargo_datos', { p_cargo: cargoId }); }
+  catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const EJEN = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
+  const vig = d => d == null ? 'No vence' : (d % 365 === 0 ? (d/365) + (d===365?' año':' años')
+                 : d % 30 === 0 ? (d/30) + ' meses' : d + ' días');
+
+  // estado de una fila: lo guardado, salvo que se haya tocado en pantalla
+  const puesta = i => cambios[i.id] ? cambios[i.id].poner : i.asignada;
+  const bloq   = i => cambios[i.id] ? cambios[i.id].bloqueante : (i.bloqueante || 'no');
+  const tocado = () => Object.keys(cambios).filter(k =>
+    cambios[k].poner !== cambios[k].era || cambios[k].bloqueante !== cambios[k].eraB).length;
+
+  function toast(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    (el.querySelector('.kc-wide') || el).appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+  }
+
+  function abrir(html, onOk, okTxt) {
+    const d = document.createElement('dialog');
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await onOk(d); d.close(); d.remove();
+        P = await rpc('cap_plan_cargo_datos', { p_cargo: cargoId });
+        cambios = {}; pintar();
+        if (r && r.aviso) toast(r.aviso);
+      } catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  function pintar() {
+    const c = P.cargo || {}, items = P.items || [];
+    const puestas = items.filter(puesta).length;
+    const n = {
+      todas: items.length,
+      tildadas: puestas,
+      sin: items.length - puestas,
+      llegan: items.filter(i => i.ya_le_llega).length
+    };
+    const pasa = i => {
+      if (q && !((i.codigo + ' ' + i.titulo).toLowerCase().includes(q))) return false;
+      if (filtro === 'tildadas') return puesta(i);
+      if (filtro === 'sin')      return !puesta(i);
+      if (filtro === 'llegan')   return !!i.ya_le_llega;
+      return true;
+    };
+    const L = items.filter(pasa);
+    const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver a Cargos</button>
+      <div style="padding:0 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:14px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">PLAN DE FORMACIÓN DEL CARGO</div>
+        <h1 style="font-size:28px;font-weight:700">${esc(c.nombre || '')}</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">
+          ${c.gente || 0} persona(s) ocupan este cargo${c.area ? ' · ' + esc(c.area) : ''}</div></div>
+
+      ${!c.gente ? `<div class="kc-cent" style="background:var(--kc-card2)">
+        <div class="b" style="background:var(--kc-ink3)">0</div><div>
+        <div class="kc-tt" style="font-size:15px">Todavía no lo ocupa nadie</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Podés dejar el plan armado igual: cuando
+        entre alguien con este cargo, le va a aplicar desde el primer día.</div></div></div>` : ''}
+
+      <div class="kc-bar2">
+        <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar por código o título…"
+               value="${esc(q)}" autocomplete="off">
+        ${P.puede_editar === false ? '' :
+          `<button class="kc-mini" id="kc-copiar">Copiar de otro cargo</button>`}
+      </div>
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('todas','Todas')}${chip('tildadas','Le tocan')}${chip('sin','No le tocan')}
+        ${chip('llegan','Ya le llegan por otro lado')}
+      </div>
+
+      ${L.length ? `<div class="kc-sc"><table><thead><tr>
+        <th style="width:34px"></th><th>Código</th><th>Capacitación</th><th>Vigencia</th>
+        <th>Nivel</th><th>Otros cargos</th></tr></thead><tbody>
+        ${L.map(i => `<tr class="${puesta(i) ? '' : 'kc-off'}">
+          <td><input type="checkbox" data-chk="${i.id}" ${puesta(i) ? 'checked' : ''}></td>
+          <td class="k">${esc(i.codigo)}</td>
+          <td><div>${esc(i.titulo)}</div>
+              <div class="kc-cd" style="margin-top:2px">${esc(EJEN[i.eje] || i.eje)} · ${esc(i.tipo)}${
+                i.propia ? ' · propia' : ''}${i.certificable ? ' · certifica' : ''}</div>
+              ${i.ya_le_llega ? `<div class="kc-mch b">ya le llega por ${esc(i.ya_le_llega)}</div>` : ''}
+              ${(i.base_legal || []).length ? `<div class="kc-cd" style="margin-top:3px;color:var(--kc-ink3)">${esc((i.base_legal||[]).join(' · '))}</div>` : ''}</td>
+          <td class="n">${vig(i.vigencia_dias)}</td>
+          <td>${puesta(i) ? `<select class="kc-in" data-bloq="${i.id}">
+              <option value="no" ${bloq(i)==='no'?'selected':''}>Informativa</option>
+              <option value="operacion" ${bloq(i)==='operacion'?'selected':''}>Bloquea la operación</option>
+              <option value="ingreso" ${bloq(i)==='ingreso'?'selected':''}>Bloquea la vinculación</option>
+            </select>` : '<span style="color:var(--kc-ink3)">—</span>'}</td>
+          <td class="n" style="color:var(--kc-ink3)">${i.otros_cargos}</td>
+        </tr>`).join('')}
+      </tbody></table></div>` : '<p class="kc-nota">Nada con ese filtro.</p>'}
+
+      ${P.puede_editar === false ? '' : `<div class="kc-guardar" id="kc-gb">
+        <span id="kc-cuenta"></span>
+        <button class="kc-btn" id="kc-guardar" style="width:auto;padding:0 24px">Guardar el plan</button>
+      </div>`}
+      </div>`;
+
+    el.querySelector('#kc-volver').onclick = () => {
+      if (tocado() && !confirm('Hay cambios sin guardar. ¿Salís igual?')) return;
+      if (opt.volver) opt.volver(); else admin(sel);
+    };
+
+    enganchar();
+    refrescarBarra();
+  }
+
+  function refrescarBarra() {
+    // los contadores de los filtros tienen que seguir lo tildado en pantalla,
+    // no lo último guardado: si no, dicen una cosa y la tabla muestra otra
+    const items = P.items || [], puestas = items.filter(puesta).length;
+    const cuenta = { todas: items.length, tildadas: puestas, sin: items.length - puestas,
+                     llegan: items.filter(i => i.ya_le_llega).length };
+    const TXT = { todas:'Todas', tildadas:'Le tocan', sin:'No le tocan',
+                  llegan:'Ya le llegan por otro lado' };
+    el.querySelectorAll('[data-f]').forEach(x => {
+      x.textContent = TXT[x.dataset.f] + ' · ' + cuenta[x.dataset.f];
+    });
+
+    const b = el.querySelector('#kc-gb'), cta = el.querySelector('#kc-cuenta');
+    if (!b) return;
+    const n = tocado();
+    b.style.display = n ? 'flex' : 'none';
+    if (cta) cta.textContent = n === 1 ? '1 cambio sin guardar' : n + ' cambios sin guardar';
+  }
+
+  function enganchar() {
+    const marcarCambio = (id, poner, bl) => {
+      const it = (P.items || []).find(x => x.id === id);
+      if (!it) return;
+      cambios[id] = {
+        poner: poner, bloqueante: bl,
+        era: it.asignada, eraB: it.bloqueante || 'no'
+      };
+    };
+
+    el.querySelectorAll('[data-chk]').forEach(ch => ch.onchange = () => {
+      const id = ch.dataset.chk;
+      const it = (P.items || []).find(x => x.id === id);
+      marcarCambio(id, ch.checked, bloq(it));
+      // redibujo la fila para mostrar u ocultar el selector de nivel
+      const fila = ch.closest('tr');
+      fila.classList.toggle('kc-off', !ch.checked);
+      const celda = fila.children[4];
+      celda.innerHTML = ch.checked
+        ? `<select class="kc-in" data-bloq="${id}">
+             <option value="no">Informativa</option>
+             <option value="operacion">Bloquea la operación</option>
+             <option value="ingreso">Bloquea la vinculación</option></select>`
+        : '<span style="color:var(--kc-ink3)">—</span>';
+      const s = celda.querySelector('select');
+      if (s) { s.value = bloq(it); s.onchange = () => marcarCambio(id, true, s.value); }
+      refrescarBarra();
+    });
+
+    el.querySelectorAll('[data-bloq]').forEach(s => s.onchange = () => {
+      marcarCambio(s.dataset.bloq, true, s.value); refrescarBarra();
+    });
+
+    el.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filtro = b.dataset.f; pintar(); });
+
+    const bus = el.querySelector('#kc-bus');
+    if (bus) bus.oninput = () => {
+      const cur = bus.selectionStart; q = bus.value.trim().toLowerCase(); pintar();
+      const nn = el.querySelector('#kc-bus'); if (nn) { nn.focus(); nn.setSelectionRange(cur, cur); }
+    };
+
+    const gb = el.querySelector('#kc-guardar');
+    if (gb) gb.onclick = async () => {
+      const items = Object.keys(cambios).map(id => ({
+        catalogo_id: id, poner: cambios[id].poner, bloqueante: cambios[id].bloqueante }));
+      if (!items.length) return;
+      gb.disabled = true; gb.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_plan_cargo_guardar', { p_cargo: cargoId, p_items: items });
+        P = await rpc('cap_plan_cargo_datos', { p_cargo: cargoId });
+        cambios = {}; pintar(); toast(r.aviso);
+      } catch (e) { gb.disabled = false; gb.textContent = 'Guardar el plan'; alert(e.message); }
+    };
+
+    const cp = el.querySelector('#kc-copiar');
+    if (cp) cp.onclick = () => {
+      const otros = (P.otros_cargos || []).filter(o => o.cuantas > 0);
+      if (!otros.length) return alert(
+        'Todavía no hay ningún otro cargo con plan armado para copiar.');
+      abrir(`<h3>Copiar el plan de otro cargo</h3>
+        <p>Trae las capacitaciones de otro cargo a <b>${esc((P.cargo||{}).nombre||'')}</b>.
+           Sólo aparecen los que ya tienen algo asignado.</p>
+        <label for="k1">Copiar desde</label>
+        <select id="k1">${otros.map(o =>
+          `<option value="${o.id}">${esc(o.nombre)} · ${o.cuantas} capacitación(es)</option>`).join('')}</select>
+        <label for="k2" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px">
+          <input type="checkbox" id="k2" style="margin-top:4px">
+          <span>Dejarlo <b>idéntico</b> al origen — quita lo que este cargo tenga y el otro no.
+          Sin tildar, sólo agrega lo que falte.</span></label>`,
+        d => rpc('cap_plan_copiar', {
+          p_desde: d.querySelector('#k1').value, p_hacia: cargoId,
+          p_reemplazar: d.querySelector('#k2').checked }), 'Copiar');
+    };
+  }
+
+  pintar();
+}
+
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
 function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -3484,7 +3765,7 @@ async function iniciar(cfg) {
 }
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
-                   certificado, generador, verificar, arranque,
+                   certificado, generador, verificar, arranque, planCargo,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

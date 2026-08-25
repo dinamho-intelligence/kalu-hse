@@ -1150,12 +1150,7 @@ async function admin(sel) {
           ? 'A esta gente el sistema dejó de exigirle su formación por cargo. Mapealas antes de seguir.'
           : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>` : ''}
       ${avisoChequeo()}
-      ${tab === 1 && sm ? '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo escrito</th>' +
-        '<th>Capacitaciones hoy</th><th></th></tr></thead><tbody>' +
-        D.sinMapear.map(s => `<tr><td class="k">${esc(s.nombre)}</td>
-          <td>${esc(s.cargo_texto)}</td><td class="n">${s.capacitaciones_hoy}</td>
-          <td><button class="kc-mini p" data-map="${esc(s.cargo_texto)}">Mapear</button></td></tr>`).join('') +
-        '</tbody></table></div>' : ''}
+      ${tab === 1 && sm ? vSinMapear() : ''}
       <div class="kc-tabs" style="margin:18px 0 20px">
         <button class="kc-tab" data-t="1" aria-selected="${tab===1}">Personas</button>
         <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos</button>
@@ -1174,6 +1169,39 @@ async function admin(sel) {
     else if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
     else                { await traerCro(); v.innerHTML = vCro(); }
     enganchar(v);
+  }
+
+  /* Lo que falta mapear, agrupado por cómo está escrito el cargo.
+     Antes iba una fila por persona: en una empresa recién cargada eso son
+     cien filas que dicen lo mismo, y empujan las pestañas tan abajo que la
+     pantalla parece otra. Mapear trabaja sobre el texto del cargo, no
+     sobre la persona, así que una fila por texto alcanza. */
+  function vSinMapear() {
+    const g = {};
+    (D.sinMapear || []).forEach(s => {
+      const k = s.cargo_texto || '—';
+      (g[k] = g[k] || { txt: k, gente: 0, caps: 0 });
+      g[k].gente++; g[k].caps += (s.capacitaciones_hoy || 0);
+    });
+    const filas = Object.values(g).sort((a, b) => b.gente - a.gente);
+    const TOPE = 12, ver = filas.slice(0, TOPE), resto = filas.length - ver.length;
+
+    return `${filas.length > 5 ? `<div class="kc-cent" style="background:var(--kc-was)">
+        <div class="b" style="background:var(--kc-wa)">${filas.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          Esto es una empresa sin organigrama, no una lista de correcciones</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Mapear de a uno sirve cuando alguien
+        escribe una variante nueva. Con ${filas.length} cargos sin definir conviene ir a
+        <b>Puesta en marcha</b>, que los arma todos juntos y de paso agrupa las formas repetidas
+        de escribir lo mismo.</div></div></div>` : ''}
+      <div class="kc-sc"><table><thead><tr><th>Cargo escrito en el padrón</th>
+        <th class="n">Personas</th><th class="n">Capacitaciones hoy</th><th></th></tr></thead><tbody>
+        ${ver.map(f => `<tr><td class="k">${esc(f.txt)}</td>
+          <td class="n">${f.gente}</td><td class="n">${f.caps}</td>
+          <td><button class="kc-mini p" data-map="${esc(f.txt)}">Mapear</button></td></tr>`).join('')}
+        ${resto > 0 ? `<tr><td colspan="4" style="color:var(--kc-ink3);font-size:13px">
+          y ${resto} forma(s) más de escribir un cargo, sin mapear</td></tr>` : ''}
+      </tbody></table></div>`;
   }
 
   function enganchar(v) {

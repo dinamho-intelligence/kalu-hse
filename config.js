@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '28';
+const KC_VER = '29';
 
 let sb = null;
 
@@ -588,7 +588,7 @@ const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente',
 // Sin tildes, sin mayúsculas, sin espacios de más: para comparar dos textos
 // escritos por manos distintas. «Auxiliar de Inspección» y «AUXILIAR DE
 // INSPECCION» son el mismo cargo aunque no sean la misma cadena.
-const llano = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+const llano = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/\s+/g, ' ').trim();
 
 /* ---------------------------------------------------- estado de formación
@@ -4123,7 +4123,7 @@ const MZ_NORMA = ['BIOLOGICO','FISICO','QUIMICO','PSICOSOCIAL','BIOMECANICO',
 
 const mzTxt = v => v === null || v === undefined ? '' : String(v).replace(/\s+/g,' ').trim();
 const mzMay = v => mzTxt(v).toUpperCase();
-const mzSinTilde = s => mzTxt(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+const mzSinTilde = s => mzTxt(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
 const mzEsNorma = c => MZ_NORMA.indexOf(mzSinTilde(c)) >= 0 ||
                        MZ_NORMA.indexOf(mzSinTilde(c).replace(/S$/,'')) >= 0;
 
@@ -4299,7 +4299,7 @@ function ctHoras(v) {
    decir nada NO es «no vence»: es una decisión que le falta a HSE. */
 function ctVigencia(v) {
   const t = mzTxt(v).toLowerCase();
-  const m = t.match(/(\d+)\s*a[ñn]o/);
+  const m = t.match(/(\d+)\s*a[\u00f1n]o/);
   if (m) return Number(m[1]) * 365;
   if (t.indexOf('anual') >= 0)     return 365;
   if (t.indexOf('semestral') >= 0) return 182;

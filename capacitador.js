@@ -27,7 +27,40 @@
 (function (global) {
 'use strict';
 
+/* La versión del archivo. Tiene que coincidir con el ?v=N del HTML.
+   Se muestra en las pantallas de administración para poder comprobar,
+   sin abrir nada, que lo que está arriba es lo que se subió — el error
+   más común del módulo es subir el JS y olvidarse del ?v=, y entonces
+   el navegador sigue usando la copia vieja sin avisar. */
+const KC_VER = '22';
+
 let sb = null;
+
+
+/* Las palabras con peso de un nombre de cargo: sin tildes, sin
+   mayúsculas y sin relleno. Es la misma regla que usa la base para
+   decidir si dos cargos son el mismo, escrita también acá para poder
+   avisar mientras la persona escribe, en vez de después de guardar. */
+const KC_RELLENO = ['de','del','la','el','los','las','y','e','en','a','al',
+                    'para','con','por','un','una','sr','sra'];
+function kcPalabras(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ')
+    .filter(w => w && KC_RELLENO.indexOf(w) < 0);
+}
+/* Qué tan parecidos son dos nombres: 'igual' si son la misma palabra a
+   palabra, 'contenido' si uno dice todo lo que dice el otro y algo más,
+   'parecido' si comparten dos palabras o más. */
+function kcParecido(a, b) {
+  const A = kcPalabras(a), B = kcPalabras(b);
+  if (!A.length || !B.length) return null;
+  const sa = A.slice().sort().join(' '), sb = B.slice().sort().join(' ');
+  if (sa === sb) return 'igual';
+  const comunes = A.filter(w => B.indexOf(w) >= 0);
+  if (comunes.length === A.length || comunes.length === B.length) return 'contenido';
+  if (comunes.length >= 2) return 'parecido';
+  return null;
+}
 
 /* ---------------------------------------------------------------- estilos */
 const CSS = `
@@ -493,6 +526,12 @@ const CSS = `
  letter-spacing:.07em;text-transform:uppercase;color:var(--kc-ink3);margin-bottom:5px}
 .kc-exp .kc-dst{display:flex;gap:10px;align-items:center;padding:4px 2px;font-size:13.5px;cursor:pointer}
 .kc-exp .kc-dst input{width:auto;margin:0}
+.kc-alerta{display:block;white-space:normal;font-size:12.5px;line-height:1.45;border-radius:7px;
+ padding:8px 11px;margin-top:6px}
+.kc-alerta.cr{background:var(--kc-crs);color:var(--kc-cr)}
+.kc-alerta.wa{background:var(--kc-was);color:var(--kc-wa)}
+.kc-alerta b{color:inherit}
+
 
 
 
@@ -1191,7 +1230,7 @@ async function admin(sel) {
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wide">
       <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:6px">
-        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · ADMINISTRACIÓN</div>
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · ADMINISTRACIÓN <span style="opacity:.45">· v${KC_VER}</span></div>
         <h1 style="font-size:30px;font-weight:700">Capacitador</h1></div>
       ${D.puede_editar === false ? `<div class="kc-cent" style="background:var(--kc-card2)">
         <div class="b" style="background:var(--kc-ink3)">👁</div><div>
@@ -1393,8 +1432,10 @@ async function admin(sel) {
         ? '<p>Un cargo nuevo nace sin plan de formación. Después de crearlo hay que asignarle sus capacitaciones desde la pestaña <b>Capacitaciones</b>.</p>'
         : `<p>${c.personas} persona(s) · ${c.capacitaciones} capacitación(es) asignadas</p>`}
       <label for="k1">Nombre</label>
-      <input type="text" id="k1" value="${esc(nuevo ? '' : c.nombre)}"
-             placeholder="Ej: Inspector END Nivel III">
+      <input type="text" id="k1" list="kc-cargos" value="${esc(nuevo ? '' : c.nombre)}"
+             placeholder="Ej: Inspector END Nivel III" autocomplete="off">
+      <datalist id="kc-cargos">${otros.map(x => `<option value="${esc(x.nombre)}">`).join('')}</datalist>
+      <div id="kc-choque" style="margin:-6px 0 12px"></div>
       <label for="k2">Área</label>
       <input type="text" id="k2" list="kc-areas" value="${esc(nuevo ? '' : (c.area || ''))}"
              placeholder="Misional, Administrativa…">
@@ -1426,6 +1467,37 @@ async function admin(sel) {
           : rpc('cap_cargo_guardar', { p_cargo: c.id, p_nombre: nom, p_area: area,
               p_reporta_a: jefe, p_quitar_jefe: !jefe });
       }, nuevo ? 'Crear' : 'Guardar', !nuevo);
+
+      // Avisar mientras se escribe, no después de guardar. El servidor
+      // igual rechaza un nombre repetido, pero para entonces la persona
+      // ya decidió; y los que se PARECEN el servidor no los rechaza —
+      // no puede, porque a veces son cargos distintos de verdad.
+      const inp = d.querySelector('#k1'), aviso = d.querySelector('#kc-choque');
+      if (inp && aviso) {
+        const revisar = () => {
+          const v = inp.value.trim();
+          if (!v) { aviso.innerHTML = ''; return; }
+          const igual = otros.filter(x => kcParecido(v, x.nombre) === 'igual');
+          const cerca = otros.filter(x => {
+            const p = kcParecido(v, x.nombre);
+            return p === 'contenido' || p === 'parecido';
+          });
+          // Ojo: hay que escapar cada nombre por separado. Escapar el
+          // texto ya armado convierte las negritas en código a la vista.
+          const nombres = xs => xs.map(x => '<b>' + esc(x.nombre) + '</b>').join(', ');
+          if (igual.length) {
+            aviso.innerHTML = `<div class="kc-alerta cr">Ya existe ${nombres(igual.slice(0,1))}.
+              Es el mismo cargo escrito distinto: no se puede crear otro. Si el padrón lo escribe
+              así, abrí ese cargo y sumale esta escritura como variante.</div>`;
+          } else if (cerca.length) {
+            aviso.innerHTML = `<div class="kc-alerta wa">Se parece a ${nombres(cerca.slice(0,3))}.
+              Si es el mismo cargo, no lo crees: abrí ese y sumale esta escritura como
+              variante.</div>`;
+          } else { aviso.innerHTML = ''; }
+        };
+        inp.oninput = revisar;
+        revisar();
+      }
 
     if (nuevo) return;
 
@@ -3150,7 +3222,7 @@ async function arranque(sel) {
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wide">
       <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
-        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · PUESTA EN MARCHA</div>
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · PUESTA EN MARCHA <span style="opacity:.45">· v${KC_VER}</span></div>
         <h1 style="font-size:30px;font-weight:700">${esc(e.nombre || 'Esta empresa')}</h1>
         <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">
           ${e.personas || 0} personas en el padrón · ${e.usuarios || 0} con usuario ·
@@ -4463,6 +4535,7 @@ async function iniciar(cfg) {
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
                    matriz,
+                   version: KC_VER,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '22';
+const KC_VER = '24';
 
 let sb = null;
 
@@ -520,9 +520,12 @@ const CSS = `
 .kc-exp{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-ok);
  border-radius:10px;padding:14px 16px;margin-bottom:10px}
 .kc-exp.pend{border-left-color:var(--kc-wa)}
+.kc-exp.abierta{border-left-color:var(--kc-ac);box-shadow:var(--kc-sh)}
+.kc-exp.listo{border-left-color:var(--kc-ok)}
+
 .kc-exp .top{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
 .kc-exp .dest{margin-top:10px}
-.kc-exp .dest label:first-child{display:block;font-family:var(--kc-fm);font-size:9.5px;
+.kc-exp .dest > label:first-child{display:block;font-family:var(--kc-fm);font-size:9.5px;
  letter-spacing:.07em;text-transform:uppercase;color:var(--kc-ink3);margin-bottom:5px}
 .kc-exp .kc-dst{display:flex;gap:10px;align-items:center;padding:4px 2px;font-size:13.5px;cursor:pointer}
 .kc-exp .kc-dst input{width:auto;margin:0}
@@ -4107,7 +4110,7 @@ async function matriz(sel, opt) {
   opt = opt || {};
   cargando(el, 'Mirando la matriz…');
 
-  let D, E = null, L = null, R = null, tab = 1;
+  let D, E = null, L = null, R = null, tab = 1, abierto = null, buscaDest = '';
   try { D = await rpc('cap_matriz_datos'); } catch (e) { return error(el, e); }
   try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
 
@@ -4280,36 +4283,71 @@ async function matriz(sel, opt) {
     if (!exp.length) return `<p class="kc-nota">Todavía no hay ningún «cargo expuesto»:
       aparecen cuando se importa la matriz.</p>`;
 
-    const CLASES = [
-      ['cargo',     'Es un cargo del padrón'],
-      ['varios',    'Son varios cargos en una celda'],
-      ['colectivo', 'Es un colectivo — aplica a varios'],
-      ['tercero',   'No es personal propio (proveedor, visitante, vecino)'],
-      ['ignorar',   'Dejarlo fuera del cálculo'],
-      ['sin_definir','Sin definir todavía']
-    ];
+    const pend = exp.filter(e => e.clase === 'sin_definir').length;
 
+    /* Una tarjeta abierta por vez. Con nueve textos y treinta y pico de
+       cargos en cada lista, tenerlas todas abiertas convierte la pantalla
+       en algo por donde hay que scrollear a ciegas. */
     return `<p class="kc-nota">La matriz no dice cargos: dice textos. Algunos son un cargo, otros
     son varios juntos, otros no son personal de la empresa. <b>Esto no se puede adivinar</b> —
     «Auxiliares END» y «Auxiliar de Inspección» no comparten una sola palabra y son el mismo
-    cargo. Por eso lo decidís vos.</p>
+    cargo. Por eso lo decidís vos, de a uno.</p>
 
-    ${exp.map(e => `
-      <div class="kc-exp ${e.clase === 'sin_definir' ? 'pend' : 'listo'}" data-exp="${e.id}">
-        <div class="top">
-          <div><div class="kc-tt" style="font-size:15.5px">${esc(e.texto)}</div>
-            <div class="kc-cd" style="margin-top:3px">${e.peligros} peligro(s) dependen de esto</div></div>
-          <select class="kc-in" data-clase="${e.id}" style="max-width:290px">
-            ${CLASES.map(c => `<option value="${c[0]}" ${e.clase===c[0]?'selected':''}>${c[1]}</option>`).join('')}
-          </select>
+    ${pend ? `<div class="kc-cent" style="background:var(--kc-was)">
+      <div class="b" style="background:var(--kc-wa)">${pend}</div><div>
+      <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">Faltan ${pend} de ${exp.length}</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">Mientras alguno quede sin definir, esos
+      peligros no le exigen formación a nadie.</div></div></div>` : ''}
+
+    ${exp.map(e => e.id === abierto ? tarjetaAbierta(e) : tarjetaCerrada(e)).join('')}`;
+  }
+
+  const CLASES = [
+    ['cargo',      'Es un cargo del padrón'],
+    ['varios',     'Son varios cargos en una celda'],
+    ['colectivo',  'Es un colectivo — aplica a varios'],
+    ['tercero',    'No es personal propio (proveedor, visitante, vecino)'],
+    ['ignorar',    'Dejarlo fuera del cálculo'],
+    ['sin_definir','Sin definir todavía']
+  ];
+  const nombreClase = c => (CLASES.find(x => x[0] === c) || ['','—'])[1];
+
+  function tarjetaCerrada(e) {
+    const listo = e.clase !== 'sin_definir';
+    const resumen = e.clase === 'tercero' ? 'No es personal propio'
+      : e.clase === 'ignorar' ? 'Fuera del cálculo'
+      : e.destinos.length ? e.destinos.map(d => esc(d.nombre)).join(' · ')
+      : nombreClase(e.clase);
+    return `<div class="kc-exp ${listo ? 'listo' : 'pend'}">
+      <div class="top">
+        <div style="flex:1 1 auto;min-width:0">
+          <div class="kc-tt" style="font-size:15.5px">${esc(e.texto)}</div>
+          <div class="kc-cd" style="margin-top:3px">${e.peligros} peligro(s) dependen de esto</div>
+          <div style="font-size:13.5px;margin-top:5px;color:${listo ? 'var(--kc-ok)' : 'var(--kc-wa)'}">
+            ${listo ? '✓ ' + resumen : 'Sin definir'}</div>
         </div>
-        <div class="dest" data-dest="${e.id}"></div>
-        ${e.destinos.length ? `<div class="kc-mch">hoy apunta a ${
-          esc(e.destinos.map(d => d.nombre).join(' · '))}</div>` : ''}
-      </div>`).join('')}
+        <button class="kc-mini${listo ? '' : ' p'}" data-abrir="${e.id}">
+          ${listo ? 'Cambiar' : 'Resolver'}</button>
+      </div></div>`;
+  }
 
-    <div class="kc-row" style="margin-top:16px"><button class="kc-btn" id="kc-guardar-exp">
-      Guardar los cambios</button></div>`;
+  function tarjetaAbierta(e) {
+    return `<div class="kc-exp abierta">
+      <div class="top">
+        <div style="flex:1 1 auto;min-width:0">
+          <div class="kc-tt" style="font-size:15.5px">${esc(e.texto)}</div>
+          <div class="kc-cd" style="margin-top:3px">${e.peligros} peligro(s) dependen de esto</div>
+        </div>
+        <select class="kc-in" data-clase="${e.id}" style="max-width:290px">
+          ${CLASES.map(c => `<option value="${c[0]}" ${e.clase===c[0]?'selected':''}>${c[1]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="dest" data-dest="${e.id}"></div>
+      <div class="kc-row" style="margin-top:12px;gap:8px;justify-content:flex-end">
+        <button class="kc-b2" data-cerrar="1" style="flex:0 0 auto">Cancelar</button>
+        <button class="kc-btn" data-guardar="${e.id}" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Guardar y cerrar</button>
+      </div></div>`;
   }
 
   function pintarDestinos(id) {
@@ -4318,26 +4356,62 @@ async function matriz(sel, opt) {
     const sel = el.querySelector(`[data-clase="${id}"]`);
     if (!e || !box || !sel) return;
     const clase = sel.value;
-    if (['tercero','ignorar','sin_definir'].indexOf(clase) >= 0) { box.innerHTML = ''; return; }
 
-    const sug = {}; (e.sugerencias || []).forEach(s => { sug[s.cargo_id] = s.palabras; });
+    if (['tercero','ignorar','sin_definir'].indexOf(clase) >= 0) {
+      box.innerHTML = `<p class="kc-nota" style="text-align:left;margin:10px 0 0">${
+        clase === 'tercero'
+          ? 'No hace falta elegir a nadie: esos peligros quedan registrados pero no le exigen formación a ningún cargo.'
+          : clase === 'ignorar'
+          ? 'Queda fuera del cálculo.'
+          : 'Elegí arriba qué es este texto.'}</p>`;
+      return;
+    }
+
+    const sug = {}; (e.sugerencias || []).forEach(s2 => { sug[s2.cargo_id] = s2.palabras; });
     const yaC = {}; (e.destinos || []).forEach(d => { if (d.cargo_id) yaC[d.cargo_id] = 1; });
     const yaR = {}; (e.destinos || []).forEach(d => { if (d.rol_id) yaR[d.rol_id] = 1; });
 
-    const cargos = (E.cargos || []).slice().sort((a,b) =>
-      (sug[b.id]||0) - (sug[a.id]||0) || a.nombre.localeCompare(b.nombre));
+    const q = buscaDest.trim().toLowerCase();
+    const pasa = n => !q || n.toLowerCase().indexOf(q) >= 0;
+    const cargos = (E.cargos || []).slice()
+      .sort((a, b) => (sug[b.id]||0) - (sug[a.id]||0) || a.nombre.localeCompare(b.nombre))
+      .filter(c => pasa(c.nombre) || yaC[c.id]);
+    const comites = (E.comites || []).filter(r => pasa(r.nombre) || yaR[r.id]);
 
     box.innerHTML = `<label>Marcá a quién corresponde</label>
+      <input type="search" class="kc-in" id="kc-bd" placeholder="Buscar un cargo…"
+             value="${esc(buscaDest)}" autocomplete="off" style="width:100%;margin-bottom:6px">
       <div class="kc-lista">
+        ${cargos.length || comites.length ? '' :
+          '<p class="kc-nota" style="text-align:left;margin:6px 0">Ningún cargo con ese texto.</p>'}
         ${cargos.map(c => `<label class="kc-dst">
           <input type="checkbox" class="kdc-${id}" value="${c.id}" ${yaC[c.id]?'checked':''}>
           <span>${esc(c.nombre)}${sug[c.id] ? ' <span class="kc-mch">sugerido</span>' : ''}</span>
         </label>`).join('')}
-        ${(E.comites||[]).map(r => `<label class="kc-dst">
+        ${comites.map(r => `<label class="kc-dst">
           <input type="checkbox" class="kdr-${id}" value="${r.id}" ${yaR[r.id]?'checked':''}>
           <span>${esc(r.nombre)} <span class="kc-mch">comité</span></span>
         </label>`).join('')}
-      </div>`;
+      </div>
+      <div id="kc-cuenta-dest" class="kc-cd" style="margin-top:6px"></div>`;
+
+    const contar = () => {
+      const n = box.querySelectorAll('input[type=checkbox]:checked').length;
+      const c = box.querySelector('#kc-cuenta-dest');
+      if (c) c.textContent = n === 0 ? 'Todavía no marcaste ninguno'
+                           : n === 1 ? '1 marcado' : n + ' marcados';
+    };
+    box.querySelectorAll('input[type=checkbox]').forEach(x => x.onchange = contar);
+    contar();
+
+    const bd = box.querySelector('#kc-bd');
+    if (bd) bd.oninput = () => {
+      const cur = bd.selectionStart;
+      buscaDest = bd.value;
+      pintarDestinos(id);
+      const nn = el.querySelector('#kc-bd');
+      if (nn) { nn.focus(); nn.setSelectionRange(cur, cur); }
+    };
   }
 
   /* ------------------------------------------------------ eventos */
@@ -4385,40 +4459,37 @@ async function matriz(sel, opt) {
       }
     };
 
-    // cargos expuestos
-    v.querySelectorAll('[data-clase]').forEach(s => {
-      pintarDestinos(s.dataset.clase);
-      s.onchange = () => {
-        pintarDestinos(s.dataset.clase);
-        const card = s.closest('.kc-exp');
-        if (card) card.classList.toggle('pend', s.value === 'sin_definir');
-      };
+    // cargos expuestos: una tarjeta abierta por vez
+    v.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = b.dataset.abrir; buscaDest = '';
+      v.innerHTML = vExpuestos(); enganchar(v);
+      const card = v.querySelector('.kc-exp.abierta');
+      if (card) card.scrollIntoView({ block: 'nearest' });
     });
-
-    const bg = v.querySelector('#kc-guardar-exp');
-    if (bg) bg.onclick = async () => {
-      const cambios = [];
-      v.querySelectorAll('[data-clase]').forEach(s => {
-        const id = s.dataset.clase, clase = s.value;
-        const dest = [];
-        v.querySelectorAll('.kdc-' + id + ':checked').forEach(x => dest.push({ cargo_id: x.value }));
-        v.querySelectorAll('.kdr-' + id + ':checked').forEach(x => dest.push({ rol_id: x.value }));
-        const e = (E.expuestos||[]).find(x => x.id === id) || {};
-        const antes = (e.destinos||[]).length;
-        if (clase !== e.clase || dest.length !== antes) cambios.push({ id: id, clase: clase, dest: dest });
-      });
-      if (!cambios.length) return alert('No cambiaste nada.');
-
-      bg.disabled = true; bg.textContent = 'Guardando…';
-      const fallos = [];
-      for (const c of cambios) {
-        try { await rpc('cap_expuesto_mapear', {
-          p_expuesto: c.id, p_clase: c.clase, p_destinos: c.dest }); }
-        catch (e) { fallos.push(e.message); }
+    v.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => {
+      abierto = null; buscaDest = '';
+      v.innerHTML = vExpuestos(); enganchar(v);
+    });
+    v.querySelectorAll('[data-clase]').forEach(s2 => {
+      pintarDestinos(s2.dataset.clase);
+      s2.onchange = () => { buscaDest = ''; pintarDestinos(s2.dataset.clase); };
+    });
+    v.querySelectorAll('[data-guardar]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.guardar;
+      const clase = (v.querySelector(`[data-clase="${id}"]`) || {}).value;
+      const dest = [];
+      v.querySelectorAll('.kdc-' + id + ':checked').forEach(x => dest.push({ cargo_id: x.value }));
+      v.querySelectorAll('.kdr-' + id + ':checked').forEach(x => dest.push({ rol_id: x.value }));
+      b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_expuesto_mapear', {
+          p_expuesto: id, p_clase: clase, p_destinos: dest });
+        abierto = null; buscaDest = '';
+        await recargar(r.aviso);
+      } catch (e2) {
+        b.disabled = false; b.textContent = 'Guardar y cerrar'; alert(e2.message);
       }
-      if (fallos.length) alert('Algunos no se pudieron guardar:\n\n' + fallos.join('\n'));
-      await recargar((cambios.length - fallos.length) + ' cargo(s) expuestos resueltos.');
-    };
+    });
   }
 
   await pintar();

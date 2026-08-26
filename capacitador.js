@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '27';
+const KC_VER = '29';
 
 let sb = null;
 
@@ -588,7 +588,7 @@ const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente',
 // Sin tildes, sin mayúsculas, sin espacios de más: para comparar dos textos
 // escritos por manos distintas. «Auxiliar de Inspección» y «AUXILIAR DE
 // INSPECCION» son el mismo cargo aunque no sean la misma cadena.
-const llano = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+const llano = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/\s+/g, ' ').trim();
 
 /* ---------------------------------------------------- estado de formación
@@ -3420,7 +3420,8 @@ async function arranque(sel) {
           ${p.ojo ? `<div class="ojo">${esc(p.ojo)}</div>` : ''}
         </div>
         ${IR[p.clave] ? `<button class="kc-mini p" data-ir="${IR[p.clave]}">Ir</button>`
-          : p.clave === 'peligros' ? `<button class="kc-mini p" data-matriz="1">Ir</button>` : ''}
+          : p.clave === 'peligros' ? `<button class="kc-mini p" data-matriz="1">Ir</button>`
+          : p.clave === 'catalogo' ? `<button class="kc-mini p" data-cat="1">Ir</button>` : ''}
       </div>`).join('')}</div>
       <p class="kc-nota" style="margin-top:14px">Los pasos que no tienen botón se hacen en
       <b>Administración</b>: el catálogo en «Capacitaciones», las asignaciones con el botón
@@ -3571,6 +3572,8 @@ async function arranque(sel) {
     v.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { tab = +b.dataset.ir; pintar(); });
     v.querySelectorAll('[data-matriz]').forEach(b => b.onclick = () =>
       matriz(sel, { volver: () => arranque(sel) }));
+    v.querySelectorAll('[data-cat]').forEach(b => b.onclick = () =>
+      impCatalogo(sel, { volver: () => arranque(sel) }));
 
     /* --- organigrama: la propuesta se edita en memoria, no se guarda sola --- */
     v.querySelectorAll('[data-chk]').forEach(c => c.onchange = () => {
@@ -4120,7 +4123,7 @@ const MZ_NORMA = ['BIOLOGICO','FISICO','QUIMICO','PSICOSOCIAL','BIOMECANICO',
 
 const mzTxt = v => v === null || v === undefined ? '' : String(v).replace(/\s+/g,' ').trim();
 const mzMay = v => mzTxt(v).toUpperCase();
-const mzSinTilde = s => mzTxt(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+const mzSinTilde = s => mzTxt(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
 const mzEsNorma = c => MZ_NORMA.indexOf(mzSinTilde(c)) >= 0 ||
                        MZ_NORMA.indexOf(mzSinTilde(c).replace(/S$/,'')) >= 0;
 
@@ -4226,6 +4229,198 @@ function mzResumen(filas) {
     sin_cargo: filas.filter(f => !f.cargos_expuestos).length,
     con_capacitacion: filas.filter(f => (f.control_admin||'').toLowerCase().indexOf('apacit') >= 0).length
   };
+}
+
+
+/* =================================================================
+   LEER EL CATÁLOGO DESDE EL PROCEDIMIENTO DE LA EMPRESA
+
+   Una empresa que lleva años haciendo esto no necesita inventar su
+   catálogo: ya lo tiene escrito. Total QC lo tenía en tres libros
+   distintos, y de ahí salió la forma de esta pantalla.
+
+   TRES FORMAS DE HOJA, Y HAY QUE DISTINGUIRLAS
+
+   1. El PROGRAMA del año: una fila por tema, con objetivo, temario,
+      a quién va dirigida, modalidad, duración y —lo más valioso— a qué
+      programa de riesgo responde. Esto es el catálogo.
+
+   2. El REGISTRO de lo dictado: una fila por persona por evento. Acá
+      el tema se repite cientos de veces. De esto sale UNA ficha por
+      tema, no una por fila.
+
+   3. Las CHARLAS diarias: igual que el registro, pero son charlas.
+
+   LO QUE APRENDIMOS Y NO ERA OBVIO
+
+   «Lo que se exige» y «lo que pasó» no son la misma lista. En Total QC
+   sólo 11 de los 56 temas dictados en 2025 seguían en el plan 2026. Si
+   los otros 45 no existen en el catálogo, 3.030 asistencias no tienen
+   dónde aterrizar. Por eso entran, pero APAGADOS: existen y sostienen
+   su historia, sin exigirle nada a nadie.
+   ================================================================= */
+
+/* Qué buscamos en una hoja de programa, y con qué palabras. */
+const CT_CAMPOS = [
+  ['titulo',          ['TEMA CHARLA', 'NOMBRE DE LA CAPACIT', 'TEMA']],
+  ['objetivo',        ['OBJETIVO']],
+  ['temario',         ['TEMAS']],
+  ['programa_riesgo', ['PG RIESGO', 'SVE ASOC']],
+  ['dirigida_a',      ['DIRIGIDA A', 'DIRIGIDO A']],
+  ['modalidad',       ['MODALIDAD', 'METODOLOG']],
+  ['horas',           ['DURACIÓN', 'DURACION']],
+  ['frecuencia',      ['FRECU']],
+  ['responsable',     ['RESPONSABLE']],
+  ['persona',         ['APELLIDOS']]
+];
+
+/* De qué hoja viene, para el prefijo del código y para saber si lo que
+   entra exige algo o sólo sostiene historia. */
+function ctOrigen(nombreHoja) {
+  const H = mzMay(nombreHoja);
+  if (H.indexOf('HSEQ') >= 0)      return 'HSEQ';
+  if (H.indexOf('INSP') >= 0)      return 'INSP';
+  if (H.indexOf('QAQC') >= 0)      return 'QAQC';
+  if (H.indexOf('FORMACI') >= 0)   return 'FORMACION';
+  return null;
+}
+
+const CT_MODAL = { PRESENCIAL:'presencial', VIRTUAL:'virtual', MIXTA:'mixta' };
+function ctModalidad(v) { return CT_MODAL[mzMay(v)] || null; }
+
+/* «1 Hora», «1h», «2,5 horas» → número. Si no dice horas, no inventa. */
+function ctHoras(v) {
+  const m = mzTxt(v).match(/(\d+(?:[.,]\d+)?)\s*h/i);
+  return m ? Number(m[1].replace(',', '.')) : null;
+}
+
+/* «5 años o actualización de la norma» → 1825 días. Es la única hoja
+   que declara cada cuánto se repite; las demás no dicen nada, y no
+   decir nada NO es «no vence»: es una decisión que le falta a HSE. */
+function ctVigencia(v) {
+  const t = mzTxt(v).toLowerCase();
+  const m = t.match(/(\d+)\s*a[\u00f1n]o/);
+  if (m) return Number(m[1]) * 365;
+  if (t.indexOf('anual') >= 0)     return 365;
+  if (t.indexOf('semestral') >= 0) return 182;
+  return null;
+}
+
+/* Los encabezados se reconocen por CÓMO EMPIEZAN, no por lo que
+   contienen. Buscando «TEMA» adentro de la celda, la palabra SISTEMA
+   daba positivo: una hoja que era sólo el texto del procedimiento
+   —objetivo, alcance, criterios de evaluación, control de versiones—
+   entró como si tuviera 17 capacitaciones, y una de ellas se llamaba
+   «001». Un importador que se equivoca así no avisa: crea basura con
+   cara de dato. */
+function ctEmpieza(celda, clave) {
+  return !!celda && celda.indexOf(clave) === 0;
+}
+
+function ctFilaEncabezado(M) {
+  for (let i = 0; i < Math.min(M.length, 40); i++) {
+    const f = (M[i] || []).map(mzMay);
+    const tieneTema = f.some(x => ctEmpieza(x, 'TEMA') ||
+                                  ctEmpieza(x, 'NOMBRE DE LA CAPACIT'));
+    const tieneAlgo = f.some(x => ctEmpieza(x, 'OBJETIVO') ||
+                                  ctEmpieza(x, 'APELLIDOS') ||
+                                  ctEmpieza(x, 'DIRIGID'));
+    if (tieneTema && tieneAlgo) return i;
+  }
+  return -1;
+}
+
+function ctMapear(M, hr) {
+  const f = (M[hr] || []).map(mzMay), idx = {}, usadas = {};
+  CT_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    for (let k = 0; k < claves.length; k++) {
+      for (let i = 0; i < f.length; i++) {
+        if (usadas[i]) continue;
+        if (ctEmpieza(f[i], claves[k])) { idx[campo] = i; usadas[i] = true; return; }
+      }
+    }
+  });
+  return idx;
+}
+
+/* Lee un libro entero. No decide nada: devuelve qué encontró en cada
+   hoja para que una persona lo confirme. */
+function ctLeer(XLSX, buf, archivo) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const hojas = [], filas = [];
+
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = ctFilaEncabezado(M);
+    const idx = hr < 0 ? {} : ctMapear(M, hr);
+
+    if (hr < 0 || idx.titulo === undefined) {
+      hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', temas: 0 });
+      return;
+    }
+
+    // Una hoja con columna de personas es un REGISTRO de lo dictado:
+    // el tema se repite una vez por asistente. Sin ella, es el PROGRAMA.
+    const esRegistro = idx.persona !== undefined;
+    const org = ctOrigen(nombre);
+    const esCharla = mzMay((M[hr]||[])[idx.titulo]).indexOf('CHARLA') >= 0;
+    const origen = esCharla ? 'CHARLA' : (esRegistro ? 'HIST' : (org || 'PROGRAMA'));
+    const clase  = esCharla ? 'charlas' : (esRegistro ? 'registro' : 'programa');
+
+    const vistos = {}, propias = [];
+    for (let i = hr + 1; i < M.length; i++) {
+      const r = M[i] || [];
+      const t = mzTxt(r[idx.titulo]);
+      if (!t || mzMay(t) === 'ANALISIS' || mzMay(t) === 'TEMA') continue;
+      const k = mzMay(t);
+      if (vistos[k]) continue;      // el mismo tema repetido en la hoja
+      vistos[k] = 1;
+      const g = c => idx[c] !== undefined ? mzTxt(r[idx[c]]) : '';
+      propias.push({
+        origen: origen,
+        titulo: t,
+        objetivo: g('objetivo'),
+        temario: g('temario'),
+        programa_riesgo: g('programa_riesgo'),
+        dirigida_a: g('dirigida_a'),
+        responsable: g('responsable'),
+        frecuencia: g('frecuencia'),
+        modalidad: idx.modalidad !== undefined ? ctModalidad(r[idx.modalidad]) : null,
+        horas: idx.horas !== undefined ? ctHoras(r[idx.horas]) : null,
+        vigencia_dias: idx.frecuencia !== undefined ? ctVigencia(r[idx.frecuencia]) : null,
+        eje: (origen === 'INSP' || origen === 'QAQC' || origen === 'FORMACION') ? 'tecnica' : 'hse',
+        tipo: esCharla ? 'charla' : (origen === 'FORMACION' ? 'curso_externo' : 'capacitacion'),
+        certificable: !esCharla,
+        // Lo que ya no está en el plan del año entra apagado: sostiene
+        // su historia y no le exige nada a nadie.
+        activo: clase === 'programa'
+      });
+    }
+    hojas.push({ archivo: archivo, nombre: nombre, clase: clase, origen: origen,
+                 temas: propias.length, filas: M.length,
+                 columnas: Object.keys(idx).length });
+    propias.forEach(p => filas.push(p));
+  });
+
+  return { hojas: hojas, filas: filas };
+}
+
+/* Junta varios libros en una sola lista. El plan del año manda: si un
+   tema está en el programa Y en el registro, la ficha se crea activa y
+   con los datos del programa, no del registro. */
+function ctUnir(lecturas) {
+  const orden = { HSEQ:1, INSP:1, QAQC:1, FORMACION:1, PROGRAMA:1, HIST:2, CHARLA:3 };
+  const todas = [];
+  lecturas.forEach(L => L.filas.forEach(f => todas.push(f)));
+  todas.sort((a, b) => (orden[a.origen]||9) - (orden[b.origen]||9));
+  const visto = {}, out = [];
+  todas.forEach(f => {
+    const k = llano(f.titulo);
+    if (!k || visto[k]) return;
+    visto[k] = 1; out.push(f);
+  });
+  return out;
 }
 
 
@@ -4622,6 +4817,204 @@ async function matriz(sel, opt) {
   await pintar();
 }
 
+/* =================================================================
+   PANTALLA · IMPORTAR EL CATÁLOGO
+
+   El archivo no sale del equipo: se lee acá, y al servidor viaja sólo
+   el resultado. Y antes de escribir nada se hace un SIMULACRO: el
+   servidor devuelve qué crearía y qué reusaría, sin tocar un dato.
+   Recién si una persona lo aprueba, se importa.
+   ================================================================= */
+async function impCatalogo(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  let HOJAS = null, FILAS = null, PLAN = null, leyendo = false;
+
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+
+  const CLASE = {
+    programa: ['Plan del año',   'Entra activo: esto exige, vence y bloquea.'],
+    registro: ['Registro de lo dictado', 'Entra apagado: sostiene la historia y no exige nada.'],
+    charlas:  ['Charlas diarias', 'Entran apagadas: el pasaporte no cuenta charlas.'],
+    ignorada: ['Sin tabla de temas', 'No se reconoció ninguna columna de tema. Se saltea.']
+  };
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CATÁLOGO · IMPORTAR</div>
+        <h1 style="font-size:28px;font-weight:700">El catálogo de tu empresa</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:72ch">
+          Si ya tenés un programa de capacitación escrito, no hace falta cargarlo a mano.
+          Subí el archivo tal como está.</div></div>
+      <div id="kc-v"></div></div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    const v = el.querySelector('#kc-v');
+    v.innerHTML = leyendo ? '<div class="kc-carga">Leyendo el archivo…</div>'
+                : PLAN ? vPlan() : HOJAS ? vLectura() : vPedir();
+    enganchar(v);
+  }
+
+  /* ---------------------------------------------------- 1. el archivo */
+  function vPedir() {
+    return `<p class="kc-nota" style="text-align:left;max-width:74ch">
+      Podés subir varios libros a la vez: el programa del año, el consolidado de lo
+      dictado y las charlas. La pantalla los distingue sola — una hoja con una columna
+      de personas es un registro de asistencia, no un plan.</p>
+
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen
+          acá y al servidor viaja sólo la lista de temas.</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls" multiple
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  /* ------------------------------------------- 2. qué se leyó, por hoja */
+  function vLectura() {
+    const porOrigen = {};
+    FILAS.forEach(f => { porOrigen[f.origen] = (porOrigen[f.origen] || 0) + 1; });
+    const activas = FILAS.filter(f => f.activo).length;
+
+    return `<div class="kc-grid3">
+        <div class="kc-kpi"><b>${FILAS.length}</b><span>temas distintos</span></div>
+        <div class="kc-kpi ok"><b>${activas}</b><span>entran activos</span></div>
+        <div class="kc-kpi"><b>${FILAS.length - activas}</b><span>entran apagados</span></div>
+      </div>
+
+      <h3 class="kc-h3" style="margin-top:20px">Qué encontré en cada hoja</h3>
+      <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th>
+        <th>Qué es</th><th class="n">Temas</th></tr></thead><tbody>${
+        HOJAS.map(h => `<tr${h.clase === 'ignorada' ? ' style="opacity:.5"' : ''}>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
+          <td class="k">${esc(h.nombre)}</td>
+          <td><b>${esc((CLASE[h.clase] || ['—'])[0])}</b>
+            <div class="kc-cd" style="margin-top:2px">${esc((CLASE[h.clase] || ['','—'])[1])}</div></td>
+          <td class="n">${h.temas}</td></tr>`).join('')}</tbody></table></div>
+
+      <h3 class="kc-h3" style="margin-top:18px">De dónde viene cada uno</h3>
+      ${Object.keys(porOrigen).sort().map(k =>
+        `<div class="kc-lin"><span>${esc(k)}</span><b>${porOrigen[k]}</b></div>`).join('')}
+
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-sim" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Ver qué pasaría</button>
+        <button class="kc-mini" id="kc-otro">Elegir otros archivos</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Todavía no se guardó nada.</p>`;
+  }
+
+  /* ----------------------------------------- 3. el simulacro del servidor */
+  function vPlan() {
+    const nuevas = PLAN.det_nuevas || [], reuso = PLAN.det_reusadas || [];
+    const sinVig = FILAS.filter(f => f.activo && !f.vigencia_dias).length;
+
+    return `<div class="kc-grid3">
+        <div class="kc-kpi ok"><b>${PLAN.nuevas}</b><span>se crearían</span></div>
+        <div class="kc-kpi"><b>${PLAN.reusadas}</b><span>ya existen, se completan</span></div>
+        <div class="kc-kpi"><b>${PLAN.repetidas}</b><span>repetidas en el archivo</span></div>
+      </div>
+
+      ${sinVig ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:14px">
+        <div class="b" style="background:var(--kc-wa)">${sinVig}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${sinVig} no dicen cada cuánto se repiten</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">El archivo trae la duración pero no la
+          vigencia. Sin vigencia una capacitación no vence nunca: hecha una vez, queda al día
+          para siempre. Se puede importar igual y ponérsela después, capacitación por
+          capacitación — pero es una decisión de HSE, no del importador.</div></div></div>` : ''}
+
+      ${reuso.length ? `<h3 class="kc-h3" style="margin-top:18px">Ya existen · se completan los campos vacíos</h3>
+        <div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>
+          <th>Origen</th></tr></thead><tbody>${reuso.map(r => `<tr>
+          <td class="k">${esc(r.codigo)}</td><td class="tit">${esc(r.titulo)}</td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(r.origen||'')}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:18px">Se crearían ${nuevas.length}</h3>
+      <div class="kc-sc" style="max-height:420px;overflow-y:auto"><table><thead><tr>
+        <th>Capacitación</th><th>Origen</th><th>Tipo</th><th>Entra</th></tr></thead><tbody>${
+        nuevas.map(n => `<tr>
+          <td class="tit">${esc(n.titulo)}</td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(n.origen||'')}</td>
+          <td style="font-size:13px">${esc(n.tipo||'')}</td>
+          <td><span class="kc-tag ${n.activa ? 'si' : 'g'}">${n.activa ? 'Activa' : 'Apagada'}</span></td>
+        </tr>`).join('')}</tbody></table></div>
+
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-imp" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Importar ${PLAN.nuevas} capacitación(es)</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Hasta que aprietes Importar,
+        no se guardó nada.</p>`;
+  }
+
+  /* ------------------------------------------------------------ eventos */
+  function enganchar(v) {
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const fs = Array.prototype.slice.call(arch.files || []);
+      if (!fs.length) return;
+      leyendo = true; pintar();
+      try {
+        const XLSX = await cargarXLSX();
+        const lecturas = [];
+        for (let i = 0; i < fs.length; i++) {
+          const buf = await fs[i].arrayBuffer();
+          lecturas.push(ctLeer(XLSX, new Uint8Array(buf), fs[i].name));
+        }
+        HOJAS = []; lecturas.forEach(L => L.hojas.forEach(h => HOJAS.push(h)));
+        FILAS = ctUnir(lecturas);
+        if (!FILAS.length) {
+          HOJAS = null; FILAS = null;
+          toast('No encontré ninguna hoja con una columna de tema. ¿Es el archivo correcto?');
+        }
+      } catch (e) {
+        HOJAS = null; FILAS = null; toast(e.message);
+      }
+      leyendo = false; pintar();
+    };
+
+    const sim = v.querySelector('#kc-sim');
+    if (sim) sim.onclick = async () => {
+      sim.disabled = true; sim.textContent = 'Consultando…';
+      try {
+        PLAN = await rpc('cap_catalogo_importar', { p_filas: FILAS, p_confirmar: false });
+      } catch (e) { alert(e.message); }
+      sim.disabled = false; pintar();
+    };
+
+    const imp = v.querySelector('#kc-imp');
+    if (imp) imp.onclick = async () => {
+      imp.disabled = true; imp.textContent = 'Importando…';
+      try {
+        const r = await rpc('cap_catalogo_importar', { p_filas: FILAS, p_confirmar: true });
+        HOJAS = null; FILAS = null; PLAN = null;
+        pintar(); toast(r.aviso);
+      } catch (e) {
+        imp.disabled = false; imp.textContent = 'Importar'; alert(e.message);
+      }
+    };
+
+    const otro = v.querySelector('#kc-otro');
+    if (otro) otro.onclick = () => { HOJAS = null; FILAS = null; PLAN = null; pintar(); };
+  }
+
+  pintar();
+}
+
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
 function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -4752,7 +5145,7 @@ async function iniciar(cfg) {
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
-                   matriz,
+                   matriz, impCatalogo,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

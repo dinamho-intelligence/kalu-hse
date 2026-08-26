@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '26';
+const KC_VER = '27';
 
 let sb = null;
 
@@ -253,9 +253,28 @@ const CSS = `
  background:var(--kc-card);box-shadow:var(--kc-sh);margin-bottom:16px}
 .kc table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
 .kc th{font-family:var(--kc-fm);font-size:9.5px;font-weight:500;letter-spacing:.07em;
- text-transform:uppercase;color:var(--kc-ink3);text-align:left;padding:10px 12px;
+ text-transform:uppercase;color:var(--kc-ink3);text-align:left;padding:10px 10px;
  background:var(--kc-card2);border-bottom:1px solid var(--kc-rule2);white-space:nowrap}
-.kc td{padding:9px 12px;border-bottom:1px solid var(--kc-rule);vertical-align:middle}
+.kc td{padding:9px 10px;border-bottom:1px solid var(--kc-rule);vertical-align:middle}
+/* La columna de botones del final. Sin esto el navegador reparte el ancho
+   como quiere: le da de más a la fila de botones —que igual se desborda y
+   se corta— y le quita al título, que termina partido en cuatro renglones.
+   width:1% pide exactamente lo que ocupa el contenido y deja el resto para
+   el texto; si aun así no entra, la tabla scrollea dentro de .kc-sc. */
+.kc td.acc,.kc th.acc{width:1%;white-space:nowrap}
+.kc td.acc>div{flex-wrap:nowrap}
+/* Cinco botones a tamaño normal se comían 375px y empujaban la tabla
+   113px afuera de la caja: el último quedaba cortado contra el borde.
+   Acá van más apretados —siguen siendo del tamaño que se puede tocar en
+   un teléfono— y la fila entra entera. Se probó fijar la columna al
+   borde derecho: no sirve, tapa Gente y 2026. */
+.kc td.acc .kc-mini{padding:5px 7px;gap:5px}
+.kc td.acc>div{gap:5px!important}
+.kc td.tit{min-width:200px}
+/* Un nombre largo no puede empujar el resto de la tabla afuera de la caja:
+   que se parta en dos renglones antes que eso. */
+.kc td.nom>div{max-width:300px;white-space:normal}
+.kc td.est{white-space:nowrap}
 .kc tr:last-child td{border-bottom:none}
 .kc td.k{font-family:var(--kc-fd);font-weight:600;white-space:nowrap}
 .kc td.n{font-family:var(--kc-fm);font-variant-numeric:tabular-nums;font-size:13px}
@@ -566,6 +585,11 @@ function estilos() {
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente', al_dia:'Al día' };
+// Sin tildes, sin mayúsculas, sin espacios de más: para comparar dos textos
+// escritos por manos distintas. «Auxiliar de Inspección» y «AUXILIAR DE
+// INSPECCION» son el mismo cargo aunque no sean la misma cadena.
+const llano = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/\s+/g, ' ').trim();
 
 /* ---------------------------------------------------- estado de formación
 
@@ -588,7 +612,7 @@ const FORM = {
   sin_plan: { tag:'Sin plan', tcls:'n',  band:'wa',
               t1:'Sin plan de formación definido' }
 };
-const form = f => FORM[f] || FORM.sin_plan;
+const estadoForm = f => FORM[f] || FORM.sin_plan;
 // «Resto del año: X en el cronograma». Nunca en rojo: no es una falta.
 const cola = n => n > 0
   ? `Resto del año: ${n} en el cronograma.` : '';
@@ -678,18 +702,37 @@ async function pasaporte(sel, opt) {
   const form = items.filter(x => x.tipo !== 'charla');
   const charlas = items.filter(x => x.tipo === 'charla');
 
+  /* Esta pantalla y el QR hablan de la misma persona el mismo día: tienen
+     que decir lo mismo. Antes acá decía «18 pendientes · ninguna vencida»
+     en ámbar —que se lee como «tranquilo»— y el QR devolvía «no está al
+     día · 18 atrasadas» en rojo. La misma tarjeta contradecía a su propio
+     código. Ahora las dos leen `formacion`, que la calcula el servidor. */
   function pintar() {
-    const cls = port.vencidas > 0 ? 'cr' : (port.pendientes > 0 ? 'wa' : 'ok');
-    const t1 = port.vencidas > 0
-      ? (port.vencidas === 1 ? 'Tenés 1 vencida' : `Tenés ${port.vencidas} vencidas`)
-      : (port.pendientes > 0 ? `${port.pendientes} pendientes` : 'Al día');
-    const t2 = port.vencidas > 0 ? 'Hablá con el área HSE para reprogramarla.'
-      : (port.pendientes > 0 ? 'Ninguna vencida. Están sin dictar o sin programar.'
-                             : 'Toda tu formación está vigente.');
+    const F1 = estadoForm(D.formacion);
+    const cls = D.formacion === 'al_dia' ? 'ok'
+              : D.formacion === 'sin_plan' ? 'wa' : 'cr';
+    const t1 = D.formacion === 'al_dia' ? 'Al día'
+             : D.formacion === 'sin_plan' ? 'Sin plan de formación'
+             : port.vencidas > 0
+               ? (port.vencidas === 1 ? 'Tenés 1 vencida' : `Tenés ${port.vencidas} vencidas`)
+               : (port.atrasadas === 1 ? 'Tenés 1 atrasada' : `Tenés ${port.atrasadas} atrasadas`);
+    // El «resto del año» va una sola vez, en el botón de abajo, que
+    // además filtra la lista. Repetirlo en el titular era ruido.
+    const t2 = D.formacion === 'al_dia'
+                 ? 'Toda tu formación está vigente.'
+             : D.formacion === 'sin_plan'
+                 ? 'Todavía no se definió qué formación te exige tu cargo. No es que estés al día: es que no hay nada cargado.'
+             : (port.vencidas > 0 ? 'Hablá con el área HSE para reprogramarla. ' : '') +
+               (port.atrasadas > 0
+                 ? port.atrasadas + ' están sin dictar y sin fecha en el cronograma. ' : '') +
+               '';
 
     const base = cat === 'charla' ? charlas
       : form.filter(x => cat === 'todas' || (EJE_ORDEN.includes(x.eje) ? x.eje : 'otro') === cat);
-    const lista = base.filter(x => !est || x.estado === est);
+    const lista = base.filter(x => !est ? true
+      : est === 'atrasada'      ? x.atrasada === true
+      : est === 'en_cronograma' ? x.en_cronograma === true
+      : x.estado === est);
 
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wrap">
@@ -701,10 +744,13 @@ async function pasaporte(sel, opt) {
         <div class="kc-cts">${[
             ['vencida','v','Vencidas',port.vencidas],
             ['por_vencer','x','Por vencer',port.por_vencer],
-            ['pendiente','','Pendientes',port.pendientes],
+            ['atrasada','','Atrasadas',port.atrasadas],
             ['al_dia','a','Al día',port.al_dia]
           ].map(([k,c,t,n]) => `<button class="kc-ct ${c}" type="button" data-e="${k}"
             aria-pressed="${est===k}"><b>${n ?? 0}</b><span>${t}</span></button>`).join('')}</div>
+        ${port.en_cronograma ? `<button class="kc-mini" type="button" data-e="en_cronograma"
+          aria-pressed="${est==='en_cronograma'}" style="margin-top:9px">${
+          cola(port.en_cronograma)}</button>` : ''}
       </div>
       <div class="kc-tabs" role="tablist">
         <button class="kc-tab" data-t="pas" role="tab" aria-selected="${tab==='pas'}">Capacitaciones</button>
@@ -857,7 +903,11 @@ async function pasaporte(sel, opt) {
   }
 
   function vistaCred() {
-    const cls = port.vencidas > 0 ? 'cr' : (port.pendientes > 0 ? 'wa' : 'ok');
+    // El mismo criterio que usa el QR al que apunta esta tarjeta. Si acá
+    // dijera una cosa y el código escaneado otra, la credencial no sirve
+    // para nada: es justamente lo que el supervisor va a cotejar.
+    const cls = D.formacion === 'al_dia' ? 'ok'
+              : D.formacion === 'sin_plan' ? 'wa' : 'cr';
     const tot = (port.al_dia||0)+(port.pendientes||0)+(port.vencidas||0)+(port.por_vencer||0);
     return `<div class="kc-cred">
       <div class="kc-ctop">
@@ -881,9 +931,9 @@ async function pasaporte(sel, opt) {
         </div>
       </div>
       <div class="kc-cfoot"><span class="kc-dot ${cls}"></span><span>${
-        port.vencidas > 0 ? port.vencidas + ' vencida(s)'
-        : (port.pendientes > 0 ? 'Sin vencidas · ' + port.pendientes + ' pendientes'
-                               : 'Formación al día')}</span></div>
+        esc(estadoForm(D.formacion).t1)}${
+        port.vencidas ? ' · ' + port.vencidas + ' vencida(s)' : ''}${
+        port.atrasadas ? ' · ' + port.atrasadas + ' atrasada(s)' : ''}</span></div>
     </div>
     <p class="kc-nota">El supervisor escanea el código con la cámara y se le abre tu estado
       de hoy. El código no guarda nada: lo consulta en el momento, así que una captura
@@ -1094,9 +1144,9 @@ async function supervision(sel) {
         <div style="padding:13px 15px 11px;border-bottom:1px solid var(--kc-rule);display:flex;gap:10px">
           <div><div class="kc-tt" style="font-size:16px">${esc(p.persona)}</div>
             <div class="kc-cd" style="margin-top:3px">${esc(p.cargo)}</div></div>
-          <span class="kc-tag ${form(p.formacion).tcls}" style="margin-left:auto;align-self:start"
+          <span class="kc-tag ${estadoForm(p.formacion).tcls}" style="margin-left:auto;align-self:start"
             title="Estado de la formación interna al día de hoy">
-            ${form(p.formacion).tag}</span></div>
+            ${estadoForm(p.formacion).tag}</span></div>
         <div class="kc-cts" style="border:none;border-radius:0;margin:0">
           <div class="kc-ct v"><b>${p.vencidas??0}</b><span>Vencidas</span></div>
           <div class="kc-ct x"><b>${p.por_vencer??0}</b><span>Por vencer</span></div>
@@ -1431,27 +1481,35 @@ async function admin(sel) {
 
   /* ------------------------------------------------------- 1. personas */
   function vPers() {
+    // «Cargo» y «En el padrón» eran dos columnas que casi siempre dicen lo
+    // mismo, y entre las dos se llevaban 400px que le faltaban al resto de
+    // la tabla. Van juntas: arriba el cargo del organigrama, y abajo, en
+    // gris, el texto crudo del padrón sólo cuando no coinciden — que es
+    // justo cuando hay algo para mirar.
+    const igual = (a, b) => llano(a) === llano(b);
     return '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo</th>' +
-      '<th>En el padrón</th><th>Desde</th><th>Meses</th><th>Formación</th><th>Atras.</th>' +
-      '<th>Tramos</th><th></th></tr></thead><tbody>' +
+      '<th>Desde</th><th>Meses</th><th>Formación</th><th>Atras.</th>' +
+      '<th>Tramos</th><th class="acc"></th></tr></thead><tbody>' +
       (D.personas||[]).map(p => `<tr>
-        <td class="k">${esc(p.nombre)}</td>
-        <td>${esc(p.cargo||'—')}${p.cargos > 1
-            ? ` <span class="kc-tag no" title="Está mapeada a ${p.cargos} cargos">×${p.cargos}</span>` : ''}</td>
-        <td style="color:var(--kc-ink3);font-size:13px">${esc(p.cargoTexto)}</td>
+        <td class="k nom"><div>${esc(p.nombre)}</div></td>
+        <td class="tit">${esc(p.cargo||'—')}${p.cargos > 1
+            ? ` <span class="kc-tag no" title="Está mapeada a ${p.cargos} cargos">×${p.cargos}</span>` : ''}${
+            p.cargoTexto && !igual(p.cargoTexto, p.cargo)
+              ? `<div class="kc-cd" style="margin-top:2px"
+                   title="Así está escrito en el padrón">${esc(p.cargoTexto)}</div>` : ''}</td>
         <td class="n">${esc(p.desde||'—')}${p.tramosAbiertos > 1
             ? ' <span class="kc-tag no" title="Tiene dos tramos de cargo abiertos">×2</span>' : ''}</td>
         <td class="n">${p.meses ?? '—'}</td>
-        <td><span class="kc-tag ${form(p.formacion).tcls}" title="${
+        <td class="est"><span class="kc-tag ${estadoForm(p.formacion).tcls}" title="${
             p.formacion === 'sin_plan'
               ? (p.determinado === false
                   ? 'No tiene cargo en el organigrama: se arregla en el padrón'
                   : 'Su cargo todavía no tiene capacitaciones asignadas')
               : 'Estado de la formación al día de hoy'
-          }">${form(p.formacion).tag}</span>${p.cola
+          }">${estadoForm(p.formacion).tag}</span>${p.cola
             ? ` <span class="kc-tag g" title="En el cronograma para más adelante: no es una falta">+${p.cola}</span>` : ''}</td>
         <td class="n">${p.atrasadas ?? 0}</td><td class="n">${p.tramos}</td>
-        <td><div style="display:flex;gap:6px">
+        <td class="acc"><div style="display:flex;gap:6px">
           <button class="kc-mini p" data-ficha="${p.id}">Ficha</button>
           <button class="kc-mini" data-a="corregir" data-i="${p.id}">Corregir</button>
           <button class="kc-mini" data-a="mover" data-i="${p.id}">Mover</button></div></td>
@@ -1472,7 +1530,7 @@ async function admin(sel) {
         <button class="kc-mini p" data-a="crear-cargo">+ Crear cargo</button>
       </div>
       <div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Área</th><th>Reporta a</th>` +
-      '<th>Personas</th><th>Capacit.</th><th>Variantes</th><th>Rutas</th><th></th></tr></thead><tbody>' +
+      '<th>Personas</th><th>Capacit.</th><th>Variantes</th><th>Rutas</th><th class="acc"></th></tr></thead><tbody>' +
       C.map(c => `<tr${c.activo?'':' style="opacity:.5"'}>
         <td class="k">${esc(c.nombre)}${c.activo?'':' <span class="kc-tag g">Apagado</span>'}</td>
         <td style="color:var(--kc-ink3)">${esc(c.area||'—')}</td>
@@ -1481,7 +1539,7 @@ async function admin(sel) {
         <td class="n"${c.activo && c.personas && !c.capacitaciones ? ' style="color:var(--kc-cr)"' : ''}>${c.capacitaciones}</td>
         <td class="n">${c.alias}</td>
         <td class="n">↑${c.rutasEntran} ↓${c.rutasSalen}</td>
-        <td><div style="display:flex;gap:6px">
+        <td class="acc"><div style="display:flex;gap:6px">
           <button class="kc-mini${c.activo && c.personas && !c.capacitaciones ? ' p' : ''}" data-plan="${c.id}">Plan${
             c.capacitaciones ? ' · ' + c.capacitaciones : ''}</button>
           <button class="kc-mini" data-a="editar-cargo" data-i="${c.id}">Editar</button>
@@ -1598,6 +1656,10 @@ async function admin(sel) {
   /* -------------------------------------------------- 3. capacitaciones */
   function vCap() {
     const C = CAT.catalogo || [], q = busca.trim().toLowerCase();
+    // Una columna entera de guiones no dice nada y le roba el ancho al
+    // título. Si ninguna capacitación tiene modalidad cargada, no se
+    // muestra; en cuanto una la tenga, vuelve sola.
+    const hayMod = C.some(c => c.modalidad);
     const act = C.filter(c => c.activo);
     const huerf = act.filter(c => c.personas === 0);
     const n = {
@@ -1640,17 +1702,18 @@ async function admin(sel) {
         ${chip('huerfanas','Sin gente')}${chip('apagadas','Apagadas')}
       </div>
       ${L.length ? `<div class="kc-sc"><table><thead><tr>
-        <th>Código</th><th>Capacitación</th><th>Vigencia</th><th>Modalidad</th>
-        <th>Le aplica a</th><th>Gente</th><th>${anio}</th><th></th></tr></thead><tbody>` +
+        <th>Código</th><th>Capacitación</th><th>Vigencia</th>${hayMod ? '<th>Modalidad</th>' : ''}
+        <th>Le aplica a</th><th>Gente</th><th>${anio}</th><th class="acc"></th></tr></thead><tbody>` +
       L.map(c => `<tr${c.activo?'':' style="opacity:.45"'}>
         <td class="k">${esc(c.codigo)}${c.bloqueo === 2
             ? ' <span class="kc-tag no" title="Bloquea la vinculación">ING</span>'
             : c.bloqueo === 1 ? ' <span class="kc-tag wa" title="Bloquea la operación">OPE</span>' : ''}</td>
-        <td><div>${esc(c.titulo)}</div>
+        <td class="tit"><div>${esc(c.titulo)}</div>
             <div class="kc-cd" style="margin-top:2px">${esc(c.eje)} · ${esc(c.tipo)}${
               c.autoestudio ? ' · autoestudio' : ''}${c.propia ? ' · propia' : ''}</div></td>
         <td class="n">${vig(c.vigencia_dias)}</td>
-        <td style="font-size:13px;color:var(--kc-ink3)">${c.modalidad ? MODALN[c.modalidad] : '—'}</td>
+        ${hayMod ? `<td style="font-size:13px;color:var(--kc-ink3)">${
+          c.modalidad ? MODALN[c.modalidad] : '—'}</td>` : ''}
         <td>${c.asignaciones.length
             ? '<div class="kc-chips">' + c.asignaciones.slice(0,3).map(a =>
                 `<span class="kc-mch${a.bloqueante!=='no'?' b':''}">${esc(a.destino)}</span>`).join('') +
@@ -1658,7 +1721,7 @@ async function admin(sel) {
             : '<span style="color:var(--kc-cr);font-size:13px">nadie</span>'}</td>
         <td class="n"${c.personas===0?' style="color:var(--kc-cr)"':''}>${c.personas}</td>
         <td class="n">${c.hechos}/${c.eventos}</td>
-        <td><div style="display:flex;gap:6px">
+        <td class="acc"><div style="display:flex;gap:6px">
           <button class="kc-mini" data-ver="${c.id}">Ver</button>
           <button class="kc-mini" data-c="editar" data-i="${c.id}">Editar</button>
           <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
@@ -2247,7 +2310,7 @@ async function ficha(sel, personaId, opt) {
   }
 
   function pintar() {
-    const F1  = form(H.formacion);
+    const F1  = estadoForm(H.formacion);
     const cls = P.vigente === false ? 'cr' : F1.band;
     const tramo = (F.tramos || [])[0] || {};
     const prog = F.progreso || {};
@@ -3154,7 +3217,7 @@ async function verificar(sel, token) {
 
   // La baja de la persona manda sobre cualquier otra cosa.
   const baja = !r.vigente;
-  const F1   = form(r.formacion);
+  const F1   = estadoForm(r.formacion);
   const cls  = baja ? 'cr' : F1.band;
   const t1   = baja ? 'No vigente' : F1.t1;
   const t2   = baja ? 'Esta persona ya no figura activa en la empresa.'

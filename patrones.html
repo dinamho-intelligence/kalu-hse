@@ -79,7 +79,6 @@
     <div class="err" id="loginErr"></div>
     <div style="text-align:center;margin-top:16px"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px">← Volver al inicio</a></div>
   </div>
-
   <div class="hide" id="scApp">
     <div id="reg"></div>
     <div class="intro" id="introBox">
@@ -93,19 +92,32 @@
 <script>
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
-let TOKEN=null, MYEMP=null, MYNAME=null;
+let TOKEN=null, MYEMP=null, MYNAME=null, MYID=null;
 let TAR=[], ATS=[], INV=[];
 let INFORMES=[], PENDINGINF=null, PUEDEIA=false;
+/* candado sesión compartida */
+const SB_REF='nignqeipzlemwfrwmpip';
+const SESS_KEY='sb-'+SB_REF+'-auth-token';
+const LOGOUT_KEY='kalu_logout';
+let MY_SESION=null, IDLE_MIN=60, _idleT=null, _pollT=null, RESTORING=false;
 const WEBHOOK_PAT='https://dnmintell.app.n8n.cloud/webhook/kalu-patrones';
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function sbGet(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(!r.ok) throw new Error(path+' '+r.status); return r.json(); }
 async function sbPost(path,body,prefer){ const r=await fetch(SB_URL+'/rest/v1/'+path,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:(prefer||'return=representation')},body:JSON.stringify(body)}); if(!r.ok){ var t=''; try{t=await r.text();}catch(_){} throw new Error(path+' '+r.status+' '+String(t).slice(0,200)); } return r.json(); }
-/* ---------- Sesión persistente ---------- */
-function _saveSess(d){ try{ localStorage.setItem('kalu_sess', JSON.stringify({ at:d.access_token, rt:d.refresh_token, exp:Date.now()+((d.expires_in||3600)*1000), uid:(d.user&&d.user.id)||d.uid||null })); }catch(_){} }
-function _clearSess(){ try{ localStorage.removeItem('kalu_sess'); }catch(_){} }
-function cerrarSesion(){ _clearSess(); TOKEN=null; location.href=location.pathname; }
-async function _refresh(rt){ if(!rt) return false; try{ var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); var d=await r.json(); if(!r.ok||!d.access_token) return false; TOKEN=d.access_token; if(!d.uid){ try{ d.uid=JSON.parse(localStorage.getItem('kalu_sess')).uid; }catch(_){} } _saveSess(d); return true; }catch(_){ return false; } }
+/* ---------- Sesión compartida (localStorage) + candado ---------- */
+function _saveSess(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
+function _readSess(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||'null'); }catch(_){ return null; } }
+function _clearSess(){ try{ localStorage.removeItem(SESS_KEY); localStorage.removeItem('kalu_sid'); }catch(_){} }
+async function _refresh(rt){ if(!rt) return false; try{ var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); var d=await r.json(); if(!r.ok||!d.access_token) return false; TOKEN=d.access_token; _saveSess(d); return true; }catch(_){ return false; } }
+function _uuid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2); }
+async function sellarSesion(){ MY_SESION=_uuid(); try{ localStorage.setItem('kalu_sid',MY_SESION); }catch(_){} try{ await fetch(SB_URL+'/rest/v1/rpc/kalu_set_sesion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({p_sid:MY_SESION})}); }catch(_){} }
+async function chequearSesion(){ if(!TOKEN||!MYID||!MY_SESION) return; try{ var r=await sbGet('perfiles?select=sesion_id&id=eq.'+MYID); var sid=(r&&r[0]&&r[0].sesion_id)||null; if(sid && MY_SESION && sid!==MY_SESION) forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.'); }catch(_){} }
+function resetIdle(){ if(_idleT)clearTimeout(_idleT); _idleT=setTimeout(function(){ forzarSalida('Cerramos tu sesión por inactividad.'); }, (IDLE_MIN||60)*60000); }
+function cerrarLocal(){ try{ TOKEN=null; if(_idleT)clearTimeout(_idleT); if(_pollT)clearInterval(_pollT); }catch(_){} location.href='index.html'; }
+function forzarSalida(msg){ _clearSess(); try{ localStorage.setItem(LOGOUT_KEY,String(Date.now())); }catch(_){} if(msg){ try{ alert(msg); }catch(_){} } cerrarLocal(); }
+function cerrarSesion(){ forzarSalida(''); }
+function armarGuards(){ ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(ev){ window.addEventListener(ev,resetIdle,{passive:true}); }); resetIdle(); if(_pollT)clearInterval(_pollT); _pollT=setInterval(chequearSesion,30000); document.addEventListener('visibilitychange',function(){ if(!document.hidden)chequearSesion(); }); window.addEventListener('storage',function(e){ if(e.key===LOGOUT_KEY)cerrarLocal(); }); }
 /* ---------- Login (solo gestores HSE) ---------- */
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value, e=$('loginErr'); e.textContent='';
@@ -115,7 +127,7 @@ async function login(){
     const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
     const d=await r.json();
     if(!r.ok||!d.access_token){ e.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
-    TOKEN=d.access_token; _saveSess(d);
+    TOKEN=d.access_token; _saveSess(d); RESTORING=false;
     try{ await afterAuth((d.user&&d.user.id), email); }
     catch(err){ e.textContent=(err&&err.message)||'No autorizado.'; TOKEN=null; _clearSess(); b.disabled=false; b.textContent='Ingresar'; }
   }catch(err){ e.textContent='Error de conexión.'; b.disabled=false; b.textContent='Ingresar'; }
@@ -134,22 +146,23 @@ async function afterAuth(uid, emailFallback){
   try{ var eb=await sbGet('empresas?select=razon_social,branding&id=eq.'+MYEMP); var e0=(eb&&eb[0])||{}; window.BRAND=Object.assign({razon_social:e0.razon_social||''}, (e0.branding||{})); }catch(_){ window.BRAND=null; }
   $('who').textContent=MYNAME;
   $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
+  MYID=uid;
+  if(RESTORING){ MY_SESION=localStorage.getItem('kalu_sid')||null; } else { await sellarSesion(); }
+  armarGuards();
   cargarRegistro();
   if(PENDINGINF){ var _p=PENDINGINF; PENDINGINF=null; openInforme(_p); }
 }
 async function restoreSession(){
-  var s; try{ s=JSON.parse(localStorage.getItem('kalu_sess')||'null'); }catch(_){ s=null; }
-  if(!s||!s.at) return false;
-  TOKEN=s.at;
-  if(!s.exp || Date.now() > s.exp-60000){ if(!await _refresh(s.rt)){ _clearSess(); TOKEN=null; return false; } try{ s=JSON.parse(localStorage.getItem('kalu_sess')); }catch(_){} }
-  var uid=s&&s.uid;
-  try{
-    var r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
-    if(!r.ok){ if(!await _refresh(s&&s.rt)){ _clearSess(); TOKEN=null; return false; } try{ var s2=JSON.parse(localStorage.getItem('kalu_sess')); uid=s2.uid; }catch(_){} }
-    else { var u=await r.json(); uid=u.id||uid; }
-  }catch(_){ _clearSess(); TOKEN=null; return false; }
+  var s=_readSess();
+  if(!s||!s.access_token) return false;
+  TOKEN=s.access_token;
+  var now=Math.floor(Date.now()/1000);
+  if(s.expires_at && s.expires_at < now+60){ if(!await _refresh(s.refresh_token)){ _clearSess(); TOKEN=null; return false; } s=_readSess()||s; }
+  var uid=(s.user&&s.user.id)||null;
+  if(!uid){ try{ var r=await fetch(SB_URL+'/auth/v1/user',{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(r.ok){ var u=await r.json(); uid=u.id||null; } }catch(_){} }
   if(!uid){ _clearSess(); TOKEN=null; return false; }
-  try{ await afterAuth(uid); return true; }catch(e){ _clearSess(); TOKEN=null; return false; }
+  RESTORING=true;
+  try{ await afterAuth(uid); RESTORING=false; return true; }catch(e){ RESTORING=false; TOKEN=null; return false; }
 }
 /* ---------- Helpers de texto/fecha ---------- */
 const STOP={de:1,la:1,el:1,en:1,y:1,a:1,los:1,las:1,del:1,un:1,una:1,con:1,por:1,para:1,se:1,que:1,al:1,su:1,es:1,o:1,mal:1,estado:1,area:1,zona:1};
@@ -185,7 +198,6 @@ function render(){
   var meta=_metaDatos(); window._META=meta;
   var RISK=riskTable(); window._RISK=RISK;
   var patrones=[];
-
   // 1) Categorías calientes
   topPairs(tally(ins,'categoria')).forEach(function(p){
     if(p[1]>=3){
@@ -219,10 +231,8 @@ function render(){
       brecha:'El mismo problema vuelve en el mismo lugar — el control aplicado no es duradero',
       accion:'Solución de fondo (ingeniería/procedimiento) para "'+r.problema+'" en '+r.zona+'.', dim:'reincidencia' });
   });
-
   window._patHeur=patrones;
   window.PAYLOAD=buildPayload(ins,RISK);
-
   var html='';
   html+='<div class="kpis">'+kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
   if(meta.base){ html+='<div class="disclaimer" style="border-left:3px solid var(--cy);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">📅 <b style="color:var(--tx)">Primer período en KALU</b> — los datos arrancan el '+esc(meta.inicio||'—')+' ('+meta.dias+' días de operación). No hay base de comparación previa: lo que se ve NO es "deterioro", es la línea base en construcción.</div>'; }
@@ -234,15 +244,12 @@ function render(){
     +'<button class="bigbtn" id="btnPDF" style="background:linear-gradient(135deg,#2e75b6,#1b4f80);color:#fff" onclick="exportarPDF()">⬇ Exportar informe (PDF)</button></div>'
     +'<div class="disclaimer" style="margin-bottom:8px">Los números salen del motor (reproducibles). KALU los interpreta — sin inventar cifras ni nombrar personas.'
     +(PUEDEIA?'':' <b style="color:var(--tx2)">El análisis profundo con IA lo genera un gerente o admin</b> (los informes semanales/mensuales llegan automáticos).')+'</div><div id="ia"></div>';
-
   html+='<h2 class="sec"><span>▸</span> Patrones detectados ('+patrones.length+')</h2>';
   if(!patrones.length){ html+='<div class="empty">No se detectaron patrones claros con los datos actuales.</div>'; }
   else { patrones.sort(function(a,b){var o={alto:0,medio:1,bajo:2};return o[a.sev]-o[b.sev];}); patrones.forEach(function(p,i){ html+=patCard(p,i); }); }
-
   html+='<h2 class="sec"><span>▸</span> ¿Lo vimos venir? · cruce de cada investigación con ATS y tarjetas</h2>';
   if(!INV.length){ html+='<div class="empty">No hay investigaciones cargadas para cruzar.</div>'; }
   else { INV.forEach(function(v,i){ html+=eventoCard(v,i); }); }
-
   html+='<div class="disclaimer" style="margin-top:20px">Análisis preliminar por coincidencia de lugar, categoría y palabras clave. KALU orienta; el veredicto final lo pone el HSE.</div>';
   $('out').innerHTML=html;
 }
@@ -272,7 +279,6 @@ function eventoCard(v,i){
   var desc=String(v.descripcion||v.titulo||'')+' '+(function(){ var inf=parseInforme(v.historial); return inf?((inf.descripcion_evento&&inf.descripcion_evento.como||'')+' '+(inf.causa_inmediata||'')):''; })();
   var fev=dateOf(v.fecha_evento||v.created_at);
   var lt=toks(lugar), dt=toks(desc);
-
   // A) contra ATS
   var atsCand=ATS.filter(function(a){ var al=toks((a.zona||'')+' '+(a.area||'')+' '+(a.tarea||'')); return overlap(lt,al)>=1; });
   var vA, vAcls;
@@ -282,7 +288,6 @@ function eventoCard(v,i){
     if(conPeligro){ vA='PREVISTO Y FALLÓ — el peligro estaba en el ATS pero ocurrió igual (control no efectivo)'; vAcls='v-fallo'; }
     else { vA='NO PREVISTO — había ATS pero el peligro no figuraba (hueco en el análisis)'; vAcls='v-noprev'; }
   }
-
   // B) contra tarjetas previas (mismo lugar, fecha anterior)
   var tPrev=TAR.filter(function(t){ if((t.clase||'')!=='inseguro') return false; var td=dateOf(t.creado||t.fecha); if(!td||!fev) return false; if(td>=fev) return false; return overlap(lt, toks((t.lugar||'')+' '+(t.categoria||'')+' '+(t.descripcion||'')))>=1; });
   var vB, vBcls;
@@ -292,7 +297,6 @@ function eventoCard(v,i){
     if(sinCerrar){ vB='AVISADO Y SIN CERRAR — '+sinCerrar+' tarjeta(s) previa(s) lo señalaban y no se resolvieron'; vBcls='v-aviso'; }
     else { vB='AVISADO Y REINCIDIÓ — hubo tarjeta(s) previa(s), se cerraron, pero volvió'; vBcls='v-noprev'; }
   }
-
   return '<div class="pat"><div class="top"><span class="ti">'+esc(v.inv_id||('Investigación '+(i+1)))+'</span></div>'
     +'<div class="row" style="color:var(--tx2)">'+esc(String(v.descripcion||v.titulo||'').slice(0,140))+(lugar?(' · <b>'+esc(lugar)+'</b>'):'')+(fev?(' · '+esc(fISO(v.fecha_evento||v.created_at))):'')+'</div>'
     +'<div class="row"><span class="k">Contra el ATS</span><span class="verdict '+vAcls+'">ATS</span>'+esc(vA)+'</div>'
@@ -579,7 +583,6 @@ function _ymd(d){ var m=d.getMonth()+1,day=d.getDate(); return d.getFullYear()+'
 function _fmtCorta(d){ return d.getDate()+' '+_MES[d.getMonth()]; }
 function _isoWeekNum(d){ var dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); var day=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-day+3); var ft=new Date(Date.UTC(dt.getUTCFullYear(),0,4)); var w=1+Math.round(((dt-ft)/86400000-3+((ft.getUTCDay()+6)%7))/7); return {year:dt.getUTCFullYear(),week:w}; }
 function _semanaPasada(){ var t=hoy(); var dow=(t.getDay()+6)%7; var thisMon=new Date(t); thisMon.setDate(t.getDate()-dow); var lastMon=new Date(thisMon); lastMon.setDate(thisMon.getDate()-7); var lastSun=new Date(thisMon); lastSun.setDate(thisMon.getDate()-1); var wk=_isoWeekNum(lastMon); var ww=(wk.week<10?'0'+wk.week:''+wk.week); var rango=(lastMon.getMonth()===lastSun.getMonth())?(lastMon.getDate()+'–'+_fmtCorta(lastSun)):(_fmtCorta(lastMon)+'–'+_fmtCorta(lastSun)); return {desde:_ymd(lastMon),hasta:_ymd(lastSun),clave:'sem-'+wk.year+'-W'+ww,etiqueta:'Semana '+wk.week+' · '+rango+' '+lastSun.getFullYear()}; }
-
 function _tendenciaMensual(){
   var M={};
   TAR.forEach(function(t){ var s=fISO(t.creado||t.fecha); if(!s) return; var ym=s.slice(0,7); var o=M[ym]||(M[ym]={ym:ym,tot:0,ins:0,seg:0,cerr:0,ev:0}); o.tot++; var cl=(t.clase||''); if(cl==='inseguro'){ o.ins++; if((t.estado||'')==='cerrada') o.cerr++; } else if(cl==='seguro'){ o.seg++; } });
@@ -607,7 +610,6 @@ function tendenciaHTML(arr){
   h+='</div>';
   return h;
 }
-
 async function cargarRegistro(){
   try{ INFORMES=await sbGet('informes_hse?select=id,tipo,etiqueta,clave,periodo_desde,periodo_hasta,resumen,creado_at,creado_nombre&order=creado_at.desc'); }catch(e){ INFORMES=[]; }
   pintarRegistro();
@@ -644,9 +646,7 @@ function pintarRegistro(){
   reg.innerHTML=h;
 }
 function copiarLink(btn,url){ try{ navigator.clipboard.writeText(url); var o=btn.textContent; btn.textContent='✓ Copiado'; setTimeout(function(){btn.textContent=o;},1600); }catch(e){ prompt('Copiá el link del informe:',url); } }
-
 async function fetchIA(){ var r=await fetch(WEBHOOK_PAT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datos:window.PAYLOAD,token:TOKEN})}); if(!r.ok) throw new Error('http '+r.status); return r.json(); }
-
 async function generarSemanal(){
   var b=$('btnSem'); if(b){ b.disabled=true; b.textContent='Generando…'; }
   try{
@@ -670,7 +670,6 @@ async function guardarInforme(tipo){
   rec.resumen=resumen; rec.payload=Object.assign({}, window.PAYLOAD||{}, {_branding:window.BRAND||null}); rec.ia=window._IA||null; rec.snap_html=($('out')?$('out').innerHTML:''); rec.creado_nombre=MYNAME;
   await sbPost('informes_hse?on_conflict=empresa_id,clave',rec,'return=representation,resolution=merge-duplicates');
 }
-
 function volverVivo(){
   window._SNAP=null; window._IA=null;
   try{ history.replaceState(null,'',location.pathname); }catch(_){}
@@ -716,11 +715,9 @@ function renderSaved(rec){
   }
   try{ window.scrollTo(0,0); }catch(_){}
 }
-
 (function(){ try{ var inf=new URLSearchParams(location.search).get('informe'); if(inf){ PENDINGINF=inf; var sub=document.querySelector('.login .sub'); if(sub) sub.textContent='// INICIÁ SESIÓN PARA VER EL INFORME COMPARTIDO'; } }catch(_){} })();
 // Restaurar sesión guardada (evita re-login al recargar o abrir un link del correo)
 restoreSession();
-
 ['email','pass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(ev){ if(ev.key==='Enter') login(); }); });
 </script>
 </body>

@@ -1226,7 +1226,12 @@ async function admin(sel) {
 
   /* ------------------------------------------------------------- armazón */
   async function pintar() {
-    const sm = (D.sinMapear || []).length;
+    // Sólo cuentan como «sin mapear» los que tienen un cargo escrito que
+    // no se reconoce. Quien no tiene cargo escrito no es un problema de
+    // mapeo — es un dato que falta en el padrón de KALU — y mezclarlos
+    // hace que el cartel pida algo que no se puede hacer desde acá.
+    const sm = (D.sinMapear || []).filter(x => (x.cargo_texto || '').trim()).length;
+    const smTotal = (D.sinMapear || []).length;
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wide">
       <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:6px">
@@ -1261,7 +1266,7 @@ async function admin(sel) {
     // La lista de sin mapear vive DENTRO de Personas, no arriba de las
     // pestañas: si va arriba, en una empresa nueva empuja la navegación
     // fuera de la pantalla y parece que las pestañas no existen.
-    if (tab === 1)      v.innerHTML = (sm ? vSinMapear() : '') + vPers();
+    if (tab === 1)      v.innerHTML = (smTotal ? vSinMapear() : '') + vPers();
     else if (tab === 2) v.innerHTML = vCargos();
     else if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
     else                { await traerCro(); v.innerHTML = vCro(); }
@@ -1274,16 +1279,31 @@ async function admin(sel) {
      pantalla parece otra. Mapear trabaja sobre el texto del cargo, no
      sobre la persona, así que una fila por texto alcanza. */
   function vSinMapear() {
+    // Quien no tiene NINGÚN cargo escrito en el padrón no es un caso de
+    // mapeo: no hay texto que mapear. Se cuenta aparte y se dice dónde
+    // se arregla, en vez de ofrecer un botón que no puede hacer nada.
+    const sinCargo = (D.sinMapear || []).filter(s => !(s.cargo_texto || '').trim()).length;
     const g = {};
     (D.sinMapear || []).forEach(s => {
-      const k = s.cargo_texto || '—';
+      const k = (s.cargo_texto || '').trim();
+      if (!k) return;
       (g[k] = g[k] || { txt: k, gente: 0, caps: 0 });
       g[k].gente++; g[k].caps += (s.capacitaciones_hoy || 0);
     });
     const filas = Object.values(g).sort((a, b) => b.gente - a.gente);
     const TOPE = 12, ver = filas.slice(0, TOPE), resto = filas.length - ver.length;
 
-    return `${filas.length > 5 ? `<div class="kc-cent" style="background:var(--kc-was)">
+    const avisoSinCargo = sinCargo ? `<div class="kc-cent" style="background:var(--kc-card2)">
+      <div class="b" style="background:var(--kc-ink3)">${sinCargo}</div><div>
+      <div class="kc-tt" style="font-size:15px">${sinCargo} persona(s) no tienen cargo escrito
+        en el padrón</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">No es algo que se arregle acá: el
+        Capacitador lee el padrón y no lo escribe. Ponele el cargo a esa gente en KALU y
+        desaparecen solas de esta lista.</div></div></div>` : '';
+
+    if (!filas.length) return avisoSinCargo;
+
+    return avisoSinCargo + `${filas.length > 5 ? `<div class="kc-cent" style="background:var(--kc-was)">
         <div class="b" style="background:var(--kc-wa)">${filas.length}</div><div>
         <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
           Esto es una empresa sin organigrama, no una lista de correcciones</div>

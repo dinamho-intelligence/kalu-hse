@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '24';
+const KC_VER = '26';
 
 let sb = null;
 
@@ -566,6 +566,32 @@ function estilos() {
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente', al_dia:'Al día' };
+
+/* ---------------------------------------------------- estado de formación
+
+   El módulo dice el estado de la FORMACIÓN, nunca un juicio sobre la
+   persona. «Apto» está ocupada dos veces y ninguna es esta: aptitud
+   médica ocupacional (Res. 2346/2007), que firma un médico laboral, y
+   calificación técnica (Inspector Nivel II, montacarguista, alturas),
+   que emite un tercero y el módulo ni siquiera guarda. Un Inspector II
+   con certificado vigente al que le falta una charla de ergonomía puede
+   inspeccionar; decirle NO APTO en una credencial que lee el cliente lo
+   baja del pozo por una charla.
+
+   Y «al día» se mide contra HOY. Lo que está agendado más adelante en
+   el cronograma no es una falta: es el plan andando, y va aparte.       */
+const FORM = {
+  al_dia:   { tag:'Al día',   tcls:'si', band:'ok',
+              t1:'Al día con su formación' },
+  en_falta: { tag:'No al día', tcls:'no', band:'cr',
+              t1:'No está al día con su formación' },
+  sin_plan: { tag:'Sin plan', tcls:'n',  band:'wa',
+              t1:'Sin plan de formación definido' }
+};
+const form = f => FORM[f] || FORM.sin_plan;
+// «Resto del año: X en el cronograma». Nunca en rojo: no es una falta.
+const cola = n => n > 0
+  ? `Resto del año: ${n} en el cronograma.` : '';
 const EST_P = { vencida:'vencidas', por_vencer:'que están por vencer',
                 pendiente:'pendientes', al_dia:'que están al día' };
 const EJE = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
@@ -1068,13 +1094,16 @@ async function supervision(sel) {
         <div style="padding:13px 15px 11px;border-bottom:1px solid var(--kc-rule);display:flex;gap:10px">
           <div><div class="kc-tt" style="font-size:16px">${esc(p.persona)}</div>
             <div class="kc-cd" style="margin-top:3px">${esc(p.cargo)}</div></div>
-          <span class="kc-tag ${p.apto_operacion?'si':'no'}" style="margin-left:auto;align-self:start">
-            ${p.apto_operacion?'Apto':'No apto'}</span></div>
+          <span class="kc-tag ${form(p.formacion).tcls}" style="margin-left:auto;align-self:start"
+            title="Estado de la formación interna al día de hoy">
+            ${form(p.formacion).tag}</span></div>
         <div class="kc-cts" style="border:none;border-radius:0;margin:0">
           <div class="kc-ct v"><b>${p.vencidas??0}</b><span>Vencidas</span></div>
           <div class="kc-ct x"><b>${p.por_vencer??0}</b><span>Por vencer</span></div>
-          <div class="kc-ct"><b>${p.pendientes??0}</b><span>Pendientes</span></div>
+          <div class="kc-ct"><b>${p.atrasadas??0}</b><span>Atrasadas</span></div>
           <div class="kc-ct a"><b>${p.al_dia??0}</b><span>Al día</span></div></div>
+        ${p.en_cronograma ? `<div style="padding:8px 15px 0;font-size:12.5px;
+          color:var(--kc-ink3)">${cola(p.en_cronograma)}</div>` : ''}
         <div style="padding:12px 15px">
           <div style="font-size:13px;color:var(--kc-ink2);margin-bottom:8px">Próximo peldaño:
             <b style="color:var(--kc-ink);font-family:var(--kc-fd);font-size:14px">${esc(p.cargo_siguiente||'—')}</b></div>
@@ -1296,13 +1325,23 @@ async function admin(sel) {
     const filas = Object.values(g).sort((a, b) => b.gente - a.gente);
     const TOPE = 12, ver = filas.slice(0, TOPE), resto = filas.length - ver.length;
 
+    // Decir cuántas son y no quiénes es pedir una tarea que no se puede
+    // hacer: para ponerle el cargo a alguien en el padrón hay que saber
+    // a quién. Van los nombres, y la cédula para encontrarlos.
+    const quienes = (D.sinMapear || [])
+      .filter(x => !(x.cargo_texto || '').trim())
+      .map(x => esc(x.nombre) + (x.cedula ? ' <span class="mono">· ' + esc(x.cedula) + '</span>' : ''));
     const avisoSinCargo = sinCargo ? `<div class="kc-cent" style="background:var(--kc-card2)">
       <div class="b" style="background:var(--kc-ink3)">${sinCargo}</div><div>
-      <div class="kc-tt" style="font-size:15px">${sinCargo} persona(s) no tienen cargo escrito
-        en el padrón</div>
-      <div style="font-size:13px;color:var(--kc-ink2)">No es algo que se arregle acá: el
-        Capacitador lee el padrón y no lo escribe. Ponele el cargo a esa gente en KALU y
-        desaparecen solas de esta lista.</div></div></div>` : '';
+      <div class="kc-tt" style="font-size:15px">${sinCargo === 1
+        ? 'Una persona no tiene cargo escrito en el padrón'
+        : sinCargo + ' personas no tienen cargo escrito en el padrón'}</div>
+      <div style="font-size:13.5px;color:var(--kc-ink);margin:5px 0 4px">${
+        quienes.slice(0, 10).join(' · ')}${quienes.length > 10
+          ? ' · y ' + (quienes.length - 10) + ' más' : ''}</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">No se arregla acá: el Capacitador lee el
+        padrón y no lo escribe. Ponele el cargo en KALU y desaparece sola de esta lista.</div>
+      </div></div>` : '';
 
     if (!filas.length) return avisoSinCargo;
 
@@ -1393,7 +1432,7 @@ async function admin(sel) {
   /* ------------------------------------------------------- 1. personas */
   function vPers() {
     return '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo</th>' +
-      '<th>En el padrón</th><th>Desde</th><th>Meses</th><th>Apto</th><th>Venc.</th>' +
+      '<th>En el padrón</th><th>Desde</th><th>Meses</th><th>Formación</th><th>Atras.</th>' +
       '<th>Tramos</th><th></th></tr></thead><tbody>' +
       (D.personas||[]).map(p => `<tr>
         <td class="k">${esc(p.nombre)}</td>
@@ -1403,8 +1442,15 @@ async function admin(sel) {
         <td class="n">${esc(p.desde||'—')}${p.tramosAbiertos > 1
             ? ' <span class="kc-tag no" title="Tiene dos tramos de cargo abiertos">×2</span>' : ''}</td>
         <td class="n">${p.meses ?? '—'}</td>
-        <td><span class="kc-tag ${p.apto?'si':'no'}">${p.apto?'Sí':'No'}</span></td>
-        <td class="n">${p.venc ?? 0}</td><td class="n">${p.tramos}</td>
+        <td><span class="kc-tag ${form(p.formacion).tcls}" title="${
+            p.formacion === 'sin_plan'
+              ? (p.determinado === false
+                  ? 'No tiene cargo en el organigrama: se arregla en el padrón'
+                  : 'Su cargo todavía no tiene capacitaciones asignadas')
+              : 'Estado de la formación al día de hoy'
+          }">${form(p.formacion).tag}</span>${p.cola
+            ? ` <span class="kc-tag g" title="En el cronograma para más adelante: no es una falta">+${p.cola}</span>` : ''}</td>
+        <td class="n">${p.atrasadas ?? 0}</td><td class="n">${p.tramos}</td>
         <td><div style="display:flex;gap:6px">
           <button class="kc-mini p" data-ficha="${p.id}">Ficha</button>
           <button class="kc-mini" data-a="corregir" data-i="${p.id}">Corregir</button>
@@ -2201,8 +2247,8 @@ async function ficha(sel, personaId, opt) {
   }
 
   function pintar() {
-    const apto = H.apto_operacion !== false;
-    const cls  = P.vigente === false ? 'cr' : (apto ? 'ok' : 'cr');
+    const F1  = form(H.formacion);
+    const cls = P.vigente === false ? 'cr' : F1.band;
     const tramo = (F.tramos || [])[0] || {};
     const prog = F.progreso || {};
 
@@ -2222,9 +2268,18 @@ async function ficha(sel, personaId, opt) {
 
       <div class="kc-band ${cls}" style="margin-bottom:14px">
         <div class="m">${cls === 'ok' ? '✓' : '!'}</div>
-        <div><div class="t1">${apto ? 'Apta para operar' : 'No apta para operar'}</div>
-        <div class="t2">Vinculación ${H.ok_ingreso ?? 0} de ${H.req_ingreso ?? 0} ·
-          Operación ${H.ok_operacion ?? 0} de ${H.req_operacion ?? 0}</div></div>
+        <div><div class="t1">${F1.t1}</div>
+        <div class="t2">${H.formacion === 'sin_plan'
+          ? (H.determinado === false
+              ? 'No tiene cargo en el organigrama, así que el módulo no le exige nada. Se arregla en el padrón.'
+              : 'A su cargo todavía no se le asignaron capacitaciones.')
+          : [ H.vencidas  ? H.vencidas  + ' vencida(s)'  : null,
+              H.atrasadas ? H.atrasadas + ' atrasada(s)' : null,
+              'Vinculación ' + (H.ok_ingreso ?? 0) + ' de ' + (H.req_ingreso ?? 0),
+              'Operación '   + (H.ok_operacion ?? 0) + ' de ' + (H.req_operacion ?? 0)
+            ].filter(Boolean).join(' · ')}</div>
+        ${H.en_cronograma ? `<div class="t2" style="color:var(--kc-ink3)">${
+          cola(H.en_cronograma)}</div>` : ''}</div>
       </div>
 
       ${(F.faltante || []).length ? `<div class="kc-p1" style="margin-bottom:18px">
@@ -3099,15 +3154,18 @@ async function verificar(sel, token) {
 
   // La baja de la persona manda sobre cualquier otra cosa.
   const baja = !r.vigente;
-  const cls  = baja ? 'cr' : (r.apto_operacion ? 'ok' : 'cr');
-  const t1   = baja ? 'No vigente'
-                    : (r.apto_operacion ? 'Apto para operar' : 'No apto para operar');
+  const F1   = form(r.formacion);
+  const cls  = baja ? 'cr' : F1.band;
+  const t1   = baja ? 'No vigente' : F1.t1;
   const t2   = baja ? 'Esta persona ya no figura activa en la empresa.'
-                    : (r.apto_operacion
-                        ? 'Tiene al día toda la formación que su cargo exige.'
-                        : [r.vencidas ? r.vencidas + ' vencida(s)' : null,
-                           r.pendientes ? r.pendientes + ' sin registro' : null]
-                          .filter(Boolean).join(' · ') || 'Le falta formación obligatoria.');
+             : r.formacion === 'al_dia'
+               ? 'Tiene al día toda la formación que su cargo exige.'
+             : r.formacion === 'sin_plan'
+               ? 'Su empresa todavía no definió qué formación exige este cargo. ' +
+                 'El módulo no está afirmando que le falte ni que esté al día.'
+               : [r.vencidas  ? r.vencidas  + ' vencida(s)'  : null,
+                  r.atrasadas ? r.atrasadas + ' atrasada(s)' : null]
+                 .filter(Boolean).join(' · ') || 'Le falta formación que su cargo exige.';
 
   const ct = (n, t, c) => `<div class="kc-ct ${c}"><b>${n}</b><span>${t}</span></div>`;
 
@@ -3123,16 +3181,22 @@ async function verificar(sel, token) {
       <div class="kc-cts">
         ${ct(r.vencidas ?? 0,   'Vencidas',   'v')}
         ${ct(r.por_vencer ?? 0, 'Por vencer', 'x')}
-        ${ct(r.pendientes ?? 0, 'Pendientes', '')}
+        ${ct(r.atrasadas ?? 0,  'Atrasadas',  '')}
         ${ct(r.al_dia ?? 0,     'Al día',     'a')}
       </div>
+      ${r.en_cronograma ? `<p style="font-size:13px;color:var(--kc-ink3);
+        margin:11px 0 0;text-align:center">${cola(r.en_cronograma)} No cuentan como
+        falta: todavía no les llegó la fecha.</p>` : ''}
     </div>
     <p class="kc-nota" style="text-align:left">Consultado el ${
       new Date(r.verificado).toLocaleString('es-CO')}. Este estado se calcula en el
       momento: no es una captura ni un archivo guardado.</p>
-    <p class="kc-nota" style="text-align:left;margin-top:-4px">«No apto» no significa que
-      la persona no pueda estar en el sitio: significa que le falta formación que su
-      cargo exige. La decisión de asignarle o no la tarea la toma quien supervisa.</p>
+    <p class="kc-nota" style="text-align:left;margin-top:-4px"><b>Qué informa esta
+      credencial:</b> el estado de la formación interna que su empresa le exige.
+      <b>No certifica calificaciones técnicas</b> —Inspector Nivel II, montacarguista,
+      trabajo en alturas— <b>ni aptitud médica ocupacional</b>. Esas las emiten terceros
+      y no se consultan acá. Que falte formación no significa que la persona no pueda
+      estar en el sitio: la decisión de asignarle o no la tarea la toma quien supervisa.</p>
   </div>`;
 }
 

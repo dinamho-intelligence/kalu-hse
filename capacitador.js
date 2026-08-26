@@ -467,6 +467,33 @@ const CSS = `
 .kc-vo li .m{flex:0 0 14px;color:var(--kc-ok);font-weight:700}
 .kc-vexp{margin-top:9px;font-size:13.5px;color:var(--kc-ink2);background:var(--kc-card2);
  border-radius:8px;padding:9px 12px}
+/* ---- matriz de peligros ---- */
+.kc-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.kc-kpi{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-rule2);
+ border-radius:10px;padding:14px 16px}
+.kc-kpi.ok{border-left-color:var(--kc-ok)} .kc-kpi.mal{border-left-color:var(--kc-cr)}
+.kc-kpi b{display:block;font-family:var(--kc-fd);font-weight:700;font-size:30px;line-height:1}
+.kc-kpi span{display:block;font-size:12.5px;color:var(--kc-ink2);margin-top:4px}
+.kc-h3{font-family:var(--kc-fd);font-weight:600;font-size:17px;margin:0 0 8px}
+.kc-dos2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.kc-lin{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13.5px;
+ border-bottom:1px solid var(--kc-rule);color:var(--kc-ink2)}
+.kc-lin b{color:var(--kc-ink)}
+.kc-chips2{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+.kc-chip3{font-size:12.5px;border-radius:999px;padding:4px 12px;border:1px solid var(--kc-rule2);
+ background:var(--kc-card)}
+.kc-chip3.ok{background:var(--kc-oks);border-color:var(--kc-ok);color:var(--kc-ok)}
+.kc-chip3.mal{background:var(--kc-crs);border-color:var(--kc-cr);color:var(--kc-cr)}
+.kc-exp{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-ok);
+ border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.kc-exp.pend{border-left-color:var(--kc-wa)}
+.kc-exp .top{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.kc-exp .dest{margin-top:10px}
+.kc-exp .dest label:first-child{display:block;font-family:var(--kc-fm);font-size:9.5px;
+ letter-spacing:.07em;text-transform:uppercase;color:var(--kc-ink3);margin-bottom:5px}
+.kc-exp .kc-dst{display:flex;gap:10px;align-items:center;padding:4px 2px;font-size:13.5px;cursor:pointer}
+.kc-exp .kc-dst input{width:auto;margin:0}
+
 
 
 
@@ -3170,11 +3197,12 @@ async function arranque(sel) {
           <div class="d">${esc(p.detalle || '')}</div>
           ${p.ojo ? `<div class="ojo">${esc(p.ojo)}</div>` : ''}
         </div>
-        ${IR[p.clave] ? `<button class="kc-mini p" data-ir="${IR[p.clave]}">Ir</button>` : ''}
+        ${IR[p.clave] ? `<button class="kc-mini p" data-ir="${IR[p.clave]}">Ir</button>`
+          : p.clave === 'peligros' ? `<button class="kc-mini p" data-matriz="1">Ir</button>` : ''}
       </div>`).join('')}</div>
       <p class="kc-nota" style="margin-top:14px">Los pasos que no tienen botón se hacen en
-      <b>Administración</b>: el catálogo y las asignaciones en «Capacitaciones», y lo ya dictado
-      en «Cronograma».</p>`;
+      <b>Administración</b>: el catálogo en «Capacitaciones», las asignaciones con el botón
+      «Plan» de cada cargo, y lo ya dictado en «Cronograma».</p>`;
   }
 
   /* ------------------------------------------------------ 2. organigrama */
@@ -3319,6 +3347,8 @@ async function arranque(sel) {
     if (D.puede_editar === false) v.querySelectorAll('button:not([data-ir])').forEach(b => b.remove());
 
     v.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { tab = +b.dataset.ir; pintar(); });
+    v.querySelectorAll('[data-matriz]').forEach(b => b.onclick = () =>
+      matriz(sel, { volver: () => arranque(sel) }));
 
     /* --- organigrama: la propuesta se edita en memoria, no se guarda sola --- */
     v.querySelectorAll('[data-chk]').forEach(c => c.onchange = () => {
@@ -3800,6 +3830,508 @@ async function verCurso(sel, catalogoId, opt) {
   };
 }
 
+/* =================================================================
+   MATRIZ DE PELIGROS — importarla y conectarla con los cargos
+
+   Es la pieza que le da sentido al resto del módulo. Sin matriz,
+   alguien decide de memoria qué capacitación le toca a cada cargo, y
+   cuando la ARL pregunta por qué, no hay respuesta escrita. Con
+   matriz, la respuesta es: porque este peligro exige este control.
+
+   DOS REGLAS QUE ESTA PANTALLA RESPETA
+
+   El Excel no sale del equipo. Se abre en el navegador, se convierte
+   en filas, y al servidor viaja el resultado — no el archivo.
+
+   Y la máquina propone, no resuelve. Puede corregir la escritura de
+   una clasificación contra la norma, porque eso es ortografía. No
+   puede decidir que «Auxiliares END» es «Auxiliar de Inspección»,
+   porque eso es criterio. Lo pregunta.
+   ================================================================= */
+
+/* La librería que lee Excel pesa casi un mega. Se baja sólo cuando
+   alguien va a importar de verdad, no en cada carga del módulo. */
+let _xlsxCargando = null;
+function cargarXLSX() {
+  if (global.XLSX) return Promise.resolve(global.XLSX);
+  if (_xlsxCargando) return _xlsxCargando;
+  _xlsxCargando = new Promise((ok, mal) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload  = () => global.XLSX ? ok(global.XLSX)
+                                  : mal(new Error('La librería cargó pero no quedó disponible'));
+    s.onerror = () => mal(new Error('No se pudo bajar el lector de Excel. ' +
+      'Revisá la conexión: se baja de internet la primera vez que importás.'));
+    document.head.appendChild(s);
+  });
+  return _xlsxCargando;
+}
+
+/* Lo que buscamos en el Excel y con qué palabras reconocerlo. */
+const MZ_CAMPOS = [
+  ['proceso',           ['PROCESO']],
+  ['zona',              ['ZONA', 'LUGAR']],
+  ['actividad',         ['ACTIVIDAD']],
+  ['tarea',             ['TAREA']],
+  ['rutinaria',         ['RUTINARIA']],
+  ['descripcion',       ['DESCRPCIÓN DEL PELIGRO', 'DESCRIPCIÓN DEL PELIGRO', 'DESCR']],
+  ['clasificacion',     ['CLASIFICACIÓN']],
+  ['efectos',           ['EFECTOS']],
+  ['control_fuente',    ['FUENTE']],
+  ['control_medio',     ['MEDIO']],
+  ['control_individuo', ['INDIVIDUO']],
+  ['nd',                ['NIVEL DE DEFICIENCIA']],
+  ['ne',                ['NIVEL DE EXPOSICIÓN']],
+  ['np',                ['NIVEL DE PROBABILIDAD']],
+  ['interpretacion_np', ['INTERPRETACIÓN DEL']],
+  ['nc',                ['NIVEL DE CONSECUENCIA']],
+  ['nr',                ['NIVEL DE RIESGO']],
+  ['nivel_riesgo',      ['INTERPRETACIÓN NR']],
+  ['aceptabilidad',     ['ACEPTABILIDAD']],
+  ['cargos_expuestos',  ['CARGOS EXPUESTOS']],
+  ['peor_consecuencia', ['PEOR CONSECUENCIA']],
+  ['control_admin',     ['CONTROLES ADMINISTRATIVOS']],
+  ['control_epp',       ['EPP', 'EQUIPOS']]
+];
+const MZ_NORMA = ['BIOLOGICO','FISICO','QUIMICO','PSICOSOCIAL','BIOMECANICO',
+                  'CONDICIONES DE SEGURIDAD','FENOMENOS NATURALES'];
+
+const mzTxt = v => v === null || v === undefined ? '' : String(v).replace(/\s+/g,' ').trim();
+const mzMay = v => mzTxt(v).toUpperCase();
+const mzSinTilde = s => mzTxt(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+const mzEsNorma = c => MZ_NORMA.indexOf(mzSinTilde(c)) >= 0 ||
+                       MZ_NORMA.indexOf(mzSinTilde(c).replace(/S$/,'')) >= 0;
+
+/* Una hoja como cuadrícula, con los rangos combinados ya rellenados.
+   Es lo que hace que un peligro conserve su proceso y su actividad
+   aunque en el Excel esas celdas estén vacías. */
+function mzCeldas(XLSX, ws) {
+  if (!ws || !ws['!ref']) return [];
+  const R = XLSX.utils.decode_range(ws['!ref']), M = [];
+  for (let r = R.s.r; r <= R.e.r; r++) {
+    const fila = [];
+    for (let c = R.s.c; c <= R.e.c; c++) {
+      const cel = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+      fila.push(cel ? cel.v : null);
+    }
+    M.push(fila);
+  }
+  (ws['!merges'] || []).forEach(m => {
+    const v = M[m.s.r] ? M[m.s.r][m.s.c] : null;
+    for (let r = m.s.r; r <= m.e.r; r++)
+      for (let c = m.s.c; c <= m.e.c; c++) if (M[r]) M[r][c] = v;
+  });
+  return M;
+}
+
+/* Dónde empieza la tabla. Arriba puede haber logos, títulos y filas
+   vacías: en la matriz de una empresa real el encabezado estaba en la
+   fila 35. */
+function mzFilaEncabezado(M) {
+  for (let i = 0; i < Math.min(M.length, 60); i++) {
+    const f = (M[i] || []).map(mzMay);
+    if (f.some(x => x.includes('PELIGRO')) &&
+        f.some(x => x.includes('PROCESO') || x.includes('ACTIVIDAD') || x.includes('TAREA')))
+      return i;
+  }
+  return -1;
+}
+
+/* Cada campo se busca en la fila de detalle primero y en la de grupo
+   después: el detalle es más específico. */
+function mzMapear(M, hr) {
+  const g = (M[hr] || []).map(mzMay), d = (M[hr+1] || []).map(mzMay);
+  const idx = {}, usadas = {};
+  MZ_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    for (let k = 0; k < claves.length; k++) {
+      const filas = [d, g];
+      for (let ff = 0; ff < filas.length; ff++) {
+        for (let i = 0; i < filas[ff].length; i++) {
+          if (usadas[i]) continue;
+          if (filas[ff][i] && filas[ff][i].includes(claves[k])) {
+            idx[campo] = i; usadas[i] = true; return;
+          }
+        }
+      }
+    }
+  });
+  return idx;
+}
+
+function mzLeer(XLSX, buf) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const hojas = []; let filas = [];
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = mzFilaEncabezado(M);
+    const idx = hr < 0 ? {} : mzMapear(M, hr);
+    // Sin columna de descripción no hay matriz: las hojas de referencia
+    // —el catálogo de la norma, el historial de versiones— tienen
+    // encabezados parecidos y ninguna fila útil.
+    if (hr < 0 || idx.descripcion === undefined) {
+      hojas.push({ nombre: nombre, filas: M.length, peligros: 0, tiene_tabla: false });
+      return;
+    }
+    const propias = [];
+    for (let i = hr + 2; i < M.length; i++) {
+      const r = M[i] || [];
+      if (!mzTxt(r[idx.descripcion])) continue;
+      const f = { hoja: nombre, fila: i + 1 };
+      Object.keys(idx).forEach(k => { f[k] = mzTxt(r[idx[k]]); });
+      propias.push(f);
+    }
+    hojas.push({ nombre: nombre, filas: M.length, peligros: propias.length,
+      tiene_tabla: true, encabezado_en: hr + 1,
+      reconocidas: Object.keys(idx).length,
+      faltantes: MZ_CAMPOS.map(c => c[0]).filter(c => idx[c] === undefined) });
+    filas = filas.concat(propias);
+  });
+  return { hojas: hojas, filas: filas };
+}
+
+function mzResumen(filas) {
+  const cuenta = campo => {
+    const m = {};
+    filas.forEach(f => { const v = f[campo] || '—'; m[v] = (m[v]||0) + 1; });
+    return Object.keys(m).sort((a,b) => m[b]-m[a]).map(k => ({ valor:k, n:m[k] }));
+  };
+  return {
+    peligros: filas.length,
+    clasificaciones: cuenta('clasificacion').map(c => ({ valor:c.valor, n:c.n, norma:mzEsNorma(c.valor) })),
+    zonas: cuenta('zona'),
+    cargos: cuenta('cargos_expuestos'),
+    sin_cargo: filas.filter(f => !f.cargos_expuestos).length,
+    con_capacitacion: filas.filter(f => (f.control_admin||'').toLowerCase().indexOf('apacit') >= 0).length
+  };
+}
+
+
+/* =================================================================
+   LA PANTALLA
+   ================================================================= */
+async function matriz(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Mirando la matriz…');
+
+  let D, E = null, L = null, R = null, tab = 1;
+  try { D = await rpc('cap_matriz_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  async function traerE() { if (!E) E = await rpc('cap_expuestos_datos'); return E; }
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+
+  async function recargar(msg) {
+    D = await rpc('cap_matriz_datos'); E = null; L = null; R = null;
+    await pintar(); if (msg) toast(msg);
+  }
+
+  /* ------------------------------------------------------- armazón */
+  async function pintar() {
+    const m = D.matriz || {};
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">MATRIZ DE PELIGROS · GTC 45</div>
+        <h1 style="font-size:28px;font-weight:700">${D.hay_matriz
+          ? esc(m.codigo_doc || 'Matriz cargada') + (m.version ? ' · v' + esc(m.version) : '')
+          : 'Todavía no hay matriz'}</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">${D.hay_matriz
+          ? D.peligros + ' peligros' + (m.fecha_version ? ' · versión del ' + fecha(m.fecha_version) : '')
+          : 'Sin ella, el plan de formación de cada cargo lo decide alguien de memoria.'}</div></div>
+
+      <div class="kc-tabs" style="margin:0 0 20px">
+        <button class="kc-tab" data-t="1" aria-selected="${tab===1}">La matriz</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos expuestos${
+          D.expuestos_sin_resolver ? ' · ' + D.expuestos_sin_resolver : ''}</button>
+      </div>
+      <div id="kc-v"><div class="kc-carga">Cargando…</div></div></div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      if (+b.dataset.t !== tab) { tab = +b.dataset.t; pintar(); }
+    });
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+
+    const v = el.querySelector('#kc-v');
+    if (tab === 1) v.innerHTML = L ? vRevision() : vEstado();
+    else { await traerE(); v.innerHTML = vExpuestos(); }
+    enganchar(v);
+  }
+
+  /* --------------------------------------------- 1a · sin archivo */
+  function vEstado() {
+    const clas = D.por_clasificacion || {}, zonas = D.por_zona || {};
+    const sinPel = D.cargos_sin_peligros || [];
+
+    return `${D.hay_matriz ? `
+      <div class="kc-grid3">
+        <div class="kc-kpi"><b>${D.peligros}</b><span>peligros</span></div>
+        <div class="kc-kpi ${D.expuestos_sin_resolver ? 'mal':'ok'}">
+          <b>${D.expuestos_sin_resolver}</b><span>cargos expuestos sin resolver</span></div>
+        <div class="kc-kpi ${D.peligros_sin_capacitacion ? 'mal':'ok'}">
+          <b>${D.peligros_sin_capacitacion}</b><span>peligros sin capacitación</span></div>
+      </div>
+
+      ${sinPel.length ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:14px">
+        <div class="b" style="background:var(--kc-wa)">${sinPel.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${sinPel.length} cargo(s) no aparecen en ningún peligro</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(sinPel.slice(0,8).join(' · '))}${
+          sinPel.length > 8 ? ' y ' + (sinPel.length-8) + ' más' : ''}.
+        O están escondidos detrás de otro nombre en la matriz, o de verdad no tienen peligros
+        identificados. Lo segundo se lo tiene que responder HSE a sí mismo.</div></div></div>` : ''}
+
+      ${(D.fuera_de_la_norma||[]).length ? `<div class="kc-cent mal" style="margin-top:10px">
+        <div class="b">!</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Clasificaciones que no son GTC 45</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(D.fuera_de_la_norma.join(' · '))}</div></div></div>` : ''}
+
+      <div class="kc-dos2" style="margin-top:18px">
+        <div><h3 class="kc-h3">Por clasificación</h3>${
+          Object.keys(clas).sort((a,b)=>clas[b]-clas[a]).map(k =>
+            `<div class="kc-lin"><span>${esc(k)}</span><b>${clas[k]}</b></div>`).join('')}</div>
+        <div><h3 class="kc-h3">Por zona</h3>${
+          Object.keys(zonas).sort((a,b)=>zonas[b]-zonas[a]).map(k =>
+            `<div class="kc-lin"><span>${esc(k)}</span><b>${zonas[k]}</b></div>`).join('')}</div>
+      </div>` : `
+      <p class="kc-nota">Subí el Excel de la matriz tal como está. No hace falta reordenar
+      columnas ni separar hojas: la pantalla resuelve las celdas combinadas, encuentra la fila de
+      encabezado aunque esté en la 35, y busca cada columna por su nombre.</p>`}
+
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:22px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">${D.hay_matriz ? 'Reemplazar la matriz' : 'Cargar la matriz'}</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${D.hay_matriz
+          ? 'La anterior deja de ser la vigente pero no se borra: es la justificación escrita de por qué se le exigió una capacitación a alguien.'
+          : 'El archivo no sale de tu equipo: se lee acá y al servidor viaja sólo el resultado.'}</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls"
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  /* --------------------------------------- 1b · archivo ya leído */
+  function vRevision() {
+    const conPel = L.hojas.filter(h => h.peligros > 0);
+    const aCorregir = R.clasificaciones.filter(c => c.norma &&
+      c.valor !== c.valor.normalize('NFC') ? false : false);
+    const fuera = R.clasificaciones.filter(c => !c.norma);
+    const faltan = conPel.reduce((a,h) => a.concat(h.faltantes||[]), []);
+
+    return `
+      <div class="kc-grid3">
+        <div class="kc-kpi"><b>${R.peligros}</b><span>peligros encontrados</span></div>
+        <div class="kc-kpi"><b>${conPel.length}</b><span>hojas con peligros</span></div>
+        <div class="kc-kpi"><b>${R.cargos.length}</b><span>cargos expuestos distintos</span></div>
+      </div>
+
+      <h3 class="kc-h3" style="margin-top:20px">Las hojas del archivo</h3>
+      <div class="kc-sc"><table><thead><tr><th>Hoja</th><th class="n">Filas</th>
+        <th class="n">Peligros</th><th>Columnas reconocidas</th></tr></thead><tbody>
+        ${L.hojas.map(h => `<tr class="${h.peligros ? '' : 'kc-off'}">
+          <td class="k">${esc(h.nombre)}</td><td class="n">${h.filas}</td>
+          <td class="n">${h.peligros || '—'}</td>
+          <td>${h.tiene_tabla
+            ? h.reconocidas + ' de ' + MZ_CAMPOS.length +
+              (h.faltantes.length ? ` <span class="kc-mch b">falta ${esc(h.faltantes.join(', '))}</span>` : '')
+            : '<span style="color:var(--kc-ink3)">hoja de referencia, sin peligros</span>'}</td>
+        </tr>`).join('')}
+      </tbody></table></div>
+
+      <h3 class="kc-h3" style="margin-top:22px">Clasificaciones encontradas</h3>
+      <p class="kc-nota">GTC 45 define siete. Las que están bien escritas entran tal cual; las que
+      difieren sólo en tildes se corrigen solas. <b>Lo que no sea ninguna de las siete se guarda
+      como está y queda marcado</b> — no se inventa una equivalencia.</p>
+      <div class="kc-chips2">${R.clasificaciones.map(c =>
+        `<span class="kc-chip3 ${c.norma ? 'ok':'mal'}">${esc(c.valor)} · ${c.n}</span>`).join('')}</div>
+      ${fuera.length ? `<p class="kc-nota" style="color:var(--kc-cr)">
+        ${fuera.length} clasificación(es) fuera de la norma. Se van a importar igual, marcadas.</p>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:22px">Cargos expuestos que trae la matriz</h3>
+      <p class="kc-nota">Después de importar hay que decir qué es cada uno. Acá se ve cuánto
+      arrastra cada texto.</p>
+      <div class="kc-sc"><table><thead><tr><th>Texto en la matriz</th>
+        <th class="n">Peligros</th></tr></thead><tbody>
+        ${R.cargos.map(c => `<tr><td class="k">${esc(c.valor)}</td>
+          <td class="n">${c.n}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${R.sin_cargo ? `<p class="kc-nota" style="color:var(--kc-cr)">
+        ${R.sin_cargo} peligro(s) no dicen a quién exponen. Van a entrar igual, pero no le van a
+        exigir formación a nadie hasta que la matriz lo diga.</p>` : ''}
+
+      <p class="kc-nota" style="margin-top:16px"><b>${R.con_capacitacion}</b> de ${R.peligros}
+      peligros mencionan capacitación en sus controles administrativos, pero ninguno dice cuál.
+      Ese es el paso siguiente.</p>
+
+      <div class="kc-row" style="margin:20px 0 10px;gap:9px">
+        <button class="kc-b2" id="kc-cancelar" style="flex:0 0 auto">Cancelar</button>
+        <button class="kc-btn" id="kc-importar" style="flex:1 1 auto">
+          Importar ${R.peligros} peligro(s)</button></div>
+
+      <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--kc-ink2)">
+        <input type="checkbox" id="kc-conf" style="margin-top:3px">
+        <span>Revisé las hojas y las clasificaciones de arriba${D.hay_matriz
+          ? ', y entiendo que esto reemplaza la matriz vigente' : ''}.</span></label>`;
+  }
+
+  /* ---------------------------------------- 2 · cargos expuestos */
+  function vExpuestos() {
+    const exp = E.expuestos || [];
+    if (!exp.length) return `<p class="kc-nota">Todavía no hay ningún «cargo expuesto»:
+      aparecen cuando se importa la matriz.</p>`;
+
+    const CLASES = [
+      ['cargo',     'Es un cargo del padrón'],
+      ['varios',    'Son varios cargos en una celda'],
+      ['colectivo', 'Es un colectivo — aplica a varios'],
+      ['tercero',   'No es personal propio (proveedor, visitante, vecino)'],
+      ['ignorar',   'Dejarlo fuera del cálculo'],
+      ['sin_definir','Sin definir todavía']
+    ];
+
+    return `<p class="kc-nota">La matriz no dice cargos: dice textos. Algunos son un cargo, otros
+    son varios juntos, otros no son personal de la empresa. <b>Esto no se puede adivinar</b> —
+    «Auxiliares END» y «Auxiliar de Inspección» no comparten una sola palabra y son el mismo
+    cargo. Por eso lo decidís vos.</p>
+
+    ${exp.map(e => `
+      <div class="kc-exp ${e.clase === 'sin_definir' ? 'pend' : 'listo'}" data-exp="${e.id}">
+        <div class="top">
+          <div><div class="kc-tt" style="font-size:15.5px">${esc(e.texto)}</div>
+            <div class="kc-cd" style="margin-top:3px">${e.peligros} peligro(s) dependen de esto</div></div>
+          <select class="kc-in" data-clase="${e.id}" style="max-width:290px">
+            ${CLASES.map(c => `<option value="${c[0]}" ${e.clase===c[0]?'selected':''}>${c[1]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="dest" data-dest="${e.id}"></div>
+        ${e.destinos.length ? `<div class="kc-mch">hoy apunta a ${
+          esc(e.destinos.map(d => d.nombre).join(' · '))}</div>` : ''}
+      </div>`).join('')}
+
+    <div class="kc-row" style="margin-top:16px"><button class="kc-btn" id="kc-guardar-exp">
+      Guardar los cambios</button></div>`;
+  }
+
+  function pintarDestinos(id) {
+    const e = (E.expuestos || []).find(x => x.id === id);
+    const box = el.querySelector(`[data-dest="${id}"]`);
+    const sel = el.querySelector(`[data-clase="${id}"]`);
+    if (!e || !box || !sel) return;
+    const clase = sel.value;
+    if (['tercero','ignorar','sin_definir'].indexOf(clase) >= 0) { box.innerHTML = ''; return; }
+
+    const sug = {}; (e.sugerencias || []).forEach(s => { sug[s.cargo_id] = s.palabras; });
+    const yaC = {}; (e.destinos || []).forEach(d => { if (d.cargo_id) yaC[d.cargo_id] = 1; });
+    const yaR = {}; (e.destinos || []).forEach(d => { if (d.rol_id) yaR[d.rol_id] = 1; });
+
+    const cargos = (E.cargos || []).slice().sort((a,b) =>
+      (sug[b.id]||0) - (sug[a.id]||0) || a.nombre.localeCompare(b.nombre));
+
+    box.innerHTML = `<label>Marcá a quién corresponde</label>
+      <div class="kc-lista">
+        ${cargos.map(c => `<label class="kc-dst">
+          <input type="checkbox" class="kdc-${id}" value="${c.id}" ${yaC[c.id]?'checked':''}>
+          <span>${esc(c.nombre)}${sug[c.id] ? ' <span class="kc-mch">sugerido</span>' : ''}</span>
+        </label>`).join('')}
+        ${(E.comites||[]).map(r => `<label class="kc-dst">
+          <input type="checkbox" class="kdr-${id}" value="${r.id}" ${yaR[r.id]?'checked':''}>
+          <span>${esc(r.nombre)} <span class="kc-mch">comité</span></span>
+        </label>`).join('')}
+      </div>`;
+  }
+
+  /* ------------------------------------------------------ eventos */
+  function enganchar(v) {
+    if (D.puede_editar === false) v.querySelectorAll('button:not(.kc-tab)').forEach(b => b.remove());
+
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const f = arch.files && arch.files[0];
+      if (!f) return;
+      cargando(el, 'Abriendo el archivo…');
+      try {
+        const XLSX = await cargarXLSX();
+        const buf = await f.arrayBuffer();
+        L = mzLeer(XLSX, new Uint8Array(buf));
+        R = mzResumen(L.filas);
+        if (!R.peligros) {
+          L = null; R = null;
+          await pintar();
+          return alert('No encontré ninguna fila de peligro en ese archivo.\n\n' +
+            'La pantalla busca una hoja con una columna de descripción del peligro. ' +
+            'Si el archivo la tiene con otro nombre, decímelo y la agrego.');
+        }
+        await pintar();
+      } catch (e) { await pintar(); alert(e.message); }
+    };
+
+    const bc = v.querySelector('#kc-cancelar');
+    if (bc) bc.onclick = () => { L = null; R = null; pintar(); };
+
+    const bi = v.querySelector('#kc-importar');
+    if (bi) bi.onclick = async () => {
+      if (!(v.querySelector('#kc-conf') || {}).checked)
+        return alert('Marcá la casilla de abajo cuando hayas revisado las hojas y las clasificaciones.');
+      bi.disabled = true; bi.textContent = 'Importando…';
+      try {
+        const r = await rpc('cap_matriz_importar', {
+          p_matriz: { codigo_doc: null, version: null, fecha_version: null, metodologia: 'GTC 45' },
+          p_filas: L.filas });
+        tab = 2;
+        await recargar(r.aviso);
+      } catch (e) {
+        bi.disabled = false; bi.textContent = 'Importar ' + R.peligros + ' peligro(s)';
+        alert(e.message);
+      }
+    };
+
+    // cargos expuestos
+    v.querySelectorAll('[data-clase]').forEach(s => {
+      pintarDestinos(s.dataset.clase);
+      s.onchange = () => {
+        pintarDestinos(s.dataset.clase);
+        const card = s.closest('.kc-exp');
+        if (card) card.classList.toggle('pend', s.value === 'sin_definir');
+      };
+    });
+
+    const bg = v.querySelector('#kc-guardar-exp');
+    if (bg) bg.onclick = async () => {
+      const cambios = [];
+      v.querySelectorAll('[data-clase]').forEach(s => {
+        const id = s.dataset.clase, clase = s.value;
+        const dest = [];
+        v.querySelectorAll('.kdc-' + id + ':checked').forEach(x => dest.push({ cargo_id: x.value }));
+        v.querySelectorAll('.kdr-' + id + ':checked').forEach(x => dest.push({ rol_id: x.value }));
+        const e = (E.expuestos||[]).find(x => x.id === id) || {};
+        const antes = (e.destinos||[]).length;
+        if (clase !== e.clase || dest.length !== antes) cambios.push({ id: id, clase: clase, dest: dest });
+      });
+      if (!cambios.length) return alert('No cambiaste nada.');
+
+      bg.disabled = true; bg.textContent = 'Guardando…';
+      const fallos = [];
+      for (const c of cambios) {
+        try { await rpc('cap_expuesto_mapear', {
+          p_expuesto: c.id, p_clase: c.clase, p_destinos: c.dest }); }
+        catch (e) { fallos.push(e.message); }
+      }
+      if (fallos.length) alert('Algunos no se pudieron guardar:\n\n' + fallos.join('\n'));
+      await recargar((cambios.length - fallos.length) + ' cargo(s) expuestos resueltos.');
+    };
+  }
+
+  await pintar();
+}
+
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
 function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -3930,6 +4462,7 @@ async function iniciar(cfg) {
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
+                   matriz,
                    get cliente() { return sb; } };
 
 })(typeof window !== 'undefined' ? window : this);

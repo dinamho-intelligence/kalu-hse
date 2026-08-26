@@ -57,7 +57,7 @@
   <svg width="32" height="32" viewBox="0 0 40 40" fill="none"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="12" font-weight="700" font-family="Arial">DI</text></svg>
   <div class="brand"><b>KALU · Cuentas</b><span>DINAMHO INTELLIGENCE</span></div>
   <div class="htitle">Revisor de cuentas</div>
-  <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="location.href=location.pathname">Salir</button></div>
+  <div class="hright"><span class="who" id="who"></span><button class="lo hide" id="lo" onclick="forzarSalida('')">Salir</button></div>
 </header>
 <div class="wrap">
   <div class="login" id="scLogin">
@@ -69,7 +69,6 @@
     <div class="err" id="loginErr"></div>
     <div style="text-align:center;margin-top:16px"><a href="index.html" style="color:#8A909C;text-decoration:none;font-size:13px">← Volver al inicio</a></div>
   </div>
-
   <div class="hide" id="scApp">
     <div class="intro">
       <b>¿Qué es esto?</b> Un mapa <b>de solo lectura</b> de las cuentas de acceso vs. el padrón. Te muestra quién <b>ya entró</b>, quién quedó <b>pendiente</b> (invitación vencida), quién tiene <b>cuentas duplicadas</b> y quién <b>no tiene cuenta</b>. No borra ni manda nada — el borrado y el reenvío se hacen aparte.
@@ -81,10 +80,26 @@
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-admin';
-let TOKEN=null, DATA=null, FILT='all';
+/* ===== sesión compartida (localStorage) + único por equipo + auto-cierre por inactividad ===== */
+const SB_REF='nignqeipzlemwfrwmpip';
+const SESS_KEY='sb-'+SB_REF+'-auth-token';
+const LOGOUT_KEY='kalu_logout';
+let TOKEN=null, DATA=null, FILT='all', MYID=null, MY_SESION=null, IDLE_MIN=60, _idleT=null, _pollT=null;
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function sbGet(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}}); if(!r.ok) throw new Error(path+' '+r.status); return r.json(); }
+function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){ } }
+function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||'null'); }catch(_){ return null; } }
+function clearSession(){ try{ localStorage.removeItem(SESS_KEY); localStorage.removeItem('kalu_sid'); }catch(_){ } }
+async function refrescarToken(rt){ if(!rt) return null; try{ const r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); const d=await r.json(); if(!r.ok||!d.access_token) return null; saveSession(d); return d; }catch(_){ return null; } }
+function _uuid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2); }
+async function sellarSesion(){ MY_SESION=_uuid(); try{ localStorage.setItem('kalu_sid',MY_SESION); }catch(_){ } try{ await fetch(SB_URL+'/rest/v1/rpc/kalu_set_sesion',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify({p_sid:MY_SESION})}); }catch(_){ } }
+async function chequearSesion(){ if(!TOKEN||!MYID||!MY_SESION) return; try{ const r=await sbGet('perfiles?select=sesion_id&id=eq.'+MYID); const sid=(r&&r[0]&&r[0].sesion_id)||null; if(sid && MY_SESION && sid!==MY_SESION) forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.'); }catch(_){ } }
+function resetIdle(){ if(_idleT)clearTimeout(_idleT); _idleT=setTimeout(function(){ forzarSalida('Cerramos tu sesión por inactividad.'); }, (IDLE_MIN||60)*60000); }
+function cerrarLocal(){ try{ TOKEN=null; if(_idleT)clearTimeout(_idleT); if(_pollT)clearInterval(_pollT); }catch(_){ } location.href='index.html'; }
+function forzarSalida(msg){ clearSession(); try{ localStorage.setItem(LOGOUT_KEY,String(Date.now())); }catch(_){ } if(msg){ try{ alert(msg); }catch(_){ } } cerrarLocal(); }
+function armarGuards(){ ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(ev){ window.addEventListener(ev,resetIdle,{passive:true}); }); resetIdle(); if(_pollT)clearInterval(_pollT); _pollT=setInterval(chequearSesion,30000); document.addEventListener('visibilitychange',function(){ if(!document.hidden)chequearSesion(); }); window.addEventListener('storage',function(e){ if(e.key===LOGOUT_KEY)cerrarLocal(); }); }
+function mostrarApp(nombre){ $('who').textContent=nombre||''; $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide'); }
 async function login(){
   const email=$('email').value.trim(), pass=$('pass').value, e=$('loginErr'); e.textContent='';
   if(!email||!pass){ e.textContent='Completá correo y contraseña.'; return; }
@@ -94,11 +109,14 @@ async function login(){
     const d=await r.json();
     if(!r.ok||!d.access_token){ e.textContent='Correo o contraseña incorrectos.'; b.disabled=false; b.textContent='Ingresar'; return; }
     TOKEN=d.access_token;
-    const pf=await sbGet('perfiles?select=nombre,rol,es_super,estado&id=eq.'+(d.user&&d.user.id));
+    const uid=d.user&&d.user.id;
+    const pf=await sbGet('perfiles?select=nombre,rol,es_super,estado&id=eq.'+uid);
     const p0=(pf&&pf[0])||{};
     if(!(p0.es_super===true || p0.rol==='admin')){ e.textContent='Solo Admin o Super-admin.'; TOKEN=null; b.disabled=false; b.textContent='Ingresar'; return; }
-    $('who').textContent=p0.nombre||email;
-    $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
+    // recién ahora que confirmamos admin, guardamos la sesión compartida y sellamos
+    saveSession(d); MYID=uid; IDLE_MIN=60;
+    mostrarApp(p0.nombre||email);
+    await sellarSesion(); armarGuards();
     cargar();
   }catch(err){ e.textContent='Error de conexión.'; b.disabled=false; b.textContent='Ingresar'; }
 }
@@ -190,6 +208,25 @@ async function repararCuenta(ced){
   }catch(e){ alert('Error: '+e.message); }
 }
 ['email','pass'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(ev){ if(ev.key==='Enter') login(); }); });
+/* ===== restaurar sesión compartida: si ya venís logueado en KALU y sos admin, entra directo ===== */
+(async function(){
+  const s=readSession();
+  if(!s || !s.access_token) return;            // sin sesión → queda el login de cuentas
+  let sess=s; const now=Math.floor(Date.now()/1000);
+  if(s.expires_at && s.expires_at < now+60){ sess=await refrescarToken(s.refresh_token); if(!sess) return; }
+  TOKEN=sess.access_token;
+  const uid=sess.user&&sess.user.id;
+  try{
+    const pf=await sbGet('perfiles?select=nombre,rol,es_super,estado&id=eq.'+uid);
+    const p0=(pf&&pf[0])||{};
+    if(!(p0.es_super===true || p0.rol==='admin')){ TOKEN=null; return; }   // logueado pero no admin → mostramos login sin tocar su sesión
+    MYID=uid; IDLE_MIN=60;
+    MY_SESION=localStorage.getItem('kalu_sid')||null;   // adoptar el equipo, no re-sellar
+    mostrarApp(p0.nombre||'');
+    armarGuards();
+    cargar();
+  }catch(_){ TOKEN=null; }
+})();
 </script>
 </body>
 </html>

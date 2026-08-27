@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '38';
+const KC_VER = '39';
 
 let sb = null;
 
@@ -347,6 +347,16 @@ const CSS = `
 .kc-dest .cab .c{flex:1 1 auto;min-width:0}
 .kc-dest .cab .fl{color:var(--kc-ink3);font-size:11px}
 .kc-dest .cue{padding:4px 15px 15px;border-top:1px solid var(--kc-rule)}
+.kc-dest .lis{margin:0 0 12px}
+.kc-dest .lis summary{cursor:pointer;font-family:var(--kc-fm);font-size:11px;
+ letter-spacing:.05em;text-transform:uppercase;color:var(--kc-ink3);padding:5px 0}
+.kc-dest .lis summary:hover{color:var(--kc-ac)}
+.kc-dest .cgs2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+ gap:1px 14px;max-height:230px;overflow-y:auto;padding:6px 2px 2px;
+ border-top:1px solid var(--kc-rule)}
+.kc-dest .cgs2 .li{font-size:13px;color:var(--kc-ink);padding:3px 0}
+.kc-dest .cgs2 .li b{font-family:var(--kc-fm);font-size:11.5px;color:var(--kc-ink2);
+ margin-right:5px}
 .kc-dest .cgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
  gap:2px;max-height:250px;overflow-y:auto;padding:2px}
 .kc-op{display:flex;align-items:center;gap:7px;font-size:13.5px;padding:5px 7px;
@@ -5618,9 +5628,20 @@ async function destinos(sel, opt) {
         <span class="fl">${ab ? '▲' : '▼'}</span>
       </button>
       ${!ab ? '' : `<div class="cue">
+        <!-- Cuáles son. Sin esto la decisión es a ciegas: nadie puede
+             decir quién es «Personal Operativo» sin ver qué se le
+             estaría exigiendo. -->
+        ${(d.lista || []).length ? `<details class="lis" ${d.resuelto ? '' : 'open'}>
+          <summary>Las ${d.lista.length} capacitaciones de este texto</summary>
+          <div class="cgs2">${d.lista.map(c => `<div class="li">
+            <b>${esc(c.codigo)}</b> ${esc(c.titulo)}
+            <span class="kc-cd">· ${esc(c.tipo || '')}</span></div>`).join('')}</div>
+        </details>` : ''}
+
         ${alc ? '' : `<p class="kc-nota" style="text-align:left;margin:0 0 9px;color:var(--kc-wa)">
           Este texto no coincide con ningún cargo del organigrama, así que no hay nada que
-          proponer. Es una decisión: elegí a quién le llega.</p>`}
+          proponer. Mirá la lista de arriba —qué se les estaría exigiendo— y decidí a quién
+          le llega.</p>`}
         <div class="kc-row" style="margin-bottom:10px">
           ${[['todos','A todo el personal'],['cargo','A ciertos cargos'],
              ['rol','A un rol'],['ignorar','No asignar a nadie']].map(o =>

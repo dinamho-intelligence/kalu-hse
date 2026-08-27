@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '34';
+const KC_VER = '35';
 
 let sb = null;
 
@@ -271,6 +271,43 @@ const CSS = `
 .kc td.acc .kc-mini{padding:5px 7px;gap:5px}
 .kc td.acc>div{gap:5px!important}
 .kc td.tit{min-width:200px}
+
+/* ---- barras del tablero ----------------------------------------------
+   Un solo color por serie: la longitud ya dice el tamaño, teñirlas
+   además sería contar dos veces lo mismo. El valor va escrito al lado,
+   nunca sólo en el globito: si el dato depende del mouse, no existe
+   para quien usa teclado ni para quien imprime.
+   La fila entera es el botón, y mide 30px: un objetivo de 8px que hay
+   que acertar al centro no es un control, es una trampa.             */
+.kc-bars{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+.kc-bar{display:flex;align-items:center;gap:10px;width:100%;min-height:30px;
+ padding:3px 8px;border:1px solid transparent;border-radius:7px;background:none;
+ font:inherit;color:inherit;text-align:left;cursor:pointer}
+.kc-bar:hover{background:var(--kc-card2)}
+.kc-bar:focus-visible{outline:2px solid var(--kc-ac);outline-offset:1px}
+.kc-bar.on{background:var(--kc-card2);border-color:var(--kc-rule2)}
+/* La cola no lleva barra: su suma supera al máximo de las visibles, así
+   que la barra se saldría de la caja y el número quedaría montado encima.
+   Es un total, no una categoría comparable. */
+.kc-bar.otras{cursor:default;opacity:.6}
+.kc-bar.otras .p{background:none}
+.kc-bar .t{flex:0 0 34%;font-size:13px;color:var(--kc-ink);
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kc-bar.on .t{font-weight:600}
+.kc-bar .p{flex:1 1 auto;height:9px;background:var(--kc-card2);border-radius:5px}
+.kc-bar:hover .p,.kc-bar.on .p{background:var(--kc-rule)}
+.kc-bar .p i{display:block;height:9px;border-radius:5px;background:var(--kc-ac)}
+.kc-bar .v{flex:0 0 auto;min-width:34px;text-align:right;font-family:var(--kc-fm);
+ font-size:12.5px;color:var(--kc-ink2);font-variant-numeric:tabular-nums}
+
+/* ---- la fila de filtros: una sola, arriba de todo lo que alcanza ---- */
+.kc-filtros{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+ background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:9px;
+ padding:9px 12px}
+.kc-chipf{font:inherit;font-size:13px;background:var(--kc-acs);color:var(--kc-ac);
+ border:1px solid var(--kc-ac);border-radius:20px;padding:4px 11px;cursor:pointer}
+.kc-chipf:hover{background:var(--kc-ac);color:var(--kc-ground)}
+.kc-grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
 /* Un nombre largo no puede empujar el resto de la tabla afuera de la caja:
    que se parta en dos renglones antes que eso. */
 .kc td.nom>div{max-width:300px;white-space:normal}
@@ -5126,13 +5163,25 @@ async function consola(sel, opt) {
   opt = opt || {};
   cargando(el, 'Calculando el cumplimiento…');
 
-  let D, anio = (opt && opt.anio) || new Date().getFullYear();
+  let D, K = null, anio = (opt && opt.anio) || new Date().getFullYear();
+  // El filtro vive acá: una sola cosa, compartida por todos los cortes.
+  let filtro = {};   // { estado, causa, cargo, codigo, eje }
+
   try { D = await rpc('cap_consola', { p_anio: anio }); } catch (e) { return error(el, e); }
+  try { K = await rpc('cap_casos'); } catch (e) { K = null; }
   try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
 
   const MES = ['sin fecha','enero','febrero','marzo','abril','mayo','junio','julio',
                'agosto','septiembre','octubre','noviembre','diciembre'];
 
+  // Estado: colores reservados. Nunca se reusan como paleta de series.
+  const EDO = {
+    vencida:       ['Vencida',        'cr'],
+    atrasada:      ['Atrasada',       'cr'],
+    por_vencer:    ['Por vencer',     'wa'],
+    en_cronograma: ['En el cronograma','n'],
+    al_dia:        ['Al día',         'ok']
+  };
   const CAUSA = {
     sin_programar: ['Nunca se programó este año',
       'Estas capacitaciones no están en el cronograma. No es que la gente faltara: no se dictaron.',
@@ -5141,11 +5190,62 @@ async function consola(sel, opt) {
       'Hay eventos de estas capacitaciones en el año, pero esas personas no figuran en ninguno.',
       'Se arregla cargando la asistencia.']
   };
+  const ETIQ = { estado:'Estado', causa:'Causa', cargo:'Cargo', codigo:'Capacitación', eje:'Eje' };
+
+  const CASOS = (K && !K.demasiado && K.casos) ? K.casos : [];
+
+  /* Los casos que pasan el filtro, ignorando opcionalmente una dimensión:
+     un panel se dibuja con todo lo demás filtrado menos él mismo, así
+     nunca se convierte en una sola barra que no se puede soltar. */
+  function pasan(salvo) {
+    return CASOS.filter(c => Object.keys(filtro).every(k =>
+      k === salvo || c[k] === filtro[k]));
+  }
+
+  function contar(campo, lista) {
+    const m = new Map();
+    lista.forEach(c => {
+      const v = c[campo] == null ? '—' : c[campo];
+      m.set(v, (m.get(v) || 0) + 1);
+    });
+    return [...m.entries()].map(([k, n]) => ({ k, n })).sort((a, b) => b.n - a.n);
+  }
+
+  /* Una lista de barras horizontales. Un solo color para toda la serie:
+     pintarlas más oscuras cuanto más largas codificaría dos veces el
+     mismo dato y gastaría el único canal libre que queda. El valor va
+     escrito al lado, así que nunca depende del mouse. */
+  function barras(campo, filas, opt2) {
+    opt2 = opt2 || {};
+    if (!filas.length) return '<p class="kc-vacio">Nada con este filtro.</p>';
+    const max = Math.max.apply(null, filas.map(f => f.n)) || 1;
+    const tope = opt2.tope || filas.length;
+    const vis = filas.slice(0, tope);
+    const resto = filas.slice(tope).reduce((a, f) => a + f.n, 0);
+    return `<div class="kc-bars">${vis.map(f => {
+      const act = filtro[campo] === f.k;
+      const et = opt2.etiqueta ? opt2.etiqueta(f.k) : [String(f.k), null];
+      return `<button type="button" class="kc-bar${act ? ' on' : ''}"
+          data-campo="${campo}" data-valor="${esc(String(f.k))}"
+          aria-pressed="${act}"
+          title="${esc(et[0])} · ${f.n} caso(s)${act ? ' · tocá para soltar el filtro' : ''}">
+        <span class="t">${esc(et[0])}</span>
+        <span class="p"><i style="width:${Math.max(2, Math.round(100 * f.n / max))}%${
+          et[1] ? ';background:var(--kc-' + et[1] + ')' : ''}"></i></span>
+        <span class="v">${f.n}</span></button>`;
+    }).join('')}${resto ? `<div class="kc-bar otras">
+        <span class="t">otras ${filas.length - tope}</span>
+        <span class="p"></span>
+        <span class="v">${resto}</span></div>` : ''}</div>`;
+  }
 
   function pintar() {
-    const R = D.resumen || {}, C = D.causas || [], F = D.frenan || [];
+    const R = D.resumen || {}, C = D.causas || [];
     const conPlan = (R.personas || 0) - (R.sin_plan || 0);
     const pct = R.pct_al_dia;
+    const L = pasan();                       // los casos del corte actual
+    const cuenta = e => L.filter(c => c.estado === e).length;
+    const chips = Object.keys(filtro);
 
     el.className = 'kc';
     el.innerHTML = `<div class="kc-wide">
@@ -5156,81 +5256,96 @@ async function consola(sel, opt) {
         <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
           Sólo lectura. Es la foto de hoy, calculada en el momento.</div></div>
 
+      <!-- ---------- la foto de la empresa · no se filtra ---------- -->
       <div class="kc-band ${pct == null ? 'wa' : pct >= 90 ? 'ok' : pct >= 60 ? 'wa' : 'cr'}"
-           style="margin-bottom:16px">
+           style="margin-bottom:14px">
         <div class="m">${pct == null ? '!' : pct >= 90 ? '✓' : '!'}</div>
-        <div><div class="t1">${pct == null
-          ? 'Todavía no hay a quién medir'
-          : pct + '% al día'}</div>
+        <div><div class="t1">${pct == null ? 'Todavía no hay a quién medir' : pct + '% al día'}</div>
         <div class="t2">${pct == null
           ? 'Ninguna persona tiene plan de formación definido, así que no hay cumplimiento que calcular.'
           : (R.al_dia || 0) + ' de ' + conPlan + ' personas con plan tienen su formación al día' +
             ((R.sin_plan || 0) ? ' · ' + R.sin_plan + ' todavía sin plan, y no cuentan en el porcentaje' : '')}</div></div>
       </div>
-
-      <div class="kc-grid3" style="margin-bottom:8px">
-        <div class="kc-kpi ${(R.vencidas||0) ? 'mal' : 'ok'}">
-          <b>${R.vencidas ?? 0}</b><span>vencidas</span></div>
-        <div class="kc-kpi ${(R.atrasadas||0) ? 'mal' : 'ok'}">
-          <b>${R.atrasadas ?? 0}</b><span>atrasadas</span></div>
-        <div class="kc-kpi"><b>${R.por_vencer ?? 0}</b><span>por vencer</span></div>
-      </div>
-      <div class="kc-grid3" style="margin-bottom:22px">
-        <div class="kc-kpi ${(D.eventos && D.eventos.sin_asistencia) ? 'mal' : ''}">
+      <div class="kc-grid3" style="margin-bottom:20px">
+        <div class="kc-kpi ${(R.sin_plan||0) ? 'mal' : 'ok'}">
+          <b>${R.sin_plan ?? 0}</b><span>personas sin plan de formación</span></div>
+        <div class="kc-kpi ${(R.sin_cargo||0) ? 'mal' : 'ok'}">
+          <b>${R.sin_cargo ?? 0}</b><span>personas sin cargo en el organigrama</span></div>
+        <div class="kc-kpi ${(D.eventos && D.eventos.sin_asistencia) ? 'mal' : 'ok'}">
           <b>${(D.eventos && D.eventos.sin_asistencia) ?? 0}</b>
           <span>eventos dictados sin asistencia cargada</span></div>
-        <div class="kc-kpi"><b>${R.requeridas ?? 0}</b>
-          <span>exigencias en total · una persona × una capacitación</span></div>
-        <div class="kc-kpi ${(R.sin_cargo||0) ? 'mal' : ''}">
-          <b>${R.sin_cargo ?? 0}</b><span>personas sin cargo en el organigrama</span></div>
       </div>
 
-      <h3 class="kc-h3">Por qué no se cumple</h3>
-      ${!C.length ? '<p class="kc-vacio">No hay nada atrasado.</p>' : `<div class="kc-dos2">${
-        C.map(c => {
-          const t = CAUSA[c.causa] || [c.causa, '', ''];
-          return `<div class="kc-p1" style="padding:15px 17px">
-            <div class="kc-tt" style="font-size:16px">${esc(t[0])}</div>
-            <div style="display:flex;gap:22px;margin:11px 0 9px;align-items:baseline">
-              <div><b style="font-family:var(--kc-fd);font-size:30px">${c.capacitaciones}</b>
-                <span class="kc-cd"> capacitaciones</span></div>
-              <div><b style="font-family:var(--kc-fd);font-size:22px">${c.personas}</b>
-                <span class="kc-cd"> personas</span></div>
-            </div>
-            <div style="font-size:13.5px;color:var(--kc-ink2)">${esc(t[1])}</div>
-            <div style="font-size:13.5px;color:var(--kc-ink);margin-top:7px">
-              Son <b>${c.lineas}</b> casos —cada caso es una persona a la que le falta una
-              capacitación—${c.bloqueantes ? `, y <b style="color:var(--kc-cr)">${c.bloqueantes}
-              de ellos le impiden ingresar u operar</b>` : ''}. ${esc(t[2])}</div>
-          </div>`; }).join('')}</div>`}
+      ${!CASOS.length ? (K && K.demasiado
+        ? `<div class="kc-cent mal"><div class="b">!</div><div>
+           <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Son ${K.casos} casos</div>
+           <div style="font-size:13px;color:var(--kc-ink2)">Demasiados para filtrarlos en el
+             navegador sin que la pantalla se trabe. Avisame y lo paso al servidor.</div></div></div>`
+        : '<p class="kc-vacio">Todavía no hay ninguna capacitación exigida a nadie.</p>') : `
 
-      ${F.length ? `<h3 class="kc-h3" style="margin-top:22px">Qué está frenando gente</h3>
-        <div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>
-          <th class="n">Gente</th><th class="n">Bloqueantes</th><th class="n">Eventos ${anio}</th>
-          <th>Qué hacer</th></tr></thead><tbody>${
-          F.map(f => `<tr>
-            <td class="k">${esc(f.codigo)}</td>
-            <td class="tit">${esc(f.titulo)}
-              <div class="kc-cd" style="margin-top:2px">${esc(f.tipo || '')}</div></td>
-            <td class="n">${f.gente}</td>
-            <td class="n"${f.bloqueantes ? ' style="color:var(--kc-cr);font-weight:700"' : ''}>${f.bloqueantes}</td>
-            <td class="n">${f.eventos_del_anio}</td>
-            <td><span class="kc-tag ${f.que_hacer === 'programar' ? 'wa' : 'n'}">${
-              f.que_hacer === 'programar' ? 'Programar' : 'Registrar asistencia'}</span></td>
-          </tr>`).join('')}</tbody></table></div>` : ''}
+      <!-- ---------- la fila de filtros: una sola, arriba de todo lo que alcanza ---------- -->
+      <div class="kc-filtros">
+        <span class="kc-cd">Filtro</span>
+        ${chips.length ? chips.map(k => `<button type="button" class="kc-chipf" data-quitar="${k}"
+            title="Quitar este filtro">${esc(ETIQ[k] || k)}: <b>${esc(String(
+            k === 'estado' ? (EDO[filtro[k]] || [filtro[k]])[0]
+          : k === 'causa'  ? (CAUSA[filtro[k]] || [filtro[k]])[0]
+          : filtro[k]))}</b> ✕</button>`).join('')
+          : '<span style="color:var(--kc-ink3);font-size:13.5px">todo · tocá cualquier barra para filtrar</span>'}
+        ${chips.length ? '<button type="button" class="kc-mini" id="kc-limpiar">Limpiar</button>' : ''}
+        <span style="margin-left:auto;font-size:13.5px;color:var(--kc-ink2)">
+          <b style="font-family:var(--kc-fd);font-size:17px;color:var(--kc-ink)">${L.length}</b>
+          de ${CASOS.length} casos</span>
+      </div>
 
-      <h3 class="kc-h3" style="margin-top:22px">Dónde se concentra</h3>
-      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th class="n">Personas</th>
-        <th class="n">Al día</th><th class="n">No al día</th><th class="n">Sin plan</th>
-        <th class="n">Atrasadas</th></tr></thead><tbody>${
-        (D.por_cargo || []).map(c => `<tr>
-          <td class="tit">${esc(c.cargo)}</td>
-          <td class="n">${c.personas}</td>
-          <td class="n">${c.al_dia}</td>
-          <td class="n"${c.en_falta ? ' style="color:var(--kc-cr)"' : ''}>${c.en_falta}</td>
-          <td class="n">${c.sin_plan}</td>
-          <td class="n">${c.atrasadas}</td>
+      <div class="kc-grid4" style="margin:14px 0 22px">
+        ${[['vencida','Vencidas'],['atrasada','Atrasadas'],['por_vencer','Por vencer'],
+           ['al_dia','Al día']].map(([k,t]) => `
+          <div class="kc-kpi ${k==='al_dia' ? (cuenta(k)?'ok':'') : (cuenta(k)?'mal':'ok')}">
+            <b>${cuenta(k)}</b><span>${t}</span></div>`).join('')}
+      </div>
+
+      <div class="kc-dos2">
+        <div><h3 class="kc-h3">Por estado</h3>
+          ${barras('estado', contar('estado', pasan('estado')),
+            { etiqueta: k => EDO[k] || [k, null] })}</div>
+        <div><h3 class="kc-h3">Por qué está atrasado</h3>
+          ${barras('causa', contar('causa', pasan('causa').filter(c => c.causa)),
+            { etiqueta: k => [(CAUSA[k] || [k])[0], null] })}</div>
+      </div>
+
+      <div class="kc-dos2" style="margin-top:18px">
+        <div><h3 class="kc-h3">Por cargo</h3>
+          ${barras('cargo', contar('cargo', pasan('cargo')), { tope: 12 })}</div>
+        <div><h3 class="kc-h3">Por capacitación</h3>
+          ${barras('codigo', contar('codigo', pasan('codigo')), { tope: 12,
+            etiqueta: k => {
+              const c = CASOS.find(x => x.codigo === k);
+              return [k + ' · ' + (c ? c.titulo : ''), null];
+            } })}</div>
+      </div>
+
+      <h3 class="kc-h3" style="margin-top:22px">El detalle${
+        chips.length ? ' · ' + L.length + ' caso(s)' : ''}</h3>
+      <div class="kc-sc" style="max-height:520px;overflow-y:auto"><table><thead><tr>
+        <th>Persona</th><th>Cargo</th><th>Código</th><th>Capacitación</th>
+        <th>Estado</th><th>Por qué</th><th>Vence</th></tr></thead><tbody>${
+        L.slice(0, 400).map(c => `<tr>
+          <td class="k nom"><div>${esc(c.persona)}</div></td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(c.cargo)}</td>
+          <td class="k">${esc(c.codigo)}</td>
+          <td class="tit">${esc(c.titulo)}</td>
+          <td><span class="kc-tag ${(EDO[c.estado]||['','n'])[1] === 'ok' ? 'si'
+            : (EDO[c.estado]||['','n'])[1] === 'cr' ? 'no'
+            : (EDO[c.estado]||['','n'])[1] === 'wa' ? 'wa' : 'n'}">${
+            esc((EDO[c.estado] || [c.estado])[0])}</span>${
+            c.bloqueante !== 'no' ? ' <span class="kc-tag no" title="Le impide ' +
+            (c.bloqueante === 'ingreso' ? 'ingresar' : 'operar sola') + '">!</span>' : ''}</td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(c.porque || '')}</td>
+          <td class="n">${c.vence_el ? fecha(c.vence_el) : '—'}</td>
         </tr>`).join('')}</tbody></table></div>
+      ${L.length > 400 ? `<p class="kc-nota" style="text-align:left">Se muestran los primeros
+        400 de ${L.length}. Filtrá para acortar la lista.</p>` : ''}`}
 
       <h3 class="kc-h3" style="margin-top:22px">El cronograma ${anio}</h3>
       ${(D.eventos && D.eventos.sin_asistencia) ? `
@@ -5240,9 +5355,10 @@ async function consola(sel, opt) {
             ${D.eventos.sin_asistencia} evento(s) dictados sin una sola asistencia cargada</div>
           <div style="font-size:13px;color:var(--kc-ink2)">De los ${D.eventos.ejecutados}
             marcados como dictados este año, ${D.eventos.sin_asistencia} no tienen registrada
-            ni una persona. La capacitación ocurrió; para un auditor, no. Y por eso esta tabla
-            y la de arriba parecen contradecirse: <b>marcar el evento como dictado y registrar
-            quién fue son dos cosas distintas</b>, y sólo se hizo la primera.</div></div></div>` : ''}
+            ni una persona. La capacitación ocurrió; para un auditor, no. <b>Marcar el evento
+            como dictado y registrar quién fue son dos cosas distintas</b>, y sólo se hizo la
+            primera. Este número no se filtra con lo de arriba: vive a nivel de evento, no de
+            persona.</div></div></div>` : ''}
       ${!(D.anio_meses || []).length
         ? `<p class="kc-vacio">No hay ningún evento cargado en el cronograma ${anio}.
            Sin cronograma, todo lo exigido queda atrasado.</p>`
@@ -5255,17 +5371,30 @@ async function consola(sel, opt) {
               <td class="n">${m.cancelados}</td>
             </tr>`).join('')}</tbody></table></div>`}
 
-      <p class="kc-nota" style="text-align:left;margin-top:16px">Los porcentajes se calculan
-        sobre quien <b>tiene plan</b>. Contar en el denominador a la gente a la que todavía no se
-        le definió nada no mide cumplimiento: mide cuánto falta del montaje, que es otra cosa.</p>
+      <p class="kc-nota" style="text-align:left;margin-top:16px">Los porcentajes de personas se
+        calculan sobre quien <b>tiene plan</b>. Contar en el denominador a la gente a la que
+        todavía no se le definió nada no mide cumplimiento: mide cuánto falta del montaje.</p>
     </div>`;
 
     const bv = el.querySelector('#kc-volver');
     if (bv) bv.onclick = () => opt.volver();
+    el.querySelectorAll('[data-campo]').forEach(b => b.onclick = () => {
+      const campo = b.dataset.campo, valor = b.dataset.valor;
+      // Tocar el que ya está puesto lo suelta: sin esto hay que buscar
+      // el chip de arriba para volver, y nadie lo encuentra.
+      if (filtro[campo] === valor) delete filtro[campo]; else filtro[campo] = valor;
+      pintar();
+    });
+    el.querySelectorAll('[data-quitar]').forEach(b => b.onclick = () => {
+      delete filtro[b.dataset.quitar]; pintar();
+    });
+    const lim = el.querySelector('#kc-limpiar');
+    if (lim) lim.onclick = () => { filtro = {}; pintar(); };
   }
 
   pintar();
 }
+
 
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }

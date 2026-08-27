@@ -1343,6 +1343,95 @@ async function cerrarTarjeta(id){
     if(cierra){ emitirCertificado(id,true); }
   }catch(e){ alert('No se pudo cerrar ('+e.message+').'); }
 }
+  /* ===== Cerrar varias inseguras con UNA tarjeta segura (cruce en lote) ===== */
+function _segCandidatasInseguras(s){
+  return (TAR||[]).filter(function(t){
+    return !t.eliminada && (t.clase||'')==='inseguro' && (t.estado||'')!=='cerrada' && t.empresa_id===s.empresa_id;
+  });
+}
+function _segCoincide(t,s){
+  var same=function(a,b){ return a&&b&&String(a).trim().toLowerCase()===String(b).trim().toLowerCase(); };
+  return same(t.lugar,s.lugar) || same(t.categoria,s.categoria);
+}
+function gestionarSeguraCierre(id){
+  var s=(TAR||[]).find(function(x){return x.id===id;}); if(!s) return;
+  var cand=_segCandidatasInseguras(s);
+  cand.sort(function(a,b){ var ca=_segCoincide(a,s)?0:1, cb=_segCoincide(b,s)?0:1; if(ca!==cb) return ca-cb; return String(b.creado||b.fecha||'').localeCompare(String(a.creado||a.fecha||'')); });
+  document.getElementById('detTit').textContent='Tarjeta segura '+(s.consecutivo||'')+' · ¿resolvió inseguras?';
+  var info='<div style="font-size:13px;line-height:1.6;margin-bottom:10px">'
+    +'<b>Segura N°:</b> '+esc(s.consecutivo||'-')+' · <b>'+esc(s.observador_nombre||'')+'</b><br>'
+    +'<b>Observación:</b> '+esc(String(s.descripcion||'').slice(0,160))
+    +(s.lugar?('<br><b>Lugar:</b> '+esc(s.lugar)):'')+(s.categoria?(' · <b>Categoría:</b> '+esc(s.categoria)):'')
+    +'</div>';
+  var body;
+  if(!cand.length){
+    body=info+'<div class="detempty">No hay tarjetas inseguras abiertas para cerrar en esta empresa. 👌</div>';
+  } else {
+    var lista=cand.map(function(t){
+      var co=_segCoincide(t,s); var _sem=semTarjeta(t);
+      return '<label class="segrow" data-txt="'+esc(((t.consecutivo||'')+' '+(t.categoria||'')+' '+(t.lugar||'')+' '+(t.descripcion||'')+' '+(t.observador_nombre||'')).toLowerCase()).replace(/"/g,'&quot;')+'" style="display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;cursor:pointer'+(co?';border-color:rgba(242,140,0,.5);background:rgba(242,140,0,.06)':'')+'">'
+        +'<input type="checkbox" class="segchk" value="'+t.id+'" '+(co?'checked':'')+' onchange="_segCount()" style="width:auto;margin-top:2px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:13px"><b style="color:var(--nar)">'+esc(t.consecutivo||'S/N')+'</b> · '+esc(t.categoria||'—')+' · <span style="color:var(--tx2)">'+esc(t.lugar||'—')+'</span>'+(co?' <span class="badge seg" style="margin-left:4px">coincide</span>':'')+'</div>'
+        +'<div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(String(t.descripcion||'').slice(0,110))+'</div>'
+        +'<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+esc(t.observador_nombre||'')+' · <span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span></div>'
+        +'</div></label>';
+    }).join('');
+    body=info+'<div class="gform">'
+      +'<input type="text" id="segBuscar" placeholder="Filtrar (ej: rejilla, lugar, N°)…" oninput="_segFiltrar()" style="margin-bottom:8px">'
+      +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+      +'<button type="button" class="gbtn" onclick="_segTodos(true)">Marcar visibles</button>'
+      +'<button type="button" class="gbtn" onclick="_segTodos(false)">Desmarcar</button>'
+      +'<span id="segCount" style="font-size:12px;color:var(--tx2);margin-left:auto"></span>'
+      +'</div>'
+      +'<div id="segLista" style="max-height:38vh;overflow:auto;margin-bottom:10px">'+lista+'</div>'
+      +'<label>Solución / acción tomada (se guarda en TODAS las que cierres)</label>'
+      +'<textarea id="segResp" rows="3" placeholder="Qué se hizo para resolver de fondo (ej: se repararon las rejillas del área)...">'+esc(String(s.descripcion||''))+'</textarea>'
+      +'<label>Verificado por</label>'
+      +'<input type="text" id="segVerif" value="'+esc(MYNAME||'')+'">'
+      +'<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'
+      +'<button class="gbtn" style="background:rgba(37,194,110,.14);border-color:#25C26E;color:#4FD98B" onclick="cerrarInsegurasSeleccionadas(\''+id+'\')">✓ Cerrar las seleccionadas</button>'
+      +'</div></div>';
+  }
+  document.getElementById('detBody').innerHTML=body;
+  document.getElementById('detalle').classList.remove('hide');
+  _segCount();
+}
+function _segFiltrar(){
+  var q=((document.getElementById('segBuscar')||{}).value||'').toLowerCase().trim();
+  Array.prototype.forEach.call(document.querySelectorAll('#segLista .segrow'),function(el){
+    var txt=el.getAttribute('data-txt')||''; el.style.display=(!q||txt.indexOf(q)!==-1)?'':'none';
+  });
+}
+function _segTodos(val){
+  Array.prototype.forEach.call(document.querySelectorAll('#segLista .segrow'),function(el){
+    if(el.style.display==='none') return; var chk=el.querySelector('.segchk'); if(chk) chk.checked=val;
+  });
+  _segCount();
+}
+function _segCount(){
+  var n=document.querySelectorAll('#segLista .segchk:checked').length;
+  var el=document.getElementById('segCount'); if(el) el.textContent=n+' seleccionada'+(n===1?'':'s');
+}
+async function cerrarInsegurasSeleccionadas(seguraId){
+  var ids=Array.prototype.map.call(document.querySelectorAll('#segLista .segchk:checked'),function(c){return c.value;});
+  if(!ids.length){ alert('No marcaste ninguna insegura.'); return; }
+  var resp=((document.getElementById('segResp')||{}).value||'').trim();
+  if(!resp){ alert('Escribí la solución / acción tomada para poder cerrar.'); return; }
+  var verif=(((document.getElementById('segVerif')||{}).value)||'').trim()||MYNAME;
+  if(!confirm('Vas a cerrar '+ids.length+' tarjeta(s) insegura(s), todas con esta segura como evidencia. ¿Confirmás?')) return;
+  var ts=new Date().toISOString(), okN=0, errN=0;
+  for(var i=0;i<ids.length;i++){
+    try{
+      await sbPatch('tarjetas?id=eq.'+encodeURIComponent(ids[i]),{estado:'cerrada',respuesta:resp,cerrada_por:MYNAME,cerrada_at:ts,cierra_tarjeta_id:seguraId,verificado_por:verif});
+      var t=(TAR||[]).find(function(x){return x.id===ids[i];});
+      if(t){ t.estado='cerrada'; t.respuesta=resp; t.cerrada_por=MYNAME; t.cerrada_at=ts; t.cierra_tarjeta_id=seguraId; t.verificado_por=verif; }
+      okN++;
+    }catch(e){ errN++; }
+  }
+  cerrarDet(); renderTar();
+  toast(okN+' insegura(s) cerrada(s)'+(errN?(' · '+errN+' con error'):'')+' ✔', errN>0);
+}
 async function reabrirTarjeta(id){
   if(!confirm('¿Reabrir esta tarjeta?')) return;
   try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'abierta',cerrada_por:null,cerrada_at:null});
@@ -1397,7 +1486,11 @@ function tarTableHTML(rows){
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
       var _cru=''; if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Resuelta por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
-      var gBtn=((t.clase||'')==='inseguro'&&!t.eliminada)?'<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ':'';
+            var gBtn='';
+      if(!t.eliminada){
+        if((t.clase||'')==='inseguro') gBtn='<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ';
+        else if((t.clase||'')==='seguro') gBtn='<button class="gbtn" onclick="gestionarSeguraCierre(\''+t.id+'\')">🔗 Cerrar inseguras</button> ';
+      }
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':(t.eliminada?'<span class="mut">—</span>':'<button class="gbtn" title="Rearmar el PDF que no se generó (mala señal en terreno)" onclick="regenerarPDFTarjeta(\''+t.id+'\',this)">↻ Generar PDF</button>');
       return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+_cru+_diasCelda(t)+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,95))+'</td>'
         +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button title="Eliminar tarjeta" style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑</button></td>'))+'</tr>';

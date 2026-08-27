@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '44';
+const KC_VER = '45';
 
 let sb = null;
 
@@ -1647,6 +1647,8 @@ async function admin(sel) {
       destinos(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-histo]').forEach(b => b.onclick = () =>
       historia(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-cargacro]').forEach(b => b.onclick = () =>
+      cronograma(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-unif]').forEach(b => b.onclick = () =>
       fusionar(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
@@ -2031,6 +2033,7 @@ async function admin(sel) {
                value="${esc(busca)}" autocomplete="off">
         <button class="kc-mini p" data-e="crear">+ Programar</button>
         <button class="kc-mini" data-histo="1" title="Cargar asistencias que ya se registraron fuera de KALU">↑ Cargar historia</button>
+        <button class="kc-mini" data-cargacro="1" title="Cargar el libro del programa: fechas programadas y realizadas">↑ Cargar cronograma</button>
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todo el año')}${chip('hecho','Dictadas')}${chip('programado','Por dictar')}
@@ -5158,6 +5161,184 @@ function asLeer(XLSX, buf, archivo) {
 
 
 /* =================================================================
+   LEER EL LIBRO DEL PROGRAMA (CRONOGRAMA)
+
+   Este libro no es un registro de asistencia: tiene una fila por
+   CAPACITACIÓN, no por persona. Trae qué tema, cuándo se programó,
+   cuándo se dictó, cuántas horas y cuántos fueron. No trae nombres.
+
+   Sirve para el cumplimiento y para la cobertura declarada. No sirve
+   para el pasaporte de nadie: sin nombre no hay acreditación.
+
+   Tres reglas que salieron del libro real, no del diseño:
+
+   1. UNA FECHA DE REALIZACIÓN QUE TODAVÍA NO LLEGÓ NO ES UNA
+      REALIZACIÓN. En el libro 2026 las charlas de septiembre y octubre
+      están escritas en la columna «Fecha Realizada» porque ahí se lleva
+      el calendario. Importarlas tal cual daría por dictada una charla
+      de octubre. Pasan a fecha programada.
+
+   2. UN TEMA SIN NINGUNA FECHA Y SIN ASISTENTES NO ES UN EVENTO. Son
+      líneas de temario disponible. Convertirlas en eventos inventaría
+      incumplimientos que nadie cometió: se listan aparte y no entran.
+
+   3. «INGRESOS DE PERSONAL», «PROGRAMADO POR EL CLIENTE» no son celdas
+      vacías: son la regla que dispara la capacitación.
+   ================================================================= */
+const CR_CAMPOS = [
+  ['titulo',      ['NOMBRE DE LA CAPACITACION', 'NOMBRE DEL TEMA', 'TEMA A REALIZAR',
+                   'NOMBRE DE LA ACTIVIDAD', 'TEMA']],
+  ['objetivo',    ['OBJETIVO']],
+  ['tipo',        ['TIPO']],
+  ['eje',         ['EJE DE FORMACION', 'EJE']],
+  ['modalidad',   ['MODALIDAD']],
+  ['responsable', ['RESPONSABLE']],
+  ['alcance',     ['ALCANCE']],
+  ['programada',  ['FECHA PROGRAMACION', 'FECHA DE PROGRAMACION', 'FECHA PROGRAMADA']],
+  ['realizada',   ['FECHA DE REALIZACION', 'FECHA REALIZADA', 'FECHA DE FINALIZACION']],
+  ['hecho',       ['SI/NO', 'REALIZADO', 'INDICADOR DE CUMPLIMIENTO']],
+  ['horas',       ['HORAS DE DURACION', 'NO. HORAS', 'NUMERO DE HORAS']],
+  ['asistentes',  ['NUMERO DE ASISTENTES', 'NO. DE ASISTENTES']],
+  ['convocados',  ['NUMERO TOTAL DE TRABAJADORES', 'NO. TOTAL DE TRABAJADORES']]
+];
+
+const crAlias = n => (CR_CAMPOS.find(p => p[0] === n) || [null, []])[1];
+
+/* Lo que en estas hojas parece un tema y no lo es: el pie del cuadro,
+   el presupuesto y la lista de opciones del desplegable de modalidad.
+   Exacto donde una palabra sola podría ser un tema real; por prefijo
+   sólo donde no hay duda. */
+const CR_RUIDO_IGUAL = ['CONVENCIONES', 'CONVENCION', 'VIRTUAL', 'PRESENCIAL', 'MIXTO', 'MIXTA',
+  'PLATAFORMA COLMENA', 'AUTOESTUDIO', 'OBSERVACIONES', 'OBSERVACION', 'NOTA', 'NOTAS',
+  'TOTAL', 'GRAN TOTAL'];
+const CR_RUIDO_EMPIEZA = ['PRESUPUESTO', 'TOTALES', 'FECHA DE ACTUALIZACION', 'RESPONSABLE:',
+  'ELABORO', 'REVISO', 'APROBO', 'CAPACITACIONES EJECUTADAS', 'CAPACITACIONES PROGRAMADAS'];
+
+function crEsRuido(t) {
+  const n = mzSinTilde(t);
+  return CR_RUIDO_IGUAL.indexOf(n) >= 0 || CR_RUIDO_EMPIEZA.some(k => ctEmpieza(n, k));
+}
+
+const CR_DISPARO = [
+  [/INGRESO/,                      'ingreso'],
+  [/CLIENTE/,                      'evento_disparador'],
+  [/AVANCE|DEMANDA|REQUERIMIENTO/, 'evento_disparador'],
+  [/VERSION|ACTUALIZA/,            'version_doc']
+];
+
+function crFilaEncabezado(M) {
+  const tit = crAlias('titulo'), fec = crAlias('programada').concat(crAlias('realizada'));
+  for (let i = 0; i < Math.min(M.length, 20); i++) {
+    const f = (M[i] || []).map(mzSinTilde);
+    const hayTit = f.some(c => tit.some(k => ctEmpieza(c, k)));
+    const hayFec = f.some(c => fec.some(k => ctEmpieza(c, k)));
+    if (hayTit && hayFec) return i;
+  }
+  return -1;
+}
+
+/* Una columna se usa una sola vez, salvo «Fecha de realización»: de esa
+   hay hasta siete en la misma fila —la misma charla dictada de nuevo—
+   y todas cuentan. */
+function crMapear(fila) {
+  const f = (fila || []).map(mzSinTilde), m = { realizada: [] }, usadas = {};
+  CR_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    if (campo === 'realizada') {
+      f.forEach((c, i) => {
+        if (usadas[i]) return;
+        if (claves.some(k => ctEmpieza(c, k))) { m.realizada.push(i); usadas[i] = 1; }
+      });
+      return;
+    }
+    for (let k = 0; k < claves.length; k++) {
+      for (let i = 0; i < f.length; i++) {
+        if (usadas[i]) continue;
+        if (ctEmpieza(f[i], claves[k])) { m[campo] = i; usadas[i] = 1; return; }
+      }
+    }
+  });
+  return m;
+}
+
+function crLeer(XLSX, buf, archivo) {
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const hojas = [], filas = [], sinFecha = [], hoy = iso();
+  const titAl = crAlias('titulo');
+
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = crFilaEncabezado(M);
+    if (hr < 0) { hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 }); return; }
+    const m = crMapear(M[hr]);
+    if (m.titulo === undefined) {
+      hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 }); return;
+    }
+
+    const anioHoja = (nombre.match(/20\d\d/) || [''])[0];
+    const ejeDef = /TECNIC/.test(mzSinTilde(nombre)) ? 'tecnica' : 'hse';
+    let ruido = 0, reps = 0, futs = 0, nSin = 0;
+    const propias = [];
+
+    for (let i = hr + 1; i < M.length; i++) {
+      const r = M[i] || [];
+      const tit = mzTxt(r[m.titulo]);
+      if (!tit || tit.length < 4) continue;
+      if (titAl.indexOf(mzSinTilde(tit)) >= 0) continue;      // encabezado repetido
+      if (crEsRuido(tit)) { ruido++; continue; }
+
+      const crudo = m.programada !== undefined ? r[m.programada] : null;
+      const prog = crudo === null || crudo === undefined ? '' : asFecha(crudo);
+      let disp = 'fecha', dispTxt = '';
+      if (!prog && mzTxt(crudo)) {
+        const n = mzSinTilde(crudo);
+        for (let d = 0; d < CR_DISPARO.length; d++) {
+          if (CR_DISPARO[d][0].test(n)) { disp = CR_DISPARO[d][1]; dispTxt = mzTxt(crudo); break; }
+        }
+      }
+
+      let reales = m.realizada.map(j => asFecha(r[j])).filter(Boolean);
+      const futuras = reales.filter(d => d > hoy);
+      reales = reales.filter(d => d <= hoy);
+      const progF = prog || (futuras.length ? futuras[0] : '');
+      if (futuras.length) futs++;
+      if (reales.length > 1) reps += reales.length - 1;
+
+      const asis = m.asistentes !== undefined ? asNum(r[m.asistentes]) : null;
+      const fila = {
+        hoja: nombre, fila: i + 1, capacitacion: tit,
+        objetivo:    m.objetivo    !== undefined ? mzTxt(r[m.objetivo])    : '',
+        tipo:        m.tipo        !== undefined ? mzTxt(r[m.tipo])        : '',
+        eje:         m.eje         !== undefined ? mzTxt(r[m.eje])         : '',
+        modalidad:   m.modalidad   !== undefined ? mzTxt(r[m.modalidad])   : '',
+        responsable: m.responsable !== undefined ? mzTxt(r[m.responsable]) : '',
+        alcance:     m.alcance     !== undefined ? mzTxt(r[m.alcance])     : '',
+        programada: progF, disparador: disp, disparador_txt: dispTxt,
+        realizadas: reales,
+        horas:      m.horas      !== undefined ? mzTxt(r[m.horas])      : '',
+        asistentes: m.asistentes !== undefined ? mzTxt(r[m.asistentes]) : '',
+        convocados: m.convocados !== undefined ? mzTxt(r[m.convocados]) : '',
+        anio: anioHoja, eje_defecto: ejeDef
+      };
+
+      // Sin fecha, sin regla y sin asistentes no es un evento: es temario.
+      if (!progF && !reales.length && disp === 'fecha' && !(asis > 0)) {
+        nSin++; sinFecha.push(fila); continue;
+      }
+      propias.push(fila);
+    }
+
+    hojas.push({ archivo: archivo, nombre: nombre, clase: 'programa',
+                 filas: propias.length, repeticiones: reps, futuras: futs,
+                 sin_fecha: nSin, ruido: ruido });
+    propias.forEach(x => filas.push(x));
+  });
+
+  return { hojas: hojas, filas: filas, sin_fecha: sinFecha };
+}
+
+
+/* =================================================================
    PANTALLA · IMPORTAR EL CATÁLOGO
 
    El archivo no sale del equipo: se lee acá, y al servidor viaja sólo
@@ -5900,6 +6081,238 @@ async function historia(sel, opt) {
 
 
 /* =================================================================
+   PANTALLA · CARGAR EL CRONOGRAMA
+
+   El libro del programa dice qué se programó y qué se dictó. Eso
+   arregla el cumplimiento y la cobertura, y hace desaparecer los
+   «nunca se programó este año».
+
+   Lo que NO arregla: nadie queda acreditado. El libro cuenta cuántos
+   fueron, no quiénes. Por eso ese número va a su propia columna y no
+   se suma jamás con las asistencias que tienen nombre y apellido.
+
+   Y no inventa capacitaciones: si el tema no está en el catálogo, la
+   fila no entra y el tema se informa. Crearlas hay que pedirlo, y
+   entran APAGADAS — son historia, no una obligación nueva para nadie.
+   ================================================================= */
+async function cronograma(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  let HOJAS = null, FILAS = null, SINF = null, PLAN = null, leyendo = false, crear = false;
+
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 10000);
+  }
+
+  async function correr(confirmar) {
+    const r = await rpc('cap_cronograma_importar', {
+      p_filas: FILAS, p_confirmar: confirmar, p_crear: crear,
+      p_motivo: 'Carga del cronograma desde el libro del programa' });
+    r.confirmado = confirmar;
+    return r;
+  }
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CRONOGRAMA · IMPORTAR</div>
+        <h1 style="font-size:28px;font-weight:700">Cargar el cronograma</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          El libro del programa del año: qué se programó, qué se dictó y cuántos fueron.
+          <b>No trae nombres</b>, así que sirve para el cumplimiento y la cobertura —
+          no acredita a ninguna persona.</div></div>
+      <div id="kc-v"></div></div>`;
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    const v = el.querySelector('#kc-v');
+    v.innerHTML = leyendo ? '<div class="kc-carga">Leyendo los archivos…</div>'
+                : PLAN ? vPlan() : HOJAS ? vLectura() : vPedir();
+    enganchar(v);
+  }
+
+  function vPedir() {
+    return `<p class="kc-nota" style="text-align:left;max-width:74ch">
+      Subí el libro del programa —el que tiene una fila por capacitación con la fecha
+      programada y la de realización—. Podés subir varios años juntos: cada hoja se lee
+      sola y las que no son un cronograma se saltean.</p>
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen acá.</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls" multiple
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  function vLectura() {
+    const reps = HOJAS.reduce((a, h) => a + (h.repeticiones || 0), 0);
+    const futs = HOJAS.reduce((a, h) => a + (h.futuras || 0), 0);
+    const dict = FILAS.filter(f => f.realizadas.length).length;
+
+    return `<div class="kc-grid4">
+        <div class="kc-kpi"><b>${FILAS.length}</b><span>eventos leídos</span></div>
+        <div class="kc-kpi"><b>${dict}</b><span>ya dictados</span></div>
+        <div class="kc-kpi"><b>${reps}</b><span>repeticiones de la misma charla</span></div>
+        <div class="kc-kpi"><b>${SINF.length}</b><span>temas sin fecha · no entran</span></div>
+      </div>
+
+      ${futs ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:16px">
+        <div class="b" style="background:var(--kc-wa)">${futs}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${futs} fila(s) tienen una fecha de realización que todavía no llegó</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">En el libro esa columna se usa como
+          calendario. Cargarlas como dictadas daría por hecha una charla que no pasó, así que
+          entran como <b>fecha programada</b>.</div></div></div>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:18px">Qué encontré en cada hoja</h3>
+      <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th><th>Qué es</th>
+        <th class="n">Eventos</th><th class="n">Repeticiones</th><th class="n">Sin fecha</th>
+        <th class="n">Adorno</th></tr></thead><tbody>${
+        HOJAS.map(h => `<tr${h.clase === 'ignorada' ? ' style="opacity:.5"' : ''}>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
+          <td class="k">${esc(h.nombre)}</td>
+          <td>${h.clase === 'programa' ? 'Cronograma del año'
+             : 'Sin tabla de programa · se saltea'}</td>
+          <td class="n">${h.filas}</td>
+          <td class="n">${h.repeticiones || 0}</td>
+          <td class="n">${h.sin_fecha || 0}</td>
+          <td class="n" style="color:var(--kc-ink3)">${h.ruido || 0}</td>
+        </tr>`).join('')}</tbody></table></div>
+
+      ${SINF.length ? `<h3 class="kc-h3" style="margin-top:20px">
+          Temas sin ninguna fecha · ${SINF.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">No tienen fecha programada, ni de
+          realización, ni asistentes. Son temario disponible, no actividades. Meterlos crearía
+          ${SINF.length} incumplimiento(s) que nadie cometió, así que <b>no entran</b>.</p>
+        <div class="kc-cols">${SINF.map(x =>
+          `<div>${esc(x.capacitacion)}</div>`).join('')}</div>` : ''}
+
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-sim" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Ver qué pasaría</button>
+        <button class="kc-mini" id="kc-otro">Elegir otros archivos</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Todavía no se guardó nada.</p>`;
+  }
+
+  function vPlan() {
+    const P = PLAN, fc = P.faltan_capacitaciones || [], cre = P.creadas || [];
+
+    return `<div class="kc-grid4">
+        <div class="kc-kpi ok"><b>${P.eventos}</b>
+          <span>${P.confirmado ? 'eventos cargados' : 'eventos entrarían'}</span></div>
+        <div class="kc-kpi"><b>${P.repeticiones}</b><span>repeticiones</span></div>
+        <div class="kc-kpi"><b>${P.ya_estaban}</b><span>ya estaban</span></div>
+        <div class="kc-kpi ${P.sin_capacitacion ? 'mal' : ''}"><b>${P.sin_capacitacion}</b>
+          <span>filas sin capacitación en el catálogo</span></div>
+      </div>
+
+      ${fc.length ? `<h3 class="kc-h3" style="margin-top:20px">
+          Temas que no están en el catálogo · ${fc.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Estas filas no entran mientras el
+          tema no exista. Se pueden crear todas de una: entran <b>apagadas</b> — quedan como
+          historia y no le exigen nada a nadie.</p>
+        <div class="kc-cols">${fc.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${cre.length ? `<h3 class="kc-h3" style="margin-top:20px">
+          Capacitaciones que se ${P.confirmado ? 'crearon' : 'crearían'} · ${P.capacitaciones_creadas}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Todas apagadas. Si alguna tiene
+          que exigirse de verdad, se prende después desde el catálogo — de a una y a conciencia.</p>
+        <div class="kc-cols">${cre.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${P.confirmado ? `<div class="kc-cent" style="background:var(--kc-oks);margin-top:20px">
+        <div class="b" style="background:var(--kc-ok)">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">Listo</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">El cronograma quedó cargado. Ojo con una
+          cosa: los asistentes que trae el libro son un <b>número sin nombres</b>. Cuentan para la
+          cobertura y no acreditan a nadie — para eso hacen falta los registros con nombre y
+          apellido.</div></div></div>`
+      : fc.length ? `<div class="kc-row" style="margin-top:20px">
+        <button class="kc-btn" id="kc-crear" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Crear las ${fc.length} que faltan y volver a revisar</button>
+        <button class="kc-mini" id="kc-imp">Cargar sólo los ${P.eventos} que sí cruzan</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+        <p class="kc-nota" style="text-align:left;margin-top:10px">Si cargás sólo los que cruzan,
+          las otras ${P.sin_capacitacion} fila(s) quedan afuera y el año va a verse más vacío de
+          lo que fue. Nada se guardó todavía.</p>`
+      : `<div class="kc-row" style="margin-top:20px">
+        <button class="kc-btn" id="kc-imp" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Cargar ${P.eventos} evento(s)</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+        <p class="kc-nota" style="text-align:left;margin-top:10px">Hasta que aprietes Cargar,
+          no se guardó nada${crear ? ' — tampoco las capacitaciones nuevas' : ''}.</p>`}`;
+  }
+
+  function enganchar(v) {
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const fs = Array.prototype.slice.call(arch.files || []);
+      if (!fs.length) return;
+      leyendo = true; pintar();
+      try {
+        const XLSX = await cargarXLSX();
+        HOJAS = []; FILAS = []; SINF = [];
+        for (let i = 0; i < fs.length; i++) {
+          const buf = await fs[i].arrayBuffer();
+          const L = crLeer(XLSX, new Uint8Array(buf), fs[i].name);
+          L.hojas.forEach(h => HOJAS.push(h));
+          L.filas.forEach(x => FILAS.push(x));
+          L.sin_fecha.forEach(x => SINF.push(x));
+        }
+        if (!FILAS.length) {
+          HOJAS = null; FILAS = null; SINF = null;
+          toast('No encontré ninguna hoja con tema y fecha. ¿Será un registro de asistencia? Ese va en «Cargar lo que ya se hizo».');
+        }
+      } catch (e) { HOJAS = null; FILAS = null; SINF = null; toast(e.message); }
+      leyendo = false; pintar();
+    };
+
+    const sim = v.querySelector('#kc-sim');
+    if (sim) sim.onclick = async () => {
+      sim.disabled = true; sim.textContent = 'Revisando…';
+      try { PLAN = await correr(false); } catch (e) { alert(e.message); }
+      pintar();
+    };
+
+    // Crear las que faltan no carga nada: vuelve a la vista previa, ahora
+    // contando también los eventos que esas fichas destrabarían.
+    const cr = v.querySelector('#kc-crear');
+    if (cr) cr.onclick = async () => {
+      cr.disabled = true; cr.textContent = 'Revisando de nuevo…';
+      crear = true;
+      try { PLAN = await correr(false); } catch (e) { crear = false; alert(e.message); }
+      pintar();
+    };
+
+    const imp = v.querySelector('#kc-imp');
+    if (imp) imp.onclick = async () => {
+      imp.disabled = true; imp.textContent = 'Cargando…';
+      try {
+        PLAN = await correr(true);
+        toast(PLAN.eventos + ' evento(s) cargados' +
+              (PLAN.capacitaciones_creadas ? ' · ' + PLAN.capacitaciones_creadas +
+               ' capacitación(es) creadas apagadas' : '') + '.');
+      } catch (e) { alert(e.message); }
+      pintar();
+    };
+
+    const otro = v.querySelector('#kc-otro');
+    if (otro) otro.onclick = () => {
+      HOJAS = null; FILAS = null; SINF = null; PLAN = null; crear = false; pintar();
+    };
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
    PANTALLA · UNIFICAR NOMBRES
 
    Cuando una empresa reescribe su programa, el mismo curso cambia de
@@ -6456,6 +6869,7 @@ async function iniciar(cfg) {
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
                    matriz, impCatalogo, consola, destinos, historia, fusionar,
+                   cronograma,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

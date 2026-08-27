@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '43';
+const KC_VER = '44';
 
 let sb = null;
 
@@ -366,6 +366,13 @@ const CSS = `
  max-height:300px;overflow-y:auto;border:1px solid var(--kc-rule);border-radius:8px;
  padding:11px 13px;background:var(--kc-card)}
 .kc-cols div{break-inside:avoid;padding:1px 0}
+
+.kc-fus{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.kc-fus .lado{flex:1 1 260px;min-width:0;background:var(--kc-card2);border-radius:9px;padding:11px 13px}
+.kc-fus .tit{font-family:var(--kc-fd);font-weight:600;font-size:14px;margin:3px 0 6px}
+.kc-fus .dat{font-size:12.5px;color:var(--kc-ink2)}
+.kc-fus .fl2{align-self:center;color:var(--kc-ink3);font-size:19px}
+.kc-fus select{width:100%;margin:3px 0 6px}
 
 /* ---- asignar desde el documento ------------------------------------- */
 .kc-dest{display:flex;flex-direction:column;gap:9px}
@@ -1640,6 +1647,8 @@ async function admin(sel) {
       destinos(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-histo]').forEach(b => b.onclick = () =>
       historia(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-unif]').forEach(b => b.onclick = () =>
+      fusionar(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -1916,6 +1925,8 @@ async function admin(sel) {
           : ''}
         ${n.activas ? `<button class="kc-mini" data-c="apagartodas">Apagar todas</button>` : ''}
         ${n.apagadas ? `<button class="kc-mini" data-c="prendertodas">Prender todas · ${n.apagadas}</button>` : ''}
+        <button class="kc-mini" data-unif="1"
+          title="El mismo curso con dos nombres deja la historia colgada del viejo">Unificar nombres</button>
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
@@ -5889,6 +5900,156 @@ async function historia(sel, opt) {
 
 
 /* =================================================================
+   PANTALLA · UNIFICAR NOMBRES
+
+   Cuando una empresa reescribe su programa, el mismo curso cambia de
+   título y la historia queda colgada del nombre viejo. En Total QC:
+   «Habitos, comportamientos y conductas seguras en la via» con 101
+   asistencias, y «Capacitación hábitos, Comportamientos…» —la que sí se
+   exige— vacía, o sea atrasada para los 100.
+
+   La gente se capacitó. Lo que se rompió es el nombre.
+
+   Y por eso NO se puede fusionar solo: en la misma lista aparece
+   «Inspección Visual de conexiones» junto a «Inspección Visual y
+   Dimensional». Se parecen mucho y son cosas distintas — fusionarlas le
+   daría por cumplida a alguien una técnica que no hizo, y esa persona
+   iría a inspeccionar.
+   ================================================================= */
+async function fusionar(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Buscando cursos con dos nombres…');
+
+  let D, abierto = null;
+  try { D = await rpc('cap_fusion_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+  async function recargar(msg) {
+    D = await rpc('cap_fusion_datos'); abierto = null; pintar(); if (msg) toast(msg);
+  }
+
+  function pintar() {
+    const P = D.pares || [];
+    const enJuego = P.reduce((a, p) => a + Number(p.asistencias || 0), 0);
+    const puede = D.puede_editar !== false;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">EL MISMO CURSO, DOS NOMBRES</div>
+        <h1 style="font-size:28px;font-weight:700">Unificar nombres</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Cuando el programa se reescribe, el mismo curso cambia de título y la historia queda
+          colgada del nombre viejo. Acá se juntan — <b>la gente ya se capacitó</b>, lo que se
+          rompió es el nombre.</div></div>
+
+      <div class="kc-grid3" style="margin-bottom:16px">
+        <div class="kc-kpi ${P.length ? 'mal' : 'ok'}"><b>${P.length}</b>
+          <span>posibles pares</span></div>
+        <div class="kc-kpi"><b>${enJuego}</b><span>asistencias esperando del otro lado</span></div>
+        <div class="kc-kpi"><b>${D.sin_pareja || 0}</b>
+          <span>con historia y sin pareja parecida</span></div>
+      </div>
+
+      ${!P.length ? `<p class="kc-vacio">No hay capacitaciones apagadas con historia que se
+        parezcan a una activa. Si sabés de alguna que quedó partida en dos, avisá: se puede
+        bajar el umbral de parecido.</p>`
+      : `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:14px">
+          <div class="b" style="background:var(--kc-wa)">!</div><div>
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">Mirá los dos títulos antes de fusionar</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">Parecerse no es ser lo mismo.
+            «Inspección visual de conexiones» y «Inspección visual y dimensional» comparten casi
+            todas las palabras y son técnicas distintas: fusionarlas le daría por cumplida a
+            alguien una que no hizo.</div></div></div>
+        <div class="kc-dest">${P.map(p => tarjeta(p, puede)).join('')}</div>`}
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    enganchar();
+  }
+
+  function tarjeta(p, puede) {
+    const ab = abierto === p.origen_id;
+    const pct = Math.round(Number(p.parecido) * 100);
+    return `<article class="kc-p1 ${pct >= 80 ? '' : 'pend'}">
+      <button type="button" class="cab" data-abrir="${p.origen_id}" aria-expanded="${ab}">
+        <div class="i">${p.asistencias}</div>
+        <div class="c">
+          <div class="kc-tt" style="font-size:15px">${esc(p.origen_titulo)}</div>
+          <div class="kc-cd" style="margin-top:3px">${p.personas} persona(s) ·
+            ${p.desde ? fecha(p.desde) : ''}${p.hasta && p.hasta !== p.desde ? ' → ' + fecha(p.hasta) : ''}
+            · se parece ${pct}% a <b>${esc(p.destino_codigo)}</b></div>
+        </div>
+        <span class="fl">${ab ? '▲' : '▼'}</span>
+      </button>
+      ${!ab ? '' : `<div class="cue">
+        <div class="kc-fus">
+          <div class="lado">
+            <div class="kc-cd">Nombre viejo · apagada</div>
+            <div class="tit">${esc(p.origen_codigo)} · ${esc(p.origen_titulo)}</div>
+            <div class="dat"><b>${p.asistencias}</b> asistencias de <b>${p.personas}</b> personas</div>
+          </div>
+          <div class="fl2">→</div>
+          <div class="lado">
+            <div class="kc-cd">Se exige hoy · activa</div>
+            <select class="kc-in" data-dst="${p.origen_id}">${(D.activas || []).map(a =>
+              `<option value="${a.id}"${a.id === p.destino_id ? ' selected' : ''}>${
+                esc(a.codigo)} · ${esc(a.titulo)}</option>`).join('')}</select>
+            <div class="dat">Hoy se le exige a <b>${p.destino_gente}</b> persona(s)${
+              p.destino_vigencia ? ' · vence al año' : ' · <b>no vence</b>'}</div>
+          </div>
+        </div>
+        <p class="kc-nota" style="text-align:left;margin:10px 0 0">Las asistencias pasan con
+          <b>su fecha original</b>. El vencimiento se recalcula con la vigencia de la capacitación
+          vigente${p.destino_vigencia ? '' : ' — y esa no declara ninguna, así que van a quedar sin vencer'}.
+          La ficha vieja no se borra: queda como prueba de cómo se llamaba el curso.</p>
+        ${puede ? `<div class="kc-row" style="margin-top:13px">
+          <button class="kc-btn" data-fus="${p.origen_id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+            Es el mismo curso · pasar ${p.asistencias}</button>
+          <button class="kc-mini" data-no="${p.origen_id}">No son el mismo</button>
+          <button class="kc-mini" data-cerrar="1">Cancelar</button></div>`
+        : '<p class="kc-nota" style="text-align:left">Sólo lectura.</p>'}
+      </div>`}
+    </article>`;
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = (abierto === b.dataset.abrir) ? null : b.dataset.abrir; pintar();
+    });
+    el.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => { abierto = null; pintar(); });
+    el.querySelectorAll('[data-fus]').forEach(b => b.onclick = async () => {
+      const o = b.dataset.fus;
+      const d = (el.querySelector(`[data-dst="${o}"]`) || {}).value;
+      if (!d) { alert('Elegí la capacitación vigente.'); return; }
+      b.disabled = true; b.textContent = 'Uniendo…';
+      try { const r = await rpc('cap_fusionar', { p_origen: o, p_destino: d }); await recargar(r.aviso); }
+      catch (e) { b.disabled = false; b.textContent = 'Es el mismo curso'; alert(e.message); }
+    });
+    el.querySelectorAll('[data-no]').forEach(b => b.onclick = async () => {
+      const o = b.dataset.no;
+      const d = (el.querySelector(`[data-dst="${o}"]`) || {}).value;
+      b.disabled = true;
+      try { const r = await rpc('cap_fusion_descartar', { p_origen: o, p_destino: d });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
    PANTALLA · ASIGNAR DESDE EL DOCUMENTO
 
    El plan de la empresa ya dice a quién va dirigida cada capacitación.
@@ -6294,7 +6455,7 @@ async function iniciar(cfg) {
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
-                   matriz, impCatalogo, consola, destinos, historia,
+                   matriz, impCatalogo, consola, destinos, historia, fusionar,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

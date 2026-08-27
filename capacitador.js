@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '33';
+const KC_VER = '34';
 
 let sb = null;
 
@@ -5176,7 +5176,9 @@ async function consola(sel, opt) {
         <div class="kc-kpi"><b>${R.por_vencer ?? 0}</b><span>por vencer</span></div>
       </div>
       <div class="kc-grid3" style="margin-bottom:22px">
-        <div class="kc-kpi"><b>${R.en_cronograma ?? 0}</b><span>en el cronograma, resto del año</span></div>
+        <div class="kc-kpi ${(D.eventos && D.eventos.sin_asistencia) ? 'mal' : ''}">
+          <b>${(D.eventos && D.eventos.sin_asistencia) ?? 0}</b>
+          <span>eventos dictados sin asistencia cargada</span></div>
         <div class="kc-kpi"><b>${R.requeridas ?? 0}</b>
           <span>exigencias en total · una persona × una capacitación</span></div>
         <div class="kc-kpi ${(R.sin_cargo||0) ? 'mal' : ''}">
@@ -5231,6 +5233,16 @@ async function consola(sel, opt) {
         </tr>`).join('')}</tbody></table></div>
 
       <h3 class="kc-h3" style="margin-top:22px">El cronograma ${anio}</h3>
+      ${(D.eventos && D.eventos.sin_asistencia) ? `
+        <div class="kc-cent mal" style="margin-bottom:12px">
+          <div class="b">${D.eventos.sin_asistencia}</div><div>
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">
+            ${D.eventos.sin_asistencia} evento(s) dictados sin una sola asistencia cargada</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">De los ${D.eventos.ejecutados}
+            marcados como dictados este año, ${D.eventos.sin_asistencia} no tienen registrada
+            ni una persona. La capacitación ocurrió; para un auditor, no. Y por eso esta tabla
+            y la de arriba parecen contradecirse: <b>marcar el evento como dictado y registrar
+            quién fue son dos cosas distintas</b>, y sólo se hizo la primera.</div></div></div>` : ''}
       ${!(D.anio_meses || []).length
         ? `<p class="kc-vacio">No hay ningún evento cargado en el cronograma ${anio}.
            Sin cronograma, todo lo exigido queda atrasado.</p>`

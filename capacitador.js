@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '37';
+const KC_VER = '38';
 
 let sb = null;
 
@@ -334,6 +334,26 @@ const CSS = `
 .kc-kpix .ad{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .kc-kpix .ad .kc-in{font-size:13px;padding:6px 9px;width:100%;box-sizing:border-box}
 .kc-kpix .ad button{width:100%}
+
+/* ---- asignar desde el documento ------------------------------------- */
+.kc-dest{display:flex;flex-direction:column;gap:9px}
+.kc-dest .kc-p1.pend{border-left:3px solid var(--kc-cr)}
+.kc-dest .cab{display:flex;align-items:center;gap:12px;width:100%;padding:12px 15px;
+ background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.kc-dest .cab:hover{background:var(--kc-card2)}
+.kc-dest .cab .i{flex:0 0 auto;min-width:38px;height:34px;border-radius:8px;
+ background:var(--kc-card2);display:grid;place-items:center;font-family:var(--kc-fd);
+ font-weight:700;font-size:15px;color:var(--kc-ink2)}
+.kc-dest .cab .c{flex:1 1 auto;min-width:0}
+.kc-dest .cab .fl{color:var(--kc-ink3);font-size:11px}
+.kc-dest .cue{padding:4px 15px 15px;border-top:1px solid var(--kc-rule)}
+.kc-dest .cgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+ gap:2px;max-height:250px;overflow-y:auto;padding:2px}
+.kc-op{display:flex;align-items:center;gap:7px;font-size:13.5px;padding:5px 7px;
+ border-radius:6px;cursor:pointer}
+.kc-op:hover{background:var(--kc-card2)}
+.kc-lb{display:block;font-family:var(--kc-fm);font-size:10px;letter-spacing:.07em;
+ text-transform:uppercase;color:var(--kc-ink3);margin-bottom:4px}
 
 /* ---- la fila de filtros: una sola, arriba de todo lo que alcanza ---- */
 .kc-filtros{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
@@ -1574,6 +1594,8 @@ async function admin(sel) {
       planCargo(sel, b.dataset.plan, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-ver]').forEach(b => b.onclick = () =>
       verCurso(sel, b.dataset.ver, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-asigdoc]').forEach(b => b.onclick = () =>
+      destinos(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -1823,10 +1845,20 @@ async function admin(sel) {
     const L = C.filter(pasa);
     const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
 
-    const alerta = huerf.length ? `<div class="kc-cent mal"><div class="b">${huerf.length}</div><div>
+    // Si vinieron de un documento que ya dice a quién van dirigidas, no
+    // hay que asignarlas una por una: hay que traducir los pocos textos
+    // distintos que ese documento usa. La pantalla dirá cuántos son.
+    const conTexto = huerf.length;
+    const alerta = huerf.length ? `<div class="kc-cent mal"><div class="b">${huerf.length}</div>
+        <div style="flex:1">
         <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${huerf.length} capacitación(es) activas que no le llegan a nadie</div>
         <div style="font-size:13px;color:var(--kc-ink2)">Están en el catálogo pero ninguna persona las tiene asignada.
-          O falta asignarles un cargo, o el comité o la actividad a la que apuntan todavía no tiene gente cargada.</div></div></div>` : '';
+          O falta asignarles un cargo, o el comité o la actividad a la que apuntan todavía no tiene gente cargada.</div>
+        ${conTexto ? `<div style="font-size:13px;color:var(--kc-ink);margin-top:7px">
+          Si las importaste de un documento que ya dice a quién van dirigidas, no hace falta
+          asignarlas una por una.
+          <button class="kc-mini p" data-asigdoc="1" style="margin-left:6px">Asignar desde el documento</button></div>` : ''}
+        </div></div>` : '';
 
     return alerta + `
       <div class="kc-bar2">
@@ -3729,6 +3761,7 @@ async function arranque(sel) {
     v.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { tab = +b.dataset.ir; pintar(); });
     v.querySelectorAll('[data-matriz]').forEach(b => b.onclick = () =>
       matriz(sel, { volver: () => arranque(sel) }));
+
     v.querySelectorAll('[data-cat]').forEach(b => b.onclick = () =>
       impCatalogo(sel, { volver: () => arranque(sel) }));
 
@@ -5479,6 +5512,210 @@ async function consola(sel, opt) {
 }
 
 
+/* =================================================================
+   PANTALLA · ASIGNAR DESDE EL DOCUMENTO
+
+   El plan de la empresa ya dice a quién va dirigida cada capacitación.
+   Lo que no dice es cómo se traduce a los cargos y roles de KALU — y
+   esa traducción NO se hace por capacitación: se hace por texto.
+
+   En Total QC, 107 capacitaciones usan 31 textos distintos, y seis de
+   ellos cubren 80. Resolver «Personal Operativo» una vez asigna 35.
+
+   Lo que se puede deducir, ya viene deducido. Lo que no, se propone y
+   espera confirmación: «Personal Operativo» no es un cargo, es un grupo
+   que sólo la empresa sabe cómo se compone, y arrastra 35. Equivocarse
+   ahí le exige trabajo en alturas a la asistente administrativa.
+   ================================================================= */
+async function destinos(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Leyendo a quién va dirigida cada capacitación…');
+
+  let D, abierto = null, busca = '';
+  try { await rpc('cap_destinos_sembrar'); } catch (e) {}
+  try { D = await rpc('cap_destinos_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const BLQ = [['no','No bloquea'], ['ingreso','Sin esto no se completa la vinculación'],
+               ['operacion','Sin esto no puede operar sola']];
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+
+  async function recargar(msg) {
+    D = await rpc('cap_destinos_datos');
+    abierto = null; busca = '';
+    pintar(); if (msg) toast(msg);
+  }
+
+  function pintar() {
+    const L = D.destinos || [];
+    const sinRes = L.filter(d => !d.resuelto);
+    const cubre = sinRes.reduce((a, d) => a + Number(d.capacitaciones), 0);
+    const puede = D.puede_editar !== false;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">A QUIÉN LE LLEGA</div>
+        <h1 style="font-size:28px;font-weight:700">Asignar desde el documento</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Tu programa ya dice a quién va dirigida cada capacitación. Acá se traduce ese texto a
+          los cargos y roles de KALU — <b>una vez por texto</b>, no una vez por capacitación.</div></div>
+
+      <div class="kc-grid3" style="margin-bottom:16px">
+        <div class="kc-kpi"><b>${L.length}</b><span>textos distintos</span></div>
+        <div class="kc-kpi ${sinRes.length ? 'mal' : 'ok'}">
+          <b>${sinRes.length}</b><span>sin resolver</span></div>
+        <div class="kc-kpi ${cubre ? 'mal' : 'ok'}">
+          <b>${cubre}</b><span>capacitaciones esperando</span></div>
+      </div>
+
+      ${!L.length ? `<p class="kc-vacio">Ninguna capacitación activa trae escrito a quién va
+        dirigida. Eso se carga al importar el catálogo desde el procedimiento de la empresa.</p>`
+      : `<div class="kc-dest">${L.map(d => tarjeta(d, puede)).join('')}</div>`}
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    enganchar();
+  }
+
+  function tarjeta(d, puede) {
+    const ab = abierto === d.id;
+    const prop = d.cargos_mencionados || [];
+    const eleg = (d.elegidos || []).map(x => x.cargo_id || x.rol_id);
+    // Si nunca se resolvió, la propuesta viene pre-marcada: el trabajo de
+    // la persona es revisar, no cargar de cero.
+    const marcados = d.resuelto ? eleg : prop.map(p => p.cargo_id);
+    // Cuando NO hay propuesta no se preselecciona nada. Caer en «a todo el
+    // personal» por descarte es el peor default posible: «Personal
+    // Operativo» no es todo el personal, y apretar Guardar sin mirar le
+    // asignaría 34 capacitaciones a la empresa entera. Que no haya una
+    // respuesta obvia tiene que verse, no taparse con una por defecto.
+    const alc = d.alcance || (d.rol_propuesto ? 'rol' : prop.length ? 'cargo' : null);
+
+    return `<article class="kc-p1 ${d.resuelto ? '' : 'pend'}">
+      <button type="button" class="cab" data-abrir="${d.id}" aria-expanded="${ab}">
+        <div class="i">${d.capacitaciones}</div>
+        <div class="c">
+          <div class="kc-tt" style="font-size:15px">${esc(d.texto)}</div>
+          <div class="kc-cd" style="margin-top:3px">${d.resuelto
+            ? (d.alcance === 'todos'   ? 'A todo el personal'
+             : d.alcance === 'ignorar' ? 'Marcado para ignorar'
+             : (d.elegidos || []).map(x => esc(x.nombre)).join(' · ') || 'sin destino')
+            : (d.rol_propuesto ? 'Se propone el rol «' + esc(d.rol_propuesto) + '»'
+             : prop.length ? 'Se proponen ' + prop.length + ' cargo(s)'
+             : 'Sin propuesta: hay que decidirlo')}</div>
+        </div>
+        <span class="kc-tag ${d.resuelto ? 'si' : 'no'}">${d.resuelto ? 'Resuelto' : 'Pendiente'}</span>
+        <span class="fl">${ab ? '▲' : '▼'}</span>
+      </button>
+      ${!ab ? '' : `<div class="cue">
+        ${alc ? '' : `<p class="kc-nota" style="text-align:left;margin:0 0 9px;color:var(--kc-wa)">
+          Este texto no coincide con ningún cargo del organigrama, así que no hay nada que
+          proponer. Es una decisión: elegí a quién le llega.</p>`}
+        <div class="kc-row" style="margin-bottom:10px">
+          ${[['todos','A todo el personal'],['cargo','A ciertos cargos'],
+             ['rol','A un rol'],['ignorar','No asignar a nadie']].map(o =>
+            `<label class="kc-op"><input type="radio" name="alc-${d.id}" value="${o[0]}"
+               data-alc="${d.id}" ${alc === o[0] ? 'checked' : ''}> ${o[1]}</label>`).join('')}
+        </div>
+
+        <div class="zona" data-zona="cargo-${d.id}" ${alc === 'cargo' ? '' : 'hidden'}>
+          <input class="kc-in" type="search" placeholder="Buscar cargo…" data-bus="${d.id}"
+                 style="margin-bottom:8px">
+          ${prop.length ? `<p class="kc-nota" style="text-align:left;margin:0 0 8px">
+            Vienen marcados los que el texto menciona. Revisá antes de guardar.</p>` : ''}
+          <div class="cgs" data-cgs="${d.id}">${(D.cargos || []).map(c =>
+            `<label class="kc-op" data-nom="${esc(c.nombre.toLowerCase())}">
+               <input type="checkbox" class="kcd-${d.id}" value="${c.id}"
+                 ${marcados.indexOf(c.id) >= 0 ? 'checked' : ''}>
+               ${esc(c.nombre)} <span class="kc-cd">· ${c.personas}</span></label>`).join('')}</div>
+        </div>
+
+        <div class="zona" data-zona="rol-${d.id}" ${alc === 'rol' ? '' : 'hidden'}>
+          <label class="kc-lb" for="rol-${d.id}">Rol</label>
+          <input class="kc-in" id="rol-${d.id}" data-rol="${d.id}" list="roles-${d.id}"
+                 value="${esc(d.rol_propuesto || (d.elegidos||[]).map(x=>x.nombre)[0] || '')}"
+                 placeholder="Ej: Conductor">
+          <datalist id="roles-${d.id}">${(D.roles || []).map(r =>
+            `<option value="${esc(r.nombre)}">`).join('')}</datalist>
+          <p class="kc-nota" style="text-align:left;margin:6px 0 0">Si el rol no existe se crea
+            solo. Después hay que afiliarle la gente desde la ficha de cada persona: el
+            documento dice qué rol, no quién lo tiene.</p>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="kc-lb" for="blq-${d.id}">¿Bloquea?</label>
+          <select class="kc-in" id="blq-${d.id}" data-blq="${d.id}">${BLQ.map(b =>
+            `<option value="${b[0]}" ${d.bloqueante === b[0] ? 'selected' : ''}>${b[1]}</option>`).join('')}</select>
+          <p class="kc-nota" style="text-align:left;margin:6px 0 0">Bloquear tiene que ser raro.
+            Inducción o alturas, sí; una charla de ergonomía, no. Si todo bloquea, el sistema
+            deja a todo el mundo trabado y deja de servir.</p>
+        </div>
+
+        ${puede ? `<div class="kc-row" style="margin-top:14px">
+          <button class="kc-btn" data-guardar="${d.id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+            Guardar y asignar ${d.capacitaciones}</button>
+          <button class="kc-mini" data-cerrar="1">Cancelar</button></div>`
+        : '<p class="kc-nota" style="text-align:left">Sólo lectura.</p>'}
+      </div>`}
+    </article>`;
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = (abierto === b.dataset.abrir) ? null : b.dataset.abrir;
+      pintar();
+    });
+    el.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => { abierto = null; pintar(); });
+    el.querySelectorAll('[data-alc]').forEach(r => r.onchange = () => {
+      const id = r.dataset.alc, v = r.value;
+      ['cargo','rol'].forEach(z => {
+        const box = el.querySelector(`[data-zona="${z}-${id}"]`);
+        if (box) box.hidden = (v !== z);
+      });
+    });
+    el.querySelectorAll('[data-bus]').forEach(i => i.oninput = () => {
+      const q = i.value.trim().toLowerCase();
+      el.querySelectorAll(`[data-cgs="${i.dataset.bus}"] [data-nom]`).forEach(lb => {
+        lb.hidden = !!q && lb.dataset.nom.indexOf(q) < 0;
+      });
+    });
+    el.querySelectorAll('[data-guardar]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.guardar;
+      const alc = (el.querySelector(`[data-alc="${id}"]:checked`) || {}).value;
+      if (!alc) { alert('Elegí a quién le llega antes de guardar.'); return; }
+      const dest = [];
+      if (alc === 'cargo') {
+        el.querySelectorAll('.kcd-' + id + ':checked').forEach(x => dest.push({ cargo_id: x.value }));
+        if (!dest.length) { alert('Elegí al menos un cargo, o cambiá el alcance.'); return; }
+      }
+      const rol = alc === 'rol'
+        ? ((el.querySelector(`[data-rol="${id}"]`) || {}).value || '').trim() : null;
+      if (alc === 'rol' && !rol) { alert('Escribí el nombre del rol.'); return; }
+      const blq = (el.querySelector(`[data-blq="${id}"]`) || {}).value || 'no';
+      b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_destino_resolver', { p_destino: id, p_alcance: alc,
+          p_destinos: dest, p_rol_nuevo: rol, p_bloqueante: blq });
+        await recargar(r.aviso);
+      } catch (e) {
+        b.disabled = false; b.textContent = 'Guardar'; alert(e.message);
+      }
+    });
+  }
+
+  pintar();
+}
+
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
 function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -5609,7 +5846,7 @@ async function iniciar(cfg) {
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
-                   matriz, impCatalogo, consola,
+                   matriz, impCatalogo, consola, destinos,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

@@ -1274,6 +1274,55 @@ function segMetrics(){
   var prom=difs.length?Math.round(difs.reduce(function(a,b){return a+b;},0)/difs.length):null;
   return {total:total,abiertas:abiertas,venc:venc,cerr:cerr.length,pct:pct,prom:prom};
 }
+  /* ===== Bitácora de avances de la tarjeta (histórico con fechas + responsable del paso) ===== */
+var AVANCE_TIPOS=[['interno','Interno','var(--nar)'],['cliente','Cliente','var(--cy)'],['proveedor','Proveedor','var(--amber)'],['visita','Visita / inspección','var(--verde)']];
+function _avTipo(k){ for(var i=0;i<AVANCE_TIPOS.length;i++){ if(AVANCE_TIPOS[i][0]===k) return AVANCE_TIPOS[i]; } return [k,k||'—','var(--tx3)']; }
+function _bitacoraHTML(t){
+  var av=Array.isArray(t.avances)?t.avances.slice():[];
+  av.sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
+  var tl;
+  if(!av.length){ tl='<div style="font-size:12px;color:var(--tx3);padding:6px 0">Todavía no hay avances registrados. Sumá el primero abajo.</div>'; }
+  else { tl=av.map(function(x,i){
+    var tp=_avTipo(x.tipo);
+    return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
+      +'<div style="width:9px;height:9px;border-radius:50%;background:'+tp[2]+';margin-top:5px;flex:none"></div>'
+      +'<div style="flex:1;min-width:0"><div style="font-size:12px"><b>'+esc(String(x.fecha||'').slice(0,10))+'</b> · <span style="color:'+tp[2]+';font-weight:700">'+esc(tp[1])+'</span></div>'
+      +'<div style="font-size:12.5px;color:var(--tx);margin-top:1px">'+esc(x.nota||'')+'</div>'
+      +(x.autor?('<div style="font-size:10.5px;color:var(--tx3);margin-top:1px">'+esc(x.autor)+'</div>'):'')+'</div>'
+      +'<button title="Quitar este avance" onclick="quitarAvance(\''+t.id+'\','+i+')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px;flex:none">✕</button></div>';
+  }).join(''); }
+  var opts=AVANCE_TIPOS.map(function(o){return '<option value="'+o[0]+'">'+esc(o[1])+'</option>';}).join('');
+  var _sel='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:8px 10px';
+  return '<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 12px;background:var(--panel2)">'
+    +'<div style="font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">🕒 Bitácora de avances</div>'
+    +'<div style="margin-bottom:10px">'+tl+'</div>'
+    +'<div style="display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:end">'
+    +'<div><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:3px">Fecha</label><input type="date" id="avFecha" value="'+_hoyISO()+'" style="'+_sel+'"></div>'
+    +'<div><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:3px">Responsable del paso</label><select id="avTipo" style="'+_sel+'">'+opts+'</select></div></div>'
+    +'<textarea id="avNota" rows="2" placeholder="Qué pasó (ej: se envió correo al cliente pidiendo la reparación)..." style="width:100%;background:#12151a;border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:9px;font-size:13px;font-family:inherit;margin-top:8px;box-sizing:border-box"></textarea>'
+    +'<button class="gbtn" style="margin-top:8px" onclick="agregarAvance(\''+t.id+'\')">+ Agregar avance</button></div>';
+}
+async function agregarAvance(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var fecha=(document.getElementById('avFecha')||{}).value||_hoyISO();
+  var tipo=(document.getElementById('avTipo')||{}).value||'interno';
+  var nota=((document.getElementById('avNota')||{}).value||'').trim();
+  if(!nota){ alert('Escribí qué pasó en este avance.'); return; }
+  var av=Array.isArray(t.avances)?t.avances.slice():[];
+  av.push({fecha:fecha,tipo:tipo,nota:nota,autor:MYNAME||'',ts:new Date().toISOString()});
+  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{avances:av}); t.avances=av; gestionarTarjeta(id); renderTar(); }
+  catch(e){ alert('No se pudo guardar el avance ('+e.message+'). ¿Corriste el SQL de la columna avances?'); }
+}
+async function quitarAvance(id,idx){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var av=Array.isArray(t.avances)?t.avances.slice():[];
+  av.sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
+  if(idx<0||idx>=av.length) return;
+  if(!confirm('¿Quitar este avance de la bitácora?')) return;
+  av.splice(idx,1);
+  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{avances:av}); t.avances=av; gestionarTarjeta(id); renderTar(); }
+  catch(e){ alert('No se pudo quitar ('+e.message+').'); }
+}
 function gestionarTarjeta(id){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
   document.getElementById('detTit').textContent='Tarjeta '+(t.consecutivo||'')+' · seguimiento';
@@ -1288,6 +1337,7 @@ function gestionarTarjeta(id){
     +'</div>';
   var _tf=Array.isArray(t.foto_paths)?t.foto_paths:(t.foto_path?[t.foto_path]:[]);
   info += _tf.length?('<div style="margin:2px 0 10px"><div style="font-size:12px;color:var(--tx2);margin-bottom:6px">📷 Fotos de evidencia — clic para abrir en pestaña nueva</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+_tf.map(function(p){var url=SB_URL+'/storage/v1/object/public/tarjetas/'+p;return '<a href="'+url+'" target="_blank"><img src="'+url+'" style="width:110px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"></a>';}).join('')+'</div></div>'):'';
+  info += _bitacoraHTML(t);
   var body;
   if(cerrada){
     var _rp=t.cierra_tarjeta_id?((TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;})):null;

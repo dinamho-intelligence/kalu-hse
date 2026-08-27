@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '31';
+const KC_VER = '32';
 
 let sb = null;
 
@@ -5100,6 +5100,160 @@ async function impCatalogo(sel, opt) {
   pintar();
 }
 
+/* =================================================================
+   CONSOLA · VER SIN ADMINISTRAR
+
+   Lo que pidió el cliente en la reunión: mirar el cumplimiento sin
+   tener que entrar a la administración, y que esa misma pantalla se
+   pueda colgar de la consola de KALU.
+
+   No tiene un solo botón que escriba. Y no muestra el número solo:
+   muestra POR QUÉ. «251 atrasadas» no le sirve a nadie para actuar;
+   «17 capacitaciones que nadie programó, 16 de ellas frenando gente»
+   se convierte en una tarde de trabajo concreta.
+
+   La distinción que ordena todo:
+
+     nunca se programó  → el agujero está en el cronograma
+     se dictó y no se
+     registró           → el agujero está en el registro de asistencia
+
+   Son dos problemas distintos, se arreglan en lugares distintos, y
+   hasta hoy ninguna pantalla los separaba.
+   ================================================================= */
+async function consola(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Calculando el cumplimiento…');
+
+  let D, anio = (opt && opt.anio) || new Date().getFullYear();
+  try { D = await rpc('cap_consola', { p_anio: anio }); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const MES = ['sin fecha','enero','febrero','marzo','abril','mayo','junio','julio',
+               'agosto','septiembre','octubre','noviembre','diciembre'];
+
+  const CAUSA = {
+    sin_programar: ['Nunca se programó este año',
+      'Estas capacitaciones no están en el cronograma. No es que la gente faltara: no se dictaron.',
+      'Se arregla programándolas.'],
+    sin_registrar: ['Se dictó y no quedó registro',
+      'Hay eventos de estas capacitaciones en el año, pero esas personas no figuran en ninguno.',
+      'Se arregla cargando la asistencia.']
+  };
+
+  function pintar() {
+    const R = D.resumen || {}, C = D.causas || [], F = D.frenan || [];
+    const conPlan = (R.personas || 0) - (R.sin_plan || 0);
+    const pct = R.pct_al_dia;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CONSOLA · FORMACIÓN ${anio}</div>
+        <h1 style="font-size:28px;font-weight:700">Cumplimiento</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
+          Sólo lectura. Es la foto de hoy, calculada en el momento.</div></div>
+
+      <div class="kc-band ${pct == null ? 'wa' : pct >= 90 ? 'ok' : pct >= 60 ? 'wa' : 'cr'}"
+           style="margin-bottom:16px">
+        <div class="m">${pct == null ? '!' : pct >= 90 ? '✓' : '!'}</div>
+        <div><div class="t1">${pct == null
+          ? 'Todavía no hay a quién medir'
+          : pct + '% al día'}</div>
+        <div class="t2">${pct == null
+          ? 'Ninguna persona tiene plan de formación definido, así que no hay cumplimiento que calcular.'
+          : (R.al_dia || 0) + ' de ' + conPlan + ' personas con plan tienen su formación al día' +
+            ((R.sin_plan || 0) ? ' · ' + R.sin_plan + ' todavía sin plan, y no cuentan en el porcentaje' : '')}</div></div>
+      </div>
+
+      <div class="kc-grid3" style="margin-bottom:8px">
+        <div class="kc-kpi ${(R.vencidas||0) ? 'mal' : 'ok'}">
+          <b>${R.vencidas ?? 0}</b><span>vencidas</span></div>
+        <div class="kc-kpi ${(R.atrasadas||0) ? 'mal' : 'ok'}">
+          <b>${R.atrasadas ?? 0}</b><span>atrasadas</span></div>
+        <div class="kc-kpi"><b>${R.por_vencer ?? 0}</b><span>por vencer</span></div>
+      </div>
+      <div class="kc-grid3" style="margin-bottom:22px">
+        <div class="kc-kpi"><b>${R.en_cronograma ?? 0}</b><span>en el cronograma, resto del año</span></div>
+        <div class="kc-kpi"><b>${R.requeridas ?? 0}</b><span>capacitaciones exigidas en total</span></div>
+        <div class="kc-kpi ${(R.sin_cargo||0) ? 'mal' : ''}">
+          <b>${R.sin_cargo ?? 0}</b><span>personas sin cargo en el organigrama</span></div>
+      </div>
+
+      <h3 class="kc-h3">Por qué no se cumple</h3>
+      ${!C.length ? '<p class="kc-vacio">No hay nada atrasado.</p>' : `<div class="kc-dos2">${
+        C.map(c => {
+          const t = CAUSA[c.causa] || [c.causa, '', ''];
+          return `<div class="kc-p1" style="padding:15px 17px">
+            <div class="kc-tt" style="font-size:16px">${esc(t[0])}</div>
+            <div style="display:flex;gap:18px;margin:11px 0 9px;align-items:baseline">
+              <div><b style="font-family:var(--kc-fd);font-size:30px">${c.lineas}</b>
+                <span class="kc-cd"> líneas</span></div>
+              <div><b style="font-family:var(--kc-fd);font-size:22px;color:${
+                c.bloqueantes ? 'var(--kc-cr)' : 'var(--kc-ink)'}">${c.bloqueantes}</b>
+                <span class="kc-cd"> bloqueantes</span></div>
+            </div>
+            <div style="font-size:13.5px;color:var(--kc-ink2)">${esc(t[1])}</div>
+            <div style="font-size:13.5px;color:var(--kc-ink);margin-top:7px">
+              <b>${c.capacitaciones}</b> capacitación(es) · <b>${c.personas}</b> persona(s).
+              ${esc(t[2])}</div>
+          </div>`; }).join('')}</div>`}
+
+      ${F.length ? `<h3 class="kc-h3" style="margin-top:22px">Qué está frenando gente</h3>
+        <div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>
+          <th class="n">Gente</th><th class="n">Bloqueantes</th><th class="n">Eventos ${anio}</th>
+          <th>Qué hacer</th></tr></thead><tbody>${
+          F.map(f => `<tr>
+            <td class="k">${esc(f.codigo)}</td>
+            <td class="tit">${esc(f.titulo)}
+              <div class="kc-cd" style="margin-top:2px">${esc(f.tipo || '')}</div></td>
+            <td class="n">${f.gente}</td>
+            <td class="n"${f.bloqueantes ? ' style="color:var(--kc-cr);font-weight:700"' : ''}>${f.bloqueantes}</td>
+            <td class="n">${f.eventos_del_anio}</td>
+            <td><span class="kc-tag ${f.que_hacer === 'programar' ? 'wa' : 'n'}">${
+              f.que_hacer === 'programar' ? 'Programar' : 'Registrar asistencia'}</span></td>
+          </tr>`).join('')}</tbody></table></div>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:22px">Dónde se concentra</h3>
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th class="n">Personas</th>
+        <th class="n">Al día</th><th class="n">No al día</th><th class="n">Sin plan</th>
+        <th class="n">Atrasadas</th></tr></thead><tbody>${
+        (D.por_cargo || []).map(c => `<tr>
+          <td class="tit">${esc(c.cargo)}</td>
+          <td class="n">${c.personas}</td>
+          <td class="n">${c.al_dia}</td>
+          <td class="n"${c.en_falta ? ' style="color:var(--kc-cr)"' : ''}>${c.en_falta}</td>
+          <td class="n">${c.sin_plan}</td>
+          <td class="n">${c.atrasadas}</td>
+        </tr>`).join('')}</tbody></table></div>
+
+      <h3 class="kc-h3" style="margin-top:22px">El cronograma ${anio}</h3>
+      ${!(D.anio_meses || []).length
+        ? `<p class="kc-vacio">No hay ningún evento cargado en el cronograma ${anio}.
+           Sin cronograma, todo lo exigido queda atrasado.</p>`
+        : `<div class="kc-sc"><table><thead><tr><th>Mes</th><th class="n">Programados</th>
+            <th class="n">Ejecutados</th><th class="n">Cancelados</th></tr></thead><tbody>${
+            D.anio_meses.map(m => `<tr>
+              <td class="k">${esc(MES[m.mes] || m.mes)}</td>
+              <td class="n">${m.programados}</td>
+              <td class="n">${m.ejecutados}</td>
+              <td class="n">${m.cancelados}</td>
+            </tr>`).join('')}</tbody></table></div>`}
+
+      <p class="kc-nota" style="text-align:left;margin-top:16px">Los porcentajes se calculan
+        sobre quien <b>tiene plan</b>. Contar en el denominador a la gente a la que todavía no se
+        le definió nada no mide cumplimiento: mide cuánto falta del montaje, que es otra cosa.</p>
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+  }
+
+  pintar();
+}
+
 /* ---- cajón compartido (localStorage) ---- */
 function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
 function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -5230,7 +5384,7 @@ async function iniciar(cfg) {
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
-                   matriz, impCatalogo,
+                   matriz, impCatalogo, consola,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '41';
+const KC_VER = '43';
 
 let sb = null;
 
@@ -272,33 +272,57 @@ const CSS = `
 .kc td.acc>div{gap:5px!important}
 .kc td.tit{min-width:200px}
 
-/* ---- barras del tablero ----------------------------------------------
+/* ---- barras del tablero ------------------------------------------
+   Se llaman kc-bra y no kc-bar porque .kc-bar YA EXISTE: es el filete de
+   3px del progreso de un curso. Reusar el nombre le puso display:flex y
+   30px de alto a esa barra, y nadie lo iba a notar hasta abrir un curso.
+   ----------------------------------------------
    Un solo color por serie: la longitud ya dice el tamaño, teñirlas
    además sería contar dos veces lo mismo. El valor va escrito al lado,
    nunca sólo en el globito: si el dato depende del mouse, no existe
    para quien usa teclado ni para quien imprime.
    La fila entera es el botón, y mide 30px: un objetivo de 8px que hay
    que acertar al centro no es un control, es una trampa.             */
-.kc-bars{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
-.kc-bar{display:flex;align-items:center;gap:10px;width:100%;min-height:30px;
+.kc-bras{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+.kc-bra{display:flex;align-items:center;gap:10px;width:100%;min-height:30px;
  padding:3px 8px;border:1px solid transparent;border-radius:7px;background:none;
  font:inherit;color:inherit;text-align:left;cursor:pointer}
-.kc-bar:hover{background:var(--kc-card2)}
-.kc-bar:focus-visible{outline:2px solid var(--kc-ac);outline-offset:1px}
-.kc-bar.on{background:var(--kc-card2);border-color:var(--kc-rule2)}
+.kc-bra:hover{background:var(--kc-card2)}
+.kc-bra:focus-visible{outline:2px solid var(--kc-ac);outline-offset:1px}
+.kc-bra.on{background:var(--kc-card2);border-color:var(--kc-rule2)}
 /* La cola no lleva barra: su suma supera al máximo de las visibles, así
    que la barra se saldría de la caja y el número quedaría montado encima.
    Es un total, no una categoría comparable. */
-.kc-bar.otras{cursor:default;opacity:.6}
-.kc-bar.otras .p{background:none}
-.kc-bar .t{flex:0 0 34%;font-size:13px;color:var(--kc-ink);
+.kc-bra.otras{cursor:default;opacity:.6}
+.kc-bra.otras .p{background:none}
+.kc-bra .t{flex:0 0 34%;font-size:13px;color:var(--kc-ink);
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kc-bar.on .t{font-weight:600}
-.kc-bar .p{flex:1 1 auto;height:9px;background:var(--kc-card2);border-radius:5px}
-.kc-bar:hover .p,.kc-bar.on .p{background:var(--kc-rule)}
-.kc-bar .p i{display:block;height:9px;border-radius:5px;background:var(--kc-ac)}
-.kc-bar .v{flex:0 0 auto;min-width:34px;text-align:right;font-family:var(--kc-fm);
- font-size:12.5px;color:var(--kc-ink2);font-variant-numeric:tabular-nums}
+.kc-bra.on .t{font-weight:600}
+.kc-bra .p{flex:1 1 auto;height:9px;background:var(--kc-card2);border-radius:5px}
+.kc-bra:hover .p,.kc-bra.on .p{background:var(--kc-rule)}
+.kc-bra .p i{display:block;height:9px;border-radius:5px;background:var(--kc-ac)}
+.kc-bra .v,.kc-bra .v2{flex:0 0 auto;min-width:46px;text-align:right;font-family:var(--kc-fm);
+ font-size:12.5px;color:var(--kc-ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kc-bra .v2{min-width:34px;color:var(--kc-ink3)}
+/* Otra regla del módulo pone los <i> en display:block —por eso la letra
+   caía a un segundo renglón y la fila crecía a 35px. */
+.kc-bra .v i,.kc-bra .v2 i{display:inline;font-style:normal;font-size:10px;
+ opacity:.65;margin-left:1px}
+
+/* Dos números por tarjeta: personas y capacitaciones. Uno solo sería la
+   multiplicación de los dos, que no se puede ir a resolver. */
+.kc-kpi2{display:block;width:100%;text-align:left;font:inherit;cursor:pointer;
+ background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:10px;
+ box-shadow:var(--kc-sh);padding:12px 14px;border-left:4px solid var(--kc-rule2)}
+.kc-kpi2:hover{border-color:var(--kc-ac)}
+.kc-kpi2:focus-visible{outline:2px solid var(--kc-ac);outline-offset:1px}
+.kc-kpi2[aria-pressed="true"]{border-color:var(--kc-ac);background:var(--kc-acs)}
+.kc-kpi2.mal{border-left-color:var(--kc-cr)}
+.kc-kpi2.ok{border-left-color:var(--kc-ok)}
+.kc-kpi2 .t{font-family:var(--kc-fd);font-weight:600;font-size:14px;color:var(--kc-ink2)}
+.kc-kpi2 .d{display:flex;gap:16px;margin-top:5px;font-size:12px;color:var(--kc-ink2)}
+.kc-kpi2 .d b{display:block;font-family:var(--kc-fd);font-size:24px;color:var(--kc-ink);
+ line-height:1.1}
 
 /* ---- indicadores del programa (para proyectar en una reunión) -------
    Número grande sin tabular-nums: a tamaño display los dígitos de ancho
@@ -5354,7 +5378,11 @@ async function consola(sel, opt) {
   try { K = await rpc('cap_casos'); } catch (e) { K = null; }
   let I = null;
   try { I = await rpc('cap_indicadores', { p_anio: anio }); } catch (e) { I = null; }
-  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+  let marcaNombre = '';
+  try {
+    const emp = (await rpc('cap_mi_pasaporte')).empresa;
+    marca(el, emp); marcaNombre = (emp && emp.nombre) || '';
+  } catch (e) {}
 
   const MES = ['sin fecha','enero','febrero','marzo','abril','mayo','junio','julio',
                'agosto','septiembre','octubre','noviembre','diciembre'];
@@ -5387,14 +5415,26 @@ async function consola(sel, opt) {
       k === salvo || c[k] === filtro[k]));
   }
 
+  /* Dos ejes, nunca uno solo. «5.261 atrasadas» no es un dato: es plan
+     por gente, y nadie puede ir a resolver una multiplicación. Cada corte
+     dice cuántas PERSONAS y cuántas CAPACITACIONES. */
   function contar(campo, lista) {
     const m = new Map();
     lista.forEach(c => {
       const v = c[campo] == null ? '—' : c[campo];
-      m.set(v, (m.get(v) || 0) + 1);
+      let e = m.get(v);
+      if (!e) { e = { k: v, per: new Set(), cap: new Set(), n: 0 }; m.set(v, e); }
+      e.per.add(c.persona); e.cap.add(c.codigo); e.n++;
     });
-    return [...m.entries()].map(([k, n]) => ({ k, n })).sort((a, b) => b.n - a.n);
+    return [...m.values()]
+      .map(e => ({ k: e.k, personas: e.per.size, caps: e.cap.size, n: e.n }))
+      .sort((a, b) => b.personas - a.personas || b.caps - a.caps);
   }
+
+  const cuentaDoble = lista => ({
+    personas: new Set(lista.map(c => c.persona)).size,
+    caps:     new Set(lista.map(c => c.codigo)).size
+  });
 
   /* Una lista de barras horizontales. Un solo color para toda la serie:
      pintarlas más oscuras cuanto más largas codificaría dos veces el
@@ -5403,25 +5443,27 @@ async function consola(sel, opt) {
   function barras(campo, filas, opt2) {
     opt2 = opt2 || {};
     if (!filas.length) return '<p class="kc-vacio">Nada con este filtro.</p>';
-    const max = Math.max.apply(null, filas.map(f => f.n)) || 1;
+    const max = Math.max.apply(null, filas.map(f => f.personas)) || 1;
     const tope = opt2.tope || filas.length;
     const vis = filas.slice(0, tope);
-    const resto = filas.slice(tope).reduce((a, f) => a + f.n, 0);
-    return `<div class="kc-bars">${vis.map(f => {
+    const resto = filas.slice(tope).length;
+    return `<div class="kc-bras">${vis.map(f => {
       const act = filtro[campo] === f.k;
       const et = opt2.etiqueta ? opt2.etiqueta(f.k) : [String(f.k), null];
-      return `<button type="button" class="kc-bar${act ? ' on' : ''}"
+      return `<button type="button" class="kc-bra${act ? ' on' : ''}"
           data-campo="${campo}" data-valor="${esc(String(f.k))}"
           aria-pressed="${act}"
-          title="${esc(et[0])} · ${f.n} caso(s)${act ? ' · tocá para soltar el filtro' : ''}">
+          title="${esc(et[0])} · ${f.personas} persona(s) · ${f.caps} capacitación(es)${
+            act ? ' · tocá para soltar el filtro' : ''}">
         <span class="t">${esc(et[0])}</span>
-        <span class="p"><i style="width:${Math.max(2, Math.round(100 * f.n / max))}%${
+        <span class="p"><i style="width:${Math.max(2, Math.round(100 * f.personas / max))}%${
           et[1] ? ';background:var(--kc-' + et[1] + ')' : ''}"></i></span>
-        <span class="v">${f.n}</span></button>`;
-    }).join('')}${resto ? `<div class="kc-bar otras">
-        <span class="t">otras ${filas.length - tope}</span>
+        <span class="v">${f.personas}<i>p</i></span>
+        <span class="v2">${f.caps}<i>c</i></span></button>`;
+    }).join('')}${resto ? `<div class="kc-bra otras">
+        <span class="t">y ${resto} más</span>
         <span class="p"></span>
-        <span class="v">${resto}</span></div>` : ''}</div>`;
+        <span class="v"></span><span class="v2"></span></div>` : ''}</div>`;
   }
 
   function pintar() {
@@ -5512,16 +5554,30 @@ async function consola(sel, opt) {
           : '<span style="color:var(--kc-ink3);font-size:13.5px">todo · tocá cualquier barra para filtrar</span>'}
         ${chips.length ? '<button type="button" class="kc-mini" id="kc-limpiar">Limpiar</button>' : ''}
         <span style="margin-left:auto;font-size:13.5px;color:var(--kc-ink2)">
-          <b style="font-family:var(--kc-fd);font-size:17px;color:var(--kc-ink)">${L.length}</b>
-          de ${CASOS.length} casos</span>
+          <b style="font-family:var(--kc-fd);font-size:17px;color:var(--kc-ink)">${
+            cuentaDoble(L).personas}</b> personas ·
+          <b style="font-family:var(--kc-fd);font-size:17px;color:var(--kc-ink)">${
+            cuentaDoble(L).caps}</b> capacitaciones</span>
+        <button class="kc-mini" id="kc-pdf"
+          title="Abre el diálogo de impresión: elegí «Guardar como PDF»">Imprimir / PDF</button>
       </div>
 
-      <div class="kc-grid4" style="margin:14px 0 22px">
+      <div class="kc-grid4" style="margin:14px 0 10px">
         ${[['vencida','Vencidas'],['atrasada','Atrasadas'],['por_vencer','Por vencer'],
-           ['al_dia','Al día']].map(([k,t]) => `
-          <div class="kc-kpi ${k==='al_dia' ? (cuenta(k)?'ok':'') : (cuenta(k)?'mal':'ok')}">
-            <b>${cuenta(k)}</b><span>${t}</span></div>`).join('')}
+           ['al_dia','Al día']].map(function (par) {
+          const k = par[0], t = par[1];
+          const d = cuentaDoble(L.filter(c => c.estado === k));
+          const mal = k !== 'al_dia' && d.personas > 0;
+          return `<button type="button" class="kc-kpi2 ${mal ? 'mal' : (d.personas ? 'ok' : '')}"
+              data-campo="estado" data-valor="${k}" aria-pressed="${filtro.estado === k}"
+              title="Tocá para ver sólo esto, con los nombres">
+            <div class="t">${t}</div>
+            <div class="d"><span><b>${d.personas}</b> personas</span>
+              <span><b>${d.caps}</b> capacitaciones</span></div></button>`; }).join('')}
       </div>
+      <p class="kc-nota" style="text-align:left;margin:0 0 20px">Dos números y nunca uno:
+        multiplicar personas por capacitaciones da un total que no se puede ir a resolver.
+        Tocá cualquiera para ver los nombres.</p>
 
       <div class="kc-dos2">
         <div><h3 class="kc-h3">Por estado</h3>
@@ -5608,6 +5664,8 @@ async function consola(sel, opt) {
     });
     const lim = el.querySelector('#kc-limpiar');
     if (lim) lim.onclick = () => { filtro = {}; pintar(); };
+    const pdf = el.querySelector('#kc-pdf');
+    if (pdf) pdf.onclick = () => imprimir(pasan());
     el.querySelectorAll('[data-meta]').forEach(b => b.onclick = async () => {
       const k = b.dataset.meta;
       const v = Number((el.querySelector('[data-val="' + k + '"]') || {}).value);
@@ -6040,6 +6098,67 @@ async function destinos(sel, opt) {
         b.disabled = false; b.textContent = 'Guardar'; alert(e.message);
       }
     });
+  }
+
+  /* Imprimir lo que está filtrado, con TODOS los nombres — no los 400
+     que muestra la pantalla. Va en un iframe y no en una ventana nueva:
+     un bloqueador de pop-ups no lo tapa. Se imprime desde el navegador,
+     así que «Guardar como PDF» sale sin depender de ninguna librería. */
+  function imprimir(L) {
+    const chips = Object.keys(filtro).map(k =>
+      (ETIQ[k] || k) + ': ' + (k === 'estado' ? (EDO[filtro[k]] || [filtro[k]])[0]
+                             : k === 'causa'  ? (CAUSA[filtro[k]] || [filtro[k]])[0]
+                             : filtro[k]));
+    const d = cuentaDoble(L);
+    const porPersona = {};
+    L.forEach(c => { (porPersona[c.persona] = porPersona[c.persona] || []).push(c); });
+
+    const html = `<!doctype html><meta charset="utf-8"><title>Formación · ${esc(String(anio))}</title>
+      <style>
+        body{font:12px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;color:#11201B;margin:26px}
+        h1{font-size:19px;margin:0 0 3px} .sub{color:#5A6B65;font-size:12px;margin-bottom:14px}
+        .f{background:#F1F5F3;border:1px solid #DBE3DF;border-radius:6px;padding:8px 11px;
+           margin-bottom:14px;font-size:12px}
+        .kpi{display:flex;gap:26px;margin:0 0 16px;padding:10px 0;border-top:1px solid #DBE3DF;
+             border-bottom:1px solid #DBE3DF}
+        .kpi b{font-size:19px;display:block}
+        h2{font-size:13px;margin:16px 0 5px;padding-top:9px;border-top:1px solid #EEF2F0}
+        table{border-collapse:collapse;width:100%;font-size:11.5px}
+        td{padding:3px 7px 3px 0;vertical-align:top}
+        .c{color:#5A6B65;white-space:nowrap}
+        .pie{margin-top:20px;color:#7E918B;font-size:10.5px;border-top:1px solid #DBE3DF;padding-top:8px}
+        @page{margin:14mm}
+      </style>
+      <h1>Formación · ${esc(String(anio))}</h1>
+      <div class="sub">${esc(marcaNombre || '')} · generado el ${new Date().toLocaleString('es-CO')}</div>
+      ${chips.length ? `<div class="f"><b>Filtro:</b> ${esc(chips.join('  ·  '))}</div>` : ''}
+      <div class="kpi">
+        <div><b>${d.personas}</b>personas</div>
+        <div><b>${d.caps}</b>capacitaciones</div>
+        <div><b>${L.filter(c=>c.bloqueante!=='no').length}</b>casos que impiden ingresar u operar</div>
+      </div>
+      ${Object.keys(porPersona).sort().map(nom => `
+        <h2>${esc(nom)} <span class="c">· ${porPersona[nom].length}</span></h2>
+        <table>${porPersona[nom].map(c => `<tr>
+          <td class="c" style="width:52px">${esc(c.codigo)}</td>
+          <td>${esc(c.titulo)}</td>
+          <td class="c" style="width:110px">${esc((EDO[c.estado] || [c.estado])[0])}${
+            c.bloqueante !== 'no' ? ' · bloquea' : ''}</td>
+          <td class="c" style="width:78px">${c.vence_el ? fecha(c.vence_el) : ''}</td>
+        </tr>`).join('')}</table>`).join('')}
+      <div class="pie">Estado calculado en el momento de imprimir. Informa el estado de la
+        formación interna: no certifica calificaciones técnicas ni aptitud médica ocupacional.</div>`;
+
+    const ifr = document.createElement('iframe');
+    ifr.setAttribute('aria-hidden', 'true');
+    ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(ifr);
+    const doc = ifr.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+    setTimeout(() => {
+      ifr.contentWindow.focus(); ifr.contentWindow.print();
+      setTimeout(() => ifr.remove(), 1000);
+    }, 250);
   }
 
   pintar();

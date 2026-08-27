@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '32';
+const KC_VER = '33';
 
 let sb = null;
 
@@ -5177,7 +5177,8 @@ async function consola(sel, opt) {
       </div>
       <div class="kc-grid3" style="margin-bottom:22px">
         <div class="kc-kpi"><b>${R.en_cronograma ?? 0}</b><span>en el cronograma, resto del año</span></div>
-        <div class="kc-kpi"><b>${R.requeridas ?? 0}</b><span>capacitaciones exigidas en total</span></div>
+        <div class="kc-kpi"><b>${R.requeridas ?? 0}</b>
+          <span>exigencias en total · una persona × una capacitación</span></div>
         <div class="kc-kpi ${(R.sin_cargo||0) ? 'mal' : ''}">
           <b>${R.sin_cargo ?? 0}</b><span>personas sin cargo en el organigrama</span></div>
       </div>
@@ -5188,17 +5189,17 @@ async function consola(sel, opt) {
           const t = CAUSA[c.causa] || [c.causa, '', ''];
           return `<div class="kc-p1" style="padding:15px 17px">
             <div class="kc-tt" style="font-size:16px">${esc(t[0])}</div>
-            <div style="display:flex;gap:18px;margin:11px 0 9px;align-items:baseline">
-              <div><b style="font-family:var(--kc-fd);font-size:30px">${c.lineas}</b>
-                <span class="kc-cd"> líneas</span></div>
-              <div><b style="font-family:var(--kc-fd);font-size:22px;color:${
-                c.bloqueantes ? 'var(--kc-cr)' : 'var(--kc-ink)'}">${c.bloqueantes}</b>
-                <span class="kc-cd"> bloqueantes</span></div>
+            <div style="display:flex;gap:22px;margin:11px 0 9px;align-items:baseline">
+              <div><b style="font-family:var(--kc-fd);font-size:30px">${c.capacitaciones}</b>
+                <span class="kc-cd"> capacitaciones</span></div>
+              <div><b style="font-family:var(--kc-fd);font-size:22px">${c.personas}</b>
+                <span class="kc-cd"> personas</span></div>
             </div>
             <div style="font-size:13.5px;color:var(--kc-ink2)">${esc(t[1])}</div>
             <div style="font-size:13.5px;color:var(--kc-ink);margin-top:7px">
-              <b>${c.capacitaciones}</b> capacitación(es) · <b>${c.personas}</b> persona(s).
-              ${esc(t[2])}</div>
+              Son <b>${c.lineas}</b> casos —cada caso es una persona a la que le falta una
+              capacitación—${c.bloqueantes ? `, y <b style="color:var(--kc-cr)">${c.bloqueantes}
+              de ellos le impiden ingresar u operar</b>` : ''}. ${esc(t[2])}</div>
           </div>`; }).join('')}</div>`}
 
       ${F.length ? `<h3 class="kc-h3" style="margin-top:22px">Qué está frenando gente</h3>

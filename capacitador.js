@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '29';
+const KC_VER = '30';
 
 let sb = null;
 
@@ -1902,9 +1902,17 @@ async function admin(sel) {
     }
 
     if (accion === 'apagartodas') {
-      return abrir(`<h3>Apagar todas</h3>
-        <p>Deja el catálogo en cero para armarlo desde la lista propia de la empresa. Afecta a las
-           <b>${n.activas}</b> que están prendidas.</p>
+      // El servidor apaga SÓLO las que vinieron de la biblioteca
+      // (cap_catalogo_masivo tiene p_solo_biblioteca en true por
+      // defecto). Decir «afecta a las 294 prendidas» cuando toca 67 es
+      // pedirle a alguien que apriete un botón que no entiende: o no lo
+      // aprieta, o cree que borró el catálogo entero de su empresa.
+      const deBiblio = (CAT.catalogo || []).filter(c => c.activo && !c.propia).length;
+      const propias  = (CAT.catalogo || []).filter(c => c.activo &&  c.propia).length;
+      return abrir(`<h3>Apagar las de la biblioteca</h3>
+        <p>Apaga las <b>${deBiblio}</b> capacitaciones que vinieron de la biblioteca de KALU y
+           están prendidas.${propias ? ` Las <b>${propias}</b> propias de la empresa
+           <b>no se tocan</b>.` : ''}</p>
         <p><b>No se borra nada.</b> Las asistencias, los certificados y el historial quedan como
            están; esas capacitaciones dejan de exigirse, nada más. Se puede volver a prender.</p>
         <label for="k1">Motivo</label>
@@ -1914,9 +1922,10 @@ async function admin(sel) {
     }
 
     if (accion === 'prendertodas') {
-      return abrir(`<h3>Prender todas</h3>
-        <p>Vuelve a prender las <b>${n.apagadas}</b> que están apagadas. Las que ya estaban
-           prendidas quedan como están.</p>`,
+      const apagBib = (CAT.catalogo || []).filter(c => !c.activo && !c.propia).length;
+      return abrir(`<h3>Prender las de la biblioteca</h3>
+        <p>Vuelve a prender las <b>${apagBib}</b> de la biblioteca que están apagadas. Las propias
+           de la empresa y las que ya estaban prendidas quedan como están.</p>`,
         () => rpc('cap_catalogo_masivo', { p_prender: true }), 'Prender todas');
     }
 

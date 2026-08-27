@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '30';
+const KC_VER = '31';
 
 let sb = null;
 
@@ -591,6 +591,61 @@ const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente',
 const llano = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/\s+/g, ' ').trim();
 
+/* --------------------------------------------------------------- historial
+
+   Dos preguntas distintas, dos tablas distintas: el pasaporte responde
+   «¿qué le falta?» y mira sólo lo que se le exige; el historial
+   responde «¿qué hizo?» y muestra todo, aplique o no hoy y esté la
+   capacitación activa o apagada.
+
+   Sin esto, la historia importada de una empresa —capacitaciones de
+   años anteriores que ya salieron del plan, charlas que no se le
+   exigen a nadie— queda guardada y muda. Y el registro de charlas es
+   lo primero que pide un cliente en una auditoría.                     */
+const ASIS = {
+  asistio:               ['Asistió',   'si'],
+  ausente_justificado:   ['Faltó · justificada', 'wa'],
+  ausente_injustificado: ['Faltó',     'no']
+};
+
+function tablaHistorial(H, opt) {
+  H = H || []; opt = opt || {};
+  if (!H.length) return `<p class="kc-vacio">${esc(opt.vacio ||
+    'Todavía no hay nada registrado.')}</p>`;
+
+  const hs = H.reduce((a, x) => a + (Number(x.horas) || 0), 0);
+  const con = H.filter(x => x.estado === 'asistio').length;
+  const viejas = H.filter(x => !x.se_le_exige_hoy).length;
+
+  return `<div class="kc-grid3" style="margin-bottom:14px">
+      <div class="kc-kpi"><b>${con}</b><span>asistencias</span></div>
+      <div class="kc-kpi"><b>${hs ? (Math.round(hs * 10) / 10) : '—'}</b><span>horas</span></div>
+      <div class="kc-kpi"><b>${viejas}</b><span>de temas que hoy no se le exigen</span></div>
+    </div>
+    <div class="kc-sc"><table><thead><tr><th>Fecha</th><th>Código</th>
+      <th>Capacitación</th><th>Resultado</th><th class="n">Nota</th>
+      <th class="n">Horas</th><th>Vence</th><th></th></tr></thead><tbody>${
+    H.map(x => {
+      const a = ASIS[x.estado] || [x.estado, 'n'];
+      return `<tr>
+        <td class="n">${x.fecha ? fecha(x.fecha) : '—'}</td>
+        <td class="k">${esc(x.codigo || '')}</td>
+        <td class="tit">${esc(x.titulo || '')}
+          <div class="kc-cd" style="margin-top:2px">${esc(x.eje || '')} · ${esc(x.tipo || '')}${
+            x.se_le_exige_hoy ? '' : ' · ya no se le exige'}${
+            x.capacitacion_activa ? '' : ' · apagada'}</div></td>
+        <td><span class="kc-tag ${a[1]}">${esc(a[0])}</span></td>
+        <td class="n">${x.nota != null ? Number(x.nota) : '—'}</td>
+        <td class="n">${x.horas != null ? Number(x.horas) : '—'}</td>
+        <td class="n">${x.vence_el ? fecha(x.vence_el) : 'no vence'}</td>
+        <td>${x.soporte ? `<a class="kc-mini" href="${esc(x.soporte)}"
+              target="_blank" rel="noopener">Soporte</a>` : ''}</td>
+      </tr>`; }).join('')}</tbody></table></div>
+    <p class="kc-nota" style="text-align:left;margin-top:10px">Esto es lo que
+      <b>pasó</b>, no lo que se exige. Una línea marcada «ya no se le exige» es un
+      registro válido de algo que hizo: la empresa cambió su plan, no la historia.</p>`;
+}
+
 /* ---------------------------------------------------- estado de formación
 
    El módulo dice el estado de la FORMACIÓN, nunca un juicio sobre la
@@ -697,6 +752,10 @@ async function pasaporte(sel, opt) {
     'No se encontró tu ficha. Puede que tu usuario todavía no esté vinculado a una persona.'));
 
   let cat = 'todas', est = null, tab = 'pas';
+  // El historial puede ser largo (en una empresa con años cargados, cientos
+  // de líneas). Se pide sólo cuando alguien abre esa pestaña, no en cada
+  // apertura del pasaporte.
+  let HIST = null;
   const items = D.items || [], port = D.portada || {}, emp = D.empresa || {};
   marca(el, emp);
   const form = items.filter(x => x.tipo !== 'charla');
@@ -756,11 +815,24 @@ async function pasaporte(sel, opt) {
         <button class="kc-tab" data-t="pas" role="tab" aria-selected="${tab==='pas'}">Capacitaciones</button>
         <button class="kc-tab" data-t="cred" role="tab" aria-selected="${tab==='cred'}">Credencial</button>
         <button class="kc-tab" data-t="certs" role="tab" aria-selected="${tab==='certs'}">Certificados</button>
+        <button class="kc-tab" data-t="hist" role="tab" aria-selected="${tab==='hist'}">Historial</button>
       </div>
-      ${tab === 'pas' ? vistaLista(lista) : tab === 'cred' ? vistaCred() : vistaCerts()}
+      ${tab === 'pas'  ? vistaLista(lista)
+      : tab === 'cred' ? vistaCred()
+      : tab === 'hist' ? (HIST === null
+          ? '<div class="kc-carga">Buscando tu historial…</div>'
+          : tablaHistorial(HIST, { vacio: 'Todavía no hay ninguna capacitación registrada a tu nombre.' }))
+      : vistaCerts()}
     </div>`;
 
-    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => { tab = b.dataset.t; pintar(); });
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = async () => {
+      tab = b.dataset.t; pintar();
+      if (tab === 'hist' && HIST === null) {
+        try { HIST = await rpc('cap_mi_historial') || []; }
+        catch (e) { HIST = []; }
+        if (tab === 'hist') pintar();
+      }
+    });
     el.querySelectorAll('.kc-chip').forEach(b => b.onclick = () => {
       cat = b.dataset.f; pintar();
     });
@@ -2299,7 +2371,7 @@ async function ficha(sel, personaId, opt) {
   estilos(); const el = nodo(sel); if (!el) return;
   cargando(el, 'Cargando la ficha…');
   let F;
-  try { F = await rpc('cap_ficha_datos', { p_persona: personaId }); }
+  try { F = await rpc('cap_ficha_mas', { p_persona: personaId }); }
   catch (e) { return error(el, e); }
   if (!F || !F.persona) return error(el, new Error('Esa persona no está en tu padrón.'));
 
@@ -2370,6 +2442,8 @@ async function ficha(sel, personaId, opt) {
         <button class="kc-tab" data-s="cargo" aria-selected="false">Cargo</button>
         <button class="kc-tab" data-s="grupos" aria-selected="false">Comités y actividades</button>
         <button class="kc-tab" data-s="puntual" aria-selected="false">Asignado a ella</button>
+        <button class="kc-tab" data-s="hist" aria-selected="false">Historial${
+          (F.historial || []).length ? ' · ' + F.historial.length : ''}</button>
       </div>
       <div id="kc-fs"></div></div>`;
 
@@ -2388,6 +2462,8 @@ async function ficha(sel, personaId, opt) {
     if (s === 'form')        v.innerHTML = vForm();
     else if (s === 'cargo')  v.innerHTML = vCargo();
     else if (s === 'grupos') v.innerHTML = vGrupos();
+    else if (s === 'hist')   v.innerHTML = tablaHistorial(F.historial,
+      { vacio: 'No hay ninguna asistencia registrada para esta persona.' });
     else                     v.innerHTML = vPuntual();
     enganchar();
   }

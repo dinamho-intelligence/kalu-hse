@@ -1543,9 +1543,74 @@ function tarTableHTML(rows){
       }
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':(t.eliminada?'<span class="mut">—</span>':'<button class="gbtn" title="Rearmar el PDF que no se generó (mala señal en terreno)" onclick="regenerarPDFTarjeta(\''+t.id+'\',this)">↻ Generar PDF</button>');
       return '<tr><td style="font-family:monospace;white-space:nowrap;color:var(--nar);font-weight:700">'+(t.destacada?'🏅 ':'')+esc(t.consecutivo||'-')+'</td><td>'+semChip+_cru+_diasCelda(t)+'</td><td>'+esc(tarDate(t))+'</td><td>'+esc(t.observador_nombre||'—')+'</td><td>'+cl+'</td><td>'+esc(t.categoria||'—')+'</td><td>'+esc(t.riesgo||'—')+'</td><td>'+esc(t.lugar||'—')+'</td><td>'+esc(String(t.descripcion||'').slice(0,95))+'</td>'
-        +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button title="Eliminar tarjeta" style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑</button></td>'))+'</tr>';
+        +(OPERADOR?'':('<td>'+pdfCell+'</td><td style="white-space:nowrap">'+gBtn+'<button class="gbtn" title="Corregir tarjeta" style="background:rgba(0,212,255,.1);border-color:#00d4ff;color:#7fe6ff" onclick="corregirTarjeta(\''+t.id+'\')">✎</button> <button title="Eliminar tarjeta" style="background:rgba(255,59,48,.12);border:1px solid #FF3B30;color:#FF8A82;border-radius:8px;padding:6px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="eliminarTarjeta(\''+t.id+'\')">🗑</button></td>'))+'</tr>';
     }).join('')+'</tbody></table></div>';
 }
+/* ===== Corregir / reclasificar tarjeta (arregla el "seguro" cuando era inseguro, etc.) ===== */
+function corregirTarjeta(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var _sel='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:9px 10px;font-size:13px;box-sizing:border-box';
+  function opt(val,cur,label){ return '<option value="'+val+'"'+(String(cur||'')===val?' selected':'')+'>'+esc(label||val)+'</option>'; }
+  document.getElementById('detTit').textContent='Corregir tarjeta '+(t.consecutivo||'');
+  var h='<div class="umsg" style="margin-bottom:10px">Corregí lo que se cargó mal. Queda registrado en la auditoría y el PDF se regenera con la corrección. No se pierde el N°, la foto ni el crédito del observador.</div>'
+    +'<div class="gform">'
+    +'<label>Clase</label><select id="coClase" style="'+_sel+'" onchange="_coToggle()">'+opt('inseguro',t.clase,'Inseguro (acto/condición)')+opt('seguro',t.clase,'Seguro (refuerzo)')+'</select>'
+    +'<div id="coIns">'
+    +'<label>Tipo</label><select id="coTipo" style="'+_sel+'">'+opt('acto',t.tipo,'Acto inseguro')+opt('condicion',t.tipo,'Condición insegura')+'</select>'
+    +'<label>Riesgo</label><select id="coRiesgo" style="'+_sel+'">'+opt('alto',t.riesgo,'Alto')+opt('medio',t.riesgo,'Medio')+opt('bajo',t.riesgo,'Bajo')+'</select>'
+    +'</div>'
+    +'<label>Categoría</label><input type="text" id="coCat" style="'+_sel+'" value="'+esc(t.categoria||'').replace(/"/g,'&quot;')+'">'
+    +'<label>Lugar / área</label><input type="text" id="coLugar" style="'+_sel+'" value="'+esc(t.lugar||'').replace(/"/g,'&quot;')+'">'
+    +'<label>Descripción / observación</label><textarea id="coDesc" rows="3" style="'+_sel+'">'+esc(t.descripcion||'')+'</textarea>'
+    +'<label>¿Por qué corregís? (queda en la auditoría)</label><input type="text" id="coMotivo" style="'+_sel+'" placeholder="Ej: el observador marcó seguro por error">'
+    +'<button class="gbtn" style="margin-top:12px;background:rgba(0,212,255,.14);border-color:#00d4ff;color:#7fe6ff" onclick="guardarCorreccion(\''+id+'\')">Guardar corrección y regenerar PDF</button>'
+    +'<div id="coMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>'
+    +'</div>';
+  document.getElementById('detBody').innerHTML=h;
+  document.getElementById('detalle').classList.remove('hide');
+  _coToggle();
+}
+function _coToggle(){ var c=(document.getElementById('coClase')||{}).value; var b=document.getElementById('coIns'); if(b) b.style.display=(c==='seguro')?'none':''; }
+async function _upDocUpsert(path,blob){
+  var r=await fetch(SB_URL+'/storage/v1/object/documentos/'+path,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+SB_ANON,'x-upsert':'true','Content-Type':'application/pdf'},body:blob});
+  if(!r.ok) throw new Error('UPLOAD '+r.status);
+}
+async function _regenPDFCorreccion(t){
+  try{
+    var brand=await _tBrand(t.empresa_id); var ts=_tFechaTs(t);
+    var firmaData=null; if(t.firma_path){ try{ firmaData=await _tImgFromStorage(t.firma_path); }catch(e){} }
+    var fps=Array.isArray(t.foto_paths)?t.foto_paths:(t.foto_path?[t.foto_path]:[]);
+    var fotoData=[]; for(var i=0;i<fps.length;i++){ try{ fotoData.push(await _tImgFromStorage(fps[i])); }catch(e){} }
+    var pdfBlob=_tBuildPdf(t, ts, brand.nombre||'', firmaData, fotoData, brand).output('blob');
+    var ced=String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'');
+    var path='tarjetas/'+t.empresa_id+'/'+ced+'/'+t.id+'.pdf';
+    await _upDocUpsert(path,pdfBlob);
+    if(!TARPDF[t.id]){ try{ await _tRpcAnon('registrar_doc_tarjeta',{d:{origen_id:t.id,nombre:'Tarjeta · '+(t.observador_nombre||'')+' · '+ts,storage_path:path}}); }catch(e){} }
+    TARPDF[t.id]=path;
+  }catch(e){}
+}
+async function guardarCorreccion(id){
+  var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
+  var clase=(document.getElementById('coClase')||{}).value||t.clase;
+  var body={ clase:clase,
+    categoria:((document.getElementById('coCat')||{}).value||'').trim()||null,
+    lugar:((document.getElementById('coLugar')||{}).value||'').trim()||null,
+    descripcion:((document.getElementById('coDesc')||{}).value||'').trim()||null };
+  if(clase==='inseguro'){ body.tipo=(document.getElementById('coTipo')||{}).value||null; body.riesgo=(document.getElementById('coRiesgo')||{}).value||null; }
+  var motivo=((document.getElementById('coMotivo')||{}).value||'').trim();
+  var msg=document.getElementById('coMsg'); msg.style.color='var(--tx2)'; msg.textContent='Guardando…';
+  var cambios=[];
+  if((t.clase||'')!==clase) cambios.push('clase '+(t.clase||'—')+'→'+clase);
+  if(clase==='inseguro' && (t.riesgo||'')!==(body.riesgo||'')) cambios.push('riesgo→'+(body.riesgo||'—'));
+  try{
+    await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),body);
+    Object.keys(body).forEach(function(k){ t[k]=body[k]; });
+    try{ await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:id,accion:'corregir',motivo:(motivo||cambios.join(', ')||'corrección'),actor:MYNAME,detalle:'Tarjeta '+(t.consecutivo||'')+' · '+(cambios.join(', ')||'campos editados')}); }catch(e){}
+    msg.style.color='var(--verde)'; msg.textContent='✓ Corregido. Regenerando PDF…';
+    await _regenPDFCorreccion(t);
+    cerrarDet(); renderTar();
+  }catch(e){ msg.style.color='var(--rojo)'; msg.textContent='No se pudo guardar ('+e.message+').'; }
+}  
 async function eliminarTarjeta(id){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
   var motivo=prompt('¿Por qué eliminás esta tarjeta? (queda registrado en la bitácora)');

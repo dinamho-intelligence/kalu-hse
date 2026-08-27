@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '39';
+const KC_VER = '40';
 
 let sb = null;
 
@@ -334,6 +334,14 @@ const CSS = `
 .kc-kpix .ad{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .kc-kpix .ad .kc-in{font-size:13px;padding:6px 9px;width:100%;box-sizing:border-box}
 .kc-kpix .ad button{width:100%}
+
+.kc-bar3{height:7px;background:var(--kc-rule);border-radius:4px;margin-top:9px;
+ max-width:420px}
+.kc-bar3 i{display:block;height:7px;border-radius:4px;background:var(--kc-ac)}
+.kc-cols{columns:260px 4;column-gap:22px;font-size:13px;color:var(--kc-ink2);
+ max-height:300px;overflow-y:auto;border:1px solid var(--kc-rule);border-radius:8px;
+ padding:11px 13px;background:var(--kc-card)}
+.kc-cols div{break-inside:avoid;padding:1px 0}
 
 /* ---- asignar desde el documento ------------------------------------- */
 .kc-dest{display:flex;flex-direction:column;gap:9px}
@@ -5018,6 +5026,100 @@ async function matriz(sel, opt) {
 }
 
 /* =================================================================
+   LEER LAS ASISTENCIAS DE UN REGISTRO
+
+   Una hoja de registro tiene una fila por PERSONA por evento: el mismo
+   tema repetido cientos de veces. De ahí no sale catálogo —eso ya se
+   hizo— sino la historia: quién, qué, cuándo, con qué nota.
+
+   La fecha es el dato que no se puede perder: de ella sale el
+   vencimiento. Por eso se lee con cellDates y se rechaza la fila que
+   no la tenga, en vez de inventarle una.
+   ================================================================= */
+const AS_CAMPOS = [
+  ['capacitacion', ['TEMA CHARLA', 'NOMBRE DE LA CAPACIT', 'TEMA']],
+  ['persona',      ['APELLIDOS']],
+  ['fecha',        ['FECHA']],
+  ['nota',         ['PUNTAJE', 'NOTA', 'CALIFICA']],
+  ['horas',        ['DURACIÓN', 'DURACION']]
+];
+
+function asMapear(M, hr) {
+  const f = (M[hr] || []).map(mzMay), idx = {}, usadas = {};
+  AS_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    for (let k = 0; k < claves.length; k++) {
+      for (let i = 0; i < f.length; i++) {
+        if (usadas[i]) continue;
+        if (ctEmpieza(f[i], claves[k])) { idx[campo] = i; usadas[i] = true; return; }
+      }
+    }
+  });
+  return idx;
+}
+
+/* AAAA-MM-DD sin pasar por UTC: toISOString() sobre una fecha local
+   corre un día para atrás en Colombia y arruinaría el vencimiento. */
+function asFecha(v) {
+  if (v instanceof Date && !isNaN(v)) {
+    return v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') +
+           '-' + String(v.getDate()).padStart(2, '0');
+  }
+  const t = mzTxt(v);
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
+  m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (m) return m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+  return '';
+}
+
+function asNum(v) {
+  const t = mzTxt(v).replace(',', '.');
+  const n = parseFloat(t);
+  return isNaN(n) ? null : n;
+}
+
+function asLeer(XLSX, buf, archivo) {
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const hojas = [], filas = [];
+
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = ctFilaEncabezado(M);
+    const idx = hr < 0 ? {} : asMapear(M, hr);
+
+    // Sin columna de personas no es un registro de asistencia: es otra
+    // cosa —el plan del año, una hoja de referencia— y no se toca.
+    if (hr < 0 || idx.persona === undefined || idx.capacitacion === undefined) {
+      hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 });
+      return;
+    }
+
+    let sinFecha = 0;
+    const propias = [];
+    for (let i = hr + 1; i < M.length; i++) {
+      const r = M[i] || [];
+      const cap = mzTxt(r[idx.capacitacion]), per = mzTxt(r[idx.persona]);
+      if (!cap || !per) continue;
+      const fec = idx.fecha !== undefined ? asFecha(r[idx.fecha]) : '';
+      if (!fec) { sinFecha++; continue; }
+      propias.push({
+        capacitacion: cap, persona: per, fecha: fec,
+        nota:  idx.nota  !== undefined ? asNum(r[idx.nota])  : null,
+        horas: idx.horas !== undefined ? asNum(r[idx.horas]) : null
+      });
+    }
+    hojas.push({ archivo: archivo, nombre: nombre, clase: 'registro',
+                 filas: propias.length, sin_fecha: sinFecha,
+                 con_nota: propias.filter(x => x.nota != null).length });
+    propias.forEach(x => filas.push(x));
+  });
+
+  return { hojas: hojas, filas: filas };
+}
+
+
+/* =================================================================
    PANTALLA · IMPORTAR EL CATÁLOGO
 
    El archivo no sale del equipo: se lee acá, y al servidor viaja sólo
@@ -5523,6 +5625,209 @@ async function consola(sel, opt) {
 
 
 /* =================================================================
+   PANTALLA · CARGAR LA HISTORIA
+
+   Sin esto el módulo le muestra rojo a una empresa que sí capacita, y
+   todo lo demás —consola, indicadores, semáforo— dice cosas falsas por
+   falta de dato, no por error de cálculo.
+
+   Viaja por partes: diez mil filas en una sola llamada es un paquete
+   que puede no llegar. Como el servidor no carga dos veces la misma
+   persona-capacitación-fecha, reenviar una parte no duplica nada.
+   ================================================================= */
+async function historia(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  let HOJAS = null, FILAS = null, PLAN = null, leyendo = false, avance = null;
+
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 10000);
+  }
+
+  const TROZO = 800;
+
+  /* Manda todo por partes y suma los resultados. Las listas de lo que no
+     cruzó se juntan sin repetir: son para que una persona las lea. */
+  async function correr(confirmar) {
+    const tot = { cargadas:0, repetidas:0, sin_capacitacion:0, sin_persona:0, sin_fecha:0,
+                  faltan_capacitaciones:[], faltan_personas:[] };
+    for (let i = 0; i < FILAS.length; i += TROZO) {
+      avance = { hechas: i, total: FILAS.length, confirmar: confirmar };
+      pintar();
+      const r = await rpc('cap_asistencias_importar', {
+        p_filas: FILAS.slice(i, i + TROZO), p_confirmar: confirmar,
+        p_motivo: 'Carga histórica desde los registros de la empresa' });
+      ['cargadas','repetidas','sin_capacitacion','sin_persona','sin_fecha']
+        .forEach(k => { tot[k] += (r[k] || 0); });
+      ['faltan_capacitaciones','faltan_personas'].forEach(k =>
+        (r[k] || []).forEach(x => { if (tot[k].indexOf(x) < 0) tot[k].push(x); }));
+    }
+    avance = null;
+    return tot;
+  }
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">HISTORIA · ASISTENCIAS</div>
+        <h1 style="font-size:28px;font-weight:700">Cargar lo que ya se hizo</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Los registros de asistencia que la empresa ya lleva. Cada uno entra con
+          <b>su fecha real</b>, y de ahí sale el vencimiento — no desde hoy.</div></div>
+      <div id="kc-v"></div></div>`;
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    const v = el.querySelector('#kc-v');
+    v.innerHTML = avance ? vAvance()
+                : leyendo ? '<div class="kc-carga">Leyendo los archivos…</div>'
+                : PLAN ? vPlan() : HOJAS ? vLectura() : vPedir();
+    enganchar(v);
+  }
+
+  function vAvance() {
+    const pct = Math.round(100 * avance.hechas / Math.max(1, avance.total));
+    return `<div class="kc-cent" style="background:var(--kc-card2)">
+      <div class="b" style="background:var(--kc-ac)">${pct}%</div><div style="flex:1">
+      <div class="kc-tt" style="font-size:15px">${avance.confirmar
+        ? 'Cargando…' : 'Revisando…'}</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">${avance.hechas} de ${avance.total}
+        registros. Va por partes; si se corta, se puede volver a empezar sin duplicar nada.</div>
+      <div class="kc-bar3"><i style="width:${pct}%"></i></div></div></div>`;
+  }
+
+  function vPedir() {
+    return `<p class="kc-nota" style="text-align:left;max-width:74ch">
+      Subí los libros de registro — el consolidado de capacitaciones y el de charlas.
+      Una hoja con una columna de personas es un registro de asistencia; las demás se
+      saltean solas.</p>
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen acá.</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls" multiple
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  function vLectura() {
+    const conNota = FILAS.filter(f => f.nota != null).length;
+    const fechas = FILAS.map(f => f.fecha).sort();
+    return `<div class="kc-grid3">
+        <div class="kc-kpi"><b>${FILAS.length}</b><span>asistencias leídas</span></div>
+        <div class="kc-kpi"><b>${conNota}</b><span>con nota</span></div>
+        <div class="kc-kpi"><b>${fechas.length ? fecha(fechas[0]) + ' → ' + fecha(fechas[fechas.length-1]) : '—'}</b>
+          <span>rango de fechas</span></div>
+      </div>
+      <h3 class="kc-h3" style="margin-top:18px">Qué encontré en cada hoja</h3>
+      <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th><th>Qué es</th>
+        <th class="n">Filas</th><th class="n">Sin fecha</th></tr></thead><tbody>${
+        HOJAS.map(h => `<tr${h.clase === 'ignorada' ? ' style="opacity:.5"' : ''}>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
+          <td class="k">${esc(h.nombre)}</td>
+          <td>${h.clase === 'registro' ? 'Registro de asistencia'
+             : 'Sin columna de personas · se saltea'}</td>
+          <td class="n">${h.filas}</td>
+          <td class="n"${h.sin_fecha ? ' style="color:var(--kc-cr)"' : ''}>${h.sin_fecha || 0}</td>
+        </tr>`).join('')}</tbody></table></div>
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-sim" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Ver qué pasaría</button>
+        <button class="kc-mini" id="kc-otro">Elegir otros archivos</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Todavía no se guardó nada.</p>`;
+  }
+
+  function vPlan() {
+    const P = PLAN, fc = P.faltan_capacitaciones || [], fp = P.faltan_personas || [];
+    return `<div class="kc-grid4">
+        <div class="kc-kpi ok"><b>${P.cargadas}</b><span>${P.confirmado ? 'cargadas' : 'entrarían'}</span></div>
+        <div class="kc-kpi"><b>${P.repetidas}</b><span>ya estaban</span></div>
+        <div class="kc-kpi ${P.sin_persona ? 'mal' : ''}"><b>${P.sin_persona}</b>
+          <span>sin persona en el padrón</span></div>
+        <div class="kc-kpi ${P.sin_capacitacion ? 'mal' : ''}"><b>${P.sin_capacitacion}</b>
+          <span>sin capacitación en el catálogo</span></div>
+      </div>
+
+      ${fp.length ? `<h3 class="kc-h3" style="margin-top:20px">Nombres que no están en el padrón · ${fp.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Casi siempre son personas que ya
+          no trabajan en la empresa. Su historia no entra: para que entre, tienen que estar en el
+          padrón. No los creo yo — el Capacitador lee el padrón, no lo escribe.</p>
+        <div class="kc-cols">${fp.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${fc.length ? `<h3 class="kc-h3" style="margin-top:20px">Capacitaciones que no están en el catálogo · ${fc.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Se escriben distinto que en el
+          catálogo, o nunca se importaron. Con el título exacto se pueden agregar y volver a correr
+          esto: lo ya cargado no se duplica.</p>
+        <div class="kc-cols">${fc.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${P.confirmado ? `<div class="kc-cent" style="background:var(--kc-oks);margin-top:20px">
+        <div class="b" style="background:var(--kc-ok)">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">Listo</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Cada asistencia quedó con su fecha real y
+          su vencimiento calculado desde ahí. Mirá la consola: los indicadores cambian solos.</div>
+        </div></div>`
+      : `<div class="kc-row" style="margin-top:20px">
+        <button class="kc-btn" id="kc-imp" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Cargar ${P.cargadas} asistencia(s)</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+        <p class="kc-nota" style="text-align:left;margin-top:10px">Hasta que aprietes Cargar,
+          no se guardó nada.</p>`}`;
+  }
+
+  function enganchar(v) {
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const fs = Array.prototype.slice.call(arch.files || []);
+      if (!fs.length) return;
+      leyendo = true; pintar();
+      try {
+        const XLSX = await cargarXLSX();
+        HOJAS = []; FILAS = [];
+        for (let i = 0; i < fs.length; i++) {
+          const buf = await fs[i].arrayBuffer();
+          const L = asLeer(XLSX, new Uint8Array(buf), fs[i].name);
+          L.hojas.forEach(h => HOJAS.push(h));
+          L.filas.forEach(x => FILAS.push(x));
+        }
+        if (!FILAS.length) {
+          HOJAS = null; FILAS = null;
+          toast('No encontré ninguna hoja con columna de personas y fecha.');
+        }
+      } catch (e) { HOJAS = null; FILAS = null; toast(e.message); }
+      leyendo = false; pintar();
+    };
+
+    const sim = v.querySelector('#kc-sim');
+    if (sim) sim.onclick = async () => {
+      try { PLAN = await correr(false); PLAN.confirmado = false; }
+      catch (e) { avance = null; alert(e.message); }
+      pintar();
+    };
+
+    const imp = v.querySelector('#kc-imp');
+    if (imp) imp.onclick = async () => {
+      try {
+        const r = await correr(true); r.confirmado = true; PLAN = r;
+        toast(r.cargadas + ' asistencia(s) cargadas.');
+      } catch (e) { avance = null; alert(e.message); }
+      pintar();
+    };
+
+    const otro = v.querySelector('#kc-otro');
+    if (otro) otro.onclick = () => { HOJAS = null; FILAS = null; PLAN = null; pintar(); };
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
    PANTALLA · ASIGNAR DESDE EL DOCUMENTO
 
    El plan de la empresa ya dice a quién va dirigida cada capacitación.
@@ -5867,7 +6172,7 @@ async function iniciar(cfg) {
 
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
-                   matriz, impCatalogo, consola, destinos,
+                   matriz, impCatalogo, consola, destinos, historia,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

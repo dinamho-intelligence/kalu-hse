@@ -35,6 +35,7 @@
   <span class="marca">KALU · Capacitador</span>
   <button data-v="pasaporte" class="on">Mi pasaporte</button>
   <button data-v="supervision">Mi equipo</button>
+  <button data-v="consola">Consola</button>
   <button data-v="admin">Administración</button>
   <button data-v="arranque">Puesta en marcha</button>
   <a class="salir" href="app.html">Volver a módulos</a>
@@ -44,7 +45,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
 <script src="config.js"></script>
-<script src="capacitador.js?v=15"></script>
+<!-- El número tiene que subir cada vez que cambia el archivo: es lo único
+     que le dice al navegador que baje la versión nueva en vez de usar la
+     que tiene guardada. Si queda fijo, alguien puede seguir viendo una
+     versión vieja durante días sin que nada avise. -->
+<script src="capacitador.js?v=32"></script>
 <script>
 (async function () {
   const carga = document.getElementById('carga');
@@ -82,7 +87,10 @@
       if (eq && (eq.equipo || []).length) vistas.push('supervision');
     } catch (e) {}
   }
-  if (quien.es_admin) { vistas.push('admin'); vistas.push('arranque'); }
+  // La consola es sólo lectura y sólo agregados: no muestra el nombre de
+  // nadie. Hoy la ve quien administra. Para que también la vean los
+  // supervisores, mover 'consola' arriba, junto a 'supervision'.
+  if (quien.es_admin) { vistas.push('consola'); vistas.push('admin'); vistas.push('arranque'); }
   if (!vistas.length) vistas.push('pasaporte');
   nav.querySelectorAll('button').forEach(b => {
     if (!vistas.includes(b.dataset.v)) b.remove();

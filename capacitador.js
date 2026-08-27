@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '45';
+const KC_VER = '46';
 
 let sb = null;
 
@@ -362,10 +362,17 @@ const CSS = `
 .kc-bar3{height:7px;background:var(--kc-rule);border-radius:4px;margin-top:9px;
  max-width:420px}
 .kc-bar3 i{display:block;height:7px;border-radius:4px;background:var(--kc-ac)}
-.kc-cols{columns:260px 4;column-gap:22px;font-size:13px;color:var(--kc-ink2);
- max-height:300px;overflow-y:auto;border:1px solid var(--kc-rule);border-radius:8px;
+/* Columnas que crecen para ABAJO, no para el costado. Con la propiedad
+   columns y una altura tope, lo que no entra abre columnas a la derecha: con
+   164 temas se veían 33 y los otros 131 quedaban fuera de pantalla, detrás de
+   una barra horizontal que nadie mira. Una lista que hay que revisar antes de
+   crear 164 fichas no puede esconder el 80%. */
+.kc-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+ column-gap:22px;font-size:13px;color:var(--kc-ink2);align-content:start;
+ max-height:340px;overflow-y:auto;overflow-x:hidden;
+ border:1px solid var(--kc-rule);border-radius:8px;
  padding:11px 13px;background:var(--kc-card)}
-.kc-cols div{break-inside:avoid;padding:1px 0}
+.kc-cols div{padding:1px 0;min-width:0;overflow-wrap:anywhere}
 
 .kc-fus{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .kc-fus .lado{flex:1 1 260px;min-width:0;background:var(--kc-card2);border-radius:9px;padding:11px 13px}

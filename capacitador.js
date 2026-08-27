@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '40';
+const KC_VER = '41';
 
 let sb = null;
 
@@ -1614,6 +1614,8 @@ async function admin(sel) {
       verCurso(sel, b.dataset.ver, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-asigdoc]').forEach(b => b.onclick = () =>
       destinos(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-histo]').forEach(b => b.onclick = () =>
+      historia(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -1993,6 +1995,7 @@ async function admin(sel) {
         <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar capacitación o responsable…"
                value="${esc(busca)}" autocomplete="off">
         <button class="kc-mini p" data-e="crear">+ Programar</button>
+        <button class="kc-mini" data-histo="1" title="Cargar asistencias que ya se registraron fuera de KALU">↑ Cargar historia</button>
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todo el año')}${chip('hecho','Dictadas')}${chip('programado','Por dictar')}

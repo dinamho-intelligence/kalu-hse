@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '50';
+const KC_VER = '51';
 
 let sb = null;
 
@@ -1525,7 +1525,13 @@ async function admin(sel) {
   async function traerCat() { if (!CAT) CAT = await rpc('cap_catalogo_datos'); return CAT; }
   async function traerCro() {
     if (!CRO || CRO.anio !== anio) CRO = await rpc('cap_cronograma_datos', { p_anio: anio });
-    if (!ANIOS) ANIOS = await rpc('cap_anios');
+    // Archivar años es OPCIONAL: vive en un SQL que puede no estar corrido.
+    // Si falla, la pestaña tiene que abrir igual sin esa función. Un dato
+    // accesorio que no llega no puede dejar la pantalla girando para siempre.
+    if (ANIOS === null) {
+      try { ANIOS = await rpc('cap_anios'); }
+      catch (e) { ANIOS = false; }
+    }
     return CRO;
   }
   const anioInfo = a => (ANIOS || []).find(x => x.anio === a) || null;
@@ -1575,8 +1581,20 @@ async function admin(sel) {
     // fuera de la pantalla y parece que las pestañas no existen.
     if (tab === 1)      v.innerHTML = (smTotal ? vSinMapear() : '') + vPers();
     else if (tab === 2) v.innerHTML = vCargos();
-    else if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
-    else                { await traerCro(); v.innerHTML = vCro(); }
+    else if (tab === 3 || tab === 4) {
+      v.innerHTML = '<div class="kc-carga">Cargando…</div>';
+      try {
+        if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
+        else           { await traerCro(); v.innerHTML = vCro(); }
+      } catch (e) {
+        // Antes esto dejaba la pestaña girando para siempre y no había forma
+        // de saber qué había fallado. Un error se muestra, no se esconde.
+        v.innerHTML = `<div class="kc-cent mal"><div class="b">!</div><div>
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">No se pudo abrir esta pestaña</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">${esc(e.message || String(e))}</div>
+          </div></div>`;
+      }
+    }
     enganchar(v);
   }
 
@@ -2052,7 +2070,7 @@ async function admin(sel) {
         <button class="kc-mini p" data-e="crear">+ Programar</button>
         <button class="kc-mini" data-histo="1" title="Cargar asistencias que ya se registraron fuera de KALU">↑ Cargar historia</button>
         <button class="kc-mini" data-cargacro="1" title="Cargar el libro del programa: fechas programadas y realizadas">↑ Cargar cronograma</button>
-        ${off ? '' : `<button class="kc-mini" data-anio="1" title="Sacar ${anio} de los indicadores, conservando la historia">Archivar ${anio}</button>`}
+        ${(ANIOS && !off) ? `<button class="kc-mini" data-anio="1" title="Sacar ${anio} de los indicadores, conservando la historia">Archivar ${anio}</button>` : ''}
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todo el año')}${chip('hecho','Dictadas')}${chip('programado','Por dictar')}

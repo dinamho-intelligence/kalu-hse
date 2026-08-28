@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '51';
+const KC_VER = '53';
 
 let sb = null;
 
@@ -262,6 +262,11 @@ const CSS = `
    width:1% pide exactamente lo que ocupa el contenido y deja el resto para
    el texto; si aun así no entra, la tabla scrollea dentro de .kc-sc. */
 .kc td.acc,.kc th.acc{width:1%;white-space:nowrap}
+/* ORDEN DE LOS BOTONES: el último de la fila es el que se pierde cuando
+   la tabla no entra y hay que correrla de costado. Entonces el último no
+   puede ser Apagar. Va Convalidar, que es la acción menos consecuente de
+   las cinco. Lo que se cae del borde tiene que ser lo que menos duele
+   perder, no lo más importante. */
 .kc td.acc>div{flex-wrap:nowrap}
 /* Cinco botones a tamaño normal se comían 375px y empujaban la tabla
    113px afuera de la caja: el último quedaba cortado contra el borde.
@@ -1993,9 +1998,10 @@ async function admin(sel) {
           <button class="kc-mini" data-ver="${c.id}">Ver</button>
           <button class="kc-mini" data-c="editar" data-i="${c.id}">Editar</button>
           <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
-          ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
           <button class="kc-mini${c.activo?'':' p'}" data-c="${c.activo?'apagar':'prender'}" data-i="${c.id}">${
-            c.activo ? 'Apagar' : 'Prender'}</button></div></td>
+            c.activo ? 'Apagar' : 'Prender'}</button>
+          ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
+          </div></td>
       </tr>`).join('') + '</tbody></table></div>'
       : '<p class="kc-vacio">Nada con ese filtro.</p>'}`;
   }
@@ -2068,8 +2074,10 @@ async function admin(sel) {
         <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar capacitación o responsable…"
                value="${esc(busca)}" autocomplete="off">
         <button class="kc-mini p" data-e="crear">+ Programar</button>
-        <button class="kc-mini" data-histo="1" title="Cargar asistencias que ya se registraron fuera de KALU">↑ Cargar historia</button>
-        <button class="kc-mini" data-cargacro="1" title="Cargar el libro del programa: fechas programadas y realizadas">↑ Cargar cronograma</button>
+        <button class="kc-mini" data-histo="1"
+          title="El libro que tiene una columna con nombres de personas: quién hizo qué y cuándo">↑ Asistencias · con nombres</button>
+        <button class="kc-mini" data-cargacro="1"
+          title="El libro del programa: una fila por capacitación, con la fecha programada y la de realización. No trae nombres">↑ Cronograma · sin nombres</button>
         ${(ANIOS && !off) ? `<button class="kc-mini" data-anio="1" title="Sacar ${anio} de los indicadores, conservando la historia">Archivar ${anio}</button>` : ''}
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
@@ -6051,6 +6059,9 @@ async function historia(sel, opt) {
       Subí los libros de registro — el consolidado de capacitaciones y el de charlas.
       Una hoja con una columna de personas es un registro de asistencia; las demás se
       saltean solas.</p>
+      <p class="kc-nota" style="text-align:left;max-width:74ch;margin-top:0">
+      Si tu archivo <b>no trae nombres</b> —una fila por capacitación con su fecha
+      programada— ése no va acá: va en <b>«↑ Cronograma · sin nombres»</b>.</p>
       <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
         <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
         <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
@@ -6233,7 +6244,15 @@ async function cronograma(sel, opt) {
       Subí el libro del programa —el que tiene una fila por capacitación con la fecha
       programada y la de realización—. Podés subir varios años juntos: cada hoja se lee
       sola y las que no son un cronograma se saltean.</p>
-      <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
+      <div class="kc-cent" style="background:var(--kc-was);margin-top:16px">
+        <div class="b" style="background:var(--kc-wa)">?</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">¿Tu archivo tiene una columna con nombres de personas?</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Entonces no es un cronograma: es un
+          <b>registro de asistencia</b> y va en <b>«↑ Asistencias · con nombres»</b>, el botón de
+          al lado. Acá va el libro del programa, que tiene una fila por capacitación y no trae
+          nombres.</div></div></div>
+
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:12px">
         <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
         <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
         <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen acá.</div>

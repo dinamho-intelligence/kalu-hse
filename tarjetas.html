@@ -158,8 +158,10 @@
       <div class="chips" id="catChips"></div>
     </div>
     <div class="fld">
-      <label>Lugar / área</label>
-      <input type="text" id="lugar" placeholder="Ej: Taller 2, zona de corte" autocomplete="off">
+      <label>Lugar / zona</label>
+      <select id="lugarSel" onchange="onLugarSel()"><option value="">— Elegí la zona —</option></select>
+      <input type="text" id="lugarNuevo" class="hide" placeholder="Escribí la zona nueva…" autocomplete="off" style="margin-top:8px">
+      <div class="hint" id="lugarHint">Elegí de la lista. Si no está, tocá "Otra" y escribila — el HSE la revisa.</div>
     </div>
     <div class="fld">
       <label>¿Qué viste? (descripción)</label>
@@ -229,6 +231,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const H={apikey:SB_ANON, Authorization:'Bearer '+SB_ANON};
 const CATS=['Uso de EPP','Posición de personas','Herramientas y equipos','Procedimientos','Orden y aseo','Reacción de las personas','Otro'];
 let obs=null, cands=[], clase='inseguro';
+var ZONAS=[];
 var BRAND={};
 function hexToRgb(h){ if(!h)return null; h=String(h).replace('#',''); if(h.length===3)h=h.split('').map(function(c){return c+c;}).join(''); if(h.length!==6)return null; var n=parseInt(h,16); if(isNaN(n))return null; return [(n>>16)&255,(n>>8)&255,n&255]; }
 function urlADataURL(url){ return new Promise(function(res){ var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ try{ var c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight; c.getContext('2d').drawImage(img,0,0); res({data:c.toDataURL('image/png'),w:img.naturalWidth,h:img.naturalHeight}); }catch(e){ res(null); } }; img.onerror=function(){ res(null); }; img.src=url; }); }
@@ -385,7 +388,33 @@ function entrarForm(){
     +'<span class="src">Identidad tomada del <b>registro de la empresa</b> · no editable.</span>';
   $('catChips').innerHTML=CATS.map(c=>'<div class="chip" data-v="'+c+'" onclick="pickCat(this)">'+c+'</div>').join('');
   setClase('inseguro');
+  cargarZonas();
   show('scForm');
+}
+async function cargarZonas(){
+  ZONAS=[]; var sel=$('lugarSel'); if(!sel) return;
+  try{ ZONAS=(await sbRpc('zonas_activas',{emp:obs.empresa_id}))||[]; }catch(e){ ZONAS=[]; }
+  var opts='<option value="">— Elegí la zona —</option>';
+  if(ZONAS.length){
+    var bySede={}, orden=[];
+    ZONAS.forEach(function(z){ var s=z.sede_nombre||'General'; if(!bySede[s]){bySede[s]=[];orden.push(s);} bySede[s].push(z); });
+    orden.forEach(function(s){ opts+='<optgroup label="'+esc(s)+'">'+bySede[s].map(function(z){return '<option value="'+esc(z.nombre).replace(/"/g,'&quot;')+'">'+esc(z.nombre)+'</option>';}).join('')+'</optgroup>'; });
+  }
+  opts+='<option value="__nueva__">➕ Otra (no está en la lista)</option>';
+  sel.innerHTML=opts;
+  if(!ZONAS.length){ sel.value='__nueva__'; }   // sin catálogo o sin señal → deja escribir
+  onLugarSel();
+}
+function onLugarSel(){
+  var sel=$('lugarSel'), inp=$('lugarNuevo'), hint=$('lugarHint');
+  var nueva=(sel&&sel.value==='__nueva__');
+  if(inp) inp.classList.toggle('hide',!nueva);
+  if(hint) hint.textContent=nueva?'Escribí la zona nueva. Queda pendiente hasta que el HSE la cree.':'Elegí de la lista. Si no está, tocá "Otra" y escribila — el HSE la revisa.';
+}
+function _lugarElegido(){
+  var sel=$('lugarSel'); var v=sel?sel.value:'';
+  if(v==='__nueva__'){ var n=(($('lugarNuevo')||{}).value||'').trim(); return {lugar:n||null, nueva:n||null}; }
+  return {lugar:v||null, nueva:null};
 }
 function setClase(c){
   clase=c;
@@ -419,7 +448,7 @@ function irFirma(){
   $('resumen').innerHTML=tag+'<br><br><b>'+obs.nombre+'</b> · '+obs.empresa+'<br>'
     +'<b>Categoría:</b> '+pickVal.categoria+'<br>'
     +(clase==='inseguro'?'<b>Riesgo:</b> '+pickVal.riesgo+'<br>':'')
-    +'<b>Lugar:</b> '+($('lugar').value.trim()||'—')+'<br>'
+    +'<b>Lugar:</b> '+((_lugarElegido().lugar)||'—')+'<br>'
     +'<b>Observación:</b> '+$('desc').value.trim();
   $('firmaWho').textContent='Firma de '+obs.nombre;
   show('scFirma'); setTimeout(initPad,60);
@@ -471,7 +500,7 @@ async function registrar(){
   const firmaDataUrl=cv.toDataURL('image/png');
   const reg={
     id:id, empresa_id:obs.empresa_id, observador_id:obs.id, observador_nombre:obs.nombre, observador_cedula:obs.cedula,
-    observado_nombre:$('observado').value.trim()||null, lugar:$('lugar').value.trim()||null,
+    observado_nombre:$('observado').value.trim()||null, lugar:(_lugarElegido().lugar),
     clase:clase, tipo:(clase==='inseguro'?pickVal.tipo:null), categoria:pickVal.categoria,
     descripcion:$('desc').value.trim(), riesgo:(clase==='inseguro'?pickVal.riesgo:null),
     detuvo_tarea:(clase==='inseguro'?(pickVal.detuvo==='si'):null),
@@ -489,6 +518,7 @@ async function registrar(){
     const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
     reg.foto_paths = paths.length?paths:null; reg.foto_path = paths.length?paths[0]:null; reg.firma_path=firmaPath;
     await sbRpc('registrar_tarjeta',{t:reg});
+    try{ var _zn=_lugarElegido().nueva; if(_zn) await sbRpc('zona_proponer',{emp:obs.empresa_id,p_nombre:_zn,p_quien:obs.nombre}); }catch(_){}
     try{ var _cc=await sbRpc('consecutivo_tarjeta',{id:id}); if(_cc){ reg.consecutivo=_cc; pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoUrls).output('blob'); } }catch(_){}
     await guardarPdfTarjeta(reg, ts, pdfBlob);
     last={reg:reg, ts:ts, firmaDataUrl:firmaDataUrl, fotoDataUrls:fotoUrls, empresa:obs.empresa, pendiente:false};

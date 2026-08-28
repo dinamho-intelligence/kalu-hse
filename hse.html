@@ -1532,7 +1532,9 @@ function gestionarSeguraCierre(id){
       +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
       +'<button type="button" class="gbtn" onclick="_segTodos(true)">Marcar visibles</button>'
       +'<button type="button" class="gbtn" onclick="_segTodos(false)">Desmarcar</button>'
+      +'<button type="button" id="segKaluBtn" class="gbtn" style="background:rgba(0,212,255,.12);border-color:#00d4ff;color:#7fe6ff" onclick="sugerirCruceKALU(\''+id+'\')">🤖 ¿Cuáles resuelve?</button>'
       +'<span id="segCount" style="font-size:12px;color:var(--tx2);margin-left:auto"></span>'
+      +'<span id="segKaluMsg" style="font-size:12px;min-height:14px;flex-basis:100%"></span>'
       +'</div>'
       +'<div id="segLista" style="max-height:38vh;overflow:auto;margin-bottom:10px">'+lista+'</div>'
       +'<label>Solución / acción tomada (se guarda en TODAS las que cierres)</label>'
@@ -1581,6 +1583,43 @@ async function cerrarInsegurasSeleccionadas(seguraId){
   }
   cerrarDet(); renderTar();
   toast(okN+' insegura(s) cerrada(s)'+(errN?(' · '+errN+' con error'):'')+' ✔', errN>0);
+}
+/* ===== KALU sugiere el cruce: lee las descripciones y marca cuáles resuelve la segura ===== */
+async function sugerirCruceKALU(seguraId){
+  var s=(TAR||[]).find(function(x){return x.id===seguraId;}); if(!s) return;
+  var btn=document.getElementById('segKaluBtn'), msg=document.getElementById('segKaluMsg');
+  var chks=Array.prototype.slice.call(document.querySelectorAll('#segLista .segchk'));
+  if(!chks.length){ if(msg){ msg.style.color='var(--tx3)'; msg.textContent='No hay inseguras para analizar.'; } return; }
+  var inseguras=chks.map(function(c){ var t=(TAR||[]).find(function(x){return x.id===c.value;})||{}; return {id:t.id, consecutivo:t.consecutivo||'', categoria:t.categoria||'', lugar:t.lugar||'', riesgo:t.riesgo||'', descripcion:String(t.descripcion||'').slice(0,300)}; });
+  if(btn){ btn.disabled=true; btn.textContent='🤖 Analizando…'; }
+  if(msg){ msg.style.color='var(--tx2)'; msg.textContent='KALU está leyendo las tarjetas…'; }
+  try{
+    var r=await fetch(WEBHOOK_CRUCE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      empresa_id:(s.empresa_id||MYEMP||null),
+      segura:{consecutivo:s.consecutivo||'', descripcion:String(s.descripcion||'').slice(0,300), categoria:s.categoria||'', lugar:s.lugar||''},
+      inseguras:inseguras, token:TOKEN })});
+    if(!r.ok) throw new Error('http '+r.status);
+    var d=await r.json();
+    var sug=(d&&d.sugerencias)||[];
+    if(!sug.length){ if(msg){ msg.style.color='var(--amber)'; msg.textContent='KALU no encontró cruces claros. Revisá a mano.'; } return; }
+    var byId={}; sug.forEach(function(x){ if(x&&x.id) byId[x.id]=x; });
+    var n=0;
+    chks.forEach(function(c){
+      var row=c.closest('.segrow'); if(!row) return;
+      var prev=row.querySelector('.kaluNote'); if(prev) prev.remove();
+      var x=byId[c.value]; if(!x) return;
+      if(x.resuelve){ c.checked=true; n++; }
+      var col=x.resuelve?(x.confianza==='alta'?'#4FD98B':(x.confianza==='media'?'#F0B04A':'#9fabb8')):'#8a97a5';
+      var host=row.querySelector('div[style*="flex:1"]')||row;
+      var nd=document.createElement('div'); nd.className='kaluNote';
+      nd.style.cssText='font-size:11.5px;color:'+col+';margin-top:4px';
+      nd.innerHTML='🤖 '+(x.resuelve?('<b>Sí</b> · confianza '+esc(x.confianza||'—')):'<b>No relacionada</b>')+(x.motivo?(' — '+esc(x.motivo)):'');
+      host.appendChild(nd);
+    });
+    _segCount();
+    if(msg){ msg.style.color='var(--verde)'; msg.textContent='KALU marcó '+n+' probable(s). Revisá y ajustá antes de cerrar — vos decidís.'; }
+  }catch(e){ if(msg){ msg.style.color='#e66'; msg.textContent='No se pudo consultar a KALU ('+e.message+'). ¿Está activo el flujo kalu-cruce-sugerir en n8n?'; } }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='🤖 ¿Cuáles resuelve?'; } }
 }
 async function reabrirTarjeta(id){
   if(!confirm('¿Reabrir esta tarjeta? Se suelta el vínculo con la tarjeta segura que la había resuelto (si tenía).')) return;
@@ -1836,6 +1875,7 @@ async function restaurarAts(i){
 const WEBHOOK_APROBAR='https://dnmintell.app.n8n.cloud/webhook/kalu-v3-aprobar-v2';
 const WEBHOOK_ATS_DEVUELTO='https://dnmintell.app.n8n.cloud/webhook/kalu-ats-devuelto-aviso';
 const WEBHOOK_CERT='https://dnmintell.app.n8n.cloud/webhook/kalu-cert-cruce';
+const WEBHOOK_CRUCE='https://dnmintell.app.n8n.cloud/webhook/kalu-cruce-sugerir';
 async function emitirCertificado(id, silent){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return false;
   if(!t.cierra_tarjeta_id){ if(!silent) alert('Esta tarjeta no tiene una tarjeta segura vinculada (cruce). Cerrala indicando cuál la resuelve.'); return false; }

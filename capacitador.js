@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '55';
+const KC_VER = '56';
 
 let sb = null;
 
@@ -5360,6 +5360,187 @@ function crMapear(fila) {
   return m;
 }
 
+/* =================================================================
+   LEER EL PROGRAMA EN GRILLA MENSUAL
+
+   El libro de Total QC (PG-HUM-001) no tiene una columna de fechas:
+   tiene una GRILLA. Una fila por tema y, por cada mes del año, seis
+   columnas —PROG, EJE, P. PROG, P. ASIS, P.PRES, P.APRU—. Que un tema
+   esté programado en marzo se dice poniendo algo en la celda PROG de
+   marzo, no escribiendo una fecha.
+
+   EL LIBRO DICE EL MES, NO EL DÍA
+
+   Así que la fecha hay que construirla, y eso es una afirmación. Se
+   toma el ÚLTIMO DÍA DEL MES: el plan dice «en noviembre», entonces
+   recién el 1º de diciembre está incumplido. Con el primer día del mes,
+   una capacitación aparecería vencida desde el día 2 aunque el plan le
+   diera todo el mes — el módulo estaría marcando rojo antes de que el
+   plan lo diga. (Decidido con Marcelo, 28/08/2026.)
+
+   Y para lo EJECUTADO el último día del mes se recorta a hoy: nada se
+   da por dictado en una fecha que todavía no llegó.
+
+   Cada evento se lleva escrito de dónde salió —hoja, fila y mes— para
+   poder volver al papel.
+   ================================================================= */
+const CR_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO',
+                  'AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+/* Los seis rótulos que se repiten dentro de cada mes. */
+const CR_GRI = [
+  ['prog',       ['PROG']],
+  ['eje',        ['EJE']],
+  ['convocados', ['P. PROG', 'P.PROG']],
+  ['asistentes', ['P. ASIS', 'P.ASIS']]
+];
+
+/* Columnas de la parte fija, antes de que empiecen los meses. */
+const CR_GRI_BASE = [
+  ['titulo',      ['TEMA']],
+  ['objetivo',    ['OBJETIVO']],
+  ['alcance',     ['DIRIGIDA A', 'DIRIGIDO A']],
+  ['modalidad',   ['MODALIDAD']],
+  ['horas',       ['DURACION', 'DURACIÓN']],
+  ['responsable', ['RESPONSABLE']]
+];
+
+const crUltimoDia = (anio, mes) =>
+  `${anio}-${String(mes).padStart(2,'0')}-${new Date(anio, mes, 0).getDate()}`;
+
+/* Dónde arranca cada mes. Se toma la PRIMERA columna de cada corrida
+   del mismo nombre: `mzCeldas` rellena las celdas combinadas, así que
+   «ENERO» aparece repetido en las seis columnas del bloque. Sin esto
+   se detectarían seis eneros. */
+function crBloquesMes(fila) {
+  const f = (fila || []).map(mzSinTilde), out = [];
+  for (let j = 0; j < f.length; j++) {
+    const m = CR_MESES.indexOf(f[j]);
+    if (m < 0) continue;
+    if (j > 0 && f[j - 1] === f[j]) continue;
+    out.push({ col: j, mes: m + 1 });
+  }
+  return out;
+}
+
+/* Lee la celda TAL CUAL está en la hoja, sin rellenar combinaciones.
+
+   Hace falta acá y sólo acá. `mzCeldas` rellena los rangos combinados,
+   que es lo correcto para un título que abarca varias filas — pero en
+   esta grilla hay filas donde el mes entero está combinado en un solo
+   rango de seis columnas. Al rellenarlo, el valor escrito en PROG se
+   copiaba a EJE, a P. PROG y a P. ASIS: el lector daba por DICTADAS 69
+   capacitaciones cuando el libro dice 46. Veintitrés capacitaciones
+   marcadas como hechas sin que nadie las hubiera dictado. */
+function crCrudo(XLSX, ws, org, i, j) {
+  const cel = ws[XLSX.utils.encode_cell({ r: org.r + i, c: org.c + j })];
+  return cel ? cel.v : null;
+}
+
+function crGrilla(M, nombre, XLSX, ws) {
+  let filaMes = -1, bloques = [];
+  for (let i = 0; i < Math.min(M.length, 14); i++) {
+    const b = crBloquesMes(M[i]);
+    if (b.length >= 2) { filaMes = i; bloques = b; break; }
+  }
+  if (filaMes < 0) return null;
+
+  // el encabezado es la fila de abajo: tiene TEMA y PROG
+  let hr = -1;
+  for (let i = filaMes + 1; i < Math.min(M.length, filaMes + 4); i++) {
+    const f = (M[i] || []).map(mzSinTilde);
+    if (f.some(x => x === 'TEMA') && f.some(x => x === 'PROG')) { hr = i; break; }
+  }
+  if (hr < 0) return null;
+
+  const enc = (M[hr] || []).map(mzSinTilde);
+  const base = {};
+  CR_GRI_BASE.forEach(par => {
+    for (let k = 0; k < par[1].length && base[par[0]] === undefined; k++) {
+      const j = enc.findIndex((c, i) => i < bloques[0].col && c === par[1][k]);
+      if (j >= 0) base[par[0]] = j;
+    }
+  });
+  if (base.titulo === undefined) return null;
+
+  // dentro de cada mes, dónde cae cada rótulo
+  const hasta = i => (i + 1 < bloques.length ? bloques[i + 1].col : enc.length);
+  bloques.forEach((b, i) => {
+    b.idx = {};
+    for (let j = b.col; j < hasta(i); j++) {
+      CR_GRI.forEach(par => {
+        if (b.idx[par[0]] === undefined && par[1].indexOf(enc[j]) >= 0) b.idx[par[0]] = j;
+      });
+    }
+  });
+
+  const R = ws && ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+  const org = R ? { r: R.s.r, c: R.s.c } : { r: 0, c: 0 };
+  const crudo = (i, j) => j === undefined ? null : mzTxt(crCrudo(XLSX, ws, org, i, j));
+
+  const anio = Number((nombre.match(/20\d\d/) || [new Date().getFullYear()])[0]);
+  const ejeDef = /HSEQ|HSE/.test(mzSinTilde(nombre)) ? 'hse' : 'tecnica';
+  const hoy = iso();
+  const filas = [], sinFecha = [];
+  let ruido = 0, reps = 0, futs = 0;
+
+  for (let i = hr + 1; i < M.length; i++) {
+    const r = M[i] || [];
+    const tit = mzTxt(r[base.titulo]);
+    if (!tit || tit.length < 4) continue;
+    if (mzSinTilde(tit) === 'TEMA') continue;
+    if (crEsRuido(tit)) { ruido++; continue; }
+
+    const comun = {
+      hoja: nombre, capacitacion: tit,
+      objetivo:    base.objetivo    !== undefined ? mzTxt(r[base.objetivo])    : '',
+      tipo: '', eje: '',
+      modalidad:   base.modalidad   !== undefined ? mzTxt(r[base.modalidad])   : '',
+      responsable: base.responsable !== undefined ? mzTxt(r[base.responsable]) : '',
+      alcance:     base.alcance     !== undefined ? mzTxt(r[base.alcance])     : '',
+      horas:       base.horas       !== undefined ? mzTxt(r[base.horas])       : '',
+      anio: String(anio), eje_defecto: ejeDef
+    };
+
+    let vecesEnElAnio = 0;
+    bloques.forEach(b => {
+      const p = crudo(i, b.idx.prog);
+      const e = crudo(i, b.idx.eje);
+      if (!p && !e) return;
+
+      const fin = crUltimoDia(anio, b.mes);
+      // Programada: el último día del mes, tal como se decidió.
+      // Ejecutada: lo mismo, pero nunca más allá de hoy — dar por
+      // dictada una capacitación en una fecha futura es la mentira
+      // que este módulo no puede permitirse.
+      const realizada = e ? (fin > hoy ? hoy : fin) : '';
+      if (e && fin > hoy) futs++;
+      vecesEnElAnio++;
+      if (vecesEnElAnio > 1) reps++;
+
+      filas.push(Object.assign({}, comun, {
+        fila: i + 1,
+        programada: p ? fin : '',
+        disparador: p ? 'fecha' : 'evento_disparador',
+        disparador_txt: p ? '' : 'Ejecutada sin quedar programada en el libro',
+        realizadas: realizada ? [realizada] : [],
+        convocados: crudo(i, b.idx.convocados),
+        asistentes: crudo(i, b.idx.asistentes),
+        mes: CR_MESES[b.mes - 1]
+      }));
+    });
+
+    // Un tema sin una sola marca en todo el año no es un evento: está
+    // en el programa como temario, sin programación. Se lista y no entra.
+    if (vecesEnElAnio === 0) sinFecha.push(Object.assign({}, comun, { fila: i + 1 }));
+  }
+
+  return { hoja: nombre, estado: 'leida', clase: 'grilla',
+           realizadas_cols: bloques.length, ruido: ruido,
+           repeticiones: reps, futuras: futs,
+           filas: filas, sin_fecha: sinFecha };
+}
+
 function crLeer(XLSX, buf, archivo) {
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   const hojas = [], filas = [], sinFecha = [], hoy = iso();
@@ -5368,10 +5549,23 @@ function crLeer(XLSX, buf, archivo) {
   wb.SheetNames.forEach(nombre => {
     const M = mzCeldas(XLSX, wb.Sheets[nombre]);
     const hr = crFilaEncabezado(M);
-    if (hr < 0) { hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 }); return; }
-    const m = crMapear(M[hr]);
-    if (m.titulo === undefined) {
-      hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 }); return;
+    const m  = hr < 0 ? {} : crMapear(M[hr]);
+
+    // Dos libros, dos formas. DINAMHO trae una columna de fechas; Total QC
+    // trae una grilla de meses con PROG y EJE. Si no hay columna de fecha,
+    // se prueba la grilla antes de dar la hoja por ignorada.
+    if (hr < 0 || m.titulo === undefined) {
+      const g = crGrilla(M, nombre, XLSX, wb.Sheets[nombre]);
+      if (g) {
+        hojas.push({ archivo: archivo, nombre: nombre, clase: 'grilla',
+                     filas: g.filas.length, repeticiones: g.repeticiones,
+                     futuras: g.futuras, sin_fecha: g.sin_fecha.length, ruido: g.ruido });
+        g.filas.forEach(x => filas.push(x));
+        g.sin_fecha.forEach(x => sinFecha.push(x));
+      } else {
+        hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 });
+      }
+      return;
     }
 
     const anioHoja = (nombre.match(/20\d\d/) || [''])[0];
@@ -6288,10 +6482,11 @@ async function cronograma(sel, opt) {
       ${futs ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:16px">
         <div class="b" style="background:var(--kc-wa)">${futs}</div><div>
         <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
-          ${futs} fila(s) tienen una fecha de realización que todavía no llegó</div>
-        <div style="font-size:13px;color:var(--kc-ink2)">En el libro esa columna se usa como
-          calendario. Cargarlas como dictadas daría por hecha una charla que no pasó, así que
-          entran como <b>fecha programada</b>.</div></div></div>` : ''}
+          ${futs} fila(s) dan por dictada una capacitación en una fecha que todavía no llegó</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Pasa cuando la columna de realización se
+          usa como calendario, o cuando el mes marcado todavía no terminó. Cargarlas así daría por
+          hecha una capacitación que no pasó, así que la fecha se recorta: <b>nada se da por dictado
+          más allá de hoy</b>.</div></div></div>` : ''}
 
       <h3 class="kc-h3" style="margin-top:18px">Qué encontré en cada hoja</h3>
       <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th><th>Qué es</th>
@@ -6301,6 +6496,7 @@ async function cronograma(sel, opt) {
           <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
           <td class="k">${esc(h.nombre)}</td>
           <td>${h.clase === 'programa' ? 'Cronograma del año'
+             : h.clase === 'grilla' ? 'Cronograma en grilla mensual'
              : 'Sin tabla de programa · se saltea'}</td>
           <td class="n">${h.filas}</td>
           <td class="n">${h.repeticiones || 0}</td>

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '57';
+const KC_VER = '58';
 
 let sb = null;
 
@@ -276,8 +276,21 @@ const CSS = `
 /* En pantalla angosta ya no alcanza con reordenar: no entran ni cuatro.
    Ahí los botones BAJAN de renglón en vez de esconderse detrás de un
    scroll horizontal que nadie ve. En pantalla normal siguen en una línea. */
+/* El corte está en 1150 y no en 900 porque la fila de Capacitaciones
+   llegó a SEIS botones al sumar «Programar». Medido: a 1200 entran en
+   una línea, a 1000 se caía «Convalidar» por el borde. */
+@media (max-width:1150px){
+  /* El min-width evita el otro extremo: como la columna pide width:1%,
+     con wrap y sin mínimo el navegador la achica hasta un botón por
+     renglón y la fila queda de seis pisos. Con 270px entran tres, o sea
+     dos renglones. */
+  .kc td.acc>div{flex-wrap:wrap;justify-content:flex-end;row-gap:5px;min-width:270px}
+}
 @media (max-width:900px){
-  .kc td.acc>div{flex-wrap:wrap;justify-content:flex-end;row-gap:5px}
+  /* En un teléfono ni 270px entran, y el mínimo empujaría la tabla afuera
+     de nuevo. Acá se sueltan del todo: se apilan, pero no se esconde
+     ninguno. Feo antes que incompleto. */
+  .kc td.acc>div{min-width:0}
 }
 /* Cinco botones a tamaño normal se comían 375px y empujaban la tabla
    113px afuera de la caja: el último quedaba cortado contra el borde.
@@ -1932,10 +1945,15 @@ async function admin(sel) {
     const hayMod = C.some(c => c.modalidad);
     const act = C.filter(c => c.activo);
     const huerf = act.filter(c => c.personas === 0);
+    // Sin una sola actividad programada en el año. Es el «0/0» de la
+    // columna 2026: el dato ya estaba a la vista, lo que faltaba era
+    // poder quedarse sólo con ésas y hacer algo al respecto.
+    const sinProg = act.filter(c => (c.eventos || 0) === 0);
     const n = {
       todas: C.length, activas: act.length,
       bloqueo: act.filter(c => c.bloqueo > 0).length,
       huerfanas: huerf.length,
+      sinprog: sinProg.length,
       apagadas: C.length - act.length
     };
     const pasa = c => {
@@ -1944,6 +1962,7 @@ async function admin(sel) {
       if (filtro === 'apagadas')  return !c.activo;
       if (filtro === 'bloqueo')   return c.activo && c.bloqueo > 0;
       if (filtro === 'huerfanas') return c.activo && c.personas === 0;
+      if (filtro === 'sinprog')   return c.activo && (c.eventos || 0) === 0;
       return true;
     };
     const L = C.filter(pasa);
@@ -1983,7 +2002,7 @@ async function admin(sel) {
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
-        ${chip('huerfanas','Sin gente')}${chip('apagadas','Apagadas')}
+        ${chip('huerfanas','Sin gente')}${chip('sinprog','Sin programar ' + hoy().getFullYear())}${chip('apagadas','Apagadas')}
       </div>
       ${L.length ? `<div class="kc-sc"><table><thead><tr>
         <th>Código</th><th>Capacitación</th><th>Vigencia</th>${hayMod ? '<th>Modalidad</th>' : ''}
@@ -2011,6 +2030,9 @@ async function admin(sel) {
           <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
           <button class="kc-mini${c.activo?'':' p'}" data-c="${c.activo?'apagar':'prender'}" data-i="${c.id}">${
             c.activo ? 'Apagar' : 'Prender'}</button>
+          ${c.activo && (c.eventos || 0) === 0
+            ? `<button class="kc-mini p" data-c="programar" data-i="${c.id}"
+                 title="No tiene ninguna actividad programada este año">Programar</button>` : ''}
           ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
           </div></td>
       </tr>`).join('') + '</tbody></table></div>'
@@ -2221,6 +2243,43 @@ async function admin(sel) {
   /* --------- capacitaciones --------- */
   function dlgCat(accion, id) {
     const c = (CAT.catalogo||[]).find(x => x.id === id);
+
+    /* PROGRAMAR SIN APAGAR NADA.
+
+       Una capacitación con «0/0» en la columna del año no está de más:
+       está sin fecha. Apagarla la saca del catálogo y nadie se entera
+       después de que estuvo. Ponerle el mes la saca del rojo sola, que
+       es lo que pasó con las 14 al cargar el PG-HUM-001.
+
+       El mes y no el día, porque así programa la empresa: el libro dice
+       «marzo», no «12 de marzo». Queda para el ÚLTIMO día del mes —el
+       plan da todo el mes, así que recién al mes siguiente hay
+       incumplimiento—. Es la misma regla con la que se cargó el libro,
+       y conviene que la pantalla no invente una distinta. */
+    if (accion === 'programar') {
+      const A = hoy().getFullYear(), M = hoy().getMonth() + 1;
+      const fin = m => `${A}-${String(m).padStart(2,'0')}-${new Date(A, m, 0).getDate()}`;
+      const ops = MESES.map((nom, i) => {
+        const mes = i + 1, pas = mes < M;
+        return `<option value="${fin(mes)}"${mes === M ? ' selected' : ''}>${nom}${
+          pas ? ' · ya pasó' : ''}</option>`;
+      }).join('');
+      return abrir(`<h3>Programar ${esc(c.codigo)}</h3>
+        <p>${esc(c.titulo)}</p>
+        <p>Hoy no tiene ninguna actividad programada en ${A}, y por eso las
+           <b>${c.personas}</b> persona(s) a las que le aplica figuran atrasadas.
+           Poniéndole el mes dejan de figurar así y pasan a <b>«en el cronograma»</b>.</p>
+        <label for="k1">¿En qué mes?</label><select id="k1">${ops}</select>
+        <p class="kc-nota" style="text-align:left;margin:0 0 12px">Queda para el último día del
+          mes: el plan da todo el mes, así que recién al mes siguiente hay incumplimiento.
+          Si elegís un mes que ya pasó, va a figurar vencida — que es lo correcto si de verdad
+          no se dictó.</p>
+        <label for="k2">Responsable</label><input type="text" id="k2" placeholder="Quién la dicta">`,
+        d => rpc('cap_evento_crear', {
+          p_catalogo: id,
+          p_fecha: d.querySelector('#k1').value,
+          p_responsable: d.querySelector('#k2').value || null }), 'Programar');
+    }
 
     if (accion === 'traer') {
       return abrir(`<h3>Traer la biblioteca entera</h3>

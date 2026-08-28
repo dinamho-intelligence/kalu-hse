@@ -685,7 +685,7 @@ async function loadZonas(){
     renderZonas();
   }catch(e){ if(C) C.innerHTML='<div class="detempty" style="color:#F0B04A">No se pudieron cargar las zonas ('+esc(e.message)+'). ¿Corriste el SQL KALU_zonas.sql?</div>'; }
 }
-function _sedeOpts(cur){ var o='<option value="">— sin sede —</option>'; (ZSEDES||[]).forEach(function(s){ o+='<option value="'+s.id+'"'+(cur===s.id?' selected':'')+'>'+esc(s.nombre)+'</option>'; }); return o; }
+function _sedeOpts(cur){ var o='<option value="">— sin sede —</option>'; (ZSEDES||[]).forEach(function(s){ var ina=(s.estado||'activa')!=='activa'; if(ina && s.id!==cur) return; o+='<option value="'+s.id+'"'+(cur===s.id?' selected':'')+'>'+esc(s.nombre)+(ina?' (inactiva)':'')+'</option>'; }); return o; }
 function renderZonas(){
   var C=$('zonasContent'); if(!C) return;
   var Z=ZONAS_HSE||[];
@@ -698,7 +698,7 @@ function renderZonas(){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +'<input type="text" id="sdNombre" placeholder="Nueva sede (ej: Planta Norte)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sedeCrear();}" style="flex:1;min-width:170px;background:#12151a;border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:8px 11px;font-size:13px">'
     +'<button class="gbtn" onclick="sedeCrear()">+ Crear sede</button></div>'
-    +((ZSEDES&&ZSEDES.length)?('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px">'+ZSEDES.map(function(s){return '<span class="ch2">'+esc(s.nombre)+'</span>';}).join('')+'</div>'):'<div style="font-size:12px;color:var(--tx3);margin-top:8px">Sin sedes todavía. Si operás en un solo sitio, podés dejar las zonas «sin sede».</div>')
+    +((ZSEDES&&ZSEDES.length)?('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px">'+ZSEDES.map(function(s){ var ina=(s.estado||'activa')!=='activa'; var nm=esc(s.nombre).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); return '<span class="ch2" style="display:inline-flex;align-items:center;gap:7px'+(ina?';opacity:.55':'')+'">'+esc(s.nombre)+(ina?' · inactiva':'')+' <a title="'+(ina?'Reactivar':'Desactivar (la saca del desplegable)')+'" onclick="sedeSet(\''+s.id+'\',\''+(ina?'activa':'inactiva')+'\')" style="cursor:pointer;color:'+(ina?'var(--verde)':'var(--amber)')+';font-weight:800">'+(ina?'↺':'⏸')+'</a> <a title="Eliminar sede" onclick="sedeEliminar(\''+s.id+'\',\''+nm+'\')" style="cursor:pointer;color:var(--rojo);font-weight:800">✕</a></span>'; }).join('')+'</div>'):'<div style="font-size:12px;color:var(--tx3);margin-top:8px">Sin sedes todavía. Si operás en un solo sitio, podés dejar las zonas «sin sede».</div>')
     +'</div>';
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'
     +'<input type="text" id="znNombre" placeholder="Nueva zona…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();zonaCrear();}" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px">'
@@ -736,6 +736,15 @@ async function sedeCrear(){
   var nom=(($('sdNombre')||{}).value||'').trim(); if(!nom){ alert('Escribí el nombre de la sede.'); return; }
   try{ await sbRpc('sede_crear',{emp:MYEMP,p_nombre:nom}); var i=$('sdNombre'); if(i) i.value=''; await loadZonas(); }
   catch(e){ alert('No se pudo crear la sede ('+e.message+').\n\nSi dice que falta la función, corré el SQL KALU_sedes.sql en Supabase.'); }
+}
+async function sedeSet(id,estado){
+  try{ await sbRpc('sede_set',{p_id:id,p_estado:estado}); await loadZonas(); }
+  catch(e){ alert('No se pudo actualizar la sede ('+e.message+').\n\nSi falta la función, corré KALU_sedes_gestion.sql.'); }
+}
+async function sedeEliminar(id,nombre){
+  if(!confirm('¿Eliminar la sede "'+nombre+'"?\nLas zonas que la usaban quedan «sin sede». Usalo para un typo o una duplicada.')) return;
+  try{ await sbRpc('sede_eliminar',{p_id:id}); await loadZonas(); }
+  catch(e){ alert('No se pudo eliminar la sede ('+e.message+').\n\nSi falta la función, corré KALU_sedes_gestion.sql.'); }
 }
 async function zonaCrear(){
   var nom=(($('znNombre')||{}).value||'').trim(); if(!nom){ alert('Escribí el nombre de la zona.'); return; }

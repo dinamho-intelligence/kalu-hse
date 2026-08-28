@@ -250,8 +250,10 @@ function semData(s){
   if(s==='amarillo') return {c:'#f7941d',t:'Atención — pendientes dentro de plazo'};
   return {c:'#25c26e',t:'Al día'};
 }
-function kpi(n,unidad,label,sub,col){
-  return '<div class="kpi"><div class="n" style="color:'+(col||'#eef2f6')+'">'+(n==null?'—':n)+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
+function kpi(n,unidad,label,sub,col,drill){
+  var clk=drill?(' style="cursor:pointer" title="Ver detalle" onclick="openDrill(\''+drill+'\')"'):'';
+  var arrow=drill?('<span style="color:'+(col||'#6b7784')+';font-size:13px"> ›</span>'):'';
+  return '<div class="kpi"'+clk+'><div class="n" style="color:'+(col||'#eef2f6')+'">'+(n==null?'—':n)+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+arrow+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
 }
 function pintarInforme(inf){
   var m=inf.metricas||{}; var t=m.tarjetas||{}, a=m.ats||{}, v=m.investigaciones||{};
@@ -260,10 +262,10 @@ function pintarInforme(inf){
   h+='<div class="meta">'+esc(inf.periodo_tipo)+' · <b style="color:#eef2f6">'+esc(inf.periodo_label)+'</b>'+(inf.fecha_desde?(' · '+esc(inf.fecha_desde)+' → '+esc(inf.fecha_hasta)):'')+(inf.created_at?(' · generado '+esc(String(inf.created_at).slice(0,16).replace('T',' '))):'')+'</div>';
   h+='<span class="sem" style="background:'+sd.c+'22;border:1px solid '+sd.c+';color:'+sd.c+'">● '+sd.t+'</span>';
   h+='<div class="kpis">';
-  h+=kpi(t.pct_cierre,'%','Cierre tarjetas',(t.cerradas!=null?(t.cerradas+' de '+t.inseguras):''),(t.pct_cierre!=null&&t.pct_cierre<60?'#f7941d':'#25c26e'));
-  h+=kpi(t.rojas,'','Tarjetas en rojo',(t.sin_gestionar!=null?(t.sin_gestionar+' sin plazo'):''),(t.rojas?'#e23b3b':'#25c26e'));
-  h+=kpi(a.pendientes,'','ATS pendientes',(a.rojos?(a.rojos+' en rojo'):''),(a.pendientes?'#f7941d':'#25c26e'));
-  h+=kpi(v.abiertas,'','Investig. abiertas',(v.rojas?(v.rojas+' estancadas'):''),(v.abiertas?'#f7941d':'#25c26e'));
+  h+=kpi(t.pct_cierre,'%','Cierre tarjetas',(t.cerradas!=null?(t.cerradas+' de '+t.inseguras):''),(t.pct_cierre!=null&&t.pct_cierre<60?'#f7941d':'#25c26e'),'tar_ab');
+  h+=kpi(t.rojas,'','Tarjetas en rojo',(t.sin_gestionar!=null?(t.sin_gestionar+' sin plazo'):''),(t.rojas?'#e23b3b':'#25c26e'),'rojas');
+  h+=kpi(a.pendientes,'','ATS pendientes',(a.rojos?(a.rojos+' en rojo'):''),(a.pendientes?'#f7941d':'#25c26e'),'ats_pend');
+  h+=kpi(v.abiertas,'','Investig. abiertas',(v.rojas?(v.rojas+' estancadas'):''),(v.abiertas?'#f7941d':'#25c26e'),'inv_ab');
   h+='</div></div>';
   // análisis
   h+='<div class="sec"><h2>Análisis de KALU</h2><div class="analisis">'+esc(inf.analisis||'—')+'</div></div>';
@@ -340,6 +342,12 @@ async function openDrill(kind,arg){
       tit='Investigaciones abiertas ('+ri.length+')';
       html=tabla(['Días','Serial','Fase','Estado','Cliente','Reporta','Fecha'],ri,function(r){
         return [dBadge(r.dias),esc(r.inv_id||'—'),esc(r.fase||'—'),esc(r.estado||'—'),esc(r.cliente||'—'),esc(r.reporta||'—'),esc(r.fecha||'—')];
+      });
+    } else if(kind==='rojas'){
+      var rr=P.tarjetas.filter(function(r){return r.sinPlazo || (r.dias!=null && r.dias>7);}).sort(function(a,b){return (b.dias||0)-(a.dias||0);});
+      tit='Tarjetas en rojo — sin plazo o muy demoradas ('+rr.length+')';
+      html=tabla(['Días','Riesgo','Qué se vio','Observador','Lugar','Fecha','Plazo'],rr,function(r){
+        return [dBadge(r.dias),rBadge(r.riesgo),esc(String(r.desc||'').slice(0,90))+(r.cons?' <span style="color:#6b7784">N°'+esc(r.cons)+'</span>':''),esc(r.obs||'—'),esc(r.lugar||'—'),esc(r.fecha||'—'),r.sinPlazo?'<span class="bdg" style="background:#e23b3b22;color:#e23b3b">sin plazo</span>':'con plazo'];
       });
     } else if(kind==='lugar' || kind==='cat'){
       var val=decodeURIComponent(arg||''); var campo=(kind==='lugar'?'lugar':'categoria');

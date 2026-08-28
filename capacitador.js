@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '53';
+const KC_VER = '54';
 
 let sb = null;
 
@@ -90,7 +90,12 @@ const CSS = `
 .kc button{font:inherit;color:inherit}
 .kc .mono{font-family:var(--kc-fm)}
 .kc-wrap{max-width:440px;margin:0 auto;padding-bottom:24px}
-.kc-wide{max-width:1080px;margin:0 auto;padding:0 16px 40px}
+/* La pista era de 1080px cuando las pantallas de la gente son de 1900.
+   Sobraba media pantalla a la derecha y las tablas se apretaban al pedo:
+   la fila de Capacitaciones tiene cinco botones y el último quedaba
+   contra el borde. Los textos largos no se estiran igual porque cada
+   bloque de prosa lleva su propio max-width en ch. */
+.kc-wide{max-width:1400px;margin:0 auto;padding:0 16px 40px}
 
 .kc-carga{padding:50px 20px;text-align:center;color:var(--kc-ink3);font-size:14px}
 .kc-err{margin:16px;background:var(--kc-crs);border-left:3px solid var(--kc-cr);
@@ -268,6 +273,12 @@ const CSS = `
    las cinco. Lo que se cae del borde tiene que ser lo que menos duele
    perder, no lo más importante. */
 .kc td.acc>div{flex-wrap:nowrap}
+/* En pantalla angosta ya no alcanza con reordenar: no entran ni cuatro.
+   Ahí los botones BAJAN de renglón en vez de esconderse detrás de un
+   scroll horizontal que nadie ve. En pantalla normal siguen en una línea. */
+@media (max-width:900px){
+  .kc td.acc>div{flex-wrap:wrap;justify-content:flex-end;row-gap:5px}
+}
 /* Cinco botones a tamaño normal se comían 375px y empujaban la tabla
    113px afuera de la caja: el último quedaba cortado contra el borde.
    Acá van más apretados —siguen siendo del tamaño que se puede tocar en

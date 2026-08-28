@@ -1374,9 +1374,10 @@ var AVANCE_TIPOS=[['interno','Interno','var(--nar)'],['cliente','Cliente','var(-
 function _avTipo(k){ for(var i=0;i<AVANCE_TIPOS.length;i++){ if(AVANCE_TIPOS[i][0]===k) return AVANCE_TIPOS[i]; } return [k,k||'—','var(--tx3)']; }
 function _bitacoraHTML(t){
   var av=Array.isArray(t.avances)?t.avances.slice():[];
+  var cerrada=(t.estado||'')==='cerrada';
   av.sort(function(a,b){ return String(a.fecha||'').localeCompare(String(b.fecha||'')); });
   var tl;
-  if(!av.length){ tl='<div style="font-size:12px;color:var(--tx3);padding:6px 0">Todavía no hay avances registrados. Sumá el primero abajo.</div>'; }
+  if(!av.length){ tl='<div style="font-size:12px;color:var(--tx3);padding:6px 0">'+(cerrada?'No se registraron avances.':'Todavía no hay avances registrados. Sumá el primero abajo.')+'</div>'; }
   else { tl=av.map(function(x,i){
     var tp=_avTipo(x.tipo);
     return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
@@ -1388,14 +1389,16 @@ function _bitacoraHTML(t){
   }).join(''); }
   var opts=AVANCE_TIPOS.map(function(o){return '<option value="'+o[0]+'">'+esc(o[1])+'</option>';}).join('');
   var _sel='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:8px 10px';
-  return '<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 12px;background:var(--panel2)">'
-    +'<div style="font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">🕒 Bitácora de avances</div>'
-    +'<div style="margin-bottom:10px">'+tl+'</div>'
+  var form=cerrada?'':(''
     +'<div style="display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:end">'
     +'<div><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:3px">Fecha</label><input type="date" id="avFecha" value="'+_hoyISO()+'" style="'+_sel+'"></div>'
     +'<div><label style="display:block;font-size:11px;color:var(--tx2);margin-bottom:3px">Responsable del paso</label><select id="avTipo" style="'+_sel+'">'+opts+'</select></div></div>'
     +'<textarea id="avNota" rows="2" placeholder="Qué pasó (ej: se envió correo al cliente pidiendo la reparación)..." style="width:100%;background:#12151a;border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:9px;font-size:13px;font-family:inherit;margin-top:8px;box-sizing:border-box"></textarea>'
-    +'<button class="gbtn" style="margin-top:8px" onclick="agregarAvance(\''+t.id+'\')">+ Agregar avance</button></div>';
+    +'<button class="gbtn" style="margin-top:8px" onclick="agregarAvance(\''+t.id+'\')">+ Agregar avance</button>');
+  return '<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 12px;background:var(--panel2)">'
+    +'<div style="font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">🕒 Bitácora de avances</div>'
+    +'<div style="margin-bottom:'+(cerrada?'0':'10px')+'">'+tl+'</div>'
+    +form+'</div>';
 }
 async function agregarAvance(id){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
@@ -1508,6 +1511,8 @@ function gestionarSeguraCierre(id){
     +'<b>Observación:</b> '+esc(String(s.descripcion||'').slice(0,160))
     +(s.lugar?('<br><b>Lugar:</b> '+esc(s.lugar)):'')+(s.categoria?(' · <b>Categoría:</b> '+esc(s.categoria)):'')
     +'</div>';
+  var _yaCierra=(TAR||[]).filter(function(x){return x.cierra_tarjeta_id===s.id && !x.eliminada;});
+  if(_yaCierra.length){ info+='<div style="font-size:12.5px;color:#7fe6ff;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3);border-radius:9px;padding:8px 11px;margin-bottom:10px">🔗 <b>Esta segura ya resolvió:</b> '+_yaCierra.map(function(x){return 'N° '+(x.consecutivo||'S/N');}).join(', ')+'</div>'; }
   var body;
   if(!cand.length){
     body=info+'<div class="detempty">No hay tarjetas inseguras abiertas para cerrar en esta empresa. 👌</div>';
@@ -1578,9 +1583,9 @@ async function cerrarInsegurasSeleccionadas(seguraId){
   toast(okN+' insegura(s) cerrada(s)'+(errN?(' · '+errN+' con error'):'')+' ✔', errN>0);
 }
 async function reabrirTarjeta(id){
-  if(!confirm('¿Reabrir esta tarjeta?')) return;
-  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'abierta',cerrada_por:null,cerrada_at:null});
-    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='abierta'; t.cerrada_por=null; t.cerrada_at=null; } cerrarDet(); renderTar();
+  if(!confirm('¿Reabrir esta tarjeta? Se suelta el vínculo con la tarjeta segura que la había resuelto (si tenía).')) return;
+  try{ await sbPatch('tarjetas?id=eq.'+encodeURIComponent(id),{estado:'abierta',cerrada_por:null,cerrada_at:null,cierra_tarjeta_id:null,verificado_por:null});
+    var t=(TAR||[]).find(function(x){return x.id===id;}); if(t){ t.estado='abierta'; t.cerrada_por=null; t.cerrada_at=null; t.cierra_tarjeta_id=null; t.verificado_por=null; } cerrarDet(); renderTar();
   }catch(e){ alert('No se pudo reabrir ('+e.message+').'); }
 }
 function _lunesISO(){ var h=new Date(); var d=(h.getDay()+6)%7; h.setDate(h.getDate()-d); return h.toISOString().slice(0,10); }
@@ -1630,10 +1635,12 @@ function tarTableHTML(rows){
       const cl=(t.clase||'')==='seguro'?'<span class="badge seg">seguro</span>':(t.clase||'')==='inseguro'?'<span class="badge ins">inseguro</span>':esc(t.clase||'—');
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
-      var _cru=''; if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Resuelta por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
+      var _cru='';
+      if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Cerrada por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
+      else if((t.clase||'')==='seguro'){ var _resX=(TAR||[]).filter(function(x){return x.cierra_tarjeta_id===t.id && !x.eliminada;}); if(_resX.length){ var _nsX=_resX.map(function(x){return 'N° '+(x.consecutivo||'S/N');}).join(', '); _cru=' <span title="Cierra: '+esc(_nsX)+'" style="cursor:help">🔗</span>'; } }
       var gBtn='';
       if(!t.eliminada){
-        if((t.clase||'')==='inseguro') gBtn='<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ';
+        if((t.clase||'')==='inseguro') gBtn='<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">'+(((t.estado||'')==='cerrada')?'Ver':'Gestionar')+'</button> ';
         else if((t.clase||'')==='seguro') gBtn='<button class="gbtn" onclick="gestionarSeguraCierre(\''+t.id+'\')">🔗 Cerrar inseguras</button> ';
       }
       var pdfCell=TARPDF[t.id]?'<button class="dl" onclick="bajarDoc(this,\''+encodeURIComponent(TARPDF[t.id])+'\',\''+fn+'\')">⬇ PDF</button>':(t.eliminada?'<span class="mut">—</span>':'<button class="gbtn" title="Rearmar el PDF que no se generó (mala señal en terreno)" onclick="regenerarPDFTarjeta(\''+t.id+'\',this)">↻ Generar PDF</button>');

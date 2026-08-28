@@ -262,7 +262,12 @@
         <h2><span>▸</span> Personal de terreno · tarjetas <span id="rosterCount" style="color:var(--nar)"></span></h2>
         <div class="umsg">Registro de trabajadores por cédula. Dar de baja acá impide que la persona registre <b>tarjetas</b> (que no piden contraseña, solo cédula).</div>
         <div class="loading" id="rosterLoading">Cargando personal…</div>
-        <div id="rosterContent"></div>
+                <div id="rosterContent"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2><span>▸</span> Zonas / lugares · catálogo de tarjetas</h2>
+        <div class="umsg">El trabajador elige el lugar de esta lista (así no se multiplican los nombres sueltos). Aprobá o descartá las que llegan de terreno, creá nuevas y asignales la sede.</div>
+        <div id="zonasContent"><div class="loading">Cargando zonas…</div></div>
       </div>
     </div>
     <div class="hide" id="viewDocs">
@@ -594,7 +599,7 @@ function verVista(v){
   if(v==='tar' && !TAR) loadTarjetas();
   if(v==='ats' && !ATSDATA) loadAts();
   if(v==='chat') initChat();
-  if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
+    if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); loadZonas(); }
   if(v==='docs' && !DOCS) loadDocs();
   if(v==='audit' && !AUDIT) loadAudit();
   if(v==='notif' && !NOTIF) loadNotif();
@@ -670,6 +675,75 @@ function accionesUsuario(u){
   }
   return a;
 }
+ // ===== Gestión de zonas (catálogo de lugares) =====
+var ZONAS_HSE=null, ZSEDES=null;
+async function loadZonas(){
+  var C=$('zonasContent'); if(C) C.innerHTML='<div class="loading">Cargando zonas…</div>';
+  try{
+    ZONAS_HSE=(await sbRpc('zonas_listar',{emp:MYEMP}))||[];
+    try{ ZSEDES=(await sbRpc('sedes_empresa',{emp:MYEMP}))||[]; }catch(e){ ZSEDES=[]; }
+    renderZonas();
+  }catch(e){ if(C) C.innerHTML='<div class="detempty" style="color:#F0B04A">No se pudieron cargar las zonas ('+esc(e.message)+'). ¿Corriste el SQL KALU_zonas.sql?</div>'; }
+}
+function _sedeOpts(cur){ var o='<option value="">— sin sede —</option>'; (ZSEDES||[]).forEach(function(s){ o+='<option value="'+s.id+'"'+(cur===s.id?' selected':'')+'>'+esc(s.nombre)+'</option>'; }); return o; }
+function renderZonas(){
+  var C=$('zonasContent'); if(!C) return;
+  var Z=ZONAS_HSE||[];
+  var prop=Z.filter(function(z){return z.estado==='propuesta';});
+  var act=Z.filter(function(z){return z.estado==='activa';});
+  var inact=Z.filter(function(z){return z.estado==='inactiva';});
+  var h='';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'
+    +'<input type="text" id="znNombre" placeholder="Nueva zona…" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px">'
+    +'<select id="znSede" style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px">'+_sedeOpts('')+'</select>'
+    +'<button class="dl" onclick="zonaCrear()">+ Crear zona</button>'
+    +'<button class="gbtn" onclick="loadZonas()">↻ Actualizar</button></div>';
+  if(prop.length){
+    h+='<div style="font-size:12px;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin:6px 0 8px">⏳ Propuestas de terreno ('+prop.length+') — aprobá y asignales sede</div>';
+    h+='<div class="twrap"><table class="ttbl"><thead><tr><th>Zona</th><th>Sede</th><th>Propuesta por</th><th>Acción</th></tr></thead><tbody>'
+      +prop.map(function(z){
+        return '<tr><td><b>'+esc(z.nombre)+'</b></td>'
+          +'<td><select id="zs_'+z.id+'" style="background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:7px;padding:5px 8px;font-size:12px">'+_sedeOpts(z.sede_id)+'</select></td>'
+          +'<td>'+esc(z.propuesta_por||'—')+'</td>'
+          +'<td style="white-space:nowrap"><button class="ubtn ok" onclick="zonaAprobar(\''+z.id+'\')">✓ Aprobar</button> <button class="ubtn no" onclick="zonaSet(\''+z.id+'\',\'descartada\')">Descartar</button></td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  h+='<div style="font-size:12px;color:var(--verde);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px">✅ Activas ('+act.length+')</div>';
+  if(!act.length){ h+='<div class="detempty">Todavía no hay zonas activas. Creá la primera arriba.</div>'; }
+  else{
+    h+='<div class="twrap"><table class="ttbl"><thead><tr><th>Zona</th><th>Sede</th><th>Acción</th></tr></thead><tbody>'
+      +act.map(function(z){
+        return '<tr><td><b>'+esc(z.nombre)+'</b></td>'
+          +'<td><select onchange="zonaSede(\''+z.id+'\',this.value)" style="background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:7px;padding:5px 8px;font-size:12px">'+_sedeOpts(z.sede_id)+'</select></td>'
+          +'<td><button class="ubtn no" onclick="zonaSet(\''+z.id+'\',\'inactiva\')">Desactivar</button></td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  if(inact.length){
+    h+='<details style="margin-top:14px"><summary style="cursor:pointer;font-size:12px;color:var(--tx2)">Inactivas ('+inact.length+')</summary><div class="twrap" style="margin-top:8px"><table class="ttbl"><thead><tr><th>Zona</th><th>Sede</th><th></th></tr></thead><tbody>'
+      +inact.map(function(z){ return '<tr style="opacity:.7"><td>'+esc(z.nombre)+'</td><td>'+esc(z.sede_nombre||'—')+'</td><td><button class="ubtn ok" onclick="zonaSet(\''+z.id+'\',\'activa\')">Reactivar</button></td></tr>'; }).join('')
+      +'</tbody></table></div></details>';
+  }
+  C.innerHTML=h;
+}
+async function zonaCrear(){
+  var nom=(($('znNombre')||{}).value||'').trim(); if(!nom){ alert('Escribí el nombre de la zona.'); return; }
+  var sede=(($('znSede')||{}).value)||null;
+  try{ await sbRpc('zona_crear',{emp:MYEMP,p_nombre:nom,p_sede:sede}); await loadZonas(); }
+  catch(e){ alert('No se pudo crear ('+e.message+').'); }
+}
+async function zonaAprobar(id){
+  var sede=(($('zs_'+id)||{}).value)||null;
+  try{ await sbRpc('zona_set',{p_id:id,p_estado:'activa',p_sede:sede}); await loadZonas(); }
+  catch(e){ alert('No se pudo aprobar ('+e.message+').'); }
+}
+async function zonaSede(id,sede){
+  try{ await sbRpc('zona_set',{p_id:id,p_estado:'activa',p_sede:sede||null}); }catch(e){ alert('No se pudo cambiar la sede ('+e.message+').'); }
+}
+async function zonaSet(id,estado){
+  if(estado==='descartada' && !confirm('¿Descartar esta zona propuesta? Se borra.')) return;
+  try{ await sbRpc('zona_set',{p_id:id,p_estado:estado}); await loadZonas(); }
+  catch(e){ alert('No se pudo actualizar ('+e.message+').'); }
+} 
 async function loadUsuarios(){
   var L=document.getElementById('usersLoading'), C=document.getElementById('usersContent');
   L.classList.remove('hide'); L.textContent='Cargando usuarios…'; C.innerHTML='';

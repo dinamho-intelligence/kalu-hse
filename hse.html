@@ -1599,7 +1599,9 @@ async function sugerirCruceKALU(seguraId){
       segura:{consecutivo:s.consecutivo||'', descripcion:String(s.descripcion||'').slice(0,300), categoria:s.categoria||'', lugar:s.lugar||''},
       inseguras:inseguras, token:TOKEN })});
     if(!r.ok) throw new Error('http '+r.status);
-    var d=await r.json();
+    var _t=await r.text();
+    if(!_t){ if(msg){ msg.style.color='#e66'; msg.textContent='El flujo respondió vacío — casi seguro el nodo Claude falló en n8n (¿pegaste la API key? ¿el modelo es el correcto?). Mirá la última ejecución del flujo.'; } return; }
+    var d; try{ d=JSON.parse(_t); if(typeof d==='string') d=JSON.parse(d); }catch(_){ if(msg){ msg.style.color='#e66'; msg.textContent='La respuesta de n8n no es JSON válido. Revisá el nodo Responder.'; } return; }
     var sug=(d&&d.sugerencias)||[];
     if(!sug.length){ if(msg){ msg.style.color='var(--amber)'; msg.textContent='KALU no encontró cruces claros. Revisá a mano.'; } return; }
     var byId={}; sug.forEach(function(x){ if(x&&x.id) byId[x.id]=x; });

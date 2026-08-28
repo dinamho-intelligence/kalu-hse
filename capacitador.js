@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '58';
+const KC_VER = '59';
 
 let sb = null;
 
@@ -1948,11 +1948,16 @@ async function admin(sel) {
     // Sin una sola actividad programada en el año. Es el «0/0» de la
     // columna 2026: el dato ya estaba a la vista, lo que faltaba era
     // poder quedarse sólo con ésas y hacer algo al respecto.
+    // Las activas se parten en dos y los números cierran a la vista:
+    // programadas + sin programar = activas. Si algún día no cierran, se
+    // nota sin que nadie tenga que revisar nada.
     const sinProg = act.filter(c => (c.eventos || 0) === 0);
+    const conProg = act.filter(c => (c.eventos || 0) > 0);
     const n = {
       todas: C.length, activas: act.length,
       bloqueo: act.filter(c => c.bloqueo > 0).length,
       huerfanas: huerf.length,
+      conprog: conProg.length,
       sinprog: sinProg.length,
       apagadas: C.length - act.length
     };
@@ -1962,6 +1967,7 @@ async function admin(sel) {
       if (filtro === 'apagadas')  return !c.activo;
       if (filtro === 'bloqueo')   return c.activo && c.bloqueo > 0;
       if (filtro === 'huerfanas') return c.activo && c.personas === 0;
+      if (filtro === 'conprog')   return c.activo && (c.eventos || 0) > 0;
       if (filtro === 'sinprog')   return c.activo && (c.eventos || 0) === 0;
       return true;
     };
@@ -2002,7 +2008,9 @@ async function admin(sel) {
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
-        ${chip('huerfanas','Sin gente')}${chip('sinprog','Sin programar ' + hoy().getFullYear())}${chip('apagadas','Apagadas')}
+        ${chip('huerfanas','Sin gente')}
+        ${chip('conprog','Programadas este año')}${chip('sinprog','Sin programar este año')}
+        ${chip('apagadas','Apagadas')}
       </div>
       ${L.length ? `<div class="kc-sc"><table><thead><tr>
         <th>Código</th><th>Capacitación</th><th>Vigencia</th>${hayMod ? '<th>Modalidad</th>' : ''}

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '54';
+const KC_VER = '55';
 
 let sb = null;
 
@@ -3628,6 +3628,7 @@ const SB_REF     = 'nignqeipzlemwfrwmpip';
 const SESS_KEY   = 'sb-' + SB_REF + '-auth-token';
 const LOGOUT_KEY = 'kalu_logout';
 let   _uid = null, _mySid = null, _idleMin = 15, _idleT = null, _pollT = null;
+let   _sidRaro = 0;   // lecturas seguidas con un número distinto
 
 /* =================================================================
    ARRANQUE — poner una empresa en marcha
@@ -7159,12 +7160,41 @@ function _resetIdle() {
     _forzarSalida('Cerramos tu sesión por inactividad.');
   }, (_idleMin || 15) * 60000);
 }
+/* EL CANDADO ECHABA A LA GENTE DE SU PROPIA COMPUTADORA.
+
+   El número de sesión se leía del navegador UNA SOLA VEZ, al cargar la
+   página, y quedaba congelado en memoria; el de la base se releía cada 30
+   segundos. Entonces cualquier cosa que reescribiera el número —abrir otra
+   pestaña, volver al portal y entrar de nuevo, renovar el token— dejaba a
+   la pestaña abierta comparando contra un valor viejo. Se cerraba sola
+   diciendo «se inició sesión en otro equipo», con la persona sentada
+   adelante y nadie más usando su usuario. A Jennifer la sacaba cada cuatro
+   minutos.
+
+   Dos cambios, y ninguno afloja el candado:
+
+   1. El número del navegador se RELEE en cada chequeo. El navegador
+      comparte ese dato entre todas las pestañas de la misma máquina, así
+      que dos pestañas propias siempre coinciden. Una computadora distinta
+      tiene su propio almacenamiento: ahí el candado salta igual.
+
+   2. Hacen falta DOS lecturas distintas seguidas, con 30 segundos de por
+      medio, antes de echar a nadie. Una sola puede ser el instante entre
+      que se escribe la base y se escribe el navegador durante un reingreso
+      propio. Echar a alguien por una carrera de milisegundos es el peor
+      falso positivo posible: le interrumpe el trabajo y le hace creer que
+      le robaron la cuenta.                                              */
 async function _chequearSesion() {
-  if (!_uid || !_mySid) return;
+  if (!_uid) return;
+  let mio = null;
+  try { mio = localStorage.getItem('kalu_sid') || null; } catch (e) {}
+  if (!mio) { _sidRaro = 0; return; }   // sin número propio no hay con qué comparar
   try {
     const r = await sb.from('perfiles').select('sesion_id').eq('id', _uid).maybeSingle();
     const sid = (r && r.data && r.data.sesion_id) || null;
-    if (sid && _mySid && sid !== _mySid)
+    if (!sid || sid === mio) { _sidRaro = 0; return; }
+    _sidRaro++;
+    if (_sidRaro >= 2)
       _forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.');
   } catch (e) {}
 }

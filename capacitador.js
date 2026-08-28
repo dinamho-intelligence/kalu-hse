@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '56';
+const KC_VER = '57';
 
 let sb = null;
 
@@ -5309,7 +5309,12 @@ const crAlias = n => (CR_CAMPOS.find(p => p[0] === n) || [null, []])[1];
    sólo donde no hay duda. */
 const CR_RUIDO_IGUAL = ['CONVENCIONES', 'CONVENCION', 'VIRTUAL', 'PRESENCIAL', 'MIXTO', 'MIXTA',
   'PLATAFORMA COLMENA', 'AUTOESTUDIO', 'OBSERVACIONES', 'OBSERVACION', 'NOTA', 'NOTAS',
-  'TOTAL', 'GRAN TOTAL'];
+  'TOTAL', 'GRAN TOTAL',
+  // Pie de las cuatro hojas del PG-HUM-001: una fila «ANALISIS» con el
+  // comentario de cada mes. Iba a entrar como una capacitación con 23
+  // actividades. Va EXACTO y nunca por prefijo: «Análisis de Trabajo
+  // Seguro» es una capacitación de verdad.
+  'ANALISIS'];
 const CR_RUIDO_EMPIEZA = ['PRESUPUESTO', 'TOTALES', 'FECHA DE ACTUALIZACION', 'RESPONSABLE:',
   'ELABORO', 'REVISO', 'APROBO', 'CAPACITACIONES EJECUTADAS', 'CAPACITACIONES PROGRAMADAS'];
 
@@ -5490,6 +5495,15 @@ function crGrilla(M, nombre, XLSX, ws) {
     if (!tit || tit.length < 4) continue;
     if (mzSinTilde(tit) === 'TEMA') continue;
     if (crEsRuido(tit)) { ruido++; continue; }
+
+    // Una fila de tema real SIEMPRE trae objetivo, a quién va dirigida y
+    // modalidad. Si no trae ninguna de las tres, es un pie de tabla o un
+    // rótulo de sección, aunque no esté en ninguna lista de palabras.
+    // Esto atrapa al próximo «ANALISIS» sin que haya que agregarlo a mano.
+    const _obj = base.objetivo  !== undefined ? mzTxt(r[base.objetivo])  : '';
+    const _dir = base.alcance   !== undefined ? mzTxt(r[base.alcance])   : '';
+    const _mod = base.modalidad !== undefined ? mzTxt(r[base.modalidad]) : '';
+    if (!_obj && !_dir && !_mod) { ruido++; continue; }
 
     const comun = {
       hoja: nombre, capacitacion: tit,

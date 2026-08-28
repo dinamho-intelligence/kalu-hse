@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '46';
+const KC_VER = '50';
 
 let sb = null;
 
@@ -393,6 +393,8 @@ const CSS = `
 .kc-dest .cab .c{flex:1 1 auto;min-width:0}
 .kc-dest .cab .fl{color:var(--kc-ink3);font-size:11px}
 .kc-dest .cue{padding:4px 15px 15px;border-top:1px solid var(--kc-rule)}
+.kc-mot{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 11px;
+ border:1px solid var(--kc-rule2);border-radius:7px;background:var(--kc-card2);color:var(--kc-ink)}
 .kc-dest .lis{margin:0 0 12px}
 .kc-dest .lis summary{cursor:pointer;font-family:var(--kc-fm);font-size:11px;
  letter-spacing:.05em;text-transform:uppercase;color:var(--kc-ink3);padding:5px 0}
@@ -1504,7 +1506,7 @@ async function supervision(sel) {
 async function admin(sel) {
   estilos(); const el = nodo(sel); if (!el) return;
   cargando(el, 'Cargando…');
-  let D, CAT = null, CRO = null;
+  let D, CAT = null, CRO = null, ANIOS = null;
   try { D = await rpc('cap_admin_datos'); } catch (e) { return error(el, e); }
   try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
 
@@ -1523,8 +1525,11 @@ async function admin(sel) {
   async function traerCat() { if (!CAT) CAT = await rpc('cap_catalogo_datos'); return CAT; }
   async function traerCro() {
     if (!CRO || CRO.anio !== anio) CRO = await rpc('cap_cronograma_datos', { p_anio: anio });
+    if (!ANIOS) ANIOS = await rpc('cap_anios');
     return CRO;
   }
+  const anioInfo = a => (ANIOS || []).find(x => x.anio === a) || null;
+  const anioOff  = a => { const i = anioInfo(a); return !!(i && i.archivado); };
 
   /* ------------------------------------------------------------- armazón */
   async function pintar() {
@@ -1656,8 +1661,11 @@ async function admin(sel) {
       historia(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-cargacro]').forEach(b => b.onclick = () =>
       cronograma(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-anio]').forEach(b => b.onclick = () => dlgAnio(b.dataset.anio === '1'));
     el.querySelectorAll('[data-unif]').forEach(b => b.onclick = () =>
       fusionar(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-retirar]').forEach(b => b.onclick = () =>
+      retirar(sel, { volver: () => admin(sel) }));
     el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
     el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
 
@@ -1680,7 +1688,7 @@ async function admin(sel) {
   }
 
   async function recargar(r) {
-    CAT = null; CRO = null;
+    CAT = null; CRO = null; ANIOS = null;
     try { D = await rpc('cap_admin_datos'); } catch (e) {}
     await pintar();
     if (r && r.aviso) toast(r.aviso);
@@ -1920,6 +1928,8 @@ async function admin(sel) {
           Si las importaste de un documento que ya dice a quién van dirigidas, no hace falta
           asignarlas una por una.
           <button class="kc-mini p" data-asigdoc="1" style="margin-left:6px">Asignar desde el documento</button></div>` : ''}
+        <div style="margin-top:8px"><button class="kc-mini" data-retirar="1"
+          title="Exigencias sin eventos este año que siguen poniendo gente en rojo">Lo que dejó de aplicar</button></div>
         </div></div>` : '';
 
     return alerta + `
@@ -2032,20 +2042,30 @@ async function admin(sel) {
     };
 
     const opAnios = (CRO.anios||[CRO.anio]).includes(anio) ? (CRO.anios||[anio]) : (CRO.anios||[]).concat([anio]);
+    const off = anioOff(anio), info = anioInfo(anio);
 
     return `<div class="kc-bar2">
         <select id="kc-anio" class="kc-sel">${opAnios.sort().reverse().map(a =>
-          `<option value="${a}"${a===anio?' selected':''}>${a}</option>`).join('')}</select>
+          `<option value="${a}"${a===anio?' selected':''}>${a}${anioOff(a)?' · archivado':''}</option>`).join('')}</select>
         <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar capacitación o responsable…"
                value="${esc(busca)}" autocomplete="off">
         <button class="kc-mini p" data-e="crear">+ Programar</button>
         <button class="kc-mini" data-histo="1" title="Cargar asistencias que ya se registraron fuera de KALU">↑ Cargar historia</button>
         <button class="kc-mini" data-cargacro="1" title="Cargar el libro del programa: fechas programadas y realizadas">↑ Cargar cronograma</button>
+        ${off ? '' : `<button class="kc-mini" data-anio="1" title="Sacar ${anio} de los indicadores, conservando la historia">Archivar ${anio}</button>`}
       </div>
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todo el año')}${chip('hecho','Dictadas')}${chip('programado','Por dictar')}
         ${chip('atrasado','Sin dictar')}${chip('cancelado','Canceladas')}${chip('disparo','Sin fecha')}
       </div>
+      ${off ? `<div class="kc-cent" style="background:var(--kc-card2)">
+        <div class="b" style="background:var(--kc-ink3)">≡</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">${anio} está archivado · no cuenta en los indicadores</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(info && info.motivo || '')}
+          ${info && info.asistencias ? `<br><b>Las ${info.asistencias} asistencia(s) de ${anio} siguen valiendo</b>
+            y siguen venciendo: la gente se capacitó. Archivar apaga el cronograma, no lo que hizo cada uno.` : ''}</div>
+        <div style="margin-top:8px"><button class="kc-mini p" data-anio="0">Que vuelva a contar</button></div>
+        </div></div>` : ''}
       ${n.atrasado && filtro === 'todas' ? `<div class="kc-cent mal"><div class="b">${n.atrasado}</div><div>
         <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${n.atrasado} evento(s) pasaron de fecha sin dictarse</div>
         <div style="font-size:13px;color:var(--kc-ink2)">Ante la ARL un cronograma incumplido pesa más que uno reprogramado.
@@ -2078,6 +2098,40 @@ async function admin(sel) {
       catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
     };
     return d;
+  }
+
+  /* Archivar un año es una decisión de auditoría, no un filtro de pantalla:
+     por eso pide el motivo y por eso el diálogo dice, antes de aceptar, qué
+     se apaga y qué NO. Lo que no se apaga son las asistencias — y eso hay
+     que leerlo antes de apretar, no descubrirlo después. */
+  function dlgAnio(archivar) {
+    const i = anioInfo(anio) || { eventos: 0, asistencias: 0 };
+    const esteAnio = anio === hoy().getFullYear();
+
+    if (!archivar) {
+      return abrir(`<h3>Que ${anio} vuelva a contar</h3>
+        <p>Sus ${i.eventos} evento(s) entran otra vez en los indicadores y en el
+           cumplimiento del año.</p>`,
+        () => rpc('cap_anio_archivar', { p_anio: anio, p_archivar: false }),
+        'Que vuelva a contar');
+    }
+
+    abrir(`<h3>Archivar ${anio}</h3>
+      <p><b>Se apaga:</b> los ${i.eventos} evento(s) del cronograma de ${anio} dejan de
+         contar en los indicadores, en el cumplimiento y en los «sin dictar».</p>
+      <p><b>No se apaga:</b> ${i.asistencias
+          ? 'las ' + i.asistencias + ' asistencia(s) de ' + anio + ' siguen valiendo y siguen venciendo. La gente se capacitó y eso no se borra.'
+          : 'las asistencias de cualquier año siguen valiendo. Archivar apaga el cronograma, no lo que hizo cada uno.'}</p>
+      ${esteAnio ? `<p style="color:var(--kc-cr)"><b>Ojo:</b> ${anio} es el año en curso —
+         es el que va a mirar la auditoría.</p>` : ''}
+      <p>El año se sigue viendo y se puede desarchivar cuando quieras.</p>
+      <label for="k1">Por qué se archiva</label>
+      <input type="text" id="k1" placeholder="Ej: datos viejos que no vale la pena reparar">`,
+      d => {
+        const m = d.querySelector('#k1').value.trim();
+        if (!m) throw new Error('Escribí por qué se archiva. Un año que deja de contar sin motivo es la primera pregunta de una auditoría.');
+        return rpc('cap_anio_archivar', { p_anio: anio, p_archivar: true, p_motivo: m });
+      }, 'Archivar ' + anio);
   }
 
   function dlg(accion, id) {
@@ -5682,6 +5736,18 @@ async function consola(sel, opt) {
         <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
           Sólo lectura. Es la foto de hoy, calculada en el momento.</div></div>
 
+      <!-- Un año archivado se puede mirar. Lo que no se puede es mirarlo sin
+           saber que está archivado: los números de abajo son reales, pero no
+           son los que la empresa decidió que cuentan. Va antes de los
+           indicadores, no al pie. -->
+      ${D.anio_archivado ? `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:16px">
+        <div class="b" style="background:var(--kc-wa)">≡</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${anio} está archivado · estos números no cuentan para la auditoría</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(D.anio_motivo || '')}
+          Se muestran igual porque son reales; simplemente no son los del año que la
+          empresa decidió mirar.</div></div></div>` : ''}
+
       <!-- ---------- los indicadores del programa · para proyectar ----------
            Cada uno con su meta, su numerador y su denominador a la vista:
            en una reunión la primera pregunta es siempre de dónde sale el
@@ -6470,6 +6536,248 @@ async function fusionar(sel, opt) {
 
 
 /* =================================================================
+   PANTALLA · LO QUE DEJÓ DE APLICAR
+
+   «En 2025 trabajamos en alturas excepcionalmente y en 2026 ya no se
+   hará. Sólo causa rojos.»
+
+   Eso no es una capacitación atrasada: nadie está incumpliendo nada.
+   Es una exigencia que dejó de aplicar y que el módulo sigue
+   reclamando porque nunca le dijeron que la actividad se terminó.
+
+   La señal se calcula sola —cero eventos programados este año y gente
+   en rojo— pero la decisión no. «Inspección visual» sin eventos este
+   año puede seguir siendo obligatoria, y retirarla le daría vía libre
+   a alguien que no está formado. Va de a una.
+
+   Se retira la ASIGNACIÓN, no la ficha: alturas puede dejar de
+   aplicarle al taller y seguir aplicándole a la cuadrilla de campo.
+   ================================================================= */
+async function retirar(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Buscando exigencias que ya no aplican…');
+
+  let D, abierto = null, ver = 'propuestas';
+  try { D = await rpc('cap_retiro_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 11000);
+  }
+  async function recargar(msg) {
+    D = await rpc('cap_retiro_datos'); abierto = null; pintar(); if (msg) toast(msg);
+  }
+
+  const todas = () => D.filas || [];
+  // «Dejó de programarse» y «nunca se programó» NO son lo mismo, y se
+  // arreglan en lugares distintos: una se retira, la otra se programa.
+  // Mezclarlas haría que la pantalla proponga tapar un hueco del plan.
+  const props = () => todas().filter(f => f.propuesta);
+  const nunca = () => todas().filter(f => f.clase === 'nunca' && !f.retirada && f.en_rojo > 0);
+  const retis = () => todas().filter(f => f.retirada);
+
+  function pintar() {
+    const P = props(), N = nunca(), R = retis();
+    const SR = D.resumen || {};
+    const Sd = SR.dejo  || { personas: 0, casos: 0, capacitaciones: 0 };
+    const Sn = SR.nunca || { personas: 0, casos: 0, capacitaciones: 0 };
+    // El resumen viene del servidor contado sobre el CONJUNTO. Sumar el
+    // `en_rojo` de cada fila daría persona × capacitación: quien está en rojo
+    // por seis exigencias se contaría seis veces, y en una empresa de 100
+    // saldrían 568 «personas». Ese número no existe y nadie puede ir a
+    // resolverlo. Dos números, nunca uno.
+    const S = D.resumen || { personas: 0, casos: 0, capacitaciones: 0 };
+    const puede = D.puede_editar !== false;
+    const lista = ver === 'propuestas' ? P : ver === 'nunca' ? N
+                : ver === 'retiradas' ? R : todas();
+
+    const chip = (k, t, n) => `<button type="button" class="kc-chip" data-ver="${k}"
+      aria-pressed="${ver === k}">${t} · ${n}</button>`;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">EXIGENCIAS · ${D.anio}</div>
+        <h1 style="font-size:28px;font-weight:700">Lo que dejó de aplicar</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Si una actividad se terminó, su capacitación no está atrasada: <b>dejó de
+          corresponder</b>. Pero eso no es lo mismo que una que <b>nunca se programó</b> —
+          y acá van separadas, porque se arreglan en lugares distintos.</div></div>
+
+      <div class="kc-grid4" style="margin-bottom:8px">
+        <div class="kc-kpi ${P.length ? 'mal' : 'ok'}"><b>${P.length}</b>
+          <span>dejaron de programarse</span></div>
+        <div class="kc-kpi"><b>${Sd.personas}</b><span>personas en rojo por ésas</span></div>
+        <div class="kc-kpi ${N.length ? 'mal' : ''}"><b>${N.length}</b>
+          <span>nunca se programaron</span></div>
+        <div class="kc-kpi"><b>${Sn.personas}</b><span>personas en rojo por ésas</span></div>
+      </div>
+      <p class="kc-nota" style="text-align:left;margin:0 0 14px">
+        <b>Dejó de programarse</b> tuvo eventos en años anteriores y este año ninguno: puede
+        que la actividad se haya terminado, y ahí retirarla es lo correcto.
+        <b>Nunca se programó</b> no tiene un solo evento en ningún año: eso no dejó de
+        aplicar, <b>nunca empezó</b>, y se arregla programándola. Las personas están contadas
+        una sola vez en cada grupo, no sumadas por capacitación.</p>
+
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('propuestas','Dejaron de programarse', P.length)}
+        ${chip('nunca','Nunca se programaron', N.length)}
+        ${chip('todas','Todas', todas().length)}${chip('retiradas','Retiradas', R.length)}
+      </div>
+
+      ${ver === 'nunca' && N.length ? `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:12px">
+        <div class="b" style="background:var(--kc-wa)">${N.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">Esto no dejó de aplicar · nunca empezó</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Ninguna de éstas tiene un evento en
+          ningún año. El rojo es real y la respuesta normal es <b>programarlas</b>, no
+          retirarlas. Retirar acá taparía un hueco del plan con un cartel que dice «ya no
+          corresponde».</div></div></div>` : ''}
+
+      ${!lista.length ? `<p class="kc-vacio">${ver === 'propuestas'
+          ? 'Ninguna exigencia se programó en años anteriores y dejó de programarse este año. No hay nada que retirar.'
+          : ver === 'nunca' ? 'Todas las exigencias tienen al menos un evento en algún año.'
+          : 'Nada acá.'}</p>`
+        : '<div class="kc-dest">' + lista.map(f => tarjeta(f, puede)).join('') + '</div>'}
+
+      ${ver === 'propuestas' && P.length ? `<p class="kc-nota" style="text-align:left;margin-top:14px">
+        Que una capacitación no tenga eventos este año <b>no prueba</b> que dejó de aplicar:
+        también puede ser que falte programarla. Las dos son respuestas — la que no vale es
+        dejarla en rojo sin mirarla.</p>` : ''}
+      </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    enganchar();
+  }
+
+  function tarjeta(f, puede) {
+    const ab = abierto === f.id;
+    const legal = f.base_legal && f.base_legal.length;
+
+    return `<article class="kc-p1 ${f.retirada ? '' : 'pend'}">
+      <button type="button" class="cab" data-abrir="${f.id}" aria-expanded="${ab}">
+        <div class="i">${f.retirada ? '—' : f.en_rojo}</div>
+        <div class="c">
+          <div class="kc-tt" style="font-size:15px">${esc(f.titulo)}
+            ${f.retirada ? '<span class="kc-tag n">retirada</span>' : ''}
+            ${!f.retirada && f.clase === 'nunca' ? '<span class="kc-tag n">nunca se programó</span>' : ''}
+            ${legal && !f.retirada ? '<span class="kc-tag no">base legal</span>' : ''}</div>
+          <div class="kc-cd" style="margin-top:3px">${esc(f.a_quien)} ·
+            ${f.gente} persona(s) · ${f.eventos_anio
+              ? f.eventos_anio + ' evento(s) este año'
+              : '<b>sin eventos en ' + D.anio + '</b>'}${
+            f.ultimo_anio ? ' · último en ' + f.ultimo_anio : ' · nunca se programó'}</div>
+        </div>
+        <span class="fl">${ab ? '▲' : '▼'}</span>
+      </button>
+      ${!ab ? '' : `<div class="cue">
+        <div class="kc-fus">
+          <div class="lado">
+            <div class="kc-cd">Se apaga · la exigencia</div>
+            <div class="tit">${esc(f.a_quien)}</div>
+            <div class="dat"><b>${f.gente}</b> persona(s) dejan de tenerla pendiente${
+              f.en_rojo ? ` · <b>${f.en_rojo}</b> sale(n) de rojo` : ''}</div>
+            ${f.bloqueante && f.bloqueante !== 'no'
+              ? '<div class="dat" style="color:var(--kc-cr)">Hoy bloquea; al retirarla deja de bloquear.</div>' : ''}
+          </div>
+          <div class="fl2">≠</div>
+          <div class="lado">
+            <div class="kc-cd">No se apaga · la historia</div>
+            <div class="tit">${f.asistencias} asistencia(s)</div>
+            <div class="dat">${f.asistencias
+              ? 'Quien la hizo, la hizo' + (f.ultima_vez ? ', la última el ' + fecha(f.ultima_vez) : '') +
+                '. El registro queda y el certificado sigue siendo cierto.'
+              : 'Todavía no hay ninguna asistencia registrada de esta capacitación.'}</div>
+          </div>
+        </div>
+
+        ${f.retirada ? `<p class="kc-nota" style="text-align:left;margin:11px 0 0">
+            <b>Retirada.</b> Motivo: ${esc(f.retirada_motivo || '—')}</p>
+          ${puede ? `<div class="kc-row" style="margin-top:12px">
+            <button class="kc-mini p" data-volver2="${f.id}">Volver a exigirla</button>
+            <button class="kc-mini" data-cerrar="1">Cerrar</button></div>` : ''}`
+        : `${legal ? `<div class="kc-cent mal" style="margin-top:12px">
+            <div class="b">!</div><div>
+            <div class="kc-tt" style="font-size:14px;color:var(--kc-cr)">Esta capacitación tiene base legal</div>
+            <div style="font-size:13px;color:var(--kc-ink2)">${(f.base_legal||[]).map(esc).join(' · ')}.
+              Retirarla es afirmar que la empresa <b>ya no realiza esa actividad</b>. Si alguien la
+              sigue haciendo, la norma se exige igual — y esto no la exime.</div></div></div>` : ''}
+
+          ${f.clase === 'nunca' ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:12px">
+            <div class="b" style="background:var(--kc-wa)">?</div><div>
+            <div class="kc-tt" style="font-size:14px;color:var(--kc-wa)">Nunca tuvo un evento, en ningún año</div>
+            <div style="font-size:13px;color:var(--kc-ink2)">Entonces no dejó de aplicar: nunca
+              empezó. Si la actividad existe, lo que corresponde es <b>programarla</b>. Retirarla
+              acá taparía un hueco del plan con un cartel que dice «ya no corresponde».</div>
+            </div></div>` : ''}
+
+          ${puede ? `<label class="kc-cd" for="m-${f.id}" style="display:block;margin:12px 0 4px">
+              Por qué dejó de aplicar</label>
+            <input class="kc-mot" type="text" id="m-${f.id}" data-mot="${f.id}"
+                   placeholder="Ej: en ${D.anio} no se realizan trabajos en alturas">
+            <div class="kc-row" style="margin-top:12px">
+              ${f.clase === 'nunca'
+                ? `<button class="kc-btn" data-ok="${f.id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+                     Sigue vigente · hay que programarla</button>
+                   <button class="kc-mini" data-ret="${f.id}">Igual ya no aplica · retirar</button>`
+                : `<button class="kc-btn" data-ret="${f.id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+                     Ya no aplica · retirar</button>
+                   <button class="kc-mini" data-ok="${f.id}">Sigue vigente</button>`}
+              <button class="kc-mini" data-cerrar="1">Cancelar</button></div>`
+          : '<p class="kc-nota" style="text-align:left">Sólo lectura.</p>'}`}
+      </div>`}
+    </article>`;
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-ver]').forEach(b => b.onclick = () => {
+      ver = b.dataset.ver; abierto = null; pintar();
+    });
+    el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = (abierto === b.dataset.abrir) ? null : b.dataset.abrir; pintar();
+    });
+    el.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => { abierto = null; pintar(); });
+
+    el.querySelectorAll('[data-ret]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.ret;
+      const campo = el.querySelector(`[data-mot="${id}"]`);
+      const m = campo ? campo.value.trim() : '';
+      // El motivo no es burocracia: una exigencia que desaparece sin
+      // explicación es lo primero que pregunta una auditoría.
+      if (!m) { alert('Escribí por qué dejó de aplicar. Sin eso no se retira.'); if (campo) campo.focus(); return; }
+      b.disabled = true; b.textContent = 'Retirando…';
+      try { const r = await rpc('cap_asignacion_retirar',
+              { p_asignacion: id, p_retirar: true, p_motivo: m });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; b.textContent = 'Ya no aplica · retirar'; alert(e.message); }
+    });
+
+    el.querySelectorAll('[data-volver2]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { const r = await rpc('cap_asignacion_retirar',
+              { p_asignacion: b.dataset.volver2, p_retirar: false });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+
+    el.querySelectorAll('[data-ok]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { const r = await rpc('cap_asignacion_vigente', { p_asignacion: b.dataset.ok });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
    PANTALLA · ASIGNAR DESDE EL DOCUMENTO
 
    El plan de la empresa ya dice a quién va dirigida cada capacitación.
@@ -6876,7 +7184,7 @@ async function iniciar(cfg) {
 global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
                    certificado, generador, verificar, arranque, planCargo, verCurso,
                    matriz, impCatalogo, consola, destinos, historia, fusionar,
-                   cronograma,
+                   cronograma, retirar,
                    version: KC_VER,
                    get cliente() { return sb; } };
 

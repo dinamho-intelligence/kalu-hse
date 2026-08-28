@@ -239,6 +239,11 @@
           <div class="card"><h2><span>▸</span> Por observado · a quién</h2><div id="tarObsdo"></div></div>
         </div>
         <div class="card full" style="margin-top:16px"><h2><span>▸</span> Tarjetas <span id="tarCount" style="color:var(--nar)"></span></h2><div id="tarTable"></div></div>
+        <div class="card full" style="margin-top:16px">
+          <h2><span>▸</span> Zonas / lugares · catálogo</h2>
+          <div class="umsg">El trabajador elige el lugar de esta lista al hacer la tarjeta (así no se multiplican los nombres sueltos). Creá las sedes/centros y sus zonas; aprobá o descartá las que llegan de terreno.</div>
+          <div id="zonasContent"><div class="loading">Cargando zonas…</div></div>
+        </div>
       </div>
     </div>
     <div class="hide" id="viewChat">
@@ -262,12 +267,7 @@
         <h2><span>▸</span> Personal de terreno · tarjetas <span id="rosterCount" style="color:var(--nar)"></span></h2>
         <div class="umsg">Registro de trabajadores por cédula. Dar de baja acá impide que la persona registre <b>tarjetas</b> (que no piden contraseña, solo cédula).</div>
         <div class="loading" id="rosterLoading">Cargando personal…</div>
-                <div id="rosterContent"></div>
-      </div>
-      <div class="card" style="margin-top:14px">
-        <h2><span>▸</span> Zonas / lugares · catálogo de tarjetas</h2>
-        <div class="umsg">El trabajador elige el lugar de esta lista (así no se multiplican los nombres sueltos). Aprobá o descartá las que llegan de terreno, creá nuevas y asignales la sede.</div>
-        <div id="zonasContent"><div class="loading">Cargando zonas…</div></div>
+        <div id="rosterContent"></div>
       </div>
     </div>
     <div class="hide" id="viewDocs">
@@ -596,10 +596,10 @@ function verVista(v){
   document.getElementById('viewDocs').classList.toggle('hide',v!=='docs');
   document.getElementById('viewAudit').classList.toggle('hide',v!=='audit');
   if(v==='exp' && !EXP) loadExpedientes();
-  if(v==='tar' && !TAR) loadTarjetas();
+  if(v==='tar'){ if(!TAR) loadTarjetas(); if(!ZONAS_HSE) loadZonas(); }
   if(v==='ats' && !ATSDATA) loadAts();
   if(v==='chat') initChat();
-    if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); loadZonas(); }
+  if(v==='usuarios' && !USERS){ loadUsuarios(); loadRoster(); }
   if(v==='docs' && !DOCS) loadDocs();
   if(v==='audit' && !AUDIT) loadAudit();
   if(v==='notif' && !NOTIF) loadNotif();
@@ -675,7 +675,7 @@ function accionesUsuario(u){
   }
   return a;
 }
- // ===== Gestión de zonas (catálogo de lugares) =====
+// ===== Gestión de zonas (catálogo de lugares) + sedes =====
 var ZONAS_HSE=null, ZSEDES=null;
 async function loadZonas(){
   var C=$('zonasContent'); if(C) C.innerHTML='<div class="loading">Cargando zonas…</div>';
@@ -693,8 +693,15 @@ function renderZonas(){
   var act=Z.filter(function(z){return z.estado==='activa';});
   var inact=Z.filter(function(z){return z.estado==='inactiva';});
   var h='';
+  h+='<div style="border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:14px;background:var(--panel2)">'
+    +'<div style="font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🏢 Sedes / centros de trabajo</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +'<input type="text" id="sdNombre" placeholder="Nueva sede (ej: Planta Norte)…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sedeCrear();}" style="flex:1;min-width:170px;background:#12151a;border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:8px 11px;font-size:13px">'
+    +'<button class="gbtn" onclick="sedeCrear()">+ Crear sede</button></div>'
+    +((ZSEDES&&ZSEDES.length)?('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px">'+ZSEDES.map(function(s){return '<span class="ch2">'+esc(s.nombre)+'</span>';}).join('')+'</div>'):'<div style="font-size:12px;color:var(--tx3);margin-top:8px">Sin sedes todavía. Si operás en un solo sitio, podés dejar las zonas «sin sede».</div>')
+    +'</div>';
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'
-    +'<input type="text" id="znNombre" placeholder="Nueva zona…" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px">'
+    +'<input type="text" id="znNombre" placeholder="Nueva zona…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();zonaCrear();}" style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px">'
     +'<select id="znSede" style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:9px 11px;font-size:13px">'+_sedeOpts('')+'</select>'
     +'<button class="dl" onclick="zonaCrear()">+ Crear zona</button>'
     +'<button class="gbtn" onclick="loadZonas()">↻ Actualizar</button></div>';
@@ -725,6 +732,11 @@ function renderZonas(){
   }
   C.innerHTML=h;
 }
+async function sedeCrear(){
+  var nom=(($('sdNombre')||{}).value||'').trim(); if(!nom){ alert('Escribí el nombre de la sede.'); return; }
+  try{ await sbRpc('sede_crear',{emp:MYEMP,p_nombre:nom}); var i=$('sdNombre'); if(i) i.value=''; await loadZonas(); }
+  catch(e){ alert('No se pudo crear la sede ('+e.message+').\n\nSi dice que falta la función, corré el SQL KALU_sedes.sql en Supabase.'); }
+}
 async function zonaCrear(){
   var nom=(($('znNombre')||{}).value||'').trim(); if(!nom){ alert('Escribí el nombre de la zona.'); return; }
   var sede=(($('znSede')||{}).value)||null;
@@ -743,7 +755,7 @@ async function zonaSet(id,estado){
   if(estado==='descartada' && !confirm('¿Descartar esta zona propuesta? Se borra.')) return;
   try{ await sbRpc('zona_set',{p_id:id,p_estado:estado}); await loadZonas(); }
   catch(e){ alert('No se pudo actualizar ('+e.message+').'); }
-} 
+}
 async function loadUsuarios(){
   var L=document.getElementById('usersLoading'), C=document.getElementById('usersContent');
   L.classList.remove('hide'); L.textContent='Cargando usuarios…'; C.innerHTML='';
@@ -1610,7 +1622,7 @@ function tarTableHTML(rows){
       var fn='Tarjeta_'+String(t.observador_cedula||'sc').replace(/[^0-9a-zA-Z]/g,'')+'_'+String(t.id||'').slice(0,8);
       var _sem=semTarjeta(t); var semChip='<span class="sem '+_sem.cls+'">'+esc(_sem.txt)+'</span>';
       var _cru=''; if((t.estado||'')==='cerrada'&&t.cierra_tarjeta_id){var _rc=(TAR||[]).find(function(x){return x.id===t.cierra_tarjeta_id;}); var _rcd=_rc?((_rc.consecutivo&&_rc.consecutivo!=='S/N'?('N° '+_rc.consecutivo+' · '):'')+String(_rc.descripcion||'').slice(0,90).replace(/"/g,'')):'otra tarjeta'; _cru=' <span title="Resuelta por: '+esc(_rcd)+'" style="cursor:help">🔗</span>';}
-            var gBtn='';
+      var gBtn='';
       if(!t.eliminada){
         if((t.clase||'')==='inseguro') gBtn='<button class="gbtn" onclick="gestionarTarjeta(\''+t.id+'\')">Gestionar</button> ';
         else if((t.clase||'')==='seguro') gBtn='<button class="gbtn" onclick="gestionarSeguraCierre(\''+t.id+'\')">🔗 Cerrar inseguras</button> ';
@@ -1684,7 +1696,7 @@ async function guardarCorreccion(id){
     await _regenPDFCorreccion(t);
     cerrarDet(); renderTar();
   }catch(e){ msg.style.color='var(--rojo)'; msg.textContent='No se pudo guardar ('+e.message+').'; }
-}  
+}
 async function eliminarTarjeta(id){
   var t=(TAR||[]).find(function(x){return x.id===id;}); if(!t) return;
   var motivo=prompt('¿Por qué eliminás esta tarjeta? (queda registrado en la bitácora)');

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '63';
+const KC_VER = '64';
 
 let sb = null;
 
@@ -5952,6 +5952,15 @@ async function consola(sel, opt) {
   // El filtro vive acá: una sola cosa, compartida por todos los cortes.
   let filtro = {};   // { estado, causa, cargo, codigo, eje }
 
+  /* ---- la solapa Buscar ----------------------------------------------
+     «A ver, veamos a Pérez: mostrame su plan, si está al día.» «Veamos
+     cómo están tus inspectores.» Eso es un atajo, no una pantalla nueva:
+     la persona abre SU FICHA, la que ya existe; el cargo pone el filtro
+     del tablero; la capacitación abre su vista. Nada se calcula acá — si
+     esta solapa dijera un estado por su cuenta, podría contradecir a la
+     ficha, y dos pantallas que no coinciden son peores que una sola. */
+  let vista = 'tablero', bq = '', bres = null, bcarg = false, bto = null, bseq = 0;
+
   try { D = await rpc('cap_consola', { p_anio: anio }); } catch (e) { return error(el, e); }
   try { K = await rpc('cap_casos'); } catch (e) { K = null; }
   let I = null;
@@ -6050,7 +6059,143 @@ async function consola(sel, opt) {
         <span class="v"></span><span class="v2"></span></div>` : ''}</div>`;
   }
 
+  const solapas = () => `<div class="kc-tabs" style="margin-bottom:18px">
+      <button class="kc-tab" data-v="tablero" aria-selected="${vista === 'tablero'}">Tablero</button>
+      <button class="kc-tab" data-v="buscar"  aria-selected="${vista === 'buscar'}">Buscar</button>
+    </div>`;
+
+  function engancharSolapas() {
+    el.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+      if (vista === b.dataset.v) return;
+      vista = b.dataset.v; pintar();
+    });
+  }
+
+  async function buscarAhora() {
+    const q = bq.trim();
+    if (q.length < 2) { bres = null; bcarg = false; pintarRes(); return; }
+    // Cada búsqueda lleva número: si se escribe rápido, la respuesta de una
+    // consulta vieja puede llegar después de la nueva y pisarla. Sin esto,
+    // la pantalla muestra el resultado de lo que ya no está escrito.
+    const mio = ++bseq;
+    bcarg = true; pintarRes();
+    let r = null, err = null;
+    try { r = await rpc('cap_buscar', { p_q: q }); } catch (e) { err = e.message; }
+    if (mio !== bseq) return;
+    bres = err ? { error: err } : r; bcarg = false; pintarRes();
+  }
+
+  function pintarRes() {
+    const c = el.querySelector('#kc-bres'); if (!c) return;
+    const q = bq.trim();
+
+    if (bres && bres.error) {
+      c.innerHTML = `<div class="kc-cent mal"><div class="b">!</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">No se pudo buscar</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(bres.error)}</div></div></div>`;
+      return;
+    }
+    if (q.length < 2) {
+      c.innerHTML = `<p class="kc-vacio">Escribí al menos dos letras. Podés poner un nombre,
+        una cédula, un cargo o el código de una capacitación.</p>`;
+      return;
+    }
+    if (bcarg && !bres) { c.innerHTML = '<p class="kc-vacio">Buscando…</p>'; return; }
+    if (!bres) { c.innerHTML = ''; return; }
+
+    const P = bres.personas || [], G = bres.cargos || [], K = bres.capacitaciones || [];
+    if (!P.length && !G.length && !K.length) {
+      c.innerHTML = `<p class="kc-vacio">No encontré nada con «${esc(q)}».</p>`;
+      return;
+    }
+
+    const tope = (a, n) => a.length >= n
+      ? `<tr><td colspan="3" style="color:var(--kc-ink3);font-size:12.5px">
+         Se muestran los primeros ${n}. Si el que buscás no está, escribí un poco más.</td></tr>` : '';
+
+    c.innerHTML =
+      (P.length ? `<h3 class="kc-h3">Personas</h3>
+        <div class="kc-sc" style="margin-bottom:18px"><table><tbody>
+        ${P.map(p => `<tr>
+          <td class="tit"><b>${esc(p.nombre)}</b>${p.vigente ? ''
+            : ' <span class="kc-tag n" title="Sigue en el padrón, pero ya no está vigente">ya no está</span>'}
+            <div style="font-size:12.5px;color:var(--kc-ink3)">${esc(p.cargo)} · ${esc(p.cedula || '')}</div></td>
+          <td class="acc"><button class="kc-mini p" data-bp="${p.id}">Ver su ficha</button></td>
+        </tr>`).join('')}${tope(P, 25)}</tbody></table></div>` : '') +
+
+      (G.length ? `<h3 class="kc-h3">Cargos</h3>
+        <div class="kc-sc" style="margin-bottom:18px"><table><tbody>
+        ${G.map(g => `<tr>
+          <td class="tit"><b>${esc(g.nombre)}</b>
+            <div style="font-size:12.5px;color:var(--kc-ink3)">${g.gente} persona(s) en el padrón</div></td>
+          <td class="acc">${g.gente > 0
+            ? `<button class="kc-mini p" data-bg="${esc(g.nombre)}">Ver su gente en el tablero</button>`
+            // Un botón que filtra a cero y no explica por qué es peor que
+            // no tener botón: quien lo toca cree que no hay nada que ver.
+            : '<span style="font-size:12.5px;color:var(--kc-ink3)">nadie lo tiene escrito así en el padrón</span>'}</td>
+        </tr>`).join('')}${tope(G, 15)}</tbody></table></div>` : '') +
+
+      (K.length ? `<h3 class="kc-h3">Capacitaciones</h3>
+        <div class="kc-sc"><table><tbody>
+        ${K.map(k => `<tr>
+          <td class="k" style="width:56px">${esc(k.codigo || '')}</td>
+          <td class="tit">${esc(k.titulo)}${k.activa ? ''
+            : ' <span class="kc-tag n" title="Está en el catálogo pero apagada: no se le exige a nadie">apagada</span>'}</td>
+          <td class="acc"><button class="kc-mini p" data-bk="${k.id}">Verla</button></td>
+        </tr>`).join('')}${tope(K, 25)}</tbody></table></div>` : '');
+
+    c.querySelectorAll('[data-bp]').forEach(b => b.onclick = () =>
+      ficha(sel, b.dataset.bp, { volver: () => consola(sel, opt) }));
+    c.querySelectorAll('[data-bk]').forEach(b => b.onclick = () =>
+      verCurso(sel, b.dataset.bk, { volver: () => consola(sel, opt) }));
+    c.querySelectorAll('[data-bg]').forEach(b => b.onclick = () => {
+      // El cargo no abre nada propio: pone el filtro del tablero. Por eso
+      // el buscador devuelve el cargo NORMALIZADO y no el texto del
+      // padrón — si devolviera «Supervisor De División», el tablero no lo
+      // conocería y filtraría a cero sin decir nada.
+      filtro = { cargo: b.dataset.bg }; vista = 'tablero'; pintar();
+    });
+  }
+
+  function pintarBusc() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver ? '0' : '24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CONSOLA · FORMACIÓN ${anio}</div>
+        <h1 style="font-size:28px;font-weight:700">Buscar</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
+          Una persona, un cargo o una capacitación. Abre lo que ya existe: nada de lo que
+          veas acá se calcula en esta pantalla.</div></div>
+
+      ${solapas()}
+
+      <div style="margin-bottom:16px">
+        <input id="kc-bq" class="kc-in" autocomplete="off" spellcheck="false"
+          placeholder="Nombre, cédula, cargo o código…" value="${esc(bq)}"
+          style="width:100%;max-width:520px">
+      </div>
+      <div id="kc-bres"></div>
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    engancharSolapas();
+
+    const inp = el.querySelector('#kc-bq');
+    inp.oninput = () => {
+      bq = inp.value;
+      // Un cuarto de segundo: se busca cuando dejás de escribir, no en cada
+      // tecla. Sin esto, escribir «Pérez» son cinco consultas y las cinco
+      // respuestas compiten por la pantalla.
+      clearTimeout(bto); bto = setTimeout(buscarAhora, 250);
+    };
+    pintarRes();
+    try { inp.focus(); inp.setSelectionRange(bq.length, bq.length); } catch (e) {}
+  }
+
   function pintar() {
+    if (vista === 'buscar') return pintarBusc();
     const R = D.resumen || {}, C = D.causas || [];
     const conPlan = (R.personas || 0) - (R.sin_plan || 0);
     const pct = R.pct_al_dia;
@@ -6066,6 +6211,8 @@ async function consola(sel, opt) {
         <h1 style="font-size:28px;font-weight:700">Cumplimiento</h1>
         <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
           Sólo lectura. Es la foto de hoy, calculada en el momento.</div></div>
+
+      ${solapas()}
 
       <!-- Un año archivado se puede mirar. Lo que no se puede es mirarlo sin
            saber que está archivado: los números de abajo son reales, pero no
@@ -6248,6 +6395,7 @@ async function consola(sel, opt) {
 
     const bv = el.querySelector('#kc-volver');
     if (bv) bv.onclick = () => opt.volver();
+    engancharSolapas();
     el.querySelectorAll('[data-campo]').forEach(b => b.onclick = () => {
       const campo = b.dataset.campo, valor = b.dataset.valor;
       // Tocar el que ya está puesto lo suelta: sin esto hay que buscar

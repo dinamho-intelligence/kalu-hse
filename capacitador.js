@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '60';
+const KC_VER = '61';
 
 let sb = null;
 
@@ -6918,6 +6918,15 @@ async function retirar(sel, opt) {
   const nunca = () => todas().filter(f => f.clase === 'nunca' && !f.retirada && f.en_rojo > 0);
   const retis = () => todas().filter(f => f.retirada);
 
+  // ABRIR DONDE HAY ALGO QUE HACER.
+  // La pestaña de arranque era siempre «Dejaron de programarse». En una
+  // empresa sin historia cargada esa lista da CERO —para decir que algo
+  // dejó de programarse hace falta un año anterior con eventos— y todo
+  // cae en «nunca se programó». Quien entraba veía una pantalla vacía y
+  // se iba pensando que no había nada que revisar, con 391 esperando en
+  // la pestaña de al lado.
+  if (!props().length) ver = nunca().length ? 'nunca' : 'todas';
+
   function pintar() {
     const P = props(), N = nunca(), R = retis();
     const SR = D.resumen || {};
@@ -6978,6 +6987,7 @@ async function retirar(sel, opt) {
 
       ${!lista.length ? `<p class="kc-vacio">${ver === 'propuestas'
           ? 'Ninguna exigencia se programó en años anteriores y dejó de programarse este año. No hay nada que retirar.'
+            + (N.length ? ` Ojo: eso no quiere decir que no haya nada que revisar — mirá «Nunca se programaron · ${N.length}».` : '')
           : ver === 'nunca' ? 'Todas las exigencias tienen al menos un evento en algún año.'
           : 'Nada acá.'}</p>`
         : '<div class="kc-dest">' + lista.map(f => tarjeta(f, puede)).join('') + '</div>'}

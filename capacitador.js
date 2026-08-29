@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '67';
+const KC_VER = '68';
 
 let sb = null;
 
@@ -2389,13 +2389,15 @@ async function admin(sel) {
     if (accion === 'traer') {
       return abrir(`<h3>Traer la biblioteca entera</h3>
         <p>Suma a esta empresa las <b>${(CAT.biblioteca||[]).length}</b> capacitaciones de la
-           biblioteca que todavía no tiene, y las deja prendidas.</p>
+           biblioteca que todavía no tiene, y <b>las deja apagadas</b>.</p>
         <p>La mayoría son exigidas por norma —Decreto 1072, Resolución 0312, Ley 1010— así que
-           lo raro no es tenerlas: es no tenerlas. Después se apaga una por una lo que no aplique,
-           o todas de golpe con «Apagar todas».</p>
-        <p>Estar en el catálogo <b>no se lo exige a nadie todavía</b>: eso se define en el plan de
+           lo raro no es tenerlas: es no tenerlas. Pero <b>tenerlas prendidas sin haberlas
+           mirado es lo que llena el catálogo de ruido</b>: así una empresa terminó con 69
+           capacitaciones activas que no le llegaban a nadie.</p>
+        <p>Entran apagadas y vos prendés las que apliquen —de a una, o con «Prender todas».
+           Estar en el catálogo <b>no se lo exige a nadie</b>: eso se define en el plan de
            cada cargo.</p>`,
-        () => rpc('cap_biblioteca_traer'), 'Traer todas');
+        () => rpc('cap_biblioteca_traer'), 'Traer todas · apagadas');
     }
 
     if (accion === 'apagartodas') {

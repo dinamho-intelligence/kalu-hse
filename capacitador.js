@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '69';
+const KC_VER = '70';
 
 let sb = null;
 
@@ -6399,17 +6399,6 @@ async function consola(sel, opt) {
                  <span>meta ${x.meta}%</span>`}</div>
           <div class="f">${x.num} de ${x.den} ${esc(x.unidad)}</div>
           <div class="f2">${esc(x.formula)}</div>
-          ${x.fuera_del_cronograma > 0 ? `
-          <!-- LO QUE ESTA TARJETA NO MIDE.
-               Cumplir el cronograma no es estar al día: se puede dictar
-               el 100% de lo programado y tener a toda la empresa en rojo,
-               si lo programado no cubre lo que se exige. Total QC: 61 de
-               61 dictadas, 100 personas atrasadas. Sin este renglón, el
-               100% verde queda al lado del rojo sin nada que los
-               conecte, y ante un auditor eso es peor que un número feo. -->
-          <div class="f2" style="margin-top:5px;color:var(--kc-cr)">
-            Pero <b>${x.fuera_del_cronograma} capacitación(es)</b> con gente atrasada
-            no están en el cronograma. Cumplir el programa no es estar al día.</div>` : ''}
           ${x.anual_valor != null && x.anual_valor !== x.valor ? `
           <!-- EL AÑO COMPLETO, AL LADO Y SIN VEREDICTO.
                A mitad de año siempre se ve peor, porque el denominador
@@ -6471,6 +6460,27 @@ async function consola(sel, opt) {
         <button class="kc-mini" id="kc-pdf"
           title="Abre el diálogo de impresión: elegí «Guardar como PDF»">Imprimir / PDF</button>
       </div>
+
+      ${(() => {
+        // EL PUENTE ENTRE LAS DOS MITADES DE LA PANTALLA.
+        // Arriba se mide el CRONOGRAMA; acá abajo se mide a la GENTE. Los
+        // dos pueden ser verdad y decir cosas opuestas: Total QC dictó 61
+        // de 61 —100%— y tiene 100 personas atrasadas, porque la mayoría
+        // de lo que se les exige nunca entró al cronograma.
+        //
+        // Va acá y no adentro de la tarjeta de Cumplimiento a propósito:
+        // el dato no es de ese indicador, es de la relación entre los dos.
+        // Metido adentro se leía como una advertencia sobre un número que
+        // está bien, y como si el 100% fuera trucho.
+        const c = ((I && I.indicadores) || []).find(y => y.clave === 'cumplimiento');
+        const f = c && c.fuera_del_cronograma;
+        return f > 0 ? `<p class="kc-nota" style="text-align:left;margin:16px 0 0">
+          <b>Arriba se mide el cronograma; acá abajo, la gente.</b> Se puede dictar el
+          100% de lo programado y tener gente en rojo:
+          <b>${f} capacitación(es)</b> que se le exigen a alguien y tienen personas
+          atrasadas <b>no están en el cronograma de este año</b>. Son las mismas del
+          filtro «Falta programar» en Capacitaciones.</p>` : '';
+      })()}
 
       <div class="kc-grid4" style="margin:14px 0 10px">
         ${[['vencida','Vencidas'],['atrasada','Atrasadas'],['por_vencer','Por vencer'],

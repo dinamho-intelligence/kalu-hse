@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '61';
+const KC_VER = '62';
 
 let sb = null;
 
@@ -5970,7 +5970,13 @@ async function consola(sel, opt) {
     vencida:       ['Vencida',        'cr'],
     atrasada:      ['Atrasada',       'cr'],
     por_vencer:    ['Por vencer',     'wa'],
-    en_cronograma: ['En el cronograma','n'],
+    // 'ink3' y no 'n': --kc-n NO EXISTE. Una variable de color que no
+    // está definida no falla ni avisa — el navegador descarta la regla y
+    // pinta transparente. La barra se dibujaba entera, del largo correcto,
+    // en blanco sobre blanco: decía 100 personas y no se veía nada.
+    // Gris a propósito: «en el cronograma» no es ni bueno ni malo, y los
+    // tres colores del semáforo están reservados.
+    en_cronograma: ['En el cronograma','ink3'],
     al_dia:        ['Al día',         'ok']
   };
   const CAUSA = {

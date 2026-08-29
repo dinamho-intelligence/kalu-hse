@@ -1460,6 +1460,7 @@ function gestionarTarjeta(id){
       +'<textarea id="gResp" rows="3" placeholder="Que se hizo para resolver de fondo...">'+esc(t.respuesta||'')+'</textarea>'
       +'<label>¿Qué tarjeta segura resuelve esta? <span style="color:#7a8590;font-weight:400">(opcional — deja la trazabilidad)</span></label>'
       +'<select id="gCierra" style="'+_selSt+'">'+optSeg+'</select>'
+      +'<div style="margin-top:6px"><button type="button" class="gbtn" style="background:rgba(0,212,255,.12);border-color:#00d4ff;color:#7fe6ff" onclick="sugerirSeguraKALU(\''+id+'\')">🤖 ¿Qué segura resuelve esta?</button> <span id="gKaluMsg" style="font-size:12px"></span></div>'
       +'<label>Verificado por</label>'
       +'<input type="text" id="gVerif" value="'+esc(t.verificado_por||MYNAME||'')+'">'
       +'<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'
@@ -1622,6 +1623,33 @@ async function sugerirCruceKALU(seguraId){
     if(msg){ msg.style.color='var(--verde)'; msg.textContent='KALU marcó '+n+' probable(s). Revisá y ajustá antes de cerrar — vos decidís.'; }
   }catch(e){ if(msg){ msg.style.color='#e66'; msg.textContent='No se pudo consultar a KALU ('+e.message+'). ¿Está activo el flujo kalu-cruce-sugerir en n8n?'; } }
   finally{ if(btn){ btn.disabled=false; btn.textContent='🤖 ¿Cuáles resuelve?'; } }
+}
+/* ===== KALU sugiere el cruce al revés: desde la insegura, qué segura la resuelve ===== */
+async function sugerirSeguraKALU(insId){
+  var t=(TAR||[]).find(function(x){return x.id===insId;}); if(!t) return;
+  var msg=document.getElementById('gKaluMsg'), sel=document.getElementById('gCierra');
+  var seguras=(TAR||[]).filter(function(x){return x.empresa_id===t.empresa_id && (x.clase||'')==='seguro' && !x.eliminada;});
+  if(!seguras.length){ if(msg){ msg.style.color='var(--tx3)'; msg.textContent='No hay tarjetas seguras cargadas para cruzar.'; } return; }
+  if(msg){ msg.style.color='var(--tx2)'; msg.textContent='🤖 KALU está buscando…'; }
+  try{
+    var r=await fetch(WEBHOOK_CRUCE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      empresa_id:(t.empresa_id||MYEMP||null), modo:'insegura_busca',
+      insegura:{consecutivo:t.consecutivo||'', descripcion:String(t.descripcion||'').slice(0,300), categoria:t.categoria||'', lugar:t.lugar||'', riesgo:t.riesgo||''},
+      seguras:seguras.map(function(s){return {id:s.id, consecutivo:s.consecutivo||'', categoria:s.categoria||'', lugar:s.lugar||'', descripcion:String(s.descripcion||'').slice(0,300)};}),
+      token:TOKEN })});
+    if(!r.ok) throw new Error('http '+r.status);
+    var _t2=await r.text();
+    if(!_t2){ if(msg){ msg.style.color='#e66'; msg.textContent='El flujo respondió vacío (revisá el nodo Claude en n8n).'; } return; }
+    var d; try{ d=JSON.parse(_t2); if(typeof d==='string') d=JSON.parse(d); }catch(_){ if(msg){ msg.style.color='#e66'; msg.textContent='Respuesta de n8n no es JSON válido.'; } return; }
+    var sug=((d&&d.sugerencias)||[]).filter(function(x){return x&&x.resuelve;});
+    var rank={alta:3,media:2,baja:1};
+    sug.sort(function(a,b){ return (rank[b.confianza]||0)-(rank[a.confianza]||0); });
+    if(!sug.length){ if(msg){ msg.style.color='var(--amber)'; msg.textContent='KALU no encontró una segura que la resuelva. Elegí a mano si corresponde.'; } return; }
+    var best=sug[0];
+    if(sel){ sel.value=best.id; }
+    var sg=(TAR||[]).find(function(x){return x.id===best.id;})||{};
+    if(msg){ msg.style.color='var(--verde)'; msg.innerHTML='🤖 Sugiere N° '+esc(sg.consecutivo||'S/N')+' · confianza '+esc(best.confianza||'—')+(best.motivo?(' — '+esc(best.motivo)):'')+'. Revisá antes de cerrar.'; }
+  }catch(e){ if(msg){ msg.style.color='#e66'; msg.textContent='No se pudo consultar a KALU ('+e.message+').'; } }
 }
 async function reabrirTarjeta(id){
   if(!confirm('¿Reabrir esta tarjeta? Se suelta el vínculo con la tarjeta segura que la había resuelto (si tenía).')) return;

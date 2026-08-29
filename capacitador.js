@@ -1,207 +1,7885 @@
--- =====================================================================
---  cap_73 · «Cumplimiento del programa» dejaba de cumplir por lo que
---           todavía no había pasado
---
---  LO QUE ESTABA MAL
---
---  El indicador dividía las actividades ejecutadas por TODAS las del año,
---  incluidas las programadas para octubre y noviembre. En agosto eso da
---  un número bajo que no significa nada — y encima se lo compara contra
---  una meta y se le pone «no cumple».
---
---  Total QC, medido hoy: 73 jornadas en 2026 · 61 dictadas · 12 por
---  dictar · **cero vencidas sin dictar**. La pantalla decía **83,6%**
---  contra una meta de 90. Lo cierto es que no incumplieron nada: a la
---  fecha llevan **61 de 61 · 100%**.
---
---  QUÉ CAMBIA
---
---  Se mide dos veces, porque son dos preguntas distintas:
---
---    · A LA FECHA — sólo lo que ya tenía que haber pasado. Es la de
---      gestión: ¿vamos bien? **Es la que lleva el veredicto.**
---    · DEL AÑO — el programa completo. Es la de cierre, y va al lado sin
---      semáforo.
---
---  El 31 de diciembre los dos números son el mismo, así que no hay nada
---  que cambiar al cerrar el año.
---
---  LO QUE NO CAMBIA, Y POR QUÉ
---
---  **Cobertura ya estaba bien**: cuenta sólo sobre actividades ejecutadas,
---  no tiene futuro adentro. Su 46,3% es real y es de otra clase — de las
---  3.103 personas convocadas a jornadas que sí se dictaron, sólo 1.438
---  tienen la asistencia cargada. Eso no se arregla con una fórmula.
---
---  Eficacia y «personal al día» se miden contra hoy por naturaleza.
---
---  OJO — SE ESCRIBE SOBRE cap_53, NO SOBRE cap_52.
---
---  `cap_indicadores` está definida dos veces: en cap_52 y otra vez en
---  cap_53, que es la que agrega las metas adoptadas y el veredicto. La
---  que está viva es la de cap_53. Armar este arreglo sobre el cuerpo de
---  cap_52 —que fue lo primero que hice— habría borrado las metas sin
---  que nada avisara: la función sigue existiendo y devolviendo números.
---
---  DEPENDE DE: cap_53. SE PUEDE CORRER DOS VECES.
--- =====================================================================
+/* =====================================================================
+   KALU · Módulo Capacitador — front de producción
+   ---------------------------------------------------------------------
+   Un solo archivo. Inyecta sus estilos y monta las pantallas donde le
+   digas. No pisa nada del resto de KALU: todo va bajo la clase .kc.
 
-begin;
+   USO
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1/dist/qrcode.js"></script>
+     <script src="capacitador.js"></script>
+     <script>
+       KaluCap.init();        // toma config.js y la sesión de KALU solo
+       KaluCap.pasaporte('#cap');        // app.html   — el trabajador
+       KaluCap.supervision('#cap');      // hse.html   — el supervisor
+       KaluCap.admin('#cap');            // admin.html — HSE / operaciones
+     </script>
 
-create or replace function cap_indicadores(
-  p_anio     int     default null,
-  p_meta     numeric default null,   -- se ignora: queda por compatibilidad
-  p_nota_min numeric default null)
-returns jsonb language plpgsql stable security definer set search_path = public as $$
-declare
-  v_emp  uuid := cap_empresa_id();
-  v_anio int  := coalesce(p_anio, extract(year from current_date)::int);
-  v_nota numeric;
-  c_prog int; c_ejec int;
-  h_prog int; h_ejec int;          -- el mismo cumplimiento, medido hasta hoy
-  v_hoy  date := current_date;
-  b_conv int; b_asis int;
-  e_eval int; e_aprob int;
-  p_con_plan int; p_al_dia int;
-  v_out jsonb := '[]'::jsonb;
-  r record;
-  v_val numeric; v_num int; v_den int;
-  m cap_meta; sug jsonb;
-begin
-  if v_emp is null then
-    raise exception 'No se pudo determinar tu empresa';
-  end if;
-  if coalesce(cap_rol_modulo(),'trabajador') = 'trabajador' then
-    raise exception 'Los indicadores son para quien coordina o supervisa.';
-  end if;
+   Sesión compartida: lee window.KALU (config.js) y el token que
+   ingreso.html deja en localStorage bajo 'sb-<ref>-auth-token'.
+   En páginas standalone usá  await KaluCap.iniciar()  (renueva token y
+   prende el candado de sesión); init() sigue existiendo, sincrónico,
+   para hosts que ya lo llamaban así.
 
-  -- la nota de corte sale de la meta de eficacia si está adoptada
-  select nota_min into v_nota from cap_meta
-   where empresa_id = v_emp and anio = v_anio and indicador = 'eficacia';
-  v_nota := coalesce(p_nota_min, v_nota,
-                     (cap_meta_sugerida('eficacia') ->> 'nota_min')::numeric, 80);
+   La librería de QR es opcional: sin ella la credencial muestra el
+   código en texto en vez del cuadro.
+   ===================================================================== */
+(function (global) {
+'use strict';
 
-  select count(*) filter (where not e.cancelado),
-         count(*) filter (where e.ejecutado)
-    into c_prog, c_ejec
-  from cap_evento e where e.empresa_id = v_emp and e.anio = v_anio;
+/* La versión del archivo. Tiene que coincidir con el ?v=N del HTML.
+   Se muestra en las pantallas de administración para poder comprobar,
+   sin abrir nada, que lo que está arriba es lo que se subió — el error
+   más común del módulo es subir el JS y olvidarse del ?v=, y entonces
+   el navegador sigue usando la copia vieja sin avisar. */
+const KC_VER = '67';
 
-  -- …Y OTRA VEZ, SÓLO HASTA HOY.
-  -- Dividir en agosto por las actividades de noviembre castiga a una
-  -- empresa por no haber hecho todavía lo que no le tocaba hacer. Total
-  -- QC tenía 61 de 73 y la pantalla decía 83,6% contra una meta de 90
-  -- —«no cumple»— cuando no tenía una sola actividad vencida sin dictar:
-  -- a la fecha era 61 de 61. El veredicto va sobre éste; el del año
-  -- entero viaja al lado, sin semáforo. El 31 de diciembre son iguales.
-  select count(*) filter (where not e.cancelado),
-         count(*) filter (where e.ejecutado)
-    into h_prog, h_ejec
-  from cap_evento e
-  where e.empresa_id = v_emp and e.anio = v_anio
-    -- Una actividad sin fecha —de las que dispara un hecho— no tiene
-    -- vencimiento, así que no entra ni a favor ni en contra.
-    and coalesce(e.fecha_realizada, e.fecha_programada) is not null
-    and coalesce(e.fecha_realizada, e.fecha_programada) <= v_hoy;
+let sb = null;
 
-  select coalesce(sum(greatest(
-           coalesce(e.n_programados, 0),
-           (select count(*) from cap_asistencia s where s.evento_id = e.id))), 0),
-         coalesce(sum((select count(*) from cap_asistencia s
-                        where s.evento_id = e.id and s.estado = 'asistio')), 0)
-    into b_conv, b_asis
-  from cap_evento e
-  where e.empresa_id = v_emp and e.anio = v_anio and e.ejecutado;
 
-  select count(*), count(*) filter (where s.nota >= v_nota)
-    into e_eval, e_aprob
-  from cap_asistencia s
-  where s.empresa_id = v_emp and s.nota is not null
-    and extract(year from s.fecha)::int = v_anio;
+/* Las palabras con peso de un nombre de cargo: sin tildes, sin
+   mayúsculas y sin relleno. Es la misma regla que usa la base para
+   decidir si dos cargos son el mismo, escrita también acá para poder
+   avisar mientras la persona escribe, en vez de después de guardar. */
+const KC_RELLENO = ['de','del','la','el','los','las','y','e','en','a','al',
+                    'para','con','por','un','una','sr','sra'];
+function kcPalabras(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ')
+    .filter(w => w && KC_RELLENO.indexOf(w) < 0);
+}
+/* Qué tan parecidos son dos nombres: 'igual' si son la misma palabra a
+   palabra, 'contenido' si uno dice todo lo que dice el otro y algo más,
+   'parecido' si comparten dos palabras o más. */
+function kcParecido(a, b) {
+  const A = kcPalabras(a), B = kcPalabras(b);
+  if (!A.length || !B.length) return null;
+  const sa = A.slice().sort().join(' '), sb = B.slice().sort().join(' ');
+  if (sa === sb) return 'igual';
+  const comunes = A.filter(w => B.indexOf(w) >= 0);
+  if (comunes.length === A.length || comunes.length === B.length) return 'contenido';
+  if (comunes.length >= 2) return 'parecido';
+  return null;
+}
 
-  select count(*) filter (where h.formacion <> 'sin_plan'),
-         count(*) filter (where h.formacion = 'al_dia')
-    into p_con_plan, p_al_dia
-  from cap_v_habilitacion h where h.empresa_id = v_emp;
+/* ---------------------------------------------------------------- estilos */
+const CSS = `
+.kc{--kc-ground:#EEF2F0;--kc-card:#FFF;--kc-card2:#F5F8F6;--kc-ink:#11201B;
+ --kc-ink2:#4B605A;--kc-ink3:#7E918B;--kc-rule:#DBE3DF;--kc-rule2:#C3CFCA;
+ --kc-ac:#0B5D45;--kc-acs:#DCEBE4;--kc-ok:#147A54;--kc-oks:#DCEDE4;
+ --kc-wa:#8F6200;--kc-was:#F7EBD2;--kc-cr:#A82D22;--kc-crs:#F6DEDA;
+ --kc-sh:0 1px 2px rgba(17,32,27,.07),0 10px 26px -18px rgba(17,32,27,.35);
+ --kc-fd:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+ --kc-fb:"Barlow",-apple-system,"Segoe UI",Roboto,sans-serif;
+ --kc-fm:"Roboto Mono",ui-monospace,Menlo,monospace;
+ font-family:var(--kc-fb);color:var(--kc-ink);font-size:15px;line-height:1.55;
+ background:var(--kc-ground)}
+@media (prefers-color-scheme:dark){.kc:not([data-theme=light]){
+ --kc-ground:#0F1714;--kc-card:#16211D;--kc-card2:#1C2925;--kc-ink:#E4EDE9;
+ --kc-ink2:#A2B4AE;--kc-ink3:#758781;--kc-rule:#25332E;--kc-rule2:#35473F;
+ --kc-ac:#4FB894;--kc-acs:#123025;--kc-ok:#5FC79B;--kc-oks:#0F2C21;
+ --kc-wa:#D9A441;--kc-was:#2E2411;--kc-cr:#E58074;--kc-crs:#2F1815;
+ --kc-sh:0 1px 2px rgba(0,0,0,.5),0 10px 26px -18px rgba(0,0,0,.8)}}
+.kc[data-theme=dark]{--kc-ground:#0F1714;--kc-card:#16211D;--kc-card2:#1C2925;
+ --kc-ink:#E4EDE9;--kc-ink2:#A2B4AE;--kc-ink3:#758781;--kc-rule:#25332E;
+ --kc-rule2:#35473F;--kc-ac:#4FB894;--kc-acs:#123025;--kc-ok:#5FC79B;
+ --kc-oks:#0F2C21;--kc-wa:#D9A441;--kc-was:#2E2411;--kc-cr:#E58074;--kc-crs:#2F1815;
+ --kc-sh:0 1px 2px rgba(0,0,0,.5),0 10px 26px -18px rgba(0,0,0,.8)}
+.kc *{box-sizing:border-box}
+.kc h1,.kc h2,.kc h3{font-family:var(--kc-fd);margin:0;letter-spacing:-.01em}
+.kc button{font:inherit;color:inherit}
+.kc .mono{font-family:var(--kc-fm)}
+.kc-wrap{max-width:440px;margin:0 auto;padding-bottom:24px}
+/* La pista era de 1080px cuando las pantallas de la gente son de 1900.
+   Sobraba media pantalla a la derecha y las tablas se apretaban al pedo:
+   la fila de Capacitaciones tiene cinco botones y el último quedaba
+   contra el borde. Los textos largos no se estiran igual porque cada
+   bloque de prosa lleva su propio max-width en ch. */
+.kc-wide{max-width:1400px;margin:0 auto;padding:0 16px 40px}
 
-  for r in
-    select * from (values
-      ('cumplimiento','Cumplimiento del programa',
-       'actividades ejecutadas ÷ programadas hasta hoy','actividades',
-       'Las canceladas con motivo no cuentan en el denominador. '
-       || 'Lo programado para más adelante en el año tampoco: todavía no le tocaba.',
-       h_ejec, h_prog),
-      ('cobertura','Cobertura del personal',
-       'personas que asistieron ÷ personas convocadas','asistencias',
-       'Sobre las actividades ya ejecutadas del año.', b_asis, b_conv),
-      ('eficacia','Eficacia de la formación',
-       'aprobados ÷ evaluados (nota ≥ ' || v_nota || ')','evaluaciones',
-       'Sólo cuenta quien tiene nota cargada.', e_aprob, e_eval),
-      ('al_dia','Personal con formación al día',
-       'personas al día ÷ personas con plan definido','personas',
-       'Quien todavía no tiene plan queda fuera del denominador.', p_al_dia, p_con_plan)
-    ) as t(clave, nombre, formula, unidad, nota, num, den)
-  loop
-    v_num := r.num; v_den := r.den;
-    v_val := case when v_den = 0 then null else round(100.0 * v_num / v_den, 1) end;
+.kc-carga{padding:50px 20px;text-align:center;color:var(--kc-ink3);font-size:14px}
+.kc-err{margin:16px;background:var(--kc-crs);border-left:3px solid var(--kc-cr);
+ border-radius:8px;padding:14px 16px;font-size:14px;color:var(--kc-ink2)}
+.kc-err b{display:block;color:var(--kc-cr);font-family:var(--kc-fm);font-size:10px;
+ letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
 
-    select * into m from cap_meta
-     where empresa_id = v_emp and anio = v_anio and indicador = r.clave;
-    sug := cap_meta_sugerida(r.clave);
+/* --- portada / banda de estado --- */
+.kc-hero{padding:20px 16px;background:var(--kc-card);border-bottom:1px solid var(--kc-rule)}
+.kc-cargo{font-family:var(--kc-fm);font-size:10.5px;letter-spacing:.1em;
+ text-transform:uppercase;color:var(--kc-ink3);margin-bottom:5px}
+.kc-nom{font-family:var(--kc-fd);font-weight:600;font-size:23px;line-height:1.1;
+ margin-bottom:15px}
+.kc-band{border-radius:10px;padding:15px 17px;display:flex;align-items:center;gap:13px}
+.kc-band.ok{background:var(--kc-oks)}.kc-band.wa{background:var(--kc-was)}
+.kc-band.cr{background:var(--kc-crs)}
+.kc-band .m{width:36px;height:36px;border-radius:50%;flex:0 0 auto;display:grid;
+ place-items:center;color:var(--kc-card);font-family:var(--kc-fd);font-weight:700;font-size:17px}
+.kc-band.ok .m{background:var(--kc-ok)}.kc-band.wa .m{background:var(--kc-wa)}
+.kc-band.cr .m{background:var(--kc-cr)}
+.kc-band .t1{font-family:var(--kc-fd);font-weight:700;font-size:20px;line-height:1.08}
+.kc-band.ok .t1{color:var(--kc-ok)}.kc-band.wa .t1{color:var(--kc-wa)}
+.kc-band.cr .t1{color:var(--kc-cr)}
+.kc-band .t2{font-size:13px;color:var(--kc-ink2);margin-top:2px}
+.kc-cts{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--kc-rule);
+ border:1px solid var(--kc-rule);border-radius:8px;overflow:hidden;margin-top:13px}
+.kc-ct{background:var(--kc-card2);padding:9px 4px;text-align:center;border:none;
+ font:inherit;color:inherit;cursor:pointer;position:relative}
+.kc-ct[aria-pressed=true]{background:var(--kc-card);box-shadow:inset 0 -3px 0 var(--kc-ac)}
+.kc-ct:focus-visible{outline:2px solid var(--kc-ac);outline-offset:-3px}
+.kc-ct b{display:block;font-family:var(--kc-fd);font-weight:700;font-size:19px;line-height:1;
+ font-variant-numeric:tabular-nums}
+.kc-ct span{display:block;font-family:var(--kc-fm);font-size:8px;letter-spacing:.06em;
+ text-transform:uppercase;color:var(--kc-ink3);margin-top:4px}
+.kc-ct.v b{color:var(--kc-cr)}.kc-ct.x b{color:var(--kc-wa)}.kc-ct.a b{color:var(--kc-ok)}
 
-    v_out := v_out || jsonb_build_object(
-      'clave', r.clave, 'nombre', r.nombre, 'formula', r.formula,
-      'unidad', r.unidad, 'nota', r.nota,
-      'num', v_num, 'den', v_den, 'valor', v_val,
-      'meta',           m.valor,
-      'meta_adoptada',  m.id is not null,
-      'meta_fuente',    m.fuente,
-      'meta_cuando',    m.adoptada_en,
-      'meta_quien',     (select p.nombre from personas p where p.id = m.adoptada_por),
-      'sugerida',       (sug ->> 'valor')::numeric,
-      'sugerida_por_que', sug ->> 'por_que',
-      -- Sin meta adoptada NO hay veredicto: «no cumple» contra un número
-      -- que nadie eligió no dice nada.
-      'cumple', case when m.id is null or v_val is null then null
-                     else v_val >= m.valor end)
-      -- El año completo va SÓLO en cumplimiento, y sin veredicto: sirve
-      -- para reportar el avance del programa, no para juzgarlo a mitad
-      -- de camino.
-      || case when r.clave = 'cumplimiento' then jsonb_build_object(
-                'anual_num', c_ejec, 'anual_den', c_prog,
-                'anual_valor', case when c_prog = 0 then null
-                                    else round(100.0 * c_ejec / c_prog, 1) end)
-              else '{}'::jsonb end;
-  end loop;
+/* --- pestañas y filtros --- */
+.kc-tabs{display:flex;flex-wrap:wrap;background:var(--kc-card);
+ border-bottom:1px solid var(--kc-rule)}
+.kc-tab{flex:1 1 0;min-width:152px;background:none;border:none;padding:12px 4px;cursor:pointer;
+ font-family:var(--kc-fd);font-weight:600;font-size:14px;letter-spacing:.03em;
+ text-transform:uppercase;color:var(--kc-ink3);border-bottom:2px solid transparent}
+.kc-tab[aria-selected=true]{color:var(--kc-ac);border-bottom-color:var(--kc-ac)}
+.kc-tab:focus-visible{outline:2px solid var(--kc-ac);outline-offset:-3px}
+/* La franja de categorías queda pegada arriba: se cambia de categoría
+   sin tener que volver al principio de la lista. */
+.kc-fil{display:flex;flex-wrap:wrap;gap:7px;padding:12px 16px;
+ position:sticky;top:0;z-index:6;background:var(--kc-ground);
+ box-shadow:0 6px 10px -10px rgba(17,32,27,.5)}
+.kc-wide .kc-fil{position:static;box-shadow:none;background:none}
+.kc-filtro{margin:0 16px 10px;font-size:13px;color:var(--kc-ink2);
+ display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.kc-filtro button{background:none;border:none;padding:0;cursor:pointer;
+ color:var(--kc-ac);font:inherit;text-decoration:underline}
+.kc-chip{flex:0 0 auto;border:1px solid var(--kc-rule2);background:var(--kc-card);
+ color:var(--kc-ink2);border-radius:999px;padding:6px 12px;cursor:pointer;
+ font-size:12.5px;font-weight:500;white-space:nowrap}
+.kc-chip[aria-pressed=true]{background:var(--kc-ac);border-color:var(--kc-ac);color:var(--kc-ground)}
 
-  return jsonb_build_object(
-    'anio', v_anio, 'nota_min', v_nota,
-    'puede_editar', cap_puede_editar(),
-    'indicadores', v_out);
-end $$;
+/* --- lista de capacitaciones --- */
+.kc-eje{display:flex;align-items:center;gap:10px;margin:22px 16px 2px;
+ font-family:var(--kc-fd);font-weight:700;font-size:17px;letter-spacing:-.01em}
+.kc-eje:first-child{margin-top:6px}
+.kc-eje span{flex:0 0 auto}
+.kc-eje::after{content:'';flex:1;height:2px;background:var(--kc-ink);opacity:.14}
+.kc-eje i{font-family:var(--kc-fm);font-style:normal;font-size:11px;color:var(--kc-ink3)}
+.kc-sub{margin:13px 16px 7px;font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.09em;
+ text-transform:uppercase;color:var(--kc-ink3)}
+.kc-list{padding:0 16px;display:flex;flex-direction:column;gap:9px}
+.kc-it{background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:9px;
+ box-shadow:var(--kc-sh);overflow:hidden;display:flex;text-align:left;width:100%;
+ padding:0;cursor:pointer;border-left:0}
+.kc-st{width:4px;flex:0 0 auto}
+.kc-st.vencida{background:var(--kc-cr)}.kc-st.por_vencer{background:var(--kc-wa)}
+.kc-st.pendiente{background:var(--kc-rule2)}.kc-st.al_dia{background:var(--kc-ok)}
+.kc-bd{padding:11px 13px;min-width:0;flex:1}
+.kc-r1{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.kc-cd{font-family:var(--kc-fm);font-size:10.5px;color:var(--kc-ink3)}
+.kc-pill{margin-left:auto;font-family:var(--kc-fm);font-size:9px;letter-spacing:.05em;
+ text-transform:uppercase;padding:2px 6px;border-radius:3px;flex:0 0 auto}
+.kc-pill.vencida{background:var(--kc-crs);color:var(--kc-cr)}
+.kc-pill.por_vencer{background:var(--kc-was);color:var(--kc-wa)}
+.kc-pill.pendiente{background:var(--kc-card2);color:var(--kc-ink2)}
+.kc-pill.al_dia{background:var(--kc-oks);color:var(--kc-ok)}
+.kc-tt{font-family:var(--kc-fd);font-weight:600;font-size:15.5px;line-height:1.22}
+.kc-mt{font-family:var(--kc-fm);font-size:10.5px;color:var(--kc-ink3);margin-top:5px}
+.kc-why{padding:9px 13px 12px;font-size:12.5px;color:var(--kc-ink2);
+ border-top:1px dashed var(--kc-rule);display:none}
+.kc-it.open .kc-why{display:block}
+.kc-why b{font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.06em;
+ text-transform:uppercase;color:var(--kc-ink3);display:block;margin-bottom:3px;font-weight:500}
+.kc-go{display:block;margin-top:11px;background:var(--kc-ac);color:var(--kc-ground);border:none;
+ border-radius:7px;padding:9px 14px;font-family:var(--kc-fd);font-weight:600;
+ font-size:14px;cursor:pointer}
+.kc-vacio{text-align:center;color:var(--kc-ink3);padding:36px 20px;font-size:14px}
 
-comment on function cap_indicadores is
-  'Los cuatro indicadores del programa. «Cumplimiento» se mide a la fecha —sólo lo que ya tenía que haber pasado— y trae al lado el del año completo, sin veredicto: dividir en agosto por las actividades de noviembre castiga a una empresa por no haber hecho todavía lo que no le tocaba.';
+/* --- credencial --- */
+.kc-cred{margin:18px 16px;background:var(--kc-card);border:1px solid var(--kc-rule);
+ border-radius:14px;overflow:hidden;box-shadow:var(--kc-sh)}
+.kc-ctop{background:var(--kc-ac);padding:13px 17px;display:flex;justify-content:space-between;
+ align-items:center}
+.kc-ctop .l{font-family:var(--kc-fd);font-weight:700;font-size:16px;color:#fff}
+.kc-ctop .r{font-family:var(--kc-fm);font-size:9px;letter-spacing:.08em;
+ text-transform:uppercase;color:rgba(255,255,255,.72)}
+.kc-cbody{padding:17px}
+.kc-cgrid{display:grid;grid-template-columns:1fr auto;gap:15px;align-items:center;margin-top:13px}
+.kc-fld .k{font-family:var(--kc-fm);font-size:9px;letter-spacing:.09em;
+ text-transform:uppercase;color:var(--kc-ink3)}
+.kc-fld .v{font-family:var(--kc-fm);font-size:13px;margin-top:1px}
+.kc-fld+.kc-fld{margin-top:8px}
+.kc-qr{width:134px;height:134px;background:#fff;padding:4px;border-radius:7px;
+ border:1px solid var(--kc-rule)}
+@media (max-width:380px){.kc-qr{width:118px;height:118px}}
+.kc-qr svg{display:block;width:100%;height:100%}
+.kc-cfoot{border-top:1px solid var(--kc-rule);padding:11px 17px;display:flex;
+ align-items:center;gap:9px;font-size:12.5px}
+.kc-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.kc-dot.ok{background:var(--kc-ok)}.kc-dot.wa{background:var(--kc-wa)}
+.kc-dot.cr{background:var(--kc-cr)}
+.kc-nota{font-size:12px;color:var(--kc-ink3);margin:12px 16px;text-align:center;line-height:1.45}
 
-commit;
+/* --- curso --- */
+.kc-top{position:sticky;top:0;z-index:20;background:var(--kc-card);
+ border-bottom:1px solid var(--kc-rule);padding:11px 16px 0}
+.kc-bar{height:3px;background:var(--kc-rule);border-radius:2px;overflow:hidden}
+.kc-bar i{display:block;height:100%;background:var(--kc-ac);width:0;transition:width .3s}
+@media (prefers-reduced-motion:reduce){.kc-bar i{transition:none}}
+.kc-main{padding:20px 18px 12px}
+.kc-h1{font-family:var(--kc-fd);font-weight:700;font-size:25px;line-height:1.08;margin-bottom:13px}
+.kc-h2{font-family:var(--kc-fd);font-weight:600;font-size:19px;margin:24px 0 9px}
+.kc-h2:first-child{margin-top:0}
+.kc-p{margin:0 0 14px}
+.kc-ul{margin:0 0 15px;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.kc-ul li{position:relative;padding-left:21px;color:var(--kc-ink2)}
+.kc-ul li::before{content:'';position:absolute;left:4px;top:.62em;width:6px;height:6px;
+ border-radius:50%;background:var(--kc-ac)}
+.kc-avi{background:var(--kc-was);border-left:3px solid var(--kc-wa);border-radius:8px;
+ padding:13px 15px;margin:0 0 15px;font-size:14.5px;color:var(--kc-ink2)}
+.kc-pie{font-size:12.5px;color:var(--kc-ink3);margin:-7px 0 15px;font-style:italic}
+.kc-q{font-family:var(--kc-fd);font-weight:600;font-size:20px;line-height:1.2;margin:0 0 17px}
+.kc-ops{display:flex;flex-direction:column;gap:9px}
+.kc-op{display:block;width:100%;text-align:left;cursor:pointer;background:var(--kc-card);
+ border:1.5px solid var(--kc-rule2);border-radius:10px;padding:13px 15px;
+ box-shadow:var(--kc-sh);line-height:1.4}
+.kc-op[aria-pressed=true]{border-color:var(--kc-ac);background:var(--kc-acs)}
+.kc-op:disabled{cursor:default}
+.kc-foot{position:sticky;bottom:0;background:var(--kc-card);border-top:1px solid var(--kc-rule);
+ padding:12px 18px calc(12px + env(safe-area-inset-bottom))}
+.kc-btn{width:100%;font-family:var(--kc-fd);font-weight:600;font-size:16px;
+ background:var(--kc-ac);color:var(--kc-ground);border:none;border-radius:10px;
+ padding:13px;cursor:pointer}
+.kc-btn:disabled{background:var(--kc-card2);color:var(--kc-ink3);cursor:default}
+.kc-aro{width:112px;height:112px;margin:0 auto 18px;position:relative}
+.kc-aro svg{transform:rotate(-90deg)}
+.kc-aro .n{position:absolute;inset:0;display:grid;place-items:center;
+ font-family:var(--kc-fd);font-weight:700;font-size:29px}
 
--- =====================================================================
---  COMPROBACIÓN — los dos números, uno al lado del otro
---
---  «a_la_fecha» es el que va a mostrar la pantalla. «del_anio» es el que
---  mostraba antes. La diferencia entre los dos son las actividades que
---  todavía no llegaron.
--- =====================================================================
-select em.slug as empresa,
-       count(*) filter (where not e.cancelado
-                          and coalesce(e.fecha_realizada, e.fecha_programada) <= current_date) as programadas_a_hoy,
-       count(*) filter (where e.ejecutado
-                          and coalesce(e.fecha_realizada, e.fecha_programada) <= current_date) as ejecutadas_a_hoy,
-       count(*) filter (where not e.cancelado)                                                 as programadas_del_anio,
-       count(*) filter (where e.ejecutado)                                                     as ejecutadas_del_anio,
-       count(*) filter (where not e.cancelado and not e.ejecutado
-                          and coalesce(e.fecha_realizada, e.fecha_programada) > current_date)  as todavia_no_les_toca
-from cap_evento e
-join empresas em on em.id = e.empresa_id
-where e.anio = extract(year from current_date)::int
-group by em.slug
-order by em.slug;
+/* --- tablas y paneles anchos --- */
+.kc-sc{overflow-x:auto;border:1px solid var(--kc-rule);border-radius:9px;
+ background:var(--kc-card);box-shadow:var(--kc-sh);margin-bottom:16px}
+.kc table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+.kc th{font-family:var(--kc-fm);font-size:9.5px;font-weight:500;letter-spacing:.07em;
+ text-transform:uppercase;color:var(--kc-ink3);text-align:left;padding:10px 10px;
+ background:var(--kc-card2);border-bottom:1px solid var(--kc-rule2);white-space:nowrap}
+.kc td{padding:9px 10px;border-bottom:1px solid var(--kc-rule);vertical-align:middle}
+/* La columna de botones del final. Sin esto el navegador reparte el ancho
+   como quiere: le da de más a la fila de botones —que igual se desborda y
+   se corta— y le quita al título, que termina partido en cuatro renglones.
+   width:1% pide exactamente lo que ocupa el contenido y deja el resto para
+   el texto; si aun así no entra, la tabla scrollea dentro de .kc-sc. */
+.kc td.acc,.kc th.acc{width:1%;white-space:nowrap}
+/* ORDEN DE LOS BOTONES: el último de la fila es el que se pierde cuando
+   la tabla no entra y hay que correrla de costado. Entonces el último no
+   puede ser Apagar. Va Convalidar, que es la acción menos consecuente de
+   las cinco. Lo que se cae del borde tiene que ser lo que menos duele
+   perder, no lo más importante. */
+.kc td.acc>div{flex-wrap:nowrap}
+/* En pantalla angosta ya no alcanza con reordenar: no entran ni cuatro.
+   Ahí los botones BAJAN de renglón en vez de esconderse detrás de un
+   scroll horizontal que nadie ve. En pantalla normal siguen en una línea. */
+/* El corte está en 1150 y no en 900 porque la fila de Capacitaciones
+   llegó a SEIS botones al sumar «Programar». Medido: a 1200 entran en
+   una línea, a 1000 se caía «Convalidar» por el borde. */
+@media (max-width:1150px){
+  /* El min-width evita el otro extremo: como la columna pide width:1%,
+     con wrap y sin mínimo el navegador la achica hasta un botón por
+     renglón y la fila queda de seis pisos. Con 270px entran tres, o sea
+     dos renglones. */
+  .kc td.acc>div{flex-wrap:wrap;justify-content:flex-end;row-gap:5px;min-width:270px}
+}
+@media (max-width:900px){
+  /* En un teléfono ni 270px entran, y el mínimo empujaría la tabla afuera
+     de nuevo. Acá se sueltan del todo: se apilan, pero no se esconde
+     ninguno. Feo antes que incompleto. */
+  .kc td.acc>div{min-width:0}
+}
+/* Cinco botones a tamaño normal se comían 375px y empujaban la tabla
+   113px afuera de la caja: el último quedaba cortado contra el borde.
+   Acá van más apretados —siguen siendo del tamaño que se puede tocar en
+   un teléfono— y la fila entra entera. Se probó fijar la columna al
+   borde derecho: no sirve, tapa Gente y 2026. */
+.kc td.acc .kc-mini{padding:5px 7px;gap:5px}
+.kc td.acc>div{gap:5px!important}
+.kc td.tit{min-width:200px}
+
+/* ---- barras del tablero ------------------------------------------
+   Se llaman kc-bra y no kc-bar porque .kc-bar YA EXISTE: es el filete de
+   3px del progreso de un curso. Reusar el nombre le puso display:flex y
+   30px de alto a esa barra, y nadie lo iba a notar hasta abrir un curso.
+   ----------------------------------------------
+   Un solo color por serie: la longitud ya dice el tamaño, teñirlas
+   además sería contar dos veces lo mismo. El valor va escrito al lado,
+   nunca sólo en el globito: si el dato depende del mouse, no existe
+   para quien usa teclado ni para quien imprime.
+   La fila entera es el botón, y mide 30px: un objetivo de 8px que hay
+   que acertar al centro no es un control, es una trampa.             */
+.kc-bras{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+.kc-bra{display:flex;align-items:center;gap:10px;width:100%;min-height:30px;
+ padding:3px 8px;border:1px solid transparent;border-radius:7px;background:none;
+ font:inherit;color:inherit;text-align:left;cursor:pointer}
+.kc-bra:hover{background:var(--kc-card2)}
+.kc-bra:focus-visible{outline:2px solid var(--kc-ac);outline-offset:1px}
+.kc-bra.on{background:var(--kc-card2);border-color:var(--kc-rule2)}
+/* La cola no lleva barra: su suma supera al máximo de las visibles, así
+   que la barra se saldría de la caja y el número quedaría montado encima.
+   Es un total, no una categoría comparable. */
+.kc-bra.otras{cursor:default;opacity:.6}
+.kc-bra.otras .p{background:none}
+.kc-bra .t{flex:0 0 34%;font-size:13px;color:var(--kc-ink);
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kc-bra.on .t{font-weight:600}
+.kc-bra .p{flex:1 1 auto;height:9px;background:var(--kc-card2);border-radius:5px}
+.kc-bra:hover .p,.kc-bra.on .p{background:var(--kc-rule)}
+.kc-bra .p i{display:block;height:9px;border-radius:5px;background:var(--kc-ac)}
+.kc-bra .v,.kc-bra .v2{flex:0 0 auto;min-width:46px;text-align:right;font-family:var(--kc-fm);
+ font-size:12.5px;color:var(--kc-ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kc-bra .v2{min-width:34px;color:var(--kc-ink3)}
+/* Otra regla del módulo pone los <i> en display:block —por eso la letra
+   caía a un segundo renglón y la fila crecía a 35px. */
+.kc-bra .v i,.kc-bra .v2 i{display:inline;font-style:normal;font-size:10px;
+ opacity:.65;margin-left:1px}
+
+/* Dos números por tarjeta: personas y capacitaciones. Uno solo sería la
+   multiplicación de los dos, que no se puede ir a resolver. */
+.kc-kpi2{display:block;width:100%;text-align:left;font:inherit;cursor:pointer;
+ background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:10px;
+ box-shadow:var(--kc-sh);padding:12px 14px;border-left:4px solid var(--kc-rule2)}
+.kc-kpi2:hover{border-color:var(--kc-ac)}
+.kc-kpi2:focus-visible{outline:2px solid var(--kc-ac);outline-offset:1px}
+.kc-kpi2[aria-pressed="true"]{border-color:var(--kc-ac);background:var(--kc-acs)}
+.kc-kpi2.mal{border-left-color:var(--kc-cr)}
+.kc-kpi2.ok{border-left-color:var(--kc-ok)}
+.kc-kpi2 .t{font-family:var(--kc-fd);font-weight:600;font-size:14px;color:var(--kc-ink2)}
+.kc-kpi2 .d{display:flex;gap:16px;margin-top:5px;font-size:12px;color:var(--kc-ink2)}
+.kc-kpi2 .d b{display:block;font-family:var(--kc-fd);font-size:24px;color:var(--kc-ink);
+ line-height:1.1}
+
+/* ---- indicadores del programa (para proyectar en una reunión) -------
+   Número grande sin tabular-nums: a tamaño display los dígitos de ancho
+   fijo se ven sueltos. El estado va con signo Y palabra, nunca sólo con
+   color: proyectado en un salón, el rojo y el verde de un daltónico son
+   el mismo gris.                                                       */
+.kc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+ gap:12px;margin-bottom:14px}
+.kc-kpix{background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:11px;
+ box-shadow:var(--kc-sh);padding:15px 17px 13px;border-left:4px solid var(--kc-rule2)}
+.kc-kpix.ok{border-left-color:var(--kc-ok)}
+.kc-kpix.no{border-left-color:var(--kc-cr)}
+.kc-kpix.nd{border-left-color:var(--kc-ink3)}
+.kc-kpix .n{font-family:var(--kc-fd);font-weight:600;font-size:14px;color:var(--kc-ink2)}
+.kc-kpix .g{font-family:var(--kc-fd);font-weight:700;font-size:40px;line-height:1.05;
+ margin:4px 0 2px;color:var(--kc-ink)}
+.kc-kpix .g span{font-size:20px;font-weight:600;color:var(--kc-ink2);margin-left:1px}
+.kc-kpix .g .nd{font-size:22px;color:var(--kc-ink3);font-weight:600}
+.kc-kpix .me{position:relative;height:7px;background:var(--kc-card2);border-radius:4px;
+ margin:9px 0 9px;overflow:visible}
+.kc-kpix .me i{display:block;height:7px;border-radius:4px;background:var(--kc-ink3)}
+.kc-kpix.ok .me i{background:var(--kc-ok)}
+.kc-kpix.no .me i{background:var(--kc-cr)}
+.kc-kpix .me u{position:absolute;top:-3px;width:2px;height:13px;background:var(--kc-ink);
+ opacity:.55;border-radius:1px}
+.kc-kpix .e{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--kc-ink2)}
+.kc-kpix .f{font-family:var(--kc-fm);font-size:12px;color:var(--kc-ink2);margin-top:7px}
+.kc-kpix .f2{font-size:11.5px;color:var(--kc-ink3);margin-top:2px}
+.kc-kpix .sug{margin-top:9px;padding-top:9px;border-top:1px dashed var(--kc-rule2);
+ font-size:12px;color:var(--kc-ink2)}
+/* En una columna de 215px no entran tres controles en fila: se apilan.
+   Un formulario que se sale de su tarjeta no se usa, se esquiva. */
+.kc-kpix .ad{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.kc-kpix .ad .kc-in{font-size:13px;padding:6px 9px;width:100%;box-sizing:border-box}
+.kc-kpix .ad button{width:100%}
+
+.kc-bar3{height:7px;background:var(--kc-rule);border-radius:4px;margin-top:9px;
+ max-width:420px}
+.kc-bar3 i{display:block;height:7px;border-radius:4px;background:var(--kc-ac)}
+/* Columnas que crecen para ABAJO, no para el costado. Con la propiedad
+   columns y una altura tope, lo que no entra abre columnas a la derecha: con
+   164 temas se veían 33 y los otros 131 quedaban fuera de pantalla, detrás de
+   una barra horizontal que nadie mira. Una lista que hay que revisar antes de
+   crear 164 fichas no puede esconder el 80%. */
+.kc-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+ column-gap:22px;font-size:13px;color:var(--kc-ink2);align-content:start;
+ max-height:340px;overflow-y:auto;overflow-x:hidden;
+ border:1px solid var(--kc-rule);border-radius:8px;
+ padding:11px 13px;background:var(--kc-card)}
+.kc-cols div{padding:1px 0;min-width:0;overflow-wrap:anywhere}
+
+.kc-fus{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.kc-fus .lado{flex:1 1 260px;min-width:0;background:var(--kc-card2);border-radius:9px;padding:11px 13px}
+.kc-fus .tit{font-family:var(--kc-fd);font-weight:600;font-size:14px;margin:3px 0 6px}
+.kc-fus .dat{font-size:12.5px;color:var(--kc-ink2)}
+.kc-fus .fl2{align-self:center;color:var(--kc-ink3);font-size:19px}
+.kc-fus select{width:100%;margin:3px 0 6px}
+
+/* ---- asignar desde el documento ------------------------------------- */
+.kc-dest{display:flex;flex-direction:column;gap:9px}
+.kc-dest .kc-p1.pend{border-left:3px solid var(--kc-cr)}
+.kc-dest .cab{display:flex;align-items:center;gap:12px;width:100%;padding:12px 15px;
+ background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.kc-dest .cab:hover{background:var(--kc-card2)}
+.kc-dest .cab .i{flex:0 0 auto;min-width:38px;height:34px;border-radius:8px;
+ background:var(--kc-card2);display:grid;place-items:center;font-family:var(--kc-fd);
+ font-weight:700;font-size:15px;color:var(--kc-ink2)}
+.kc-dest .cab .c{flex:1 1 auto;min-width:0}
+.kc-dest .cab .fl{color:var(--kc-ink3);font-size:11px}
+.kc-dest .cue{padding:4px 15px 15px;border-top:1px solid var(--kc-rule)}
+.kc-mot{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 11px;
+ border:1px solid var(--kc-rule2);border-radius:7px;background:var(--kc-card2);color:var(--kc-ink)}
+.kc-dest .lis{margin:0 0 12px}
+.kc-dest .lis summary{cursor:pointer;font-family:var(--kc-fm);font-size:11px;
+ letter-spacing:.05em;text-transform:uppercase;color:var(--kc-ink3);padding:5px 0}
+.kc-dest .lis summary:hover{color:var(--kc-ac)}
+.kc-dest .cgs2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+ gap:1px 14px;max-height:230px;overflow-y:auto;padding:6px 2px 2px;
+ border-top:1px solid var(--kc-rule)}
+.kc-dest .cgs2 .li{font-size:13px;color:var(--kc-ink);padding:3px 0}
+.kc-dest .cgs2 .li b{font-family:var(--kc-fm);font-size:11.5px;color:var(--kc-ink2);
+ margin-right:5px}
+.kc-dest .cgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+ gap:2px;max-height:250px;overflow-y:auto;padding:2px}
+.kc-op{display:flex;align-items:center;gap:7px;font-size:13.5px;padding:5px 7px;
+ border-radius:6px;cursor:pointer}
+.kc-op:hover{background:var(--kc-card2)}
+.kc-lb{display:block;font-family:var(--kc-fm);font-size:10px;letter-spacing:.07em;
+ text-transform:uppercase;color:var(--kc-ink3);margin-bottom:4px}
+
+/* ---- la fila de filtros: una sola, arriba de todo lo que alcanza ---- */
+.kc-filtros{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+ background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:9px;
+ padding:9px 12px}
+.kc-chipf{font:inherit;font-size:13px;background:var(--kc-acs);color:var(--kc-ac);
+ border:1px solid var(--kc-ac);border-radius:20px;padding:4px 11px;cursor:pointer}
+.kc-chipf:hover{background:var(--kc-ac);color:var(--kc-ground)}
+.kc-grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+/* Un nombre largo no puede empujar el resto de la tabla afuera de la caja:
+   que se parta en dos renglones antes que eso. */
+.kc td.nom>div{max-width:300px;white-space:normal}
+.kc td.est{white-space:nowrap}
+.kc tr:last-child td{border-bottom:none}
+.kc td.k{font-family:var(--kc-fd);font-weight:600;white-space:nowrap}
+.kc td.n{font-family:var(--kc-fm);font-variant-numeric:tabular-nums;font-size:13px}
+.kc-tag{font-family:var(--kc-fm);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+ padding:3px 7px;border-radius:3px;white-space:nowrap}
+.kc-tag.si{background:var(--kc-oks);color:var(--kc-ok)}
+.kc-tag.no{background:var(--kc-crs);color:var(--kc-cr)}
+.kc-mini{border:1px solid var(--kc-rule2);background:var(--kc-card2);color:var(--kc-ink2);
+ border-radius:6px;padding:5px 10px;cursor:pointer;font-family:var(--kc-fd);
+ font-weight:600;font-size:12.5px;white-space:nowrap}
+.kc-mini.p{background:var(--kc-ac);border-color:var(--kc-ac);color:var(--kc-ground)}
+/* La deuda de evidencia no se pinta como un botón principal —no es la
+   acción que más queremos que toquen— pero tampoco puede pasar por un
+   botón cualquiera: dice que falta un papel que un auditor va a pedir. */
+.kc-mini.d{border-color:var(--kc-cr);color:var(--kc-cr);background:var(--kc-crs)}
+.kc-cent{display:flex;align-items:center;gap:12px;border-radius:10px;padding:13px 16px;
+ margin:16px 0}
+.kc-cent.ok{background:var(--kc-oks)}.kc-cent.mal{background:var(--kc-crs)}
+.kc-cent .b{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+ font-family:var(--kc-fd);font-weight:700;color:#fff;flex:0 0 auto}
+.kc-cent.ok .b{background:var(--kc-ok)}.kc-cent.mal .b{background:var(--kc-cr)}
+.kc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.kc-p1{background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:10px;
+ box-shadow:var(--kc-sh);overflow:hidden}
+.kc-lks{display:flex;gap:6px;margin-top:9px}
+.kc-lk{flex:1;border:1px solid var(--kc-rule);border-radius:6px;padding:6px;text-align:center}
+.kc-lk.on{background:var(--kc-oks);border-color:transparent}
+.kc-lk .i{font-size:13px}.kc-lk.on .i{color:var(--kc-ok)}.kc-lk.off .i{color:var(--kc-ink3)}
+.kc-lk .l{font-family:var(--kc-fm);font-size:8.5px;letter-spacing:.05em;
+ text-transform:uppercase;color:var(--kc-ink3);margin-top:3px}
+.kc dialog{border:none;border-radius:12px;padding:0;max-width:460px;width:92vw;
+ background:var(--kc-card);color:var(--kc-ink)}
+.kc dialog::backdrop{background:rgba(17,32,27,.5)}
+.kc-dlg{padding:20px}
+.kc-dlg h3{font-size:18px;margin-bottom:5px}
+.kc-dlg p{color:var(--kc-ink2);font-size:14px;margin:0 0 14px}
+.kc-dlg label{display:block;font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.07em;
+ text-transform:uppercase;color:var(--kc-ink3);margin-bottom:5px}
+.kc-dlg select,.kc-dlg input,.kc-dlg textarea{width:100%;font:inherit;font-size:14px;
+ padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+ background:var(--kc-card2);color:var(--kc-ink);margin-bottom:12px}
+.kc-row{display:flex;gap:9px}.kc-row>button{flex:1}
+.kc-b2{border:1px solid var(--kc-rule2);background:none;color:var(--kc-ink2);
+ border-radius:8px;padding:10px;cursor:pointer;font-family:var(--kc-fd);font-weight:600}
+
+/* --- catálogo y cronograma --- */
+.kc-bar2{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.kc-bus{flex:1 1 220px;min-width:0;font:inherit;font-size:14px;padding:9px 12px;
+ border:1px solid var(--kc-rule2);border-radius:8px;background:var(--kc-card);color:var(--kc-ink)}
+.kc-sel{font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--kc-rule2);
+ border-radius:8px;background:var(--kc-card);color:var(--kc-ink)}
+.kc-tag.wa{background:var(--kc-was);color:var(--kc-wa)}
+.kc-tag.n{background:var(--kc-card2);color:var(--kc-ink2)}
+.kc-tag.g{background:var(--kc-card2);color:var(--kc-ink3)}
+.kc-chips{display:flex;flex-wrap:wrap;gap:4px;max-width:290px}
+.kc-mch{font-size:11.5px;background:var(--kc-card2);border:1px solid var(--kc-rule);
+ color:var(--kc-ink2);border-radius:4px;padding:1px 6px;white-space:nowrap}
+.kc-mch.b{background:var(--kc-was);border-color:transparent;color:var(--kc-wa)}
+.kc-mes{font-family:var(--kc-fd);font-weight:700;font-size:13px;letter-spacing:.04em;
+ text-transform:uppercase;color:var(--kc-ink3);margin:20px 0 8px;display:flex;
+ align-items:center;gap:9px}
+.kc-mes::after{content:'';flex:1;height:1px;background:var(--kc-rule)}
+.kc-mes span{order:3;font-family:var(--kc-fm);font-size:11px;color:var(--kc-ink3)}
+.kc-ev{display:flex;align-items:center;gap:13px;background:var(--kc-card);
+ border:1px solid var(--kc-rule);border-radius:9px;padding:9px 13px;margin-bottom:7px;
+ box-shadow:var(--kc-sh)}
+.kc-ev.off{opacity:.5}
+.kc-ev.off .kc-evt{text-decoration:line-through}
+.kc-evd{flex:0 0 44px;text-align:center;font-family:var(--kc-fm);line-height:1.1}
+.kc-evd b{display:block;font-family:var(--kc-fd);font-size:19px;font-weight:700}
+.kc-evd span{font-size:9.5px;color:var(--kc-ink3);text-transform:uppercase}
+.kc-mal{color:var(--kc-cr);font-style:normal}
+.kc-evb{flex:1;min-width:0}
+.kc-evt{font-family:var(--kc-fd);font-weight:600;font-size:15px;line-height:1.25}
+.kc-eva{display:flex;gap:6px;flex:0 0 auto}
+.kc-asig{display:flex;align-items:center;gap:10px;padding:8px 0;
+ border-bottom:1px solid var(--kc-rule);font-size:13.5px}
+.kc-asig>div{flex:1;min-width:0}
+
+
+
+/* --- generador con IA --- */
+.kc-gen{display:flex;flex-direction:column;gap:10px}
+.kc-gi{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-rule2);
+ border-radius:9px;padding:13px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+ box-shadow:var(--kc-sh)}
+.kc-gi.borrador{border-left-color:var(--kc-wa)}
+.kc-gi.publicada{border-left-color:var(--kc-ok)}
+.kc-gi.error{border-left-color:var(--kc-cr)}
+.kc-gi.procesando,.kc-gi.pendiente{border-left-color:var(--kc-ac)}
+.kc-gi .n{flex:1;min-width:0}
+.kc-gi .n b{font-family:var(--kc-fd);font-size:16px;display:block}
+.kc-gi .n span{font-size:12.5px;color:var(--kc-ink3)}
+.kc-bl{background:var(--kc-card);border:1px solid var(--kc-rule);border-radius:9px;
+ padding:12px 14px;margin-bottom:9px}
+.kc-bl .top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.kc-bl select{margin:0;width:auto;min-width:120px;font-size:12.5px;padding:5px 8px}
+.kc-bl .mv{margin-left:auto;display:flex;gap:5px}
+.kc-bl textarea,.kc-bl input[type=text]{display:block;width:100%;margin:0 0 7px;
+ font:inherit;font-size:14px;padding:8px 11px;border:1px solid var(--kc-rule2);
+ border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);resize:vertical}
+.kc-op2 input[type=text]{margin:0}
+.kc-bl textarea:last-child,.kc-bl input:last-child{margin-bottom:0}
+.kc-op2{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.kc-op2 input[type=radio]{width:17px;height:17px;margin:0;flex:0 0 auto;accent-color:var(--kc-ok)}
+.kc-op2 input[type=text]{margin:0;flex:1}
+.kc-secc{font-family:var(--kc-fd);font-weight:700;font-size:19px;margin:22px 0 10px;
+ display:flex;align-items:center;gap:10px}
+.kc-secc::after{content:'';flex:1;height:1px;background:var(--kc-rule)}
+.kc-drop{border:2px dashed var(--kc-rule2);border-radius:10px;padding:20px;text-align:center;
+ color:var(--kc-ink3);font-size:14px;margin-bottom:12px;background:var(--kc-card2)}
+.kc-drop b{display:block;color:var(--kc-ink);font-family:var(--kc-fd);font-size:16px;
+ margin-bottom:4px}
+.kc-arch{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.kc-arch div{display:flex;gap:9px;align-items:center;font-size:13px;padding:6px 10px;
+ background:var(--kc-card2);border-radius:6px}
+.kc-arch span{margin-left:auto;font-family:var(--kc-fm);font-size:10.5px;color:var(--kc-ink3)}
+
+/* --- certificado imprimible --- */
+.kc-cert{max-width:800px;margin:0 auto;background:#fff;color:#11201B;
+ border:1px solid var(--kc-rule);box-shadow:var(--kc-sh);padding:0;overflow:hidden}
+.kc-cert *{color:inherit}
+.kc-cbar{height:9px;background:var(--kc-cert-color,#0B5D45)}
+.kc-cin{padding:44px 54px 38px}
+.kc-chead{display:flex;align-items:flex-start;gap:16px;
+ border-bottom:1px solid #DBE3DF;padding-bottom:18px;margin-bottom:30px}
+.kc-chead img{height:44px;width:auto}
+.kc-chead .e{font-family:var(--kc-fd);font-weight:700;font-size:20px;line-height:1.1}
+.kc-chead .n{font-family:var(--kc-fm);font-size:10.5px;color:#7E918B;margin-top:3px}
+.kc-chead .d{margin-left:auto;text-align:right;font-family:var(--kc-fm);font-size:9.5px;
+ color:#7E918B;line-height:1.7}
+.kc-ctit{font-family:var(--kc-fm);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+ color:var(--kc-cert-color,#0B5D45);text-align:center;margin-bottom:8px}
+.kc-cque{font-family:var(--kc-fd);font-size:15px;color:#4B605A;text-align:center;margin-bottom:22px}
+.kc-cnom{font-family:var(--kc-fd);font-weight:700;font-size:38px;line-height:1.05;
+ text-align:center;margin-bottom:6px;text-wrap:balance}
+.kc-cced{font-family:var(--kc-fm);font-size:12px;color:#4B605A;text-align:center;margin-bottom:26px}
+.kc-ccur{text-align:center;margin-bottom:28px}
+.kc-ccur .k{font-family:var(--kc-fm);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+ color:#7E918B;margin-bottom:7px}
+.kc-ccur .t{font-family:var(--kc-fd);font-weight:600;font-size:25px;line-height:1.15;
+ text-wrap:balance;max-width:30ch;margin:0 auto}
+.kc-ccur .o{font-size:14px;color:#4B605A;margin-top:9px;max-width:60ch;
+ margin-left:auto;margin-right:auto}
+.kc-cdat{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#DBE3DF;
+ border:1px solid #DBE3DF;margin-bottom:26px}
+.kc-cdat>div{background:#F5F8F6;padding:11px 12px;text-align:center}
+.kc-cdat .k{font-family:var(--kc-fm);font-size:8.5px;letter-spacing:.09em;
+ text-transform:uppercase;color:#7E918B;margin-bottom:4px}
+.kc-cdat .v{font-family:var(--kc-fd);font-weight:600;font-size:15px}
+.kc-cpie{display:flex;gap:26px;align-items:flex-end;border-top:1px solid #DBE3DF;padding-top:20px}
+.kc-cfirma{flex:1}
+.kc-cfirma .l{border-top:1px solid #11201B;padding-top:6px;margin-top:38px;max-width:250px;
+ font-family:var(--kc-fd);font-weight:600;font-size:13.5px}
+.kc-cfirma .r{font-family:var(--kc-fm);font-size:9.5px;color:#7E918B;margin-top:2px}
+.kc-cqr{width:96px;flex:0 0 auto;text-align:center}
+.kc-cqr svg{width:96px;height:96px;display:block}
+.kc-cqr span{font-family:var(--kc-fm);font-size:8px;color:#7E918B;display:block;margin-top:5px}
+.kc-cleg{font-family:var(--kc-fm);font-size:8.5px;color:#7E918B;line-height:1.7;
+ margin:18px 0 0;max-width:64ch}
+.kc-cacc{max-width:800px;margin:0 auto 16px;display:flex;gap:9px;flex-wrap:wrap;
+ align-items:center}
+@media print{
+  @page{size:A4 portrait;margin:0}
+  body{background:#fff!important}
+  .kc-cacc,.kc-noimp{display:none!important}
+  .kc-cert{box-shadow:none;border:none;max-width:none;margin:0}
+  .kc-cin{padding:26mm 22mm}
+}
+
+/* --- pasar lista y convalidar --- */
+.kc dialog.ancho{max-width:660px}
+.kc-ros{max-height:44vh;overflow:auto;border:1px solid var(--kc-rule);
+ border-radius:8px;margin-bottom:12px;background:var(--kc-card2)}
+.kc-rw{display:grid;grid-template-columns:1fr 168px;gap:9px;align-items:center;
+ padding:8px 11px;border-bottom:1px solid var(--kc-rule)}
+.kc-rw:last-child{border-bottom:none}
+.kc-rw.chk{grid-template-columns:22px 1fr auto}
+.kc-rw select,.kc-rw input[type=text]{margin:0;font-size:13px;padding:6px 8px}
+.kc-rw input[type=checkbox]{width:17px;height:17px;margin:0;accent-color:var(--kc-ac)}
+.kc-rw .nm{font-size:14px;min-width:0;line-height:1.3}
+.kc-rw .nm span{display:block;font-family:var(--kc-fm);font-size:9.5px;
+ color:var(--kc-ink3);text-transform:uppercase;letter-spacing:.05em}
+.kc-rw .mot{grid-column:1/-1;margin:0}
+.kc-rw .est{font-family:var(--kc-fm);font-size:9.5px;letter-spacing:.05em;
+ text-transform:uppercase;white-space:nowrap}
+.kc-rw .est.vencida{color:var(--kc-cr)}
+.kc-rw .est.pendiente{color:var(--kc-ink2)}
+.kc-rw .est.por_vencer{color:var(--kc-wa)}
+.kc-rw .est.al_dia{color:var(--kc-ok)}
+.kc-rap{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.kc-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99;
+ max-width:min(560px,92vw);background:var(--kc-ink);color:var(--kc-ground);
+ border-radius:9px;padding:12px 17px;font-size:13.5px;line-height:1.45;
+ box-shadow:0 8px 30px -8px rgba(0,0,0,.5)}
+
+/* ---- puesta en marcha ---- */
+.kc-pasos{display:flex;flex-direction:column;gap:9px}
+.kc-paso{display:flex;gap:13px;align-items:flex-start;background:var(--kc-card);
+ border:1px solid var(--kc-rule);border-left:3px solid var(--kc-rule2);
+ border-radius:10px;padding:14px 16px}
+.kc-paso.ok{border-left-color:var(--kc-ok)}
+.kc-paso.no{border-left-color:var(--kc-cr)}
+.kc-paso.opt{border-left-color:var(--kc-rule2);opacity:.78}
+.kc-paso .n{flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;
+ font-family:var(--kc-fd);font-weight:700;font-size:13px;background:var(--kc-card2);
+ color:var(--kc-ink3)}
+.kc-paso.ok .n{background:var(--kc-oks);color:var(--kc-ok)}
+.kc-paso.no .n{background:var(--kc-crs);color:var(--kc-cr)}
+.kc-paso .c{flex:1 1 auto;min-width:0}
+.kc-paso .d{font-size:13.5px;color:var(--kc-ink2);margin-top:3px}
+.kc-paso .ojo{font-size:12.5px;color:var(--kc-wa);margin-top:5px}
+.kc-in{font:inherit;font-size:13.5px;color:inherit;background:var(--kc-card);
+ border:1px solid var(--kc-rule2);border-radius:7px;padding:6px 9px;max-width:100%}
+.kc-in:disabled{background:var(--kc-card2);color:var(--kc-ink3)}
+.kc-in.nom{min-width:300px;width:100%}
+.kc-in.area{min-width:120px;width:100%}
+.kc-off{opacity:.45}
+.kc-chip2{display:inline-block;font-size:11.5px;background:var(--kc-card2);
+ border:1px solid var(--kc-rule);border-radius:999px;padding:2px 9px;margin:2px 3px 2px 0;
+ color:var(--kc-ink2)}
+.kc-chip2.j{background:var(--kc-acs);border-color:var(--kc-ac);color:var(--kc-ac)}
+.kc-guardar{position:sticky;bottom:0;display:none;gap:14px;align-items:center;justify-content:flex-end;
+ background:var(--kc-card);border-top:1px solid var(--kc-rule2);padding:12px 16px;margin-top:14px;
+ border-radius:0 0 10px 10px;box-shadow:0 -6px 18px -14px rgba(0,0,0,.5)}
+.kc-guardar span{font-size:13.5px;color:var(--kc-ink2)}
+.kc-lista{max-height:240px;overflow-y:auto;border:1px solid var(--kc-rule2);border-radius:8px;
+ padding:6px 10px;margin-top:4px;background:var(--kc-card)}
+.kc-dlg .kc-dst{display:flex;gap:10px;align-items:center;padding:5px 2px;
+ font-family:var(--kc-fb);font-size:14px;letter-spacing:0;text-transform:none;
+ color:var(--kc-ink);margin:0;cursor:pointer}
+.kc-dlg .kc-dst input{width:auto;flex:0 0 auto;margin:0;padding:0}
+.kc-dlg .kc-dst.ya{opacity:.5;cursor:default}
+.kc-dlg .kc-dst:hover{background:var(--kc-card2);border-radius:5px}
+.kc-vq{display:flex;gap:13px;align-items:flex-start;background:var(--kc-card);
+ border:1px solid var(--kc-rule);border-left:3px solid var(--kc-ok);border-radius:10px;
+ padding:14px 16px;margin-bottom:9px}
+.kc-vq.mal{border-left-color:var(--kc-cr)}
+.kc-vq .n{flex:0 0 auto;font-family:var(--kc-fm);font-size:11px;color:var(--kc-ink3);
+ padding-top:3px;white-space:nowrap}
+.kc-vq .q{flex:1 1 auto;min-width:0}
+.kc-vo{list-style:none;margin:9px 0 0;padding:0}
+.kc-vo li{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--kc-ink2);
+ padding:4px 0}
+.kc-vo li.ok{color:var(--kc-ok);font-weight:600}
+.kc-vo li .m{flex:0 0 14px;color:var(--kc-ok);font-weight:700}
+.kc-vexp{margin-top:9px;font-size:13.5px;color:var(--kc-ink2);background:var(--kc-card2);
+ border-radius:8px;padding:9px 12px}
+/* ---- matriz de peligros ---- */
+.kc-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.kc-kpi{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-rule2);
+ border-radius:10px;padding:14px 16px}
+.kc-kpi.ok{border-left-color:var(--kc-ok)} .kc-kpi.mal{border-left-color:var(--kc-cr)}
+.kc-kpi b{display:block;font-family:var(--kc-fd);font-weight:700;font-size:30px;line-height:1}
+.kc-kpi span{display:block;font-size:12.5px;color:var(--kc-ink2);margin-top:4px}
+.kc-h3{font-family:var(--kc-fd);font-weight:600;font-size:17px;margin:0 0 8px}
+.kc-dos2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.kc-lin{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13.5px;
+ border-bottom:1px solid var(--kc-rule);color:var(--kc-ink2)}
+.kc-lin b{color:var(--kc-ink)}
+.kc-chips2{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+.kc-chip3{font-size:12.5px;border-radius:999px;padding:4px 12px;border:1px solid var(--kc-rule2);
+ background:var(--kc-card)}
+.kc-chip3.ok{background:var(--kc-oks);border-color:var(--kc-ok);color:var(--kc-ok)}
+.kc-chip3.mal{background:var(--kc-crs);border-color:var(--kc-cr);color:var(--kc-cr)}
+.kc-exp{background:var(--kc-card);border:1px solid var(--kc-rule);border-left:3px solid var(--kc-ok);
+ border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.kc-exp.pend{border-left-color:var(--kc-wa)}
+.kc-exp.abierta{border-left-color:var(--kc-ac);box-shadow:var(--kc-sh)}
+.kc-exp.listo{border-left-color:var(--kc-ok)}
+
+.kc-exp .top{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.kc-exp .dest{margin-top:10px}
+.kc-exp .dest > label:first-child{display:block;font-family:var(--kc-fm);font-size:9.5px;
+ letter-spacing:.07em;text-transform:uppercase;color:var(--kc-ink3);margin-bottom:5px}
+.kc-exp .kc-dst{display:flex;gap:10px;align-items:center;padding:4px 2px;font-size:13.5px;cursor:pointer}
+.kc-exp .kc-dst input{width:auto;margin:0}
+.kc-alerta{display:block;white-space:normal;font-size:12.5px;line-height:1.45;border-radius:7px;
+ padding:8px 11px;margin-top:6px}
+.kc-alerta.cr{background:var(--kc-crs);color:var(--kc-cr)}
+.kc-alerta.wa{background:var(--kc-was);color:var(--kc-wa)}
+.kc-alerta b{color:inherit}
+
+
+
+
+
+
+@media (max-width:640px){
+  .kc-ev{flex-wrap:wrap}
+  .kc-evb{flex:1 1 100%;order:3}
+  .kc-eva{flex:1 1 100%;order:4}
+}
+`;
+
+function estilos() {
+  if (document.getElementById('kc-css')) return;
+  const s = document.createElement('style');
+  s.id = 'kc-css'; s.textContent = CSS;
+  document.head.appendChild(s);
+  if (!document.querySelector('link[href*="Barlow"]')) {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600' +
+             '&family=Barlow+Semi+Condensed:wght@500;600;700' +
+             '&family=Roboto+Mono:wght@400;500&display=swap';
+    document.head.appendChild(l);
+  }
+}
+
+/* ------------------------------------------------------------- utilidades */
+const esc = s => String(s ?? '').replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const EST = { vencida:'Vencida', por_vencer:'Por vencer', pendiente:'Pendiente', al_dia:'Al día' };
+// Sin tildes, sin mayúsculas, sin espacios de más: para comparar dos textos
+// escritos por manos distintas. «Auxiliar de Inspección» y «AUXILIAR DE
+// INSPECCION» son el mismo cargo aunque no sean la misma cadena.
+const llano = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase().replace(/\s+/g, ' ').trim();
+
+/* --------------------------------------------------------------- historial
+
+   Dos preguntas distintas, dos tablas distintas: el pasaporte responde
+   «¿qué le falta?» y mira sólo lo que se le exige; el historial
+   responde «¿qué hizo?» y muestra todo, aplique o no hoy y esté la
+   capacitación activa o apagada.
+
+   Sin esto, la historia importada de una empresa —capacitaciones de
+   años anteriores que ya salieron del plan, charlas que no se le
+   exigen a nadie— queda guardada y muda. Y el registro de charlas es
+   lo primero que pide un cliente en una auditoría.                     */
+const ASIS = {
+  asistio:               ['Asistió',   'si'],
+  ausente_justificado:   ['Faltó · justificada', 'wa'],
+  ausente_injustificado: ['Faltó',     'no']
+};
+
+function tablaHistorial(H, opt) {
+  H = H || []; opt = opt || {};
+  if (!H.length) return `<p class="kc-vacio">${esc(opt.vacio ||
+    'Todavía no hay nada registrado.')}</p>`;
+
+  const hs = H.reduce((a, x) => a + (Number(x.horas) || 0), 0);
+  const con = H.filter(x => x.estado === 'asistio').length;
+  const viejas = H.filter(x => !x.se_le_exige_hoy).length;
+
+  /* CON QUÉ SE PRUEBA CADA LÍNEA.
+
+     Un auditor no discute la fila que dice ASISTIÓ. Pregunta otras tres
+     cosas: mostrame el soporte firmado, quién la dictó, y esto se
+     registró ese día o se cargó después. Hasta la v65 las 32 filas se
+     veían todas igual de sólidas y ninguna tenía con qué respaldarse.
+
+     Los contadores en rojo van sólo en la ficha que mira HSE (opt.evidencia).
+     En el pasaporte del trabajador se muestran los mismos datos fila por
+     fila, pero sin el cartel: la falta de evidencia es una deuda de la
+     empresa, y ponérsela en rojo a quien no puede resolverla es acusar
+     al que fue a la capacitación. */
+  const sinSop = H.filter(x => !x.soporte).length;
+  const sinQ   = H.filter(x => !x.quien_dicto).length;
+  const cargad = H.filter(x => x.origen === 'historico').length;
+
+  const alerta = (opt.evidencia && H.length && (sinSop || sinQ))
+    ? `<div class="kc-cent" style="background:var(--kc-crs);margin-bottom:14px">
+        <div class="b" style="background:var(--kc-cr)">!</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">
+          Lo que un auditor va a pedir y hoy no está</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">
+          ${sinSop ? `<b>${sinSop} de ${H.length}</b> sin el soporte firmado. ` : ''}
+          ${sinQ   ? `<b>${sinQ}</b> sin constancia de quién la dictó. ` : ''}
+          ${cargad ? `<b>${cargad}</b> se cargaron de un histórico, no se registraron el día. ` : ''}
+          Las líneas son válidas; lo que falta es con qué respaldarlas.</div></div></div>`
+    : '';
+
+  return alerta + `<div class="kc-grid3" style="margin-bottom:14px">
+      <div class="kc-kpi"><b>${con}</b><span>asistencias</span></div>
+      <div class="kc-kpi"><b>${hs ? (Math.round(hs * 10) / 10) : '—'}</b><span>horas</span></div>
+      <div class="kc-kpi"><b>${viejas}</b><span>de temas que hoy no se le exigen</span></div>
+    </div>
+    <div class="kc-sc"><table><thead><tr><th>Fecha</th><th>Código</th>
+      <th>Capacitación</th><th>Quién la dictó</th><th>Resultado</th><th class="n">Nota</th>
+      <th class="n">Horas</th><th>Vence</th><th>Soporte</th></tr></thead><tbody>${
+    H.map(x => {
+      const a = ASIS[x.estado] || [x.estado, 'n'];
+      return `<tr>
+        <td class="n">${x.fecha ? fecha(x.fecha) : '—'}
+          ${x.origen === 'historico'
+            // «Asistió el 10 de agosto» y «alguien escribió el 28 que
+            // asistió el 10» son dos afirmaciones distintas.
+            ? `<div class="kc-cd" style="margin-top:2px;color:var(--kc-ink3)" title="${
+                x.registrada_el ? 'Se registró el ' + fecha(String(x.registrada_el).slice(0,10)) : ''
+              }">cargada de un histórico</div>` : ''}</td>
+        <td class="k">${esc(x.codigo || '')}</td>
+        <td class="tit">${esc(x.titulo || '')}
+          <div class="kc-cd" style="margin-top:2px">${esc(x.eje || '')} · ${esc(x.tipo || '')}${
+            x.modalidad ? ' · ' + esc(x.modalidad) : ''}${
+            x.se_le_exige_hoy ? '' : ' · ya no se le exige'}${
+            x.capacitacion_activa ? '' : ' · apagada'}</div></td>
+        <td>${x.quien_dicto
+          ? esc(x.quien_dicto) + (x.proveedor
+              // Quién firma hace a la validez: en alturas o brigada, un
+              // externo sin licencia invalida la capacitación aunque la
+              // persona haya ido.
+              ? ' <span class="kc-tag n" title="Lo dictó un tercero">externo</span>' : '')
+          : '<span style="color:var(--kc-ink3)">no consta</span>'}</td>
+        <td><span class="kc-tag ${a[1]}">${esc(a[0])}</span></td>
+        <td class="n">${x.nota != null ? Number(x.nota) : '—'}</td>
+        <td class="n">${x.horas != null ? Number(x.horas) : '—'}</td>
+        <td class="n">${x.vence_el ? fecha(x.vence_el) : 'no vence'}</td>
+        <td>${x.soporte ? `<a class="kc-mini" href="${esc(x.soporte)}"
+              target="_blank" rel="noopener" title="${x.soporte_de === 'jornada'
+                ? 'La planilla firmada de esa jornada' : 'Constancia a nombre de la persona'}">Ver</a>${
+              // Un certificado a nombre de la persona no prueba lo mismo
+              // que una firma en una lista de veinte. Las dos valen; la
+              // pantalla no las hace pasar por iguales.
+              x.soporte_de === 'jornada'
+                ? '<div class="kc-cd" style="margin-top:2px;color:var(--kc-ink3)">de la jornada</div>' : ''}`
+            : '<span style="color:var(--kc-cr);font-size:12.5px">falta</span>'}</td>
+      </tr>`; }).join('')}</tbody></table></div>
+    <p class="kc-nota" style="text-align:left;margin-top:10px">Esto es lo que
+      <b>pasó</b>, no lo que se exige. Una línea marcada «ya no se le exige» es un
+      registro válido de algo que hizo: la empresa cambió su plan, no la historia.
+      <b>«Falta» en soporte no invalida la asistencia</b>: dice que todavía no está
+      cargado el papel con el que se prueba.</p>`;
+}
+
+/* ---------------------------------------------------- estado de formación
+
+   El módulo dice el estado de la FORMACIÓN, nunca un juicio sobre la
+   persona. «Apto» está ocupada dos veces y ninguna es esta: aptitud
+   médica ocupacional (Res. 2346/2007), que firma un médico laboral, y
+   calificación técnica (Inspector Nivel II, montacarguista, alturas),
+   que emite un tercero y el módulo ni siquiera guarda. Un Inspector II
+   con certificado vigente al que le falta una charla de ergonomía puede
+   inspeccionar; decirle NO APTO en una credencial que lee el cliente lo
+   baja del pozo por una charla.
+
+   Y «al día» se mide contra HOY. Lo que está agendado más adelante en
+   el cronograma no es una falta: es el plan andando, y va aparte.       */
+const FORM = {
+  al_dia:   { tag:'Al día',   tcls:'si', band:'ok',
+              t1:'Al día con su formación' },
+  en_falta: { tag:'No al día', tcls:'no', band:'cr',
+              t1:'No está al día con su formación' },
+  sin_plan: { tag:'Sin plan', tcls:'n',  band:'wa',
+              t1:'Sin plan de formación definido' }
+};
+const estadoForm = f => FORM[f] || FORM.sin_plan;
+// «Resto del año: X en el cronograma». Nunca en rojo: no es una falta.
+const cola = n => n > 0
+  ? `Resto del año: ${n} en el cronograma.` : '';
+const EST_P = { vencida:'vencidas', por_vencer:'que están por vencer',
+                pendiente:'pendientes', al_dia:'que están al día' };
+const EJE = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
+const nodo = sel => typeof sel === 'string' ? document.querySelector(sel) : sel;
+const hoy = () => new Date();
+// AAAA-MM-DD en la hora local del usuario. toISOString() usa UTC y en
+// Colombia (UTC-5) después de las 19:00 devolvería el día siguiente.
+const iso = d => { const x = d || hoy();
+  return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const dias = d => Math.round((new Date(d + 'T12:00:00') - hoy()) / 86400000);
+const fecha = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-CO',
+  { day:'2-digit', month:'short', year:'numeric' }) : '—';
+
+function cargando(el, txt) {
+  el.className = 'kc'; el.innerHTML = `<div class="kc-carga">${esc(txt || 'Cargando…')}</div>`;
+}
+function error(el, e) {
+  el.className = 'kc';
+  el.innerHTML = `<div class="kc-err"><b>No se pudo cargar</b>${esc(e.message || e)}</div>`;
+  console.error('[KaluCap]', e);
+}
+async function rpc(fn, args) {
+  const { data, error: err } = await sb.rpc(fn, args || {});
+  if (err) {
+    const m = (err.message || '') + ' ' + (err.code || '');
+    if (/JWT|401|expired|invalid/i.test(m))
+      throw new Error('Tu sesión venció. Entrá de nuevo a KALU y volvé a abrir esta página.');
+    throw new Error(err.message);
+  }
+  return data;
+}
+// El color de la empresa se aplica solo si es lo bastante oscuro para
+// llevar texto claro encima. Si no, se conserva el verde del módulo:
+// vale más una interfaz legible que una fiel a la marca.
+function marca(el, emp) {
+  if (!emp) return;
+  const c = (emp.color || '').trim();
+  if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+  const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16);
+  const lum = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+  if (lum < 0.55) el.style.setProperty('--kc-ac', c);
+}
+
+/* La dirección que guarda el QR. Sale de dónde está publicada la
+   página, así que si mañana el módulo vive en otro dominio el código
+   sigue apuntando bien sin tocar nada. */
+function urlVerificar(token) {
+  const base = global.location
+    ? global.location.origin + global.location.pathname.replace(/[^/]*$/, '')
+    : 'https://getkalu.com/';
+  return base + 'verificar.html?c=' + encodeURIComponent(token || '');
+}
+
+function qrSvg(txt) {
+  if (!global.qrcode) return `<div class="mono" style="font-size:9px;word-break:break-all">${esc(txt)}</div>`;
+  const q = global.qrcode(0, 'M'); q.addData(txt); q.make();
+  const n = q.getModuleCount();
+  // Zona de silencio: sin este margen blanco de 4 módulos alrededor, la
+  // cámara no encuentra el código. Va adentro del SVG y no en el CSS,
+  // para que no dependa de dónde se dibuje.
+  const m = 4, t = n + m * 2;
+  let p = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
+    if (q.isDark(r, c)) p += `M${c + m} ${r + m}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges" role="img"
+    aria-label="Código de la credencial"><rect width="${t}" height="${t}" fill="#fff"/>
+    <path d="${p}" fill="#11201B"/></svg>`;
+}
+
+/* =================================================================
+   PASAPORTE — app.html
+   ================================================================= */
+async function pasaporte(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando tu pasaporte…');
+  let D;
+  try { D = await rpc('cap_mi_pasaporte'); } catch (e) { return error(el, e); }
+  if (!D || !D.persona) return error(el, new Error(
+    'No se encontró tu ficha. Puede que tu usuario todavía no esté vinculado a una persona.'));
+
+  let cat = 'todas', est = null, tab = 'pas';
+  // El historial puede ser largo (en una empresa con años cargados, cientos
+  // de líneas). Se pide sólo cuando alguien abre esa pestaña, no en cada
+  // apertura del pasaporte.
+  let HIST = null;
+  const items = D.items || [], port = D.portada || {}, emp = D.empresa || {};
+  marca(el, emp);
+  const form = items.filter(x => x.tipo !== 'charla');
+  const charlas = items.filter(x => x.tipo === 'charla');
+
+  /* Esta pantalla y el QR hablan de la misma persona el mismo día: tienen
+     que decir lo mismo. Antes acá decía «18 pendientes · ninguna vencida»
+     en ámbar —que se lee como «tranquilo»— y el QR devolvía «no está al
+     día · 18 atrasadas» en rojo. La misma tarjeta contradecía a su propio
+     código. Ahora las dos leen `formacion`, que la calcula el servidor. */
+  function pintar() {
+    const F1 = estadoForm(D.formacion);
+    const cls = D.formacion === 'al_dia' ? 'ok'
+              : D.formacion === 'sin_plan' ? 'wa' : 'cr';
+    const t1 = D.formacion === 'al_dia' ? 'Al día'
+             : D.formacion === 'sin_plan' ? 'Sin plan de formación'
+             : port.vencidas > 0
+               ? (port.vencidas === 1 ? 'Tenés 1 vencida' : `Tenés ${port.vencidas} vencidas`)
+               : (port.atrasadas === 1 ? 'Tenés 1 atrasada' : `Tenés ${port.atrasadas} atrasadas`);
+    // El «resto del año» va una sola vez, en el botón de abajo, que
+    // además filtra la lista. Repetirlo en el titular era ruido.
+    const t2 = D.formacion === 'al_dia'
+                 ? 'Toda tu formación está vigente.'
+             : D.formacion === 'sin_plan'
+                 ? 'Todavía no se definió qué formación te exige tu cargo. No es que estés al día: es que no hay nada cargado.'
+             : (port.vencidas > 0 ? 'Hablá con el área HSE para reprogramarla. ' : '') +
+               (port.atrasadas > 0
+                 ? port.atrasadas + ' están sin dictar y sin fecha en el cronograma. ' : '') +
+               '';
+
+    const base = cat === 'charla' ? charlas
+      : form.filter(x => cat === 'todas' || (EJE_ORDEN.includes(x.eje) ? x.eje : 'otro') === cat);
+    const lista = base.filter(x => !est ? true
+      : est === 'atrasada'      ? x.atrasada === true
+      : est === 'en_cronograma' ? x.en_cronograma === true
+      : x.estado === est);
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wrap">
+      <div class="kc-hero">
+        <div class="kc-cargo">${esc(D.persona.cargo)}</div>
+        <div class="kc-nom">${esc(D.persona.nombre)}</div>
+        <div class="kc-band ${cls}"><div class="m">${cls === 'ok' ? '✓' : '!'}</div>
+          <div><div class="t1">${esc(t1)}</div><div class="t2">${esc(t2)}</div></div></div>
+        <div class="kc-cts">${[
+            ['vencida','v','Vencidas',port.vencidas],
+            ['por_vencer','x','Por vencer',port.por_vencer],
+            ['atrasada','','Atrasadas',port.atrasadas],
+            ['al_dia','a','Al día',port.al_dia]
+          ].map(([k,c,t,n]) => `<button class="kc-ct ${c}" type="button" data-e="${k}"
+            aria-pressed="${est===k}"><b>${n ?? 0}</b><span>${t}</span></button>`).join('')}</div>
+        ${port.en_cronograma ? `<button class="kc-mini" type="button" data-e="en_cronograma"
+          aria-pressed="${est==='en_cronograma'}" style="margin-top:9px">${
+          cola(port.en_cronograma)}</button>` : ''}
+      </div>
+      <div class="kc-tabs" role="tablist">
+        <button class="kc-tab" data-t="pas" role="tab" aria-selected="${tab==='pas'}">Capacitaciones</button>
+        <button class="kc-tab" data-t="cred" role="tab" aria-selected="${tab==='cred'}">Credencial</button>
+        <button class="kc-tab" data-t="certs" role="tab" aria-selected="${tab==='certs'}">Certificados</button>
+        <button class="kc-tab" data-t="hist" role="tab" aria-selected="${tab==='hist'}">Historial</button>
+      </div>
+      ${tab === 'pas'  ? vistaLista(lista)
+      : tab === 'cred' ? vistaCred()
+      : tab === 'hist' ? (HIST === null
+          ? '<div class="kc-carga">Buscando tu historial…</div>'
+          : tablaHistorial(HIST, { vacio: 'Todavía no hay ninguna capacitación registrada a tu nombre.' }))
+      : vistaCerts()}
+    </div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = async () => {
+      tab = b.dataset.t; pintar();
+      if (tab === 'hist' && HIST === null) {
+        try { HIST = await rpc('cap_mi_historial') || []; }
+        catch (e) { HIST = []; }
+        if (tab === 'hist') pintar();
+      }
+    });
+    el.querySelectorAll('.kc-chip').forEach(b => b.onclick = () => {
+      cat = b.dataset.f; pintar();
+    });
+    // Los contadores de arriba son el filtro por estado. Tocar el que
+    // ya está activo lo suelta.
+    el.querySelectorAll('.kc-ct[data-e]').forEach(b => b.onclick = () => {
+      est = (est === b.dataset.e) ? null : b.dataset.e; pintar();
+    });
+    const limpia = el.querySelector('#kc-limpia');
+    if (limpia) limpia.onclick = () => { est = null; pintar(); };
+    el.querySelectorAll('.kc-it').forEach(b => {
+      const abrirCerrar = ev => {
+        if (ev.target.closest('.kc-go')) return;
+        b.classList.toggle('open');
+        b.setAttribute('aria-expanded', String(b.classList.contains('open')));
+      };
+      b.onclick = abrirCerrar;
+      b.onkeydown = ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirCerrar(ev); }
+      };
+    });
+    el.querySelectorAll('.kc-go[data-c]').forEach(b => b.onclick = ev => {
+      ev.stopPropagation();
+      curso(sel, b.dataset.c, { volver: () => pasaporte(sel, opt) });
+    });
+    el.querySelectorAll('[data-cert]').forEach(b => b.onclick = ev => {
+      ev.stopPropagation();
+      certificado(sel, b.dataset.cert, { volver: () => pasaporte(sel, opt) });
+    });
+  }
+
+  // El pasaporte se lee en dos niveles: primero de qué se trata
+  // (seguridad, ARL, plan de carrera) y dentro de cada uno de dónde le
+  // viene: a todos, por el cargo, por el comité, por lo que hace.
+  const EJE_T = { induccion:'Inducción', hse:'Seguridad y salud',
+                  arl:'ARL', tecnica:'Plan de carrera' };
+  const EJE_ORDEN = ['induccion','hse','arl','tecnica'];
+  const ALC_T = { todos:'Para todo el personal', cargo:'Por tu cargo',
+                  rol:'Por tu comité', actividad:'Por lo que hacés' };
+  const ALC_ORDEN = ['todos','cargo','rol','actividad'];
+
+  function vistaLista(lista) {
+    const cont = (k, l, n) =>
+      `<button class="kc-chip" data-f="${k}" aria-pressed="${cat===k}">${l} · ${n}</button>`;
+    const disp = new Set((D.disponibles || []).map(d => d.catalogo_id));
+
+    function tarjeta(x) {
+      let meta;
+      if (x.estado === 'pendiente') meta = 'Sin registro de asistencia';
+      else if (x.estado === 'al_dia' && !x.vence_el) meta = 'Hecha el ' + fecha(x.ultima_vez) + ' · no vence';
+      else if (x.estado === 'vencida') meta = 'Venció el ' + fecha(x.vence_el) + ' · hace ' + Math.abs(dias(x.vence_el)) + ' días';
+      else if (x.estado === 'por_vencer') meta = 'Vence el ' + fecha(x.vence_el) + ' · en ' + dias(x.vence_el) + ' días';
+      else meta = 'Hecha el ' + fecha(x.ultima_vez) + ' · vence ' + fecha(x.vence_el);
+      const puede = disp.has(x.catalogo_id);
+      // div y no button: adentro va otro botón ("Hacerla ahora") y el
+      // HTML no admite botones anidados — el navegador lo expulsa de la
+      // tarjeta y queda suelto en la lista.
+      return `<div class="kc-it" role="button" tabindex="0" aria-expanded="false">
+        <div class="kc-st ${x.estado}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="kc-bd">
+            <div class="kc-r1"><span class="kc-cd">${esc(x.codigo[0])}-${esc(x.codigo.slice(1))}${
+              x.bloqueante && x.bloqueante !== 'no'
+                ? ' · ' + (x.bloqueante === 'ingreso' ? 'obligatoria' : 'para operar') : ''}</span>
+              <span class="kc-pill ${x.estado}">${EST[x.estado]}</span></div>
+            <div class="kc-tt">${esc(x.titulo)}</div>
+            <div class="kc-mt">${esc(meta)}</div>
+          </div>
+          <div class="kc-why"><b>Por qué me aplica</b>${esc(x.por_que_aplica)}
+            ${x.certificable ? ' · Genera certificado' : ''}
+            ${puede ? `<button class="kc-go" data-c="${x.catalogo_id}">${
+              x.estado === 'por_vencer' ? 'Renovarla ahora'
+                : x.estado === 'vencida' ? 'Rehacerla ahora' : 'Hacerla ahora'}</button>` : ''}
+          </div>
+        </div></div>`;
+    }
+
+    // agrupar: eje → alcance
+    const ejes = [];
+    EJE_ORDEN.concat(['otro']).forEach(e => {
+      const dele = lista.filter(x => (EJE_ORDEN.includes(x.eje) ? x.eje : 'otro') === e);
+      if (!dele.length) return;
+      const grupos = [];
+      ALC_ORDEN.concat(['otro']).forEach(a => {
+        const g = dele.filter(x => (ALC_ORDEN.includes(x.alcance) ? x.alcance : 'otro') === a);
+        if (g.length) grupos.push([a, g]);
+      });
+      ejes.push([e, dele.length, grupos]);
+    });
+
+    const cuerpo = ejes.map(([e, n, grupos]) => (ejes.length > 1 ? `
+      <div class="kc-eje"><span>${esc(EJE_T[e] || 'Otras')}</span><i>${n}</i></div>` : '') +
+      grupos.map(([a, g]) => `
+        <div class="kc-sub">${esc(ALC_T[a] || 'Asignadas a vos')} · ${g.length}</div>
+        <div class="kc-list">${g.map(tarjeta).join('')}</div>`).join('')).join('');
+
+    // Las categorías son los botones de arriba: se salta de una a otra
+    // sin scrollear. El estado se filtra desde los contadores del
+    // encabezado, que ya estaban ahí y no hacían nada.
+    const cats = [['todas', 'Todas', form.length]].concat(
+      EJE_ORDEN.map(e => [e, EJE_T[e], form.filter(x => x.eje === e).length])
+               .filter(c => c[2] > 0));
+    if (charlas.length) cats.push(['charla', 'Charlas', charlas.length]);
+
+    return `<div class="kc-fil">${cats.map(([k, l, n]) => cont(k, l, n)).join('')}</div>` +
+      (est ? `<div class="kc-filtro">Mostrando sólo las <b>${esc(EST_P[est] || est)}</b>
+        <button type="button" id="kc-limpia">quitar filtro</button></div>` : '') +
+      (lista.length ? cuerpo
+        : `<p class="kc-vacio">${est ? 'No hay ' + (EST_P[est] || '') +
+            ' en esta categoría.' : 'Nada en esta categoría.'}</p>`);
+  }
+
+  // Certificados: sólo lo certificable y cumplido. Las charlas quedan
+  // en el pasaporte pero no emiten papel.
+  let CERTS = null;
+  function vistaCerts() {
+    if (CERTS === null) {
+      rpc('cap_mis_certificados').then(r => { CERTS = r || []; pintar(); })
+        .catch(e => { CERTS = []; pintar(); });
+      return '<div class="kc-carga">Buscando tus certificados…</div>';
+    }
+    if (!CERTS.length) return `<p class="kc-vacio">Todavía no tenés capacitaciones
+      cumplidas que emitan certificado.<br><br>Las charlas y divulgaciones quedan en tu
+      pasaporte, pero no certifican.</p>`;
+    return '<div class="kc-list" style="padding-top:14px">' + CERTS.map(c => `
+      <div class="kc-it" style="cursor:default">
+        <div class="kc-st ${c.vigente ? 'al_dia' : 'vencida'}"></div>
+        <div style="flex:1;min-width:0"><div class="kc-bd">
+          <div class="kc-r1"><span class="kc-cd">${esc(c.codigo)}${
+            c.consecutivo ? ' · ' + esc(c.consecutivo) : ''}</span>
+            ${c.vigente ? '' : '<span class="kc-pill vencida">Vencido</span>'}</div>
+          <div class="kc-tt">${esc(c.titulo)}</div>
+          <div class="kc-mt">${c.fecha ? fecha(c.fecha) : ''}${
+            c.horas ? ' · ' + Number(c.horas) + ' h' : ''}${
+            c.nota != null ? ' · nota ' + Number(c.nota) + '%' : ''}${
+            c.vence_el ? ' · vence ' + fecha(c.vence_el) : ' · no vence'}</div>
+          <button class="kc-go" data-cert="${c.asistencia_id}">Descargar</button>
+        </div></div>
+      </div>`).join('') + '</div>';
+  }
+
+  function vistaCred() {
+    // El mismo criterio que usa el QR al que apunta esta tarjeta. Si acá
+    // dijera una cosa y el código escaneado otra, la credencial no sirve
+    // para nada: es justamente lo que el supervisor va a cotejar.
+    const cls = D.formacion === 'al_dia' ? 'ok'
+              : D.formacion === 'sin_plan' ? 'wa' : 'cr';
+    const tot = (port.al_dia||0)+(port.pendientes||0)+(port.vencidas||0)+(port.por_vencer||0);
+    return `<div class="kc-cred">
+      <div class="kc-ctop">
+        <div class="l" style="display:flex;align-items:center;gap:9px">${
+          emp.logo ? `<img src="${esc(emp.logo)}" alt="" style="height:22px;width:auto;
+            border-radius:3px;background:#fff;padding:2px">` : ''
+        }<span>${esc(emp.nombre || (opt && opt.empresa) || 'KALU')}</span></div>
+        <div class="r">Credencial SST</div></div>
+      <div class="kc-cbody">
+        <div class="kc-nom" style="font-size:21px;margin-bottom:3px">${esc(D.persona.nombre)}</div>
+        <div style="font-size:13.5px;color:var(--kc-ink2)">${esc(D.persona.cargo)}</div>
+        <div class="kc-cgrid">
+          <div>
+            <div class="kc-fld"><div class="k">Cédula</div><div class="v">${esc(D.persona.cedula||'—')}</div></div>
+            <div class="kc-fld"><div class="k">Formación vigente</div>
+              <div class="v">${port.al_dia ?? 0} de ${tot}</div></div>
+            <div class="kc-fld"><div class="k">Emitida</div>
+              <div class="v">${hoy().toLocaleDateString('es-CO')}</div></div>
+          </div>
+          <div class="kc-qr">${qrSvg(urlVerificar(D.persona.token))}</div>
+        </div>
+      </div>
+      <div class="kc-cfoot"><span class="kc-dot ${cls}"></span><span>${
+        esc(estadoForm(D.formacion).t1)}${
+        port.vencidas ? ' · ' + port.vencidas + ' vencida(s)' : ''}${
+        port.atrasadas ? ' · ' + port.atrasadas + ' atrasada(s)' : ''}</span></div>
+    </div>
+    <p class="kc-nota">El supervisor escanea el código con la cámara y se le abre tu estado
+      de hoy. El código no guarda nada: lo consulta en el momento, así que una captura
+      vieja no sirve.</p>`;
+  }
+
+  pintar();
+}
+
+/* =================================================================
+   CURSO — autoestudio
+   ================================================================= */
+async function curso(sel, catalogoId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Abriendo el curso…');
+  let C;
+  try { C = await rpc('cap_mi_curso', { p_catalogo: catalogoId }); }
+  catch (e) { return error(el, e); }
+
+  const pant = [];
+  (C.contenido || []).forEach(b => {
+    if (b.tipo === 'titulo' || !pant.length) pant.push([]);
+    pant[pant.length - 1].push(b);
+  });
+  const Q = C.preguntas || [];
+  const TOT = pant.length + Q.length;
+  // Retoma donde dejó. El avance se guarda solo, así que puede cerrar
+  // el celular en el bloque 9 y seguir mañana desde otro aparato.
+  let resp = Object.assign({}, C.respuestas || {});
+  let i = Math.min(Math.max(0, C.posicion | 0), Math.max(0, TOT - 1));
+  let retomado = i > 0 || Object.keys(resp).length > 0;
+  let fin = null, enviando = false, guardando = false;
+
+  // Fire and forget: si falla, el curso sigue igual. Lo peor que puede
+  // pasar es perder el último paso, no interrumpir a quien está leyendo.
+  let ultimo = -1;
+  function guardar() {
+    if (!C.intento_id || i === ultimo) return;
+    ultimo = i; guardando = true; sello();
+    rpc('cap_guardar_avance', { p_intento: C.intento_id, p_posicion: i, p_respuestas: resp })
+      .then(() => { guardando = false; C.guardado_en = new Date().toISOString(); sello(); })
+      .catch(() => { guardando = false; sello(); });
+  }
+  function avisoRetomado() {
+    if (!retomado) return '';
+    retomado = false;
+    return `<div class="kc-avi" style="background:var(--kc-acs);border-left-color:var(--kc-ac)">
+      Seguís donde habías dejado${C.guardado_en
+        ? ', el ' + new Date(C.guardado_en).toLocaleDateString('es-CO') : ''}.
+      Podés salir cuando quieras: el avance se guarda solo.</div>`;
+  }
+
+  function sello() {
+    const s = el.querySelector('#kc-sello');
+    if (!s) return;
+    s.textContent = guardando ? 'guardando…' : (C.guardado_en ? 'guardado' : '');
+  }
+
+  function bloque(b) {
+    if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
+    if (b.tipo === 'aviso')  return `<div class="kc-avi">${esc(b.texto)}</div>` +
+      (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+    if (b.tipo === 'lista')  return '<ul class="kc-ul">' + b.texto.split('|').map(x => {
+        const m = x.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\s—\s(.*)$/);
+        return `<li>${m ? '<b>'+esc(m[1])+'</b> — '+esc(m[2]) : esc(x)}</li>`;
+      }).join('') + '</ul>' + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+    if (b.tipo === 'imagen') return `<img src="${esc(b.url)}" alt="${esc(b.nota||'')}"
+      style="width:100%;border-radius:8px;margin-bottom:14px">`;
+    if (b.tipo === 'separador') return '<hr style="border:none;border-top:1px solid var(--kc-rule);margin:20px 0">';
+    return `<p class="kc-p">${esc(b.texto)}</p>` + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+  }
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wrap">
+      <div class="kc-top"><div style="display:flex;gap:10px;align-items:center;margin-bottom:9px">
+        <div style="min-width:0"><div class="kc-cd">Autoestudio · intento ${C.numero} de 2
+          <span id="kc-sello" style="color:var(--kc-ok)"></span></div>
+        <div class="kc-tt" id="kc-ct"></div></div>
+        <div style="margin-left:auto;text-align:right;flex:0 0 auto">
+          <div class="kc-cd" id="kc-paso"></div>
+          <button class="kc-mini" id="kc-salir" style="margin-top:5px">Salir</button></div></div>
+        <div class="kc-bar"><i id="kc-bi"></i></div></div>
+      <div class="kc-main" id="kc-m"></div>
+      <div class="kc-foot"><button class="kc-btn" id="kc-b"></button></div></div>`;
+    el.querySelector('#kc-salir').onclick = () => {
+      guardar();
+      if (opt && opt.volver) opt.volver(); else pasaporte(sel);
+    };
+    sello();
+    render();
+  }
+
+  function render() {
+    const m = el.querySelector('#kc-m'), b = el.querySelector('#kc-b');
+    el.querySelector('#kc-bi').style.width = Math.round(100 * Math.min(i, TOT) / TOT) + '%';
+    el.querySelector('#kc-ct').textContent = opt && opt.titulo || '';
+
+    if (fin) return verFin();
+
+    if (i < pant.length) {
+      el.querySelector('#kc-paso').textContent = `Lectura ${i+1}/${pant.length}`;
+      m.innerHTML = avisoRetomado() + pant[i].map(bloque).join('');
+      b.disabled = false;
+      b.textContent = i === pant.length - 1 ? 'Empezar las preguntas' : 'Seguir';
+      b.onclick = () => { i++; guardar(); window.scrollTo(0,0); render(); };
+      return;
+    }
+    const k = i - pant.length, q = Q[k];
+    el.querySelector('#kc-paso').textContent = `Pregunta ${k+1}/${Q.length}`;
+    m.innerHTML = avisoRetomado() +
+      `<p class="kc-cd" style="margin-bottom:8px">PREGUNTA ${k+1} DE ${Q.length}</p>
+      <p class="kc-q">${esc(q.enunciado)}</p><div class="kc-ops">` +
+      q.opciones.map(o => `<button class="kc-op" type="button" data-o="${o.id}"
+        aria-pressed="${resp[q.id]===o.id}">${esc(o.texto)}</button>`).join('') + '</div>';
+    m.querySelectorAll('.kc-op').forEach(x => x.onclick = () => {
+      resp[q.id] = x.dataset.o; ultimo = -1; guardar(); render(); });
+    b.disabled = !resp[q.id] || enviando;
+    b.textContent = k === Q.length - 1 ? 'Entregar' : 'Siguiente';
+    b.onclick = async () => {
+      if (k < Q.length - 1) { i++; guardar(); window.scrollTo(0,0); return render(); }
+      enviando = true; b.disabled = true; b.textContent = 'Corrigiendo…';
+      try { fin = await rpc('cap_entregar', { p_intento: C.intento_id, p_respuestas: resp }); }
+      catch (e) { enviando = false; return error(el, e); }
+      i = TOT; window.scrollTo(0,0); render();
+    };
+  }
+
+  function verFin() {
+    const f = fin, R = 50, Cc = 2 * Math.PI * R;
+    const col = f.aprobado ? 'var(--kc-ok)' : 'var(--kc-cr)';
+    el.querySelector('#kc-paso').textContent = `Intento ${f.intento} de 2`;
+    el.querySelector('#kc-m').innerHTML = `<div style="text-align:center;padding:16px 0">
+      <div class="kc-aro"><svg width="112" height="112" viewBox="0 0 112 112">
+        <circle cx="56" cy="56" r="${R}" fill="none" stroke="var(--kc-rule)" stroke-width="9"/>
+        <circle cx="56" cy="56" r="${R}" fill="none" stroke="${col}" stroke-width="9"
+          stroke-linecap="round" stroke-dasharray="${Cc}"
+          stroke-dashoffset="${Cc*(1-f.nota/100)}"/></svg>
+        <div class="n" style="color:${col}">${f.nota}%</div></div>
+      <h2 style="font-size:24px;color:${col};margin-bottom:7px">${f.aprobado ? 'Aprobaste' : 'No alcanzó'}</h2>
+      <p style="color:var(--kc-ink2);max-width:34ch;margin:0 auto 16px;font-size:15px">${
+        f.aprobado ? `Acertaste ${f.correctas} de ${f.total}. Ya quedó registrada en tu pasaporte.`
+        : `Acertaste ${f.correctas} de ${f.total}. Hace falta ${f.minimo}% para aprobar.` +
+          (f.puede_reintentar ? ' Te queda una oportunidad más.' : ' Hablá con HSE para reprogramarla.')}</p>
+      <div style="text-align:left;border-top:1px solid var(--kc-rule);padding-top:16px">
+        <p class="kc-cd" style="margin-bottom:11px">REPASO</p>` +
+        (f.detalle||[]).map(d => `<div style="display:flex;gap:10px;padding:10px 0;
+          border-bottom:1px solid var(--kc-rule);font-size:14.5px">
+          <span style="flex:0 0 auto;width:19px;height:19px;border-radius:50%;display:grid;
+            place-items:center;font-size:11px;color:#fff;margin-top:2px;
+            background:${d.acerto ? 'var(--kc-ok)' : 'var(--kc-cr)'}">${d.acerto?'✓':'✕'}</span>
+          <span>${esc(d.pregunta)}${d.acerto ? '' :
+            `<i style="display:block;font-style:normal;color:var(--kc-ink3);font-size:13px;
+             margin-top:3px">Era: ${esc(d.correcta)}</i>`}</span></div>`).join('') +
+      `</div></div>`;
+    const b = el.querySelector('#kc-b');
+    b.disabled = false;
+    b.textContent = (!f.aprobado && f.puede_reintentar) ? 'Intentar de nuevo' : 'Volver al pasaporte';
+    b.onclick = () => {
+      if (!f.aprobado && f.puede_reintentar) return curso(sel, catalogoId, opt);
+      if (opt && opt.volver) opt.volver();
+    };
+  }
+  pintar();
+}
+
+/* =================================================================
+   SUPERVISIÓN — hse.html
+   ================================================================= */
+async function supervision(sel) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando tu equipo…');
+  let D, INF = null;
+  try { D = await rpc('cap_mi_equipo'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+  let tab = 1;
+  const hoyD = hoy();
+
+  async function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · PANEL DE SUPERVISIÓN</div>
+        <h1 style="font-size:32px;font-weight:700">Mi equipo</h1>
+        <p style="color:var(--kc-ink2);margin:6px 0 0">${esc(D.jefe?.nombre||'')} · ${esc(D.jefe?.cargo||'')}</p>
+      </div>
+      <div class="kc-tabs" style="margin-bottom:20px">
+        <button class="kc-tab" data-t="1" aria-selected="${tab===1}">Mi equipo</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Me toca a mí (${(D.pendientes||[]).length})</button>
+        <button class="kc-tab" data-t="3" aria-selected="${tab===3}">Informe mensual</button>
+      </div>
+      <div id="kc-v"></div></div>`;
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => { tab = +b.dataset.t; pintar(); });
+    const v = el.querySelector('#kc-v');
+    if (tab === 1) v.innerHTML = vEquipo();
+    else if (tab === 2) v.innerHTML = vPend();
+    else { v.innerHTML = '<div class="kc-carga">Calculando…</div>'; await vInf(v); }
+    v.querySelectorAll('[data-aval]').forEach(b => b.onclick = () => dlgAval(b.dataset.aval, b.dataset.ruta, b.dataset.nom));
+    v.querySelectorAll('[data-des]').forEach(b => b.onclick = () => dlgDesempeno(b.dataset.des, b.dataset.nom));
+  }
+
+  function vEquipo() {
+    const lk = (on, t) => `<div class="kc-lk ${on?'on':'off'}"><div class="i">${on?'✓':'○'}</div>
+      <div class="l">${t}</div></div>`;
+    return '<div class="kc-grid">' + (D.equipo||[]).map(p => {
+      const puede = p.candado_cursos && p.candado_tiempo && !p.candado_aval;
+      return `<article class="kc-p1">
+        <div style="padding:13px 15px 11px;border-bottom:1px solid var(--kc-rule);display:flex;gap:10px">
+          <div><div class="kc-tt" style="font-size:16px">${esc(p.persona)}</div>
+            <div class="kc-cd" style="margin-top:3px">${esc(p.cargo)}</div></div>
+          <span class="kc-tag ${estadoForm(p.formacion).tcls}" style="margin-left:auto;align-self:start"
+            title="Estado de la formación interna al día de hoy">
+            ${estadoForm(p.formacion).tag}</span></div>
+        <div class="kc-cts" style="border:none;border-radius:0;margin:0">
+          <div class="kc-ct v"><b>${p.vencidas??0}</b><span>Vencidas</span></div>
+          <div class="kc-ct x"><b>${p.por_vencer??0}</b><span>Por vencer</span></div>
+          <div class="kc-ct"><b>${p.atrasadas??0}</b><span>Atrasadas</span></div>
+          <div class="kc-ct a"><b>${p.al_dia??0}</b><span>Al día</span></div></div>
+        ${p.en_cronograma ? `<div style="padding:8px 15px 0;font-size:12.5px;
+          color:var(--kc-ink3)">${cola(p.en_cronograma)}</div>` : ''}
+        <div style="padding:12px 15px">
+          <div style="font-size:13px;color:var(--kc-ink2);margin-bottom:8px">Próximo peldaño:
+            <b style="color:var(--kc-ink);font-family:var(--kc-fd);font-size:14px">${esc(p.cargo_siguiente||'—')}</b></div>
+          <div class="kc-lks">
+            ${lk(p.candado_cursos, (p.cursos_cumplidos??0)+'/'+(p.cursos_requeridos??0)+' cursos')}
+            ${lk(p.candado_tiempo, p.meses_faltantes ? p.meses_faltantes+' meses' : 'tiempo')}
+            ${lk(p.candado_aval, 'tu aval')}</div>
+          ${puede ? `<button class="kc-btn" style="margin-top:10px;font-size:14px;padding:9px"
+            data-aval="${p.persona_id}" data-ruta="${p.ruta_id}" data-nom="${esc(p.persona)}">Dar el aval</button>` : ''}
+        </div></article>`;
+    }).join('') + '</div>';
+  }
+
+  function vPend() {
+    const P = D.pendientes || [];
+    if (!P.length) return '<p class="kc-vacio">No hay nada esperándote.</p>';
+    return '<div style="display:flex;flex-direction:column;gap:9px">' + P.map(x => {
+      const av = x.tipo === 'aval';
+      const eq = (D.equipo || []).find(q => q.persona_id === x.persona_id) || {};
+      return `<div style="background:var(--kc-card);border:1px solid var(--kc-rule);
+        border-left:3px solid ${av?'var(--kc-ac)':'var(--kc-wa)'};
+        border-radius:8px;padding:12px 15px;display:flex;gap:12px;align-items:center;
+        flex-wrap:wrap;box-shadow:var(--kc-sh)">
+        <span class="kc-tag" style="background:${av?'var(--kc-acs)':'var(--kc-was)'};
+          color:${av?'var(--kc-ac)':'var(--kc-wa)'}">${av?'Aval':'Desempeño'}</span>
+        <b class="kc-tt" style="font-size:15px">${esc(x.persona)}</b>
+        <span style="color:var(--kc-ink2);font-size:13.5px;flex:1">${esc(x.detalle)}</span>
+        <button class="kc-mini p" ${av
+          ? `data-aval="${x.persona_id}" data-ruta="${eq.ruta_id||''}" data-nom="${esc(x.persona)}"`
+          : `data-des="${x.persona_id}" data-nom="${esc(x.persona)}"`}>${
+          av ? 'Dar el aval' : 'Registrar'}</button></div>`;
+    }).join('') + '</div>';
+  }
+
+  // La valoración de desempeño: lo que el sistema le reclama al supervisor
+  // y hasta ahora no tenía dónde escribirse.
+  function dlgDesempeno(persona, nombre) {
+    const d = document.createElement('dialog');
+    const p = hoy();
+    const per = p.getFullYear() + '-' + String(p.getMonth() + 1).padStart(2, '0');
+    d.innerHTML = `<div class="kc-dlg"><h3>Desempeño de ${esc(nombre)}</h3>
+      <p>Es la evaluación que pide el A.MA001 para asegurar la competencia de la línea.
+         Queda firmada con tu nombre y la fecha, y es uno de los tres candados del ascenso.</p>
+      <label for="kcp">Período</label>
+      <input type="month" id="kcp" value="${per}">
+      <label for="kcr">Resultado</label>
+      <select id="kcr"><option value="aprobado">Aprobado — cumple lo esperado del cargo</option>
+        <option value="con_reservas">Con reservas — cumple con seguimiento</option>
+        <option value="no_aprobado">No aprobado — no cumple todavía</option></select>
+      <label for="kco">Observación</label><textarea id="kco" rows="3"
+        placeholder="Qué viste este período. Esto es lo que el sistema no puede escribir por vos."></textarea>
+      <div class="kc-row"><button class="kc-b2" id="kcx">Cancelar</button>
+        <button class="kc-btn" id="kck">Guardar</button></div></div>`;
+    const w = el.querySelector('.kc-wide') || el;
+    w.appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const btn = d.querySelector('#kck'); btn.disabled = true; btn.textContent = 'Guardando…';
+      try {
+        await rpc('cap_registrar_desempeno', { p_persona: persona,
+          p_periodo: d.querySelector('#kcp').value,
+          p_resultado: d.querySelector('#kcr').value,
+          p_observacion: d.querySelector('#kco').value || null });
+        d.close(); d.remove(); supervision(sel);
+      } catch (e) { btn.disabled = false; btn.textContent = 'Guardar'; alert(e.message); }
+    };
+  }
+
+  async function vInf(v) {
+    if (!INF) {
+      try { INF = await rpc('cap_mi_informe', { p_anio: hoyD.getFullYear(), p_mes: hoyD.getMonth()+1 }); }
+      catch (e) { return error(v, e); }
+    }
+    const C = [['persona','Persona','k'],['meses_en_el_cargo','Meses','n'],
+      ['cap_completadas','Capacitaciones','n'],['charlas','Charlas','n'],
+      ['pct_participacion','% partic.','n'],['ausencias_injust','Aus. injust.','n'],
+      ['dicto_charlas','Dictó','n'],['avance_ruta','Avance','n'],
+      ['falta_para_ascender','Falta para ascender','']];
+    v.innerHTML = `<h2 style="font-size:19px;margin-bottom:5px">Informe de ${
+      hoyD.toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</h2>
+      <p style="color:var(--kc-ink2);font-size:14px;margin:0 0 15px;max-width:66ch">
+        La mitad dura del informe, ya calculada. Lo que falta lo escribís vos.</p>
+      <div class="kc-sc"><table><thead><tr>${C.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead>
+      <tbody>${(INF||[]).map(r => '<tr>' + C.map(c => {
+        let val = c[0]==='charlas' ? `${r.charlas_asistidas}/${r.charlas_convocadas}`
+          : c[0]==='pct_participacion' ? (r.pct_participacion!=null ? r.pct_participacion+'%' : '—')
+          : (r[c[0]] ?? '—');
+        return `<td class="${c[2]}">${esc(val)}</td>`;
+      }).join('') + '</tr>').join('')}</tbody></table></div>
+      <div style="background:var(--kc-was);border:1px dashed var(--kc-wa);border-radius:8px;
+        padding:13px 16px;font-size:13.5px;color:var(--kc-ink2)">
+        <b style="display:block;font-family:var(--kc-fm);font-size:10px;letter-spacing:.07em;
+          text-transform:uppercase;color:var(--kc-wa);margin-bottom:5px">Lo que sigue siendo tuyo</b>
+        El contexto operativo del mes, la valoración individual y las oportunidades de mejora.
+        KALU no las escribe: te evita tipear los datos.</div>`;
+  }
+
+  function dlgAval(persona, ruta, nombre) {
+    const d = document.createElement('dialog');
+    d.innerHTML = `<div class="kc-dlg"><h3>Aval para ${esc(nombre)}</h3>
+      <p>Cumple los cursos y el tiempo. Falta tu valoración. Queda registrada con tu nombre y la fecha.</p>
+      <label for="kcr">Resultado</label>
+      <select id="kcr"><option value="aprobado">Aprobado — está lista para el ascenso</option>
+        <option value="con_reservas">Con reservas — avanza con seguimiento</option>
+        <option value="no_aprobado">No aprobado — todavía no</option></select>
+      <label for="kco">Observación</label><textarea id="kco" rows="3"></textarea>
+      <div class="kc-row"><button class="kc-b2" id="kcx">Cancelar</button>
+        <button class="kc-btn" id="kck">Guardar</button></div></div>`;
+    const w = el.querySelector('.kc-wide') || el;
+    w.appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const btn = d.querySelector('#kck'); btn.disabled = true; btn.textContent = 'Guardando…';
+      try {
+        await rpc('cap_dar_aval', { p_persona: persona, p_ruta: ruta,
+          p_resultado: d.querySelector('#kcr').value,
+          p_observacion: d.querySelector('#kco').value || null });
+        d.close(); d.remove(); supervision(sel);
+      } catch (e) { btn.disabled = false; btn.textContent = 'Guardar'; alert(e.message); }
+    };
+  }
+  pintar();
+}
+
+/* =================================================================
+   ADMINISTRACIÓN — admin.html
+   ================================================================= */
+async function admin(sel) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando…');
+  let D, CAT = null, CRO = null, ANIOS = null;
+  try { D = await rpc('cap_admin_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  let tab = 1, anio = hoy().getFullYear(), busca = '', filtro = 'todas';
+
+  const MODAL = ['presencial','virtual','mixta','plataforma_arl','autoestudio'];
+  const MODALN = { presencial:'Presencial', virtual:'Virtual', mixta:'Mixta',
+                   plataforma_arl:'Plataforma ARL', autoestudio:'Autoestudio' };
+  const BLOQN = { no:'No bloquea', operacion:'Bloquea la operación', ingreso:'Bloquea la vinculación' };
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+                 'Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  const vig = d => d == null ? 'No vence' : (d % 365 === 0 ? (d/365) + (d===365?' año':' años')
+                 : d % 30 === 0 ? (d/30) + ' meses' : d + ' días');
+
+  async function traerCat() { if (!CAT) CAT = await rpc('cap_catalogo_datos'); return CAT; }
+  async function traerCro() {
+    if (!CRO || CRO.anio !== anio) CRO = await rpc('cap_cronograma_datos', { p_anio: anio });
+    // Archivar años es OPCIONAL: vive en un SQL que puede no estar corrido.
+    // Si falla, la pestaña tiene que abrir igual sin esa función. Un dato
+    // accesorio que no llega no puede dejar la pantalla girando para siempre.
+    if (ANIOS === null) {
+      try { ANIOS = await rpc('cap_anios'); }
+      catch (e) { ANIOS = false; }
+    }
+    return CRO;
+  }
+  const anioInfo = a => (ANIOS || []).find(x => x.anio === a) || null;
+  const anioOff  = a => { const i = anioInfo(a); return !!(i && i.archivado); };
+
+  /* ------------------------------------------------------------- armazón */
+  async function pintar() {
+    // Sólo cuentan como «sin mapear» los que tienen un cargo escrito que
+    // no se reconoce. Quien no tiene cargo escrito no es un problema de
+    // mapeo — es un dato que falta en el padrón de KALU — y mezclarlos
+    // hace que el cartel pida algo que no se puede hacer desde acá.
+    const sm = (D.sinMapear || []).filter(x => (x.cargo_texto || '').trim()).length;
+    const smTotal = (D.sinMapear || []).length;
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:6px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · ADMINISTRACIÓN <span style="opacity:.45">· v${KC_VER}</span></div>
+        <h1 style="font-size:30px;font-weight:700">Capacitador</h1></div>
+      ${D.puede_editar === false ? `<div class="kc-cent" style="background:var(--kc-card2)">
+        <div class="b" style="background:var(--kc-ink3)">👁</div><div>
+        <div class="kc-tt" style="font-size:15px">Estás mirando, no editando</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Tu acceso al módulo es de sólo lectura.
+          Para poder cambiar cosas, en <b>Accesos → HSE</b> hay que ponerte nivel
+          «Ver y modificar».</div></div></div>` : ''}
+      ${tab <= 2 ? `<div class="kc-cent ${sm?'mal':'ok'}"><div class="b">${sm||'✓'}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:${sm?'var(--kc-cr)':'var(--kc-ok)'}">${
+          sm ? sm+' persona(s) con el cargo sin mapear' : 'Todos los cargos mapeados'}</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${sm
+          ? 'A esta gente el sistema dejó de exigirle su formación por cargo. Mapealas antes de seguir.'
+          : 'Si alguien escribe una variante nueva, aparece acá en rojo.'}</div></div></div>` : ''}
+      ${avisoChequeo()}
+      <div class="kc-tabs" style="margin:18px 0 20px">
+        <button class="kc-tab" data-t="1" aria-selected="${tab===1}">Personas</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos</button>
+        <button class="kc-tab" data-t="3" aria-selected="${tab===3}">Capacitaciones</button>
+        <button class="kc-tab" data-t="4" aria-selected="${tab===4}">Cronograma</button>
+      </div>
+      <div id="kc-v"><div class="kc-carga">Cargando…</div></div></div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      if (+b.dataset.t !== tab) { tab = +b.dataset.t; busca = ''; filtro = 'todas'; pintar(); }
+    });
+
+    const v = el.querySelector('#kc-v');
+    // La lista de sin mapear vive DENTRO de Personas, no arriba de las
+    // pestañas: si va arriba, en una empresa nueva empuja la navegación
+    // fuera de la pantalla y parece que las pestañas no existen.
+    if (tab === 1)      v.innerHTML = (smTotal ? vSinMapear() : '') + vPers();
+    else if (tab === 2) v.innerHTML = vCargos();
+    else if (tab === 3 || tab === 4) {
+      v.innerHTML = '<div class="kc-carga">Cargando…</div>';
+      try {
+        if (tab === 3) { await traerCat(); v.innerHTML = vCap(); }
+        else           { await traerCro(); v.innerHTML = vCro(); }
+      } catch (e) {
+        // Antes esto dejaba la pestaña girando para siempre y no había forma
+        // de saber qué había fallado. Un error se muestra, no se esconde.
+        v.innerHTML = `<div class="kc-cent mal"><div class="b">!</div><div>
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">No se pudo abrir esta pestaña</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">${esc(e.message || String(e))}</div>
+          </div></div>`;
+      }
+    }
+    enganchar(v);
+  }
+
+  /* Lo que falta mapear, agrupado por cómo está escrito el cargo.
+     Antes iba una fila por persona: en una empresa recién cargada eso son
+     cien filas que dicen lo mismo, y empujan las pestañas tan abajo que la
+     pantalla parece otra. Mapear trabaja sobre el texto del cargo, no
+     sobre la persona, así que una fila por texto alcanza. */
+  function vSinMapear() {
+    // Quien no tiene NINGÚN cargo escrito en el padrón no es un caso de
+    // mapeo: no hay texto que mapear. Se cuenta aparte y se dice dónde
+    // se arregla, en vez de ofrecer un botón que no puede hacer nada.
+    const sinCargo = (D.sinMapear || []).filter(s => !(s.cargo_texto || '').trim()).length;
+    const g = {};
+    (D.sinMapear || []).forEach(s => {
+      const k = (s.cargo_texto || '').trim();
+      if (!k) return;
+      (g[k] = g[k] || { txt: k, gente: 0, caps: 0 });
+      g[k].gente++; g[k].caps += (s.capacitaciones_hoy || 0);
+    });
+    const filas = Object.values(g).sort((a, b) => b.gente - a.gente);
+    const TOPE = 12, ver = filas.slice(0, TOPE), resto = filas.length - ver.length;
+
+    // Decir cuántas son y no quiénes es pedir una tarea que no se puede
+    // hacer: para ponerle el cargo a alguien en el padrón hay que saber
+    // a quién. Van los nombres, y la cédula para encontrarlos.
+    const quienes = (D.sinMapear || [])
+      .filter(x => !(x.cargo_texto || '').trim())
+      .map(x => esc(x.nombre) + (x.cedula ? ' <span class="mono">· ' + esc(x.cedula) + '</span>' : ''));
+    const avisoSinCargo = sinCargo ? `<div class="kc-cent" style="background:var(--kc-card2)">
+      <div class="b" style="background:var(--kc-ink3)">${sinCargo}</div><div>
+      <div class="kc-tt" style="font-size:15px">${sinCargo === 1
+        ? 'Una persona no tiene cargo escrito en el padrón'
+        : sinCargo + ' personas no tienen cargo escrito en el padrón'}</div>
+      <div style="font-size:13.5px;color:var(--kc-ink);margin:5px 0 4px">${
+        quienes.slice(0, 10).join(' · ')}${quienes.length > 10
+          ? ' · y ' + (quienes.length - 10) + ' más' : ''}</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">No se arregla acá: el Capacitador lee el
+        padrón y no lo escribe. Ponele el cargo en KALU y desaparece sola de esta lista.</div>
+      </div></div>` : '';
+
+    if (!filas.length) return avisoSinCargo;
+
+    return avisoSinCargo + `${filas.length > 5 ? `<div class="kc-cent" style="background:var(--kc-was)">
+        <div class="b" style="background:var(--kc-wa)">${filas.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          Esto es una empresa sin organigrama, no una lista de correcciones</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Mapear de a uno sirve cuando alguien
+        escribe una variante nueva. Con ${filas.length} cargos sin definir conviene ir a
+        <b>Puesta en marcha</b>, que los arma todos juntos y de paso agrupa las formas repetidas
+        de escribir lo mismo.</div></div></div>` : ''}
+      <div class="kc-sc"><table><thead><tr><th>Cargo escrito en el padrón</th>
+        <th class="n">Personas</th><th class="n">Capacitaciones hoy</th><th></th></tr></thead><tbody>
+        ${ver.map(f => `<tr><td class="k">${esc(f.txt)}</td>
+          <td class="n">${f.gente}</td><td class="n">${f.caps}</td>
+          <td><button class="kc-mini p" data-map="${esc(f.txt)}">Mapear</button></td></tr>`).join('')}
+        ${resto > 0 ? `<tr><td colspan="4" style="color:var(--kc-ink3);font-size:13px">
+          y ${resto} forma(s) más de escribir un cargo, sin mapear</td></tr>` : ''}
+      </tbody></table></div>`;
+  }
+
+  function enganchar(v) {
+    // Sólo lectura: se ven los datos, no los botones que escriben.
+    if (D.puede_editar === false) {
+      el.querySelectorAll('[data-a],[data-c],[data-e],[data-map]').forEach(b => {
+        if (b.dataset.e === 'lista') { b.textContent = 'Ver lista'; return; }
+        b.remove();
+      });
+    }
+    el.querySelectorAll('[data-a]').forEach(b => b.onclick = () => dlg(b.dataset.a, b.dataset.i));
+    el.querySelectorAll('[data-map]').forEach(b => b.onclick = () => dlgMapear(b.dataset.map));
+    // la ficha se abre en lugar del panel y vuelve a esta misma pestaña
+    el.querySelectorAll('[data-ficha]').forEach(b => b.onclick = () =>
+      ficha(sel, b.dataset.ficha, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-plan]').forEach(b => b.onclick = () =>
+      planCargo(sel, b.dataset.plan, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-ver]').forEach(b => b.onclick = () =>
+      verCurso(sel, b.dataset.ver, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-asigdoc]').forEach(b => b.onclick = () =>
+      destinos(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-histo]').forEach(b => b.onclick = () =>
+      historia(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-cargacro]').forEach(b => b.onclick = () =>
+      cronograma(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-anio]').forEach(b => b.onclick = () => dlgAnio(b.dataset.anio === '1'));
+    el.querySelectorAll('[data-unif]').forEach(b => b.onclick = () =>
+      fusionar(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-retirar]').forEach(b => b.onclick = () =>
+      retirar(sel, { volver: () => admin(sel) }));
+    el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => dlgCat(b.dataset.c, b.dataset.i));
+    el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => dlgEv(b.dataset.e, b.dataset.i));
+
+    const bus = v.querySelector('#kc-bus');
+    if (bus) {
+      bus.oninput = () => {
+        busca = bus.value;
+        const foco = document.activeElement === bus;
+        const cur = bus.selectionStart;
+        v.innerHTML = tab === 3 ? vCap() : vCro();
+        enganchar(v);
+        if (foco) { const n = v.querySelector('#kc-bus'); if (n) { n.focus(); n.setSelectionRange(cur, cur); } }
+      };
+    }
+    v.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+      filtro = b.dataset.f; v.innerHTML = tab === 3 ? vCap() : vCro(); enganchar(v);
+    });
+    const sa = v.querySelector('#kc-anio');
+    if (sa) sa.onchange = async () => { anio = +sa.value; await traerCro(); v.innerHTML = vCro(); enganchar(v); };
+  }
+
+  async function recargar(r) {
+    CAT = null; CRO = null; ANIOS = null;
+    try { D = await rpc('cap_admin_datos'); } catch (e) {}
+    await pintar();
+    if (r && r.aviso) toast(r.aviso);
+  }
+
+  function toast(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    (el.querySelector('.kc-wide') || el).appendChild(t);
+    setTimeout(() => t.remove(), 7000);
+  }
+
+  // Datos que tienen dos filas donde el sistema espera una. No rompen
+  // nada — el módulo elige una y sigue — pero conviene verlos.
+  function avisoChequeo() {
+    const q = D.chequeo;
+    if (!q || q.limpio || !(q.hallazgos || []).length) return '';
+    const H = q.hallazgos;
+    return `<div class="kc-cent mal"><div class="b">${H.length}</div><div>
+      <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Hay datos duplicados donde debería haber uno solo</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">${H.slice(0,4).map(h =>
+        esc(h.caso) + ': <b>' + esc(h.detalle) + '</b>').join(' · ')}${
+        H.length > 4 ? ' · y ' + (H.length - 4) + ' más' : ''}.
+        El módulo sigue andando y elige una, pero mientras esté así los números pueden no cuadrar.</div></div></div>`;
+  }
+
+  /* ------------------------------------------------------- 1. personas */
+  function vPers() {
+    // «Cargo» y «En el padrón» eran dos columnas que casi siempre dicen lo
+    // mismo, y entre las dos se llevaban 400px que le faltaban al resto de
+    // la tabla. Van juntas: arriba el cargo del organigrama, y abajo, en
+    // gris, el texto crudo del padrón sólo cuando no coinciden — que es
+    // justo cuando hay algo para mirar.
+    const igual = (a, b) => llano(a) === llano(b);
+    return '<div class="kc-sc"><table><thead><tr><th>Persona</th><th>Cargo</th>' +
+      '<th>Desde</th><th>Meses</th><th>Formación</th><th>Atras.</th>' +
+      '<th>Tramos</th><th class="acc"></th></tr></thead><tbody>' +
+      (D.personas||[]).map(p => `<tr>
+        <td class="k nom"><div>${esc(p.nombre)}</div></td>
+        <td class="tit">${esc(p.cargo||'—')}${p.cargos > 1
+            ? ` <span class="kc-tag no" title="Está mapeada a ${p.cargos} cargos">×${p.cargos}</span>` : ''}${
+            p.cargoTexto && !igual(p.cargoTexto, p.cargo)
+              ? `<div class="kc-cd" style="margin-top:2px"
+                   title="Así está escrito en el padrón">${esc(p.cargoTexto)}</div>` : ''}</td>
+        <td class="n">${esc(p.desde||'—')}${p.tramosAbiertos > 1
+            ? ' <span class="kc-tag no" title="Tiene dos tramos de cargo abiertos">×2</span>' : ''}</td>
+        <td class="n">${p.meses ?? '—'}</td>
+        <td class="est"><span class="kc-tag ${estadoForm(p.formacion).tcls}" title="${
+            p.formacion === 'sin_plan'
+              ? (p.determinado === false
+                  ? 'No tiene cargo en el organigrama: se arregla en el padrón'
+                  : 'Su cargo todavía no tiene capacitaciones asignadas')
+              : 'Estado de la formación al día de hoy'
+          }">${estadoForm(p.formacion).tag}</span>${p.cola
+            ? ` <span class="kc-tag g" title="En el cronograma para más adelante: no es una falta">+${p.cola}</span>` : ''}</td>
+        <td class="n">${p.atrasadas ?? 0}</td><td class="n">${p.tramos}</td>
+        <td class="acc"><div style="display:flex;gap:6px">
+          <button class="kc-mini p" data-ficha="${p.id}">Ficha</button>
+          <button class="kc-mini" data-a="corregir" data-i="${p.id}">Corregir</button>
+          <button class="kc-mini" data-a="mover" data-i="${p.id}">Mover</button></div></td>
+      </tr>`).join('') + '</tbody></table></div>';
+  }
+
+  /* --------------------------------------------------------- 2. cargos */
+  function vCargos() {
+    const C = D.cargos || [];
+    // Un cargo con gente y sin capacitaciones asignadas es gente sin plan.
+    const mudos = C.filter(c => c.activo && c.personas > 0 && !c.capacitaciones);
+    const alerta = mudos.length ? `<div class="kc-cent mal"><div class="b">${mudos.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${mudos.length} cargo(s) con gente y sin ninguna capacitación asignada</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${mudos.map(c => esc(c.nombre)).join(' · ')}.
+          Quien los ocupa no tiene plan de formación: su pasaporte se ve tranquilo porque no se le exige nada.</div></div></div>` : '';
+
+    return alerta + `<div class="kc-bar2">
+        <button class="kc-mini p" data-a="crear-cargo">+ Crear cargo</button>
+      </div>
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Área</th><th>Reporta a</th>` +
+      '<th>Personas</th><th>Capacit.</th><th>Variantes</th><th>Rutas</th><th class="acc"></th></tr></thead><tbody>' +
+      C.map(c => `<tr${c.activo?'':' style="opacity:.5"'}>
+        <td class="k">${esc(c.nombre)}${c.activo?'':' <span class="kc-tag g">Apagado</span>'}</td>
+        <td style="color:var(--kc-ink3)">${esc(c.area||'—')}</td>
+        <td style="color:var(--kc-ink3)">${esc(c.jefe||'—')}</td>
+        <td class="n">${c.personas}</td>
+        <td class="n"${c.activo && c.personas && !c.capacitaciones ? ' style="color:var(--kc-cr)"' : ''}>${c.capacitaciones}</td>
+        <td class="n">${c.alias}</td>
+        <td class="n">↑${c.rutasEntran} ↓${c.rutasSalen}</td>
+        <td class="acc"><div style="display:flex;gap:6px">
+          <button class="kc-mini${c.activo && c.personas && !c.capacitaciones ? ' p' : ''}" data-plan="${c.id}">Plan${
+            c.capacitaciones ? ' · ' + c.capacitaciones : ''}</button>
+          <button class="kc-mini" data-a="editar-cargo" data-i="${c.id}">Editar</button>
+          <button class="kc-mini${c.activo?'':' p'}" data-a="${c.activo?'desactivar':'activar'}" data-i="${c.id}">${
+            c.activo ? 'Apagar' : 'Prender'}</button></div></td>
+      </tr>`).join('') + '</tbody></table></div>';
+  }
+
+  /* --------- crear y editar un cargo --------- */
+  function dlgCargo(c) {
+    const nuevo = !c;
+    const A = D.areas || [];
+    const otros = (D.cargos || []).filter(x => x.activo && (!c || x.id !== c.id));
+
+    const d = abrir(`<h3>${nuevo ? 'Crear un cargo' : 'Editar ' + esc(c.nombre)}</h3>
+      ${nuevo
+        ? '<p>Un cargo nuevo nace sin plan de formación. Después de crearlo hay que asignarle sus capacitaciones desde la pestaña <b>Capacitaciones</b>.</p>'
+        : `<p>${c.personas} persona(s) · ${c.capacitaciones} capacitación(es) asignadas</p>`}
+      <label for="k1">Nombre</label>
+      <input type="text" id="k1" list="kc-cargos" value="${esc(nuevo ? '' : c.nombre)}"
+             placeholder="Ej: Inspector END Nivel III" autocomplete="off">
+      <datalist id="kc-cargos">${otros.map(x => `<option value="${esc(x.nombre)}">`).join('')}</datalist>
+      <div id="kc-choque" style="margin:-6px 0 12px"></div>
+      <label for="k2">Área</label>
+      <input type="text" id="k2" list="kc-areas" value="${esc(nuevo ? '' : (c.area || ''))}"
+             placeholder="Misional, Administrativa…">
+      <datalist id="kc-areas">${A.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+      <label for="k3">Reporta a</label>
+      <select id="k3"><option value="">— nadie —</option>${otros.map(x =>
+        `<option value="${x.id}"${!nuevo && c.reporta_a === x.id ? ' selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select>
+      ${nuevo ? '' : `
+      <label>También se reconoce escrito como</label>
+      <div class="kc-ros" style="max-height:26vh">${(c.variantes || []).length
+        ? c.variantes.map(v => `<div class="kc-rw chk" style="grid-template-columns:1fr auto auto">
+            <div class="nm">${esc(v.alias)}<span>${v.gente} en el padrón</span></div>
+            <button type="button" class="kc-mini" data-q="${v.id}">Quitar</button>
+          </div>`).join('')
+        : '<div class="kc-rw"><div class="nm" style="color:var(--kc-cr)">Ninguna. Si el padrón lo escribe distinto, nadie queda ubicado en este cargo.</div></div>'}</div>
+      <label for="k4">Agregar una variante</label>
+      <div style="display:flex;gap:7px;margin-bottom:12px">
+        <input type="text" id="k4" style="margin:0" placeholder="Cómo aparece escrito en el padrón">
+        <button type="button" class="kc-mini p" id="kcadd">Agregar</button>
+      </div>
+      <p style="font-size:12.5px">Las variantes son lo que evita que «Auxiliar Tecnico I» sin tilde
+         deje a alguien sin plan de formación.</p>`}`,
+      dd => {
+        const nom = dd.querySelector('#k1').value;
+        const area = dd.querySelector('#k2').value;
+        const jefe = dd.querySelector('#k3').value || null;
+        return nuevo
+          ? rpc('cap_crear_cargo', { p_nombre: nom, p_area: area || null, p_reporta_a: jefe })
+          : rpc('cap_cargo_guardar', { p_cargo: c.id, p_nombre: nom, p_area: area,
+              p_reporta_a: jefe, p_quitar_jefe: !jefe });
+      }, nuevo ? 'Crear' : 'Guardar', !nuevo);
+
+      // Avisar mientras se escribe, no después de guardar. El servidor
+      // igual rechaza un nombre repetido, pero para entonces la persona
+      // ya decidió; y los que se PARECEN el servidor no los rechaza —
+      // no puede, porque a veces son cargos distintos de verdad.
+      const inp = d.querySelector('#k1'), aviso = d.querySelector('#kc-choque');
+      if (inp && aviso) {
+        const revisar = () => {
+          const v = inp.value.trim();
+          if (!v) { aviso.innerHTML = ''; return; }
+          const igual = otros.filter(x => kcParecido(v, x.nombre) === 'igual');
+          const cerca = otros.filter(x => {
+            const p = kcParecido(v, x.nombre);
+            return p === 'contenido' || p === 'parecido';
+          });
+          // Ojo: hay que escapar cada nombre por separado. Escapar el
+          // texto ya armado convierte las negritas en código a la vista.
+          const nombres = xs => xs.map(x => '<b>' + esc(x.nombre) + '</b>').join(', ');
+          if (igual.length) {
+            aviso.innerHTML = `<div class="kc-alerta cr">Ya existe ${nombres(igual.slice(0,1))}.
+              Es el mismo cargo escrito distinto: no se puede crear otro. Si el padrón lo escribe
+              así, abrí ese cargo y sumale esta escritura como variante.</div>`;
+          } else if (cerca.length) {
+            aviso.innerHTML = `<div class="kc-alerta wa">Se parece a ${nombres(cerca.slice(0,3))}.
+              Si es el mismo cargo, no lo crees: abrí ese y sumale esta escritura como
+              variante.</div>`;
+          } else { aviso.innerHTML = ''; }
+        };
+        inp.oninput = revisar;
+        revisar();
+      }
+
+    if (nuevo) return;
+
+    // Quitar una variante con gente detrás deja a esa gente sin plan de
+    // formación. Se pregunta antes, no después.
+    d.querySelectorAll('[data-q]').forEach(b => b.onclick = async () => {
+      const v = (c.variantes || []).find(x => x.id === b.dataset.q) || {};
+      if (v.gente > 0 && !confirm(
+            v.gente + ' persona(s) tienen el cargo escrito exactamente «' + v.alias +
+            '» en el padrón.\n\nSi quitás esta variante, el sistema deja de reconocerlas y ' +
+            'quedan sin plan de formación por cargo hasta que las vuelvas a mapear.\n\n¿Seguimos?'))
+        return;
+      b.disabled = true; b.textContent = 'Quitando…';
+      try { const r = await rpc('cap_alias_quitar', { p_alias_id: b.dataset.q });
+        d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = 'Quitar'; alert(e.message); }
+    });
+    const add = d.querySelector('#kcadd');
+    if (add) add.onclick = async () => {
+      const val = d.querySelector('#k4').value;
+      if (!val.trim()) return;
+      add.disabled = true; add.textContent = 'Agregando…';
+      try { const r = await rpc('cap_alias_agregar', { p_cargo: c.id, p_alias: val });
+        d.close(); d.remove(); await recargar(r); }
+      catch (e) { add.disabled = false; add.textContent = 'Agregar'; alert(e.message); }
+    };
+  }
+
+  /* -------------------------------------------------- 3. capacitaciones */
+  function vCap() {
+    const C = CAT.catalogo || [], q = busca.trim().toLowerCase();
+    // Una columna entera de guiones no dice nada y le roba el ancho al
+    // título. Si ninguna capacitación tiene modalidad cargada, no se
+    // muestra; en cuanto una la tenga, vuelve sola.
+    const hayMod = C.some(c => c.modalidad);
+    const act = C.filter(c => c.activo);
+    const huerf = act.filter(c => c.personas === 0);
+    // Sin una sola actividad programada en el año. Es el «0/0» de la
+    // columna 2026: el dato ya estaba a la vista, lo que faltaba era
+    // poder quedarse sólo con ésas y hacer algo al respecto.
+    // «Sin evento este año» NO es lo mismo que «falta programarla». El
+    // catálogo tiene competencias de cinco años, cursos externos y cosas
+    // que se disparan por ingreso: que no tengan actividad este año es
+    // normal. Medido en Total QC: 129 sin evento, pero sólo 54 con gente
+    // atrasada. Mostrar las 129 le daba a Jennifer 75 tareas que no
+    // existen.
+    //
+    // Así que el filtro pregunta lo que importa: ¿hay alguien en rojo
+    // por ésta? Se perdió que programadas + sin programar cerraran
+    // contra activas, y está bien perderlo: era una cuenta prolija sobre
+    // un número que nadie podía usar.
+    const conProg  = act.filter(c => (c.eventos || 0) > 0);
+    const faltaPro = act.filter(c => (c.eventos || 0) === 0 && (c.en_rojo || 0) > 0);
+    const n = {
+      todas: C.length, activas: act.length,
+      bloqueo: act.filter(c => c.bloqueo > 0).length,
+      huerfanas: huerf.length,
+      conprog: conProg.length,
+      faltapro: faltaPro.length,
+      apagadas: C.length - act.length
+    };
+    const pasa = c => {
+      if (q && !((c.codigo + ' ' + c.titulo).toLowerCase().includes(q))) return false;
+      if (filtro === 'activas')   return c.activo;
+      if (filtro === 'apagadas')  return !c.activo;
+      if (filtro === 'bloqueo')   return c.activo && c.bloqueo > 0;
+      if (filtro === 'huerfanas') return c.activo && c.personas === 0;
+      if (filtro === 'conprog')   return c.activo && (c.eventos || 0) > 0;
+      if (filtro === 'faltapro')  return c.activo && (c.eventos || 0) === 0 && (c.en_rojo || 0) > 0;
+      return true;
+    };
+    const L = C.filter(pasa);
+    const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
+
+    // Si vinieron de un documento que ya dice a quién van dirigidas, no
+    // hay que asignarlas una por una: hay que traducir los pocos textos
+    // distintos que ese documento usa. La pantalla dirá cuántos son.
+    const conTexto = huerf.length;
+    const alerta = huerf.length ? `<div class="kc-cent mal"><div class="b">${huerf.length}</div>
+        <div style="flex:1">
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${huerf.length} capacitación(es) activas que no le llegan a nadie</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Están en el catálogo pero ninguna persona las tiene asignada.
+          O falta asignarles un cargo, o el comité o la actividad a la que apuntan todavía no tiene gente cargada.</div>
+        ${conTexto ? `<div style="font-size:13px;color:var(--kc-ink);margin-top:7px">
+          Si las importaste de un documento que ya dice a quién van dirigidas, no hace falta
+          asignarlas una por una.
+          <button class="kc-mini p" data-asigdoc="1" style="margin-left:6px">Asignar desde el documento</button></div>` : ''}
+        <div style="margin-top:8px"><button class="kc-mini" data-retirar="1"
+          title="Exigencias sin eventos este año que siguen poniendo gente en rojo">Lo que dejó de aplicar</button></div>
+        </div></div>` : '';
+
+    return alerta + `
+      <div class="kc-bar2">
+        <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar por código o título…"
+               value="${esc(busca)}" autocomplete="off">
+        <button class="kc-mini p" data-c="ia">✦ Armar con IA</button>
+        <button class="kc-mini" data-c="crear">+ Crear propia</button>
+        ${(CAT.biblioteca||[]).length
+          ? `<button class="kc-mini p" data-c="traer">Traer la biblioteca entera · ${CAT.biblioteca.length}</button>
+             <button class="kc-mini" data-c="sumar">Sumar una</button>`
+          : ''}
+        ${n.activas ? `<button class="kc-mini" data-c="apagartodas">Apagar todas</button>` : ''}
+        ${n.apagadas ? `<button class="kc-mini" data-c="prendertodas">Prender todas · ${n.apagadas}</button>` : ''}
+        <button class="kc-mini" data-unif="1"
+          title="El mismo curso con dos nombres deja la historia colgada del viejo">Unificar nombres</button>
+      </div>
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
+        ${chip('huerfanas','Sin gente')}
+        ${chip('conprog','Programadas este año')}${chip('faltapro','Falta programar')}
+        ${chip('apagadas','Apagadas')}
+      </div>
+      ${L.length ? `<div class="kc-sc"><table><thead><tr>
+        <th>Código</th><th>Capacitación</th><th>Vigencia</th>${hayMod ? '<th>Modalidad</th>' : ''}
+        <th>Le aplica a</th><th>Gente</th><th>${anio}</th><th class="acc"></th></tr></thead><tbody>` +
+      L.map(c => `<tr${c.activo?'':' style="opacity:.45"'}>
+        <td class="k">${esc(c.codigo)}${c.bloqueo === 2
+            ? ' <span class="kc-tag no" title="Bloquea la vinculación">ING</span>'
+            : c.bloqueo === 1 ? ' <span class="kc-tag wa" title="Bloquea la operación">OPE</span>' : ''}</td>
+        <td class="tit"><div>${esc(c.titulo)}</div>
+            <div class="kc-cd" style="margin-top:2px">${esc(c.eje)} · ${esc(c.tipo)}${
+              c.autoestudio ? ' · autoestudio' : ''}${c.propia ? ' · propia' : ''}</div></td>
+        <td class="n">${vig(c.vigencia_dias)}</td>
+        ${hayMod ? `<td style="font-size:13px;color:var(--kc-ink3)">${
+          c.modalidad ? MODALN[c.modalidad] : '—'}</td>` : ''}
+        <td>${c.asignaciones.length
+            ? '<div class="kc-chips">' + c.asignaciones.slice(0,3).map(a =>
+                `<span class="kc-mch${a.bloqueante!=='no'?' b':''}">${esc(a.destino)}</span>`).join('') +
+              (c.asignaciones.length > 3 ? `<span class="kc-mch">+${c.asignaciones.length-3}</span>` : '') + '</div>'
+            : '<span style="color:var(--kc-cr);font-size:13px">nadie</span>'}</td>
+        <td class="n"${c.personas===0?' style="color:var(--kc-cr)"':''}>${c.personas}${
+          (c.en_rojo || 0) > 0
+            ? `<div style="font-size:11.5px;color:var(--kc-cr)">${c.en_rojo} en rojo</div>` : ''}</td>
+        <td class="n">${c.hechos}/${c.eventos}</td>
+        <td class="acc"><div style="display:flex;gap:6px">
+          <button class="kc-mini" data-ver="${c.id}">Ver</button>
+          <button class="kc-mini" data-c="editar" data-i="${c.id}">Editar</button>
+          <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
+          <button class="kc-mini${c.activo?'':' p'}" data-c="${c.activo?'apagar':'prender'}" data-i="${c.id}">${
+            c.activo ? 'Apagar' : 'Prender'}</button>
+          ${c.activo && (c.eventos || 0) === 0 && (c.en_rojo || 0) > 0
+            ? `<button class="kc-mini p" data-c="programar" data-i="${c.id}"
+                 title="${c.en_rojo} persona(s) atrasadas y ninguna actividad programada este año">Programar</button>` : ''}
+          ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
+          </div></td>
+      </tr>`).join('') + '</tbody></table></div>'
+      : '<p class="kc-vacio">Nada con ese filtro.</p>'}`;
+  }
+
+  /* ------------------------------------------------------ 4. cronograma */
+  function vCro() {
+    const E = CRO.eventos || [], q = busca.trim().toLowerCase();
+    const hoyS = iso();
+    // el orden importa: las que no van por fecha no son «dictadas»,
+    // son reglas permanentes que se disparan solas.
+    const est = e => !e.fecha ? 'disparo'
+                   : e.cancelado ? 'cancelado'
+                   : e.ejecutado ? 'hecho'
+                   : e.fecha < hoyS ? 'atrasado' : 'programado';
+    const n = { todas:E.length, hecho:0, programado:0, atrasado:0, cancelado:0, disparo:0 };
+    E.forEach(e => n[est(e)]++);
+
+    const pasa = e => {
+      if (q && !((e.codigo + ' ' + e.titulo + ' ' + (e.responsable||'')).toLowerCase().includes(q))) return false;
+      return filtro === 'todas' ? true : est(e) === filtro;
+    };
+    const L = E.filter(pasa);
+    const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
+
+    const conFecha = L.filter(e => e.fecha), sinFecha = L.filter(e => !e.fecha);
+    const porMes = {};
+    conFecha.forEach(e => { (porMes[e.mes] = porMes[e.mes] || []).push(e); });
+
+    const TAG = { hecho:['si','Dictado'], programado:['n','Programado'],
+                  atrasado:['no','Sin dictar'], cancelado:['g','Cancelado'], disparo:['n','Se dispara solo'] };
+
+    const fila = e => {
+      const s = est(e);
+      const desfase = e.fecha && (+e.fecha.slice(0,4) !== CRO.anio);
+      return `<div class="kc-ev${s==='cancelado'?' off':''}">
+        <div class="kc-evd">${e.fecha
+            ? `<b>${e.fecha.slice(8,10)}</b><span>${e.fecha.slice(5,7)}${
+                desfase ? '<i class="kc-mal"> ' + e.fecha.slice(0,4) + '</i>' : ''}</span>`
+            : '<b>—</b><span>' + esc(e.disparador) + '</span>'}</div>
+        <div class="kc-evb">
+          <div class="kc-evt">${esc(e.codigo)} · ${esc(e.titulo)}</div>
+          <div class="kc-cd">${[
+              e.responsable ? esc(e.responsable) : null,
+              e.modalidad ? MODALN[e.modalidad] : null,
+              e.lugar ? esc(e.lugar) : null,
+              e.ejecutado && e.fecha ? e.asistieron + ' de ' + (e.convocados || '?') + ' asistieron' : null,
+              !e.ejecutado && e.fecha && e.convocados ? e.convocados + ' convocados' : null,
+              e.reprogramado_de ? 'movida desde el ' + e.reprogramado_de : null,
+              // No se programó: se dedujo de asistencias cargadas de un
+              // libro. Mostrarla igual que una planificada sería hacer
+              // pasar una deducción por un plan.
+              e.fuente === 'agrupado_historico' ? 'reconstruida del histórico' : null,
+              e.cancelado_motivo ? 'cancelada: ' + esc(e.cancelado_motivo) : null
+            ].filter(Boolean).join(' · ')}</div>
+        </div>
+        <span class="kc-tag ${TAG[s][0]}">${TAG[s][1]}</span>
+        <div class="kc-eva">${
+          // LA LISTA FIRMADA. Se carga UNA VEZ por jornada y respalda a
+          // todos los que estuvieron: el soporte casi nunca es por
+          // persona, es una hoja con veinte firmas. De a uno serían
+          // miles de cargas y no iba a pasar nunca.
+          e.ejecutado
+            ? `<button class="kc-mini${e.soporte ? '' : ' d'}" data-e="soporte" data-i="${e.id}"
+                 title="${e.soporte ? 'Ver o cambiar la lista de asistencia firmada'
+                                    : 'Todavía no está cargada la lista de asistencia firmada'}">${
+                e.soporte ? '✓ Lista' : 'Falta la lista'}</button>` : ''}${
+          e.fecha && !e.cancelado && e.fecha <= hoyS
+            ? `<button class="kc-mini${e.ejecutado ? '' : ' p'}" data-e="lista" data-i="${e.id}">${
+                e.ejecutado ? 'Ver lista' : 'Pasar lista'}</button>` : ''}${
+          e.ejecutado ? '' : `
+          <button class="kc-mini" data-e="editar" data-i="${e.id}">Editar</button>
+          <button class="kc-mini" data-e="mover" data-i="${e.id}">Mover</button>
+          ${e.cancelado ? '' : `<button class="kc-mini" data-e="cancelar" data-i="${e.id}">Cancelar</button>`}`}</div>
+      </div>`;
+    };
+
+    const opAnios = (CRO.anios||[CRO.anio]).includes(anio) ? (CRO.anios||[anio]) : (CRO.anios||[]).concat([anio]);
+    const off = anioOff(anio), info = anioInfo(anio);
+
+    return `<div class="kc-bar2">
+        <select id="kc-anio" class="kc-sel">${opAnios.sort().reverse().map(a =>
+          `<option value="${a}"${a===anio?' selected':''}>${a}${anioOff(a)?' · archivado':''}</option>`).join('')}</select>
+        <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar capacitación o responsable…"
+               value="${esc(busca)}" autocomplete="off">
+        <button class="kc-mini p" data-e="crear">+ Programar</button>
+        <button class="kc-mini" data-histo="1"
+          title="El libro que tiene una columna con nombres de personas: quién hizo qué y cuándo">↑ Asistencias · con nombres</button>
+        <button class="kc-mini" data-cargacro="1"
+          title="El libro del programa: una fila por capacitación, con la fecha programada y la de realización. No trae nombres">↑ Cronograma · sin nombres</button>
+        ${(ANIOS && !off) ? `<button class="kc-mini" data-anio="1" title="Sacar ${anio} de los indicadores, conservando la historia">Archivar ${anio}</button>` : ''}
+      </div>
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('todas','Todo el año')}${chip('hecho','Dictadas')}${chip('programado','Por dictar')}
+        ${chip('atrasado','Sin dictar')}${chip('cancelado','Canceladas')}${chip('disparo','Sin fecha')}
+      </div>
+      ${off ? `<div class="kc-cent" style="background:var(--kc-card2)">
+        <div class="b" style="background:var(--kc-ink3)">≡</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">${anio} está archivado · no cuenta en los indicadores</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(info && info.motivo || '')}
+          ${info && info.asistencias ? `<br><b>Las ${info.asistencias} asistencia(s) de ${anio} siguen valiendo</b>
+            y siguen venciendo: la gente se capacitó. Archivar apaga el cronograma, no lo que hizo cada uno.` : ''}</div>
+        <div style="margin-top:8px"><button class="kc-mini p" data-anio="0">Que vuelva a contar</button></div>
+        </div></div>` : ''}
+      ${n.atrasado && filtro === 'todas' ? `<div class="kc-cent mal"><div class="b">${n.atrasado}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${n.atrasado} evento(s) pasaron de fecha sin dictarse</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Ante la ARL un cronograma incumplido pesa más que uno reprogramado.
+          Movelos de fecha o cancelalos con el motivo.</div></div></div>` : ''}
+      ${(() => {
+        // LA EVIDENCIA DE QUE SE DICTÓ.
+        // Un cronograma cumplido sin listas firmadas no se puede sostener
+        // ante un auditor: la pantalla dice «dictado» y no hay con qué
+        // probarlo. Se cuenta sólo sobre lo ejecutado — pedir la lista de
+        // algo que todavía no se dictó no tiene sentido.
+        const ej = (CRO.eventos || []).filter(e => e.ejecutado && !e.cancelado);
+        const fal = ej.filter(e => !e.soporte).length;
+        return (fal && filtro === 'todas') ? `<div class="kc-cent" style="background:var(--kc-crs)">
+          <div class="b" style="background:var(--kc-cr)">${fal}</div><div style="flex:1">
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">
+            ${fal} de ${ej.length} jornada(s) dictadas no tienen la lista de asistencia firmada</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">Es el papel que pide un auditor cuando
+            pregunta con qué se prueba que se dictó. Se carga <b>una vez por jornada</b> y respalda
+            a todos los que estuvieron: buscá el botón <b>«Falta la lista»</b> en cada una.</div>
+          </div></div>` : '';
+      })()}
+      ${Object.keys(porMes).length === 0 && !sinFecha.length
+        ? '<p class="kc-vacio">Nada con ese filtro.</p>'
+        : Object.keys(porMes).sort((a,b)=>a-b).map(m =>
+            `<div class="kc-mes">${MESES[m-1]}<span>${porMes[m].length}</span></div>` +
+            porMes[m].map(fila).join('')).join('') +
+          (sinFecha.length ? '<div class="kc-mes">No van por fecha<span>' + sinFecha.length + '</span></div>' +
+            '<p class="kc-nota" style="text-align:left;margin:0 0 10px">Estas no se programan: las dispara un hecho — que entre alguien nuevo, o que ascienda.</p>' +
+            sinFecha.map(fila).join('') : '')}`;
+  }
+
+  /* --------------------------------------------------------- diálogos */
+  const opts = (sel2) => (D.cargos||[]).filter(c=>c.activo).map(c =>
+    `<option value="${c.id}"${c.nombre===sel2?' selected':''}>${esc(c.nombre)}</option>`).join('');
+
+  function abrir(html, onOk, okTxt, ancho) {
+    const d = document.createElement('dialog');
+    if (ancho) d.className = 'ancho';
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try { const r = await onOk(d); d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  /* Archivar un año es una decisión de auditoría, no un filtro de pantalla:
+     por eso pide el motivo y por eso el diálogo dice, antes de aceptar, qué
+     se apaga y qué NO. Lo que no se apaga son las asistencias — y eso hay
+     que leerlo antes de apretar, no descubrirlo después. */
+  function dlgAnio(archivar) {
+    const i = anioInfo(anio) || { eventos: 0, asistencias: 0 };
+    const esteAnio = anio === hoy().getFullYear();
+
+    if (!archivar) {
+      return abrir(`<h3>Que ${anio} vuelva a contar</h3>
+        <p>Sus ${i.eventos} evento(s) entran otra vez en los indicadores y en el
+           cumplimiento del año.</p>`,
+        () => rpc('cap_anio_archivar', { p_anio: anio, p_archivar: false }),
+        'Que vuelva a contar');
+    }
+
+    abrir(`<h3>Archivar ${anio}</h3>
+      <p><b>Se apaga:</b> los ${i.eventos} evento(s) del cronograma de ${anio} dejan de
+         contar en los indicadores, en el cumplimiento y en los «sin dictar».</p>
+      <p><b>No se apaga:</b> ${i.asistencias
+          ? 'las ' + i.asistencias + ' asistencia(s) de ' + anio + ' siguen valiendo y siguen venciendo. La gente se capacitó y eso no se borra.'
+          : 'las asistencias de cualquier año siguen valiendo. Archivar apaga el cronograma, no lo que hizo cada uno.'}</p>
+      ${esteAnio ? `<p style="color:var(--kc-cr)"><b>Ojo:</b> ${anio} es el año en curso —
+         es el que va a mirar la auditoría.</p>` : ''}
+      <p>El año se sigue viendo y se puede desarchivar cuando quieras.</p>
+      <label for="k1">Por qué se archiva</label>
+      <input type="text" id="k1" placeholder="Ej: datos viejos que no vale la pena reparar">`,
+      d => {
+        const m = d.querySelector('#k1').value.trim();
+        if (!m) throw new Error('Escribí por qué se archiva. Un año que deja de contar sin motivo es la primera pregunta de una auditoría.');
+        return rpc('cap_anio_archivar', { p_anio: anio, p_archivar: true, p_motivo: m });
+      }, 'Archivar ' + anio);
+  }
+
+  function dlg(accion, id) {
+    const p = (D.personas||[]).find(x => x.id === id);
+    const c = (D.cargos||[]).find(x => x.id === id);
+
+    if (accion === 'crear-cargo')  return dlgCargo(null);
+    if (accion === 'editar-cargo') return dlgCargo(c);
+    if (accion === 'activar') {
+      return abrir(`<h3>Prender “${esc(c.nombre)}”</h3>
+        <p>Vuelve a aparecer en las listas y su plan de formación se le vuelve a exigir
+           a quien lo ocupe.</p>`,
+        () => rpc('cap_activar_cargo', { p_cargo: id }), 'Prender');
+    }
+
+    if (accion === 'corregir') {
+      abrir(`<h3>Corregir el cargo de ${esc(p.nombre)}</h3>
+        <p>Usalo sólo si el dato estaba mal cargado. La antigüedad sigue corriendo desde el ${esc(p.desde)}.</p>
+        <label for="k1">Cargo correcto</label><select id="k1">${opts(p.cargo)}</select>
+        <label for="k2">Motivo</label><input type="text" id="k2" placeholder="Ej: se cargó mal en el alta">`,
+        d => rpc('cap_corregir_cargo', { p_persona: id,
+          p_cargo: d.querySelector('#k1').value, p_motivo: d.querySelector('#k2').value }));
+    } else if (accion === 'mover') {
+      abrir(`<h3>Mover a ${esc(p.nombre)}</h3>
+        <p>Se cierra el tramo actual y se abre uno nuevo. Los ${p.meses??0} meses acumulados
+        quedan en la historia; el peldaño nuevo arranca en cero.</p>
+        <label for="k1">Cargo nuevo</label><select id="k1">${opts(p.sig)}</select>
+        <label for="k3">Fecha del movimiento</label>
+        <input type="date" id="k3" value="${iso()}">
+        <label for="k2">Motivo</label><input type="text" id="k2" placeholder="Ej: ascenso con aval">`,
+        d => rpc('cap_mover_cargo', { p_persona: id, p_cargo: d.querySelector('#k1').value,
+          p_fecha: d.querySelector('#k3').value, p_motivo: d.querySelector('#k2').value }));
+    } else {
+      abrir(`<h3>Apagar “${esc(c.nombre)}”</h3>
+        <p>${c.personas ? `<b>${c.personas} persona(s)</b> tienen este cargo. Movelas primero:
+          si lo apagás quedan sin plan de formación.` : 'Nadie ocupa este cargo.'}</p>
+        <p>No se borra: queda apagado y se puede volver a prender.</p>`,
+        () => rpc('cap_desactivar_cargo', { p_cargo: id }), 'Apagar');
+    }
+  }
+
+  function dlgMapear(alias) {
+    abrir(`<h3>Mapear “${esc(alias)}”</h3>
+      <p>Elegí a qué cargo normalizado corresponde esta variante.</p>
+      <label for="k1">Cargo</label><select id="k1">${opts()}</select>`,
+      // la empresa sale del cargo, no del navegador
+      d => rpc('cap_mapear', { p_alias: alias, p_cargo: d.querySelector('#k1').value }));
+  }
+
+  /* --------- capacitaciones --------- */
+  function dlgCat(accion, id) {
+    const c = (CAT.catalogo||[]).find(x => x.id === id);
+
+    /* PROGRAMAR SIN APAGAR NADA.
+
+       Una capacitación con «0/0» en la columna del año no está de más:
+       está sin fecha. Apagarla la saca del catálogo y nadie se entera
+       después de que estuvo. Ponerle el mes la saca del rojo sola, que
+       es lo que pasó con las 14 al cargar el PG-HUM-001.
+
+       El mes y no el día, porque así programa la empresa: el libro dice
+       «marzo», no «12 de marzo». Queda para el ÚLTIMO día del mes —el
+       plan da todo el mes, así que recién al mes siguiente hay
+       incumplimiento—. Es la misma regla con la que se cargó el libro,
+       y conviene que la pantalla no invente una distinta. */
+    if (accion === 'programar') {
+      const A = hoy().getFullYear(), M = hoy().getMonth() + 1;
+      const fin = m => `${A}-${String(m).padStart(2,'0')}-${new Date(A, m, 0).getDate()}`;
+      const ops = MESES.map((nom, i) => {
+        const mes = i + 1, pas = mes < M;
+        return `<option value="${fin(mes)}"${mes === M ? ' selected' : ''}>${nom}${
+          pas ? ' · ya pasó' : ''}</option>`;
+      }).join('');
+      return abrir(`<h3>Programar ${esc(c.codigo)}</h3>
+        <p>${esc(c.titulo)}</p>
+        <p>Hoy no tiene ninguna actividad programada en ${A}, y hay
+           <b>${c.en_rojo || 0}</b> persona(s) atrasadas por ella${
+             (c.en_rojo || 0) < c.personas ? ` —de las ${c.personas} a las que le aplica—` : ''}.
+           Poniéndole el mes dejan de figurar atrasadas y pasan a
+           <b>«en el cronograma»</b>.</p>
+        <label for="k1">¿En qué mes?</label><select id="k1">${ops}</select>
+        <p class="kc-nota" style="text-align:left;margin:0 0 12px">Queda para el último día del
+          mes: el plan da todo el mes, así que recién al mes siguiente hay incumplimiento.
+          Si elegís un mes que ya pasó, va a figurar vencida — que es lo correcto si de verdad
+          no se dictó.</p>
+        <label for="k2">Responsable</label><input type="text" id="k2" placeholder="Quién la dicta">`,
+        d => rpc('cap_evento_crear', {
+          p_catalogo: id,
+          p_fecha: d.querySelector('#k1').value,
+          p_responsable: d.querySelector('#k2').value || null }), 'Programar');
+    }
+
+    if (accion === 'traer') {
+      return abrir(`<h3>Traer la biblioteca entera</h3>
+        <p>Suma a esta empresa las <b>${(CAT.biblioteca||[]).length}</b> capacitaciones de la
+           biblioteca que todavía no tiene, y las deja prendidas.</p>
+        <p>La mayoría son exigidas por norma —Decreto 1072, Resolución 0312, Ley 1010— así que
+           lo raro no es tenerlas: es no tenerlas. Después se apaga una por una lo que no aplique,
+           o todas de golpe con «Apagar todas».</p>
+        <p>Estar en el catálogo <b>no se lo exige a nadie todavía</b>: eso se define en el plan de
+           cada cargo.</p>`,
+        () => rpc('cap_biblioteca_traer'), 'Traer todas');
+    }
+
+    if (accion === 'apagartodas') {
+      // El servidor apaga SÓLO las que vinieron de la biblioteca
+      // (cap_catalogo_masivo tiene p_solo_biblioteca en true por
+      // defecto). Decir «afecta a las 294 prendidas» cuando toca 67 es
+      // pedirle a alguien que apriete un botón que no entiende: o no lo
+      // aprieta, o cree que borró el catálogo entero de su empresa.
+      const deBiblio = (CAT.catalogo || []).filter(c => c.activo && !c.propia).length;
+      const propias  = (CAT.catalogo || []).filter(c => c.activo &&  c.propia).length;
+      return abrir(`<h3>Apagar las de la biblioteca</h3>
+        <p>Apaga las <b>${deBiblio}</b> capacitaciones que vinieron de la biblioteca de KALU y
+           están prendidas.${propias ? ` Las <b>${propias}</b> propias de la empresa
+           <b>no se tocan</b>.` : ''}</p>
+        <p><b>No se borra nada.</b> Las asistencias, los certificados y el historial quedan como
+           están; esas capacitaciones dejan de exigirse, nada más. Se puede volver a prender.</p>
+        <label for="k1">Motivo</label>
+        <input type="text" id="k1" placeholder="Ej: HSE arma la matriz propia de la empresa">`,
+        dd => rpc('cap_catalogo_masivo', { p_prender: false,
+          p_motivo: dd.querySelector('#k1').value }), 'Apagar todas');
+    }
+
+    if (accion === 'prendertodas') {
+      const apagBib = (CAT.catalogo || []).filter(c => !c.activo && !c.propia).length;
+      return abrir(`<h3>Prender las de la biblioteca</h3>
+        <p>Vuelve a prender las <b>${apagBib}</b> de la biblioteca que están apagadas. Las propias
+           de la empresa y las que ya estaban prendidas quedan como están.</p>`,
+        () => rpc('cap_catalogo_masivo', { p_prender: true }), 'Prender todas');
+    }
+
+    if (accion === 'editar') {
+      abrir(`<h3>${esc(c.codigo)} · ${esc(c.titulo)}</h3>
+        <p>Cambiar la vigencia no reescribe el pasado: lo ya cursado conserva su fecha de vencimiento.
+           Aplica de la próxima en adelante.</p>
+        <label for="k1">Título</label><input type="text" id="k1" value="${esc(c.titulo)}">
+        <label for="k2">Cada cuánto se repite (en días · vacío = no vence)</label>
+        <input type="number" id="k2" min="0" step="1" value="${c.vigencia_dias ?? ''}"
+               placeholder="365 = una vez al año">
+        <label for="k3">Horas</label>
+        <input type="number" id="k3" min="0" step="0.5" value="${c.horas ?? ''}">
+        <label for="k4">Modalidad</label>
+        <select id="k4"><option value="">— sin definir —</option>${MODAL.map(m =>
+          `<option value="${m}"${c.modalidad===m?' selected':''}>${MODALN[m]}</option>`).join('')}</select>
+        <label for="k5">Proveedor</label>
+        <input type="text" id="k5" value="${esc(c.proveedor||'')}" placeholder="Colmena, interno, cliente…">`,
+        d => rpc('cap_cat_guardar', {
+          p_catalogo: id,
+          p_titulo: d.querySelector('#k1').value,
+          p_vigencia_dias: d.querySelector('#k2').value === '' ? null : +d.querySelector('#k2').value,
+          p_horas: d.querySelector('#k3').value === '' ? null : +d.querySelector('#k3').value,
+          p_modalidad: d.querySelector('#k4').value || null,
+          p_proveedor: d.querySelector('#k5').value || null }));
+
+    } else if (accion === 'asignar') {
+      const dest = a => a.alcance === 'cargo' ? (CAT.cargos||[])
+                      : a === 'rol' ? (CAT.roles||[]) : (CAT.actividades||[]);
+      const listado = c.asignaciones.length
+        ? c.asignaciones.map(a => `<div class="kc-asig">
+            <div><b>${esc(a.destino)}</b><span class="kc-cd"> · ${esc(a.alcance)} · ${BLOQN[a.bloqueante]}</span></div>
+            <button class="kc-mini" data-q="${a.id}">Quitar</button></div>`).join('')
+        : '<p style="color:var(--kc-cr);margin:0 0 12px">Hoy no le aplica a nadie.</p>';
+
+      const d = abrir(`<h3>A quién le aplica ${esc(c.codigo)}</h3>
+        <p>${esc(c.titulo)}</p>
+        ${listado}
+        <hr style="border:none;border-top:1px solid var(--kc-rule);margin:14px 0">
+        <label for="k1">Agregar a</label>
+        <select id="k1">
+          <option value="todos">Toda la empresa</option>
+          <option value="cargo" selected>Un cargo</option>
+          <option value="rol">Un comité o rol</option>
+          <option value="actividad">Quien haga una actividad</option>
+        </select>
+        <div id="kdest"></div>
+        <label for="k3">Nivel</label>
+        <select id="k3">
+          <option value="no">No bloquea — informativa</option>
+          <option value="operacion">Bloquea la operación — sin ella no puede hacer la tarea</option>
+          <option value="ingreso">Bloquea la vinculación — sin ella no completa el ingreso</option>
+        </select>
+        <p style="font-size:12.5px">Poné <b>vinculación</b> sólo si KALU la dicta por autoestudio.
+           Si depende de un proveedor externo, el ingreso queda varado esperándolo.</p>`,
+        dd => {
+          const al = dd.querySelector('#k1').value;
+          const dest = [...dd.querySelectorAll('.kdst:checked')].map(x => x.value);
+          if (al !== 'todos' && !dest.length)
+            throw new Error('Marcá al menos uno. Podés marcar varios de una vez.');
+          return rpc('cap_asig_varios', { p_catalogo: id, p_alcance: al,
+            p_destinos: al === 'todos' ? null : dest,
+            p_bloqueante: dd.querySelector('#k3').value });
+        }, 'Agregar');
+
+      // Una misma capacitación casi nunca le toca a un solo cargo. Con un
+      // desplegable había que repetir el diálogo una vez por cargo, y en el
+      // medio es fácil saltearse uno — que es peor que no asignarla, porque
+      // el tablero se ve verde igual.
+      const pintarDest = () => {
+        const al = d.querySelector('#k1').value;
+        const box = d.querySelector('#kdest');
+        if (al === 'todos') { box.innerHTML = ''; return; }
+        const L = al === 'cargo' ? (CAT.cargos||[]) : al === 'rol' ? (CAT.roles||[]) : (CAT.actividades||[]);
+        const tit = al === 'cargo' ? 'Cargos' : al === 'rol' ? 'Comités y roles' : 'Actividades';
+        const ya = new Set((c.asignaciones||[]).filter(a => a.alcance === al).map(a => a.destino));
+
+        box.innerHTML = !L.length
+          ? `<p style="color:var(--kc-cr);margin:10px 0 0">Todavía no hay ${tit.toLowerCase()}
+             cargados en esta empresa.</p>`
+          : `<label>${tit} — marcá todos los que correspondan</label>
+             <div class="kc-lista">${L.map(x => `<label class="kc-dst${ya.has(x.nombre) ? ' ya' : ''}">
+               <input type="checkbox" class="kdst" value="${x.id}" ${ya.has(x.nombre) ? 'disabled' : ''}>
+               <span>${esc(x.nombre)}${ya.has(x.nombre) ? ' · ya la tiene' : ''}</span></label>`).join('')}</div>
+             <div class="kc-row" style="margin:7px 0 0;gap:7px">
+               <button type="button" class="kc-mini" id="kdall">Marcar todos</button>
+               <button type="button" class="kc-mini" id="kdnone">Ninguno</button></div>`;
+
+        const todos = box.querySelector('#kdall'), nada = box.querySelector('#kdnone');
+        if (todos) todos.onclick = () =>
+          box.querySelectorAll('.kdst:not(:disabled)').forEach(x => x.checked = true);
+        if (nada) nada.onclick = () =>
+          box.querySelectorAll('.kdst').forEach(x => x.checked = false);
+      };
+      pintarDest();
+      d.querySelector('#k1').onchange = pintarDest;
+      d.querySelectorAll('[data-q]').forEach(b => b.onclick = async () => {
+        b.disabled = true; b.textContent = 'Quitando…';
+        try { const r = await rpc('cap_asig_quitar', { p_asignacion: b.dataset.q, p_motivo: null });
+          d.close(); d.remove(); await recargar(r); }
+        catch (e) { b.disabled = false; b.textContent = 'Quitar'; alert(e.message); }
+      });
+
+    } else if (accion === 'apagar' || accion === 'prender') {
+      const off = accion === 'apagar';
+      abrir(`<h3>${off ? 'Apagar' : 'Prender'} ${esc(c.codigo)}</h3>
+        <p>${esc(c.titulo)}</p>
+        ${off ? `<p>Hoy le aplica a <b>${c.personas} persona(s)</b> y tiene
+            <b>${c.eventos - c.hechos}</b> evento(s) sin dictar este año.
+            No se borra nada: deja de aparecer en los pasaportes y lo ya cursado queda en la historia.</p>
+          <label for="k1">Motivo</label>
+          <input type="text" id="k1" placeholder="Ej: dejamos de hacer esa actividad">`
+          : '<p>Vuelve a aparecer en los pasaportes de quien la tenga asignada.</p>'}`,
+        d => rpc('cap_cat_activar', { p_catalogo: id, p_activo: !off,
+          p_motivo: off ? d.querySelector('#k1').value : null }),
+        off ? 'Apagar' : 'Prender');
+
+    } else if (accion === 'ia') {
+      // el generador se abre en lugar del panel y vuelve a esta pestaña
+      generador(sel, { volver: () => admin(sel) });
+
+    } else if (accion === 'convalidar') {
+      // Dar por cumplido lo que se hizo antes de KALU y consta en papel.
+      dlgConvalidar(id, c);
+
+    } else if (accion === 'sumar') {
+      const B = CAT.biblioteca || [];
+      if (!B.length) {
+        abrir(`<h3>Biblioteca</h3><p>Tu catálogo ya tiene todas las capacitaciones de la biblioteca global.
+          Las que no usás están apagadas: filtralas con <b>Apagadas</b> y prendé la que necesites.</p>`,
+          () => {}, 'Entendido');
+        return;
+      }
+      abrir(`<h3>Sumar de la biblioteca</h3>
+        <p>Son las capacitaciones que la plataforma ya tiene armadas y tu empresa todavía no usa.
+           Se copian a tu catálogo: podés cambiarles vigencia y horas sin afectar a nadie más.</p>
+        <label for="k1">Capacitación</label>
+        <select id="k1">${B.map(b =>
+          `<option value="${b.id}">${esc(b.codigo)} · ${esc(b.titulo)}</option>`).join('')}</select>`,
+        d => rpc('cap_cat_sumar', { p_biblioteca: d.querySelector('#k1').value }), 'Sumar');
+
+    } else if (accion === 'crear') {
+      abrir(`<h3>Crear una capacitación propia</h3>
+        <p>Para lo que es de tu empresa y no está en la biblioteca de la plataforma.</p>
+        <label for="k1">Código</label><input type="text" id="k1" placeholder="Ej: P01">
+        <label for="k2">Título</label><input type="text" id="k2">
+        <label for="k3">Eje</label>
+        <select id="k3"><option value="hse">HSE</option><option value="tecnica">Técnica</option>
+          <option value="arl">ARL</option><option value="induccion">Inducción</option></select>
+        <label for="k4">Tipo</label>
+        <select id="k4"><option value="capacitacion">Capacitación</option><option value="charla">Charla</option>
+          <option value="divulgacion">Divulgación</option><option value="campana">Campaña</option>
+          <option value="curso_externo">Curso externo</option></select>
+        <label for="k5">Cada cuánto se repite (días · vacío = no vence)</label>
+        <input type="number" id="k5" min="0" step="1" placeholder="365">
+        <label for="k6">Horas</label><input type="number" id="k6" min="0" step="0.5">`,
+        d => rpc('cap_cat_crear', {
+          p_codigo: d.querySelector('#k1').value, p_titulo: d.querySelector('#k2').value,
+          p_eje: d.querySelector('#k3').value, p_tipo: d.querySelector('#k4').value,
+          p_vigencia_dias: d.querySelector('#k5').value === '' ? null : +d.querySelector('#k5').value,
+          p_horas: d.querySelector('#k6').value === '' ? null : +d.querySelector('#k6').value }), 'Crear');
+    }
+  }
+
+  /* --------- convalidar: lo que se hizo antes de KALU --------- */
+  const ESTN = { vencida:'Vencida', pendiente:'Sin registro',
+                 por_vencer:'Por vencer', al_dia:'Al día', no_aplica:'No aplica' };
+
+  async function dlgConvalidar(id, c) {
+    let R;
+    try { R = await rpc('cap_convalidar_datos', { p_catalogo: id }); }
+    catch (e) { return alert(e.message); }
+
+    const P = R.personas || [];
+    const falta = p => p.estado === 'pendiente' || p.estado === 'vencida';
+    const nf = P.filter(falta).length;
+
+    const d = abrir(`<h3>Convalidar ${esc(c.codigo)}</h3>
+      <p>${esc(c.titulo)}</p>
+      <p>Para lo que la gente <b>ya hizo antes de KALU</b> y consta en un acta, una planilla
+         o un certificado. No inventa cumplimiento: queda firmado con tu nombre y la fecha.</p>
+      <label>A quién (${nf} sin registro o vencida${nf !== P.length ? ' de ' + P.length : ''})</label>
+      <div class="kc-rap">
+        <button type="button" class="kc-mini" id="kcs1">Los que faltan</button>
+        <button type="button" class="kc-mini" id="kcs2">Todos</button>
+        <button type="button" class="kc-mini" id="kcs0">Ninguno</button>
+      </div>
+      <div class="kc-ros">${P.map(p => `<div class="kc-rw chk">
+          <input type="checkbox" class="kcp" value="${p.persona_id}"${falta(p)?' checked':''}
+                 aria-label="${esc(p.nombre)}">
+          <div class="nm">${esc(p.nombre)}<span>${esc(p.cargo || '')}</span></div>
+          <span class="est ${p.estado}">${ESTN[p.estado] || p.estado}</span>
+        </div>`).join('')}</div>
+      <label for="k1">Fecha real en que se hizo</label>
+      <input type="date" id="k1" max="${iso()}" value="${iso()}">
+      <label for="k2">En qué consta</label>
+      <input type="text" id="k2" placeholder="Ej: acta 31 de reinducción, marzo 2026">
+      <label for="k3">Enlace al soporte (opcional)</label>
+      <input type="text" id="k3" placeholder="Ruta del documento en KALU">
+      <p id="kcav" style="font-size:12.5px"></p>`,
+      dd => {
+        const sel = [...dd.querySelectorAll('.kcp:checked')].map(x => x.value);
+        if (!sel.length) throw new Error('No elegiste a nadie.');
+        return rpc('cap_convalidar', { p_catalogo: id, p_personas: sel,
+          p_fecha: dd.querySelector('#k1').value,
+          p_soporte: dd.querySelector('#k3').value || null,
+          p_motivo: dd.querySelector('#k2').value });
+      }, 'Convalidar', true);
+
+    const marcar = f => d.querySelectorAll('.kcp').forEach((x, i) => { x.checked = f(P[i]); });
+    d.querySelector('#kcs1').onclick = () => marcar(falta);
+    d.querySelector('#kcs2').onclick = () => marcar(() => true);
+    d.querySelector('#kcs0').onclick = () => marcar(() => false);
+
+    // Avisar en vivo si la fecha elegida deja a la gente vencida igual.
+    const av = d.querySelector('#kcav'), inp = d.querySelector('#k1');
+    const revisar = () => {
+      if (!c.vigencia_dias || !inp.value) { av.textContent = ''; return; }
+      const v = new Date(inp.value + 'T12:00:00');
+      v.setDate(v.getDate() + c.vigencia_dias);
+      const vencida = v < hoy();
+      av.style.color = vencida ? 'var(--kc-cr)' : 'var(--kc-ink3)';
+      av.textContent = vencida
+        ? 'Con esa fecha vencería el ' + v.toLocaleDateString('es-CO') +
+          ' — o sea, ya vencida. Queda el antecedente cargado, pero hay que reprogramarla. ' +
+          'Si hubo reinducción más reciente, poné esa fecha.'
+        : 'Con esa fecha quedan al día hasta el ' + v.toLocaleDateString('es-CO') + '.';
+    };
+    inp.oninput = revisar; revisar();
+  }
+
+  /* --------- cronograma --------- */
+  function dlgEv(accion, id) {
+    const e = (CRO.eventos||[]).find(x => x.id === id);
+
+    if (accion === 'lista') {
+      dlgLista(id, e);
+
+    /* LA LISTA DE ASISTENCIA DE UNA JORNADA.
+       Se sube una vez y respalda a todos los que estuvieron. No emite
+       certificado a nadie: una planilla con veinte firmas no es el diploma
+       de ninguno de los veinte, y hacerla pasar por eso sería fabricar una
+       constancia individual que nadie firmó. */
+    } else if (accion === 'soporte') {
+      const dd0 = abrir(`<h3>Lista de asistencia</h3>
+        <p>${esc((e && e.codigo) || '')} · ${esc((e && e.titulo) || '')}${
+          e && e.fecha ? ' · ' + fecha(e.fecha) : ''}</p>
+        <p style="font-size:13px;color:var(--kc-ink2)">La planilla firmada de esa jornada.
+          Respalda a <b>${(e && e.asistieron) || 0}</b> asistencia(s) de una sola vez.
+          ${e && e.soporte ? `<br>Ya hay una cargada: <a href="${esc(e.soporte)}" target="_blank"
+            rel="noopener">verla</a>. Si subís otra, la reemplaza.` : ''}</p>
+        <label for="k0">Archivo</label>
+        <input type="file" id="k0" accept=".pdf,.jpg,.jpeg,.png">
+        <p id="kcsub" style="font-size:12.5px;margin:-6px 0 12px"></p>
+        <label for="k1">O pegá la ruta / enlace donde ya está</label>
+        <input type="text" id="k1" value="${esc((e && e.soporte) || '')}" placeholder="documentos/…">
+        <label for="k2">Quién la emitió</label>
+        <input type="text" id="k2" value="interno" placeholder="interno, Colmena, Ingetest…">`,
+        async d => {
+          let ruta = d.querySelector('#k1').value.trim();
+          const f = d.querySelector('#k0').files[0];
+          if (f) ruta = await subirLista(f, e && e.codigo);
+          if (!ruta) throw new Error('Elegí un archivo o pegá la ruta donde está la planilla.');
+          const r = await rpc('cap_evento_soporte', { p_evento: id, p_storage_path: ruta,
+            p_nombre: null, p_emitido_por: d.querySelector('#k2').value });
+          CRO = null;
+          return r;
+        }, 'Guardar la lista');
+
+      async function subirLista(file, codigo) {
+        const nota = dd0.querySelector('#kcsub');
+        nota.style.color = 'var(--kc-ink3)';
+        nota.textContent = 'Subiendo el archivo…';
+        // La empresa va primera en la ruta: el bucket sólo deja escribir
+        // adentro de la carpeta de la propia empresa.
+        if (!CRO || !CRO.empresa_id)
+          throw new Error('No se pudo determinar tu empresa para guardar el archivo. Pegá la ruta a mano.');
+        const ext = (file.name.split('.').pop() || 'pdf').toLowerCase()
+          .replace(/[^a-z0-9]/g, '').slice(0, 5) || 'pdf';
+        const cod = String(codigo || 'jornada').replace(/[^A-Za-z0-9_-]/g, '');
+        const ruta = CRO.empresa_id + '/capacitador/jornadas/' + cod + '-' +
+          iso().replace(/-/g, '') + '-' + Math.random().toString(16).slice(2, 8) + '.' + ext;
+        const st = sb && sb.storage;
+        if (!st) throw new Error('No se puede subir desde acá. Pegá la ruta del documento.');
+        const { error: er } = await st.from('documentos')
+          .upload(ruta, file, { upsert: false, contentType: file.type || undefined });
+        if (er) {
+          nota.style.color = 'var(--kc-cr)';
+          nota.textContent = 'No se pudo subir: ' + er.message +
+            ' · Guardá la planilla donde la guardan siempre y pegá acá la ruta.';
+          throw new Error('El archivo no se subió. Mirá el aviso de arriba.');
+        }
+        nota.style.color = 'var(--kc-ok)';
+        nota.textContent = 'Archivo subido.';
+        return ruta;
+      }
+
+    } else if (accion === 'crear') {
+      abrir(`<h3>Programar una capacitación</h3>
+        <p>Queda en el cronograma del año. Los convocados salen solos de a quién le aplica.</p>
+        <label for="k1">Capacitación</label>
+        <select id="k1">${(CRO.catalogo||[]).map(c =>
+          `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.titulo)}</option>`).join('')}</select>
+        <label for="k2">Fecha</label><input type="date" id="k2" value="${iso()}">
+        <label for="k3">Responsable</label><input type="text" id="k3" placeholder="Quién la dicta">
+        <label for="k4">Lugar</label><input type="text" id="k4">
+        <label for="k5">Modalidad</label>
+        <select id="k5"><option value="">— sin definir —</option>${MODAL.map(m =>
+          `<option value="${m}">${MODALN[m]}</option>`).join('')}</select>`,
+        d => rpc('cap_evento_crear', {
+          p_catalogo: d.querySelector('#k1').value, p_fecha: d.querySelector('#k2').value,
+          p_responsable: d.querySelector('#k3').value || null,
+          p_lugar: d.querySelector('#k4').value || null,
+          p_modalidad: d.querySelector('#k5').value || null }), 'Programar');
+
+    } else if (accion === 'mover') {
+      abrir(`<h3>Mover de fecha</h3>
+        <p>${esc(e.codigo)} · ${esc(e.titulo)}<br>Hoy está para el <b>${esc(e.fecha||'sin fecha')}</b>.</p>
+        <label for="k1">Fecha nueva</label>
+        <input type="date" id="k1" value="${esc(e.fecha||iso())}">
+        <label for="k2">Motivo</label>
+        <input type="text" id="k2" placeholder="Ej: se cruzaba con la parada de planta">
+        <p style="font-size:12.5px">Queda registrada la fecha original. Ante la ARL un cronograma
+           reprogramado con motivo pesa menos que uno incumplido en silencio.</p>`,
+        d => rpc('cap_evento_mover', { p_evento: id,
+          p_fecha: d.querySelector('#k1').value, p_motivo: d.querySelector('#k2').value }), 'Mover');
+
+    } else if (accion === 'cancelar') {
+      abrir(`<h3>Cancelar el evento</h3>
+        <p>${esc(e.codigo)} · ${esc(e.titulo)} del ${esc(e.fecha||'—')}</p>
+        <p>No se borra: queda tachado en el cronograma con el motivo.
+           La capacitación sigue pendiente para quien la debía — si ya no va, apagala desde el catálogo.</p>
+        <label for="k1">Motivo</label><input type="text" id="k1" placeholder="Ej: no vino el instructor">`,
+        d => rpc('cap_evento_cancelar', { p_evento: id, p_motivo: d.querySelector('#k1').value }),
+        'Cancelar el evento');
+
+    } else if (accion === 'editar') {
+      abrir(`<h3>${esc(e.codigo)} · ${esc(e.titulo)}</h3>
+        <label for="k1">Responsable</label><input type="text" id="k1" value="${esc(e.responsable||'')}">
+        <label for="k2">Lugar</label><input type="text" id="k2" value="${esc(e.lugar||'')}">
+        <label for="k3">Modalidad</label>
+        <select id="k3"><option value="">— sin definir —</option>${MODAL.map(m =>
+          `<option value="${m}"${e.modalidad===m?' selected':''}>${MODALN[m]}</option>`).join('')}</select>
+        <label for="k4">Horas</label><input type="number" id="k4" min="0" step="0.5" value="${e.horas ?? ''}">
+        <label for="k5">Observaciones</label><textarea id="k5" rows="2">${esc(e.observaciones||'')}</textarea>`,
+        d => rpc('cap_evento_guardar', { p_evento: id,
+          p_responsable: d.querySelector('#k1').value || null,
+          p_lugar: d.querySelector('#k2').value || null,
+          p_modalidad: d.querySelector('#k3').value || null,
+          p_horas: d.querySelector('#k4').value === '' ? null : +d.querySelector('#k4').value,
+          p_observaciones: d.querySelector('#k5').value || null }));
+    }
+  }
+
+  /* --------- pasar lista de un evento --------- */
+  const MARCAS = [
+    ['asistio',               'Asistió'],
+    ['ausente_justificado',   'Faltó con justificación'],
+    ['ausente_injustificado', 'Faltó'],
+    ['no_aplica',             'No le aplica'],
+    ['programado',            'Sin marcar']
+  ];
+
+  async function dlgLista(id, ev) {
+    let R;
+    try { R = await rpc('cap_evento_lista', { p_evento: id }); }
+    catch (e) { return alert(e.message); }
+
+    const P = R.personas || [], E = R.evento || {};
+    if (!P.length) {
+      abrir(`<h3>${esc(E.codigo || '')} · sin convocados</h3>
+        <p>Esta capacitación no le aplica a nadie todavía, así que no hay lista que pasar.
+           Asignala primero a un cargo, un comité o una actividad desde la pestaña
+           <b>Capacitaciones</b>.</p>`, () => {}, 'Entendido');
+      return;
+    }
+
+    const need = e => e === 'ausente_justificado' || e === 'no_aplica';
+
+    const d = abrir(`<h3>Lista de ${esc(E.codigo || '')}</h3>
+      <p>${esc(E.titulo || '')} · ${esc(E.fecha || '')}${
+        E.responsable ? ' · ' + esc(E.responsable) : ''}</p>
+      <div class="kc-rap">
+        <button type="button" class="kc-mini" id="kct">Todos asistieron</button>
+        <button type="button" class="kc-mini" id="kcn">Limpiar</button>
+      </div>
+      <div class="kc-ros">${P.map((p, i) => `<div class="kc-rw" data-i="${i}">
+          <div class="nm">${esc(p.nombre)}<span>${esc(p.cargo || '')}</span></div>
+          <select class="kce">${MARCAS.map(([v, t]) =>
+            `<option value="${v}"${p.estado === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <input type="text" class="kcm mot" placeholder="Motivo"
+                 value="${esc(p.motivo || '')}" style="display:${need(p.estado)?'block':'none'}">
+        </div>`).join('')}</div>
+      <label for="k1">Fecha en que se dictó</label>
+      <input type="date" id="k1" max="${iso()}"
+             value="${esc(E.realizada || E.fecha || iso())}">
+      <p style="font-size:12.5px">Al guardar, el evento queda como dictado y a cada asistente se le
+         actualiza el pasaporte con su fecha de vencimiento. Los que faltaron siguen debiéndola.</p>`,
+      dd => {
+        const marcas = [...dd.querySelectorAll('.kc-rw')].map(row => {
+          const i = +row.dataset.i;
+          return { persona_id: P[i].persona_id,
+                   estado: row.querySelector('.kce').value,
+                   motivo: row.querySelector('.kcm').value || null };
+        });
+        return rpc('cap_marcar', { p_evento: id, p_marcas: marcas,
+          p_fecha: dd.querySelector('#k1').value });
+      }, 'Guardar la lista', true);
+
+    // el campo de motivo aparece sólo cuando el estado lo exige
+    d.querySelectorAll('.kc-rw').forEach(row => {
+      const s = row.querySelector('.kce'), m = row.querySelector('.kcm');
+      s.onchange = () => { m.style.display = need(s.value) ? 'block' : 'none'; };
+    });
+    const todos = v => d.querySelectorAll('.kc-rw').forEach(row => {
+      const s = row.querySelector('.kce'); s.value = v;
+      row.querySelector('.kcm').style.display = need(v) ? 'block' : 'none';
+    });
+    d.querySelector('#kct').onclick = () => todos('asistio');
+    d.querySelector('#kcn').onclick = () => todos('programado');
+  }
+
+  pintar();
+}
+
+/* =================================================================
+   FICHA DE PERSONA — donde HSE valida y carga soportes
+   ================================================================= */
+async function ficha(sel, personaId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando la ficha…');
+  let F;
+  try { F = await rpc('cap_ficha_mas', { p_persona: personaId }); }
+  catch (e) { return error(el, e); }
+  if (!F || !F.persona) return error(el, new Error('Esa persona no está en tu padrón.'));
+
+  const P = F.persona, H = F.habilitacion || {};
+  const puede = F.puede_editar !== false;
+  const BLQ = { ingreso: 'Vinculación', operacion: 'Operación', no: '' };
+
+  async function recargar(r) {
+    if (r && r.aviso) aviso(r.aviso);
+    await ficha(sel, personaId, opt);
+  }
+  function aviso(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+  }
+
+  function pintar() {
+    const F1  = estadoForm(H.formacion);
+    const cls = P.vigente === false ? 'cr' : F1.band;
+    const tramo = (F.tramos || [])[0] || {};
+    const prog = F.progreso || {};
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:20px 0 12px">
+        <button class="kc-mini" id="kcvolver">← Volver</button>
+      </div>
+
+      <div style="border-bottom:2px solid var(--kc-ink);padding-bottom:16px;margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:8px">FICHA DE FORMACIÓN</div>
+        <h1 style="font-size:30px;font-weight:700;line-height:1.05">${esc(P.nombre)}</h1>
+        <p style="color:var(--kc-ink2);margin:6px 0 0">${esc(P.cargo || P.cargo_texto || '—')}${
+          P.cedula ? ' · <span class="mono">' + esc(P.cedula) + '</span>' : ''}${
+          P.vigente === false ? ' · <b style="color:var(--kc-cr)">no vigente</b>' : ''}</p>
+      </div>
+
+      <div class="kc-band ${cls}" style="margin-bottom:14px">
+        <div class="m">${cls === 'ok' ? '✓' : '!'}</div>
+        <div><div class="t1">${F1.t1}</div>
+        <div class="t2">${H.formacion === 'sin_plan'
+          ? (H.determinado === false
+              ? 'No tiene cargo en el organigrama, así que el módulo no le exige nada. Se arregla en el padrón.'
+              : 'A su cargo todavía no se le asignaron capacitaciones.')
+          : [ H.vencidas  ? H.vencidas  + ' vencida(s)'  : null,
+              H.atrasadas ? H.atrasadas + ' atrasada(s)' : null,
+              'Vinculación ' + (H.ok_ingreso ?? 0) + ' de ' + (H.req_ingreso ?? 0),
+              'Operación '   + (H.ok_operacion ?? 0) + ' de ' + (H.req_operacion ?? 0)
+            ].filter(Boolean).join(' · ')}</div>
+        ${H.en_cronograma ? `<div class="t2" style="color:var(--kc-ink3)">${
+          cola(H.en_cronograma)}</div>` : ''}</div>
+      </div>
+
+      ${(F.faltante || []).length ? `<div class="kc-p1" style="margin-bottom:18px">
+        <div style="padding:13px 16px 4px"><div class="kc-tt" style="font-size:15px">
+          Qué le falta exactamente</div></div>
+        <div style="padding:0 16px 14px">${F.faltante.map(f => `<div class="kc-asig">
+          <div><b>${esc(f.codigo)}</b> · ${esc(f.titulo)}
+            <span class="kc-cd"> · ${esc(EST[f.estado] || f.estado)}</span></div>
+          <span class="kc-tag ${f.bloqueante === 'ingreso' ? 'no' : 'wa'}">${
+            esc(BLQ[f.bloqueante] || f.bloqueante)}</span>
+          ${puede ? `<button class="kc-mini p" data-val="${f.codigo}">Validar</button>` : ''}
+        </div>`).join('')}</div></div>` : ''}
+
+      <div class="kc-tabs" style="margin-bottom:18px">
+        <button class="kc-tab" data-s="form" aria-selected="true">Formación</button>
+        <button class="kc-tab" data-s="cargo" aria-selected="false">Cargo</button>
+        <button class="kc-tab" data-s="grupos" aria-selected="false">Comités y actividades</button>
+        <button class="kc-tab" data-s="puntual" aria-selected="false">Asignado a ella</button>
+        <button class="kc-tab" data-s="hist" aria-selected="false">Historial${
+          (F.historial || []).length ? ' · ' + F.historial.length : ''}</button>
+      </div>
+      <div id="kc-fs"></div></div>`;
+
+    el.querySelector('#kcvolver').onclick = () =>
+      (opt && opt.volver) ? opt.volver() : admin(sel);
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      el.querySelectorAll('.kc-tab').forEach(x =>
+        x.setAttribute('aria-selected', String(x === b)));
+      seccion(b.dataset.s);
+    });
+    seccion('form');
+  }
+
+  function seccion(s) {
+    const v = el.querySelector('#kc-fs');
+    if (s === 'form')        v.innerHTML = vForm();
+    else if (s === 'cargo')  v.innerHTML = vCargo();
+    else if (s === 'grupos') v.innerHTML = vGrupos();
+    else if (s === 'hist')   v.innerHTML = tablaHistorial(F.historial,
+      { vacio: 'No hay ninguna asistencia registrada para esta persona.', evidencia: true });
+    else                     v.innerHTML = vPuntual();
+    enganchar();
+  }
+
+  /* --- formación --- */
+  function vForm() {
+    const I = F.items || [];
+    if (!I.length) return '<p class="kc-vacio">No tiene ninguna capacitación asignada.</p>';
+    return '<div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>' +
+      '<th>Estado</th><th>Última vez</th><th>Vence</th><th>Soporte</th><th></th>' +
+      '</tr></thead><tbody>' + I.map(x => `<tr>
+        <td class="k">${esc(x.codigo)}${x.bloqueante && x.bloqueante !== 'no'
+          ? ` <span class="kc-tag ${x.bloqueante === 'ingreso' ? 'no' : 'wa'}">${
+              x.bloqueante === 'ingreso' ? 'ING' : 'OPE'}</span>` : ''}</td>
+        <td><div>${esc(x.titulo)}</div>
+          <div class="kc-cd" style="margin-top:2px">${esc(x.por_que_aplica || '')}</div></td>
+        <td><span class="kc-pill ${x.estado}">${esc(EST[x.estado] || x.estado)}</span></td>
+        <td class="n">${x.ultima_vez ? fecha(x.ultima_vez) : '—'}</td>
+        <td class="n">${x.vence_el ? fecha(x.vence_el) : (x.ultima_vez ? 'no vence' : '—')}</td>
+        <td>${x.soporte
+          ? `<button class="kc-mini" data-ver="${esc(x.soporte)}"
+              title="${esc(x.soporte)}">Ver</button>`
+          : '<span style="color:var(--kc-ink3);font-size:12.5px">—</span>'}</td>
+        <td>${puede ? `<div style="display:flex;gap:6px">
+          <button class="kc-mini${x.estado === 'al_dia' ? '' : ' p'}"
+            data-v2="${x.catalogo_id}">Validar</button>
+          <button class="kc-mini" data-sop="${x.catalogo_id}">Soporte</button></div>` : ''}</td>
+      </tr>`).join('') + '</tbody></table></div>';
+  }
+
+  /* --- cargo y antigüedad --- */
+  function vCargo() {
+    const t = (F.tramos || [])[0] || {};
+    const g = F.progreso || {};
+    const EDU = { bachiller:'Bachiller', tecnico:'Técnico', tecnologo:'Tecnólogo',
+                  profesional:'Profesional', especialista:'Especialista' };
+    return `<div class="kc-p1" style="margin-bottom:14px"><div style="padding:16px 18px">
+        <div class="kc-cd">TRAMO ABIERTO</div>
+        <div class="kc-tt" style="font-size:19px;margin:4px 0 8px">${esc(t.cargo || '—')}</div>
+        <p style="margin:0 0 4px;font-size:14.5px">Desde el <b>${
+          t.desde ? fecha(t.desde) : '—'}</b>${
+          g.meses_en_el_cargo != null ? ' · lleva <b>' + g.meses_en_el_cargo + ' meses</b>' : ''}</p>
+        <p style="margin:0;font-size:14px;color:var(--kc-ink2)">Origen ${
+          esc(t.origen || '—')} · Nivel educativo ${esc(EDU[t.educacion] || '—')}</p>
+        ${t.observacion ? `<p class="kc-cd" style="margin-top:8px">${esc(t.observacion)}</p>` : ''}
+        ${puede ? '<button class="kc-mini p" id="kcant" style="margin-top:12px">Corregir la antigüedad</button>' : ''}
+      </div></div>
+      ${g.cargo_siguiente ? `<div class="kc-p1" style="margin-bottom:14px"><div style="padding:16px 18px">
+        <div class="kc-cd">PRÓXIMO PELDAÑO</div>
+        <div class="kc-tt" style="font-size:17px;margin:4px 0 10px">${esc(g.cargo_siguiente)}</div>
+        <div class="kc-lks">
+          <div class="kc-lk ${g.candado_cursos?'on':'off'}"><div class="i">${g.candado_cursos?'✓':'○'}</div>
+            <div class="l">${g.cursos_cumplidos ?? 0}/${g.cursos_requeridos ?? 0} cursos</div></div>
+          <div class="kc-lk ${g.candado_tiempo?'on':'off'}"><div class="i">${g.candado_tiempo?'✓':'○'}</div>
+            <div class="l">${g.meses_faltantes ? g.meses_faltantes + ' meses' : 'tiempo'}</div></div>
+          <div class="kc-lk ${g.candado_aval?'on':'off'}"><div class="i">${g.candado_aval?'✓':'○'}</div>
+            <div class="l">aval</div></div>
+        </div></div></div>` : ''}
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th>Desde</th><th>Hasta</th>
+        <th>Origen</th><th>Observación</th></tr></thead><tbody>${
+        (F.tramos || []).map(x => `<tr><td class="k">${esc(x.cargo)}</td>
+          <td class="n">${fecha(x.desde)}</td>
+          <td class="n">${x.hasta ? fecha(x.hasta) : '—'}</td>
+          <td>${esc(x.origen || '—')}</td>
+          <td style="color:var(--kc-ink3);font-size:13px">${esc(x.observacion || '')}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+  }
+
+  /* --- comités y actividades --- */
+  function vGrupos() {
+    const marc = (lista, actuales, clase) => lista.length
+      ? '<div class="kc-ros">' + lista.map(x => `<div class="kc-rw chk">
+          <input type="checkbox" class="${clase}" value="${x.id}"${
+            actuales.includes(x.id) ? ' checked' : ''}${puede ? '' : ' disabled'}
+            aria-label="${esc(x.nombre)}">
+          <div class="nm">${esc(x.nombre)}<span>${x.gente} persona(s) hoy</span></div>
+        </div>`).join('') + '</div>'
+      : '<p class="kc-vacio">Nada cargado todavía.</p>';
+
+    return `<div class="kc-p1" style="margin-bottom:14px"><div style="padding:16px 18px">
+        <div class="kc-tt" style="font-size:17px;margin-bottom:4px">Comités y roles</div>
+        <p style="margin:0 0 12px;font-size:13.5px;color:var(--kc-ink2)">De acá salen las
+          capacitaciones que no dependen del cargo sino de estar en un comité.</p>
+        ${marc(F.roles_todos || [], F.roles || [], 'kcrol')}
+        ${puede ? '<button class="kc-btn" id="kcroles" style="margin-top:10px;font-size:14px;padding:9px">Guardar comités</button>' : ''}
+      </div></div>
+      <div class="kc-p1"><div style="padding:16px 18px">
+        <div class="kc-tt" style="font-size:17px;margin-bottom:4px">Actividades de riesgo</div>
+        <p style="margin:0 0 12px;font-size:13.5px;color:var(--kc-ink2)">Qué hace esta persona
+          en la práctica. Soldar, operar el puente grúa, hacer videoscopía. Cada una arrastra
+          su propia formación, aunque no esté en la descripción del cargo.</p>
+        ${marc(F.actividades_todas || [], F.actividades || [], 'kcact')}
+        ${puede ? '<button class="kc-btn" id="kcacts" style="margin-top:10px;font-size:14px;padding:9px">Guardar actividades</button>' : ''}
+      </div></div>`;
+  }
+
+  /* --- asignado puntualmente --- */
+  function vPuntual() {
+    const M = F.manuales || [];
+    return `<p style="font-size:14.5px;color:var(--kc-ink2);margin:0 0 14px;max-width:66ch">
+        Para lo que le toca a <b>esta persona</b> y no a todo su cargo: va a una plataforma
+        marina, reemplaza a alguien en el puente grúa, la piden con un curso puntual para un
+        contrato. Lleva motivo, y si querés, plazo.</p>
+      ${puede ? '<button class="kc-mini p" id="kcpunt" style="margin-bottom:14px">+ Asignar algo puntual</button>' : ''}
+      ${M.length ? '<div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>' +
+        '<th>Por qué</th><th>Plazo</th><th>Nivel</th><th></th></tr></thead><tbody>' +
+        M.map(m => `<tr><td class="k">${esc(m.codigo)}</td><td>${esc(m.titulo)}</td>
+          <td style="color:var(--kc-ink2);font-size:13.5px">${esc(m.motivo)}</td>
+          <td class="n">${m.plazo ? fecha(m.plazo) : '—'}</td>
+          <td>${m.bloqueante !== 'no'
+            ? `<span class="kc-tag ${m.bloqueante === 'ingreso' ? 'no' : 'wa'}">${
+                esc(BLQ[m.bloqueante])}</span>` : '—'}</td>
+          <td>${puede ? `<button class="kc-mini" data-quit="${m.id}">Quitar</button>` : ''}</td>
+        </tr>`).join('') + '</tbody></table></div>'
+        : '<p class="kc-vacio">No tiene nada asignado a título personal.</p>'}`;
+  }
+
+  /* --- diálogos --- */
+  function abrir(html, onOk, okTxt, ancho) {
+    const d = document.createElement('dialog');
+    if (ancho) d.className = 'ancho';
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try { const r = await onOk(d); d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  function dlgValidar(catalogoId) {
+    const it = (F.items || []).find(x => x.catalogo_id === catalogoId) || {};
+    abrir(`<h3>Validar ${esc(it.codigo || '')}</h3>
+      <p>${esc(it.titulo || '')}</p>
+      <p>Para lo que <b>ya hizo</b> y consta en un acta, una planilla o un certificado.
+         El vencimiento se calcula desde la fecha real, no desde hoy.</p>
+      <label for="k1">Fecha en que la hizo</label>
+      <input type="date" id="k1" max="${iso()}" value="${iso()}">
+      <label for="k2">En qué consta</label>
+      <input type="text" id="k2" placeholder="Ej: acta 31 de reinducción, marzo 2026">
+      <label for="k3">Enlace o ruta del soporte (opcional)</label>
+      <input type="text" id="k3" placeholder="Se puede cargar después con el botón Soporte">`,
+      d => rpc('cap_convalidar', {
+        p_catalogo: catalogoId, p_personas: [personaId],
+        p_fecha: d.querySelector('#k1').value,
+        p_soporte: d.querySelector('#k3').value || null,
+        p_motivo: d.querySelector('#k2').value }), 'Validar');
+  }
+
+  function dlgSoporte(catalogoId) {
+    const it = (F.items || []).find(x => x.catalogo_id === catalogoId) || {};
+    if (!it.ultima_vez) {
+      abrir(`<h3>Todavía no hay qué respaldar</h3>
+        <p>${esc(it.codigo || '')} · ${esc(it.titulo || '')}</p>
+        <p>Esta persona no tiene esa capacitación cumplida. Primero <b>Validar</b> con la
+           fecha real, y después subir el soporte.</p>`, () => {}, 'Entendido');
+      return;
+    }
+    const d = abrir(`<h3>Soporte de ${esc(it.codigo || '')}</h3>
+      <p>${esc(it.titulo || '')} · hecha el ${fecha(it.ultima_vez)}</p>
+      <label for="k0">Archivo</label>
+      <input type="file" id="k0" accept=".pdf,.jpg,.jpeg,.png">
+      <p id="kcsub" style="font-size:12.5px;margin:-6px 0 12px"></p>
+      <label for="k1">O pegá la ruta / enlace donde ya está</label>
+      <input type="text" id="k1" value="${esc(it.soporte || '')}" placeholder="documentos/…">
+      <label for="k2">Nombre del documento</label>
+      <input type="text" id="k2" value="${esc((it.codigo || '') + ' — ' + (it.titulo || ''))}">
+      <label for="k3">Emitido por</label>
+      <input type="text" id="k3" value="externo" placeholder="Colmena, Ingetest, interno…">`,
+      async dd => {
+        let ruta = dd.querySelector('#k1').value.trim();
+        const f = dd.querySelector('#k0').files[0];
+        if (f) ruta = await subir(f, it.codigo);
+        if (!ruta) throw new Error('Elegí un archivo o pegá la ruta donde está el documento.');
+        return rpc('cap_soporte', { p_persona: personaId, p_catalogo: catalogoId,
+          p_storage_path: ruta, p_nombre: dd.querySelector('#k2').value,
+          p_emitido_por: dd.querySelector('#k3').value });
+      }, 'Guardar el soporte');
+
+    // Subida al bucket de la plataforma. Si el bucket no deja escribir,
+    // se dice qué pasó y queda la opción de pegar la ruta a mano.
+    async function subir(file, codigo) {
+      const nota = d.querySelector('#kcsub');
+      nota.style.color = 'var(--kc-ink3)';
+      nota.textContent = 'Subiendo el archivo…';
+      // Ruta: empresa / módulo / persona / archivo.
+      // La empresa va primera a propósito. Es la convención de QA/QC,
+      // la única de las que hay en el bucket que separa por empresa
+      // (`foldername(name)[1] = mi_empresa()`). Los módulos viejos
+      // guardan en la raíz y sólo funcionan porque hay una política
+      // abierta que los tapa; el día que se cierre, esto ya cumple.
+      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase()
+        .replace(/[^a-z0-9]/g, '').slice(0, 5) || 'pdf';
+      const cod = String(codigo || 'doc').replace(/[^A-Za-z0-9_-]/g, '');
+      if (!P.empresa_id) throw new Error('No se pudo determinar tu empresa para guardar el archivo.');
+      const ruta = P.empresa_id + '/capacitador/' + personaId + '/' +
+                   cod + '-' + iso().replace(/-/g, '') + '-' +
+                   Math.random().toString(16).slice(2, 8) + '.' + ext;
+      const st = sb && sb.storage;
+      if (!st) throw new Error('No se puede subir desde acá. Pegá la ruta del documento.');
+      const { error: e } = await st.from('documentos')
+        .upload(ruta, file, { upsert: false, contentType: file.type || undefined });
+      if (e) {
+        nota.style.color = 'var(--kc-cr)';
+        nota.textContent = 'No se pudo subir: ' + e.message +
+          ' · Guardá el documento donde lo guardan siempre y pegá acá la ruta.';
+        throw new Error('El archivo no se subió. Mirá el aviso de arriba.');
+      }
+      nota.style.color = 'var(--kc-ok)';
+      nota.textContent = 'Archivo subido.';
+      return ruta;
+    }
+  }
+
+  function dlgAntiguedad() {
+    const t = (F.tramos || [])[0] || {};
+    abrir(`<h3>Antigüedad en el cargo</h3>
+      <p>${esc(t.cargo || '')}. Usalo si la fecha estaba mal cargada. <b>No es un ascenso</b>:
+         para eso está Mover, que cierra el tramo y abre uno nuevo.</p>
+      <label for="k1">Desde cuándo está en este cargo</label>
+      <input type="date" id="k1" max="${iso()}" value="${esc(t.desde || iso())}">
+      <label for="k2">Origen</label>
+      <select id="k2">
+        <option value="interno"${t.origen === 'interno' ? ' selected' : ''}>Interno — venía de otro cargo en la empresa</option>
+        <option value="externo"${t.origen === 'externo' ? ' selected' : ''}>Externo — entró directo a este cargo</option>
+      </select>
+      <label for="k3">Nivel educativo</label>
+      <select id="k3"><option value="">— sin definir —</option>${
+        ['bachiller','tecnico','tecnologo','profesional','especialista'].map(x =>
+          `<option value="${x}"${t.educacion === x ? ' selected' : ''}>${
+            x.charAt(0).toUpperCase() + x.slice(1)}</option>`).join('')}</select>
+      <label for="k4">Motivo</label>
+      <input type="text" id="k4" placeholder="Ej: la fecha real está en el contrato">
+      <p style="font-size:12.5px">El origen y el nivel educativo cambian cuánto tiempo se le
+         pide para el próximo peldaño, tal como lo define el A.MA001.</p>`,
+      d => rpc('cap_persona_antiguedad', { p_persona: personaId,
+        p_desde: d.querySelector('#k1').value,
+        p_origen: d.querySelector('#k2').value || null,
+        p_educacion: d.querySelector('#k3').value || null,
+        p_motivo: d.querySelector('#k4').value || null }));
+  }
+
+  function dlgPuntual() {
+    abrir(`<h3>Asignar algo puntual a ${esc(P.nombre)}</h3>
+      <p>Le va a aparecer en el pasaporte como pendiente, con el motivo a la vista.</p>
+      <label for="k1">Capacitación</label>
+      <select id="k1">${(F.catalogo || []).map(c =>
+        `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.titulo)}</option>`).join('')}</select>
+      <label for="k2">Por qué a ella</label>
+      <input type="text" id="k2" placeholder="Ej: va a plataforma marina en septiembre">
+      <label for="k3">Plazo (opcional)</label>
+      <input type="date" id="k3">
+      <label for="k4">Nivel</label>
+      <select id="k4">
+        <option value="no">No bloquea — informativa</option>
+        <option value="operacion">Bloquea la operación</option>
+        <option value="ingreso">Bloquea la vinculación</option>
+      </select>`,
+      d => rpc('cap_asignar_persona', { p_persona: personaId,
+        p_catalogo: d.querySelector('#k1').value,
+        p_motivo: d.querySelector('#k2').value,
+        p_plazo: d.querySelector('#k3').value || null,
+        p_bloqueante: d.querySelector('#k4').value }), 'Asignar');
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-v2]').forEach(b => b.onclick = () => dlgValidar(b.dataset.v2));
+    el.querySelectorAll('[data-sop]').forEach(b => b.onclick = () => dlgSoporte(b.dataset.sop));
+
+    // El bucket `documentos` es privado: para abrir un soporte hay que
+    // pedir un enlace firmado, que dura un minuto.
+    el.querySelectorAll('[data-ver]').forEach(b => b.onclick = async () => {
+      const ruta = b.dataset.ver;
+      if (/^https?:\/\//i.test(ruta)) { global.open(ruta, '_blank', 'noopener'); return; }
+      b.disabled = true; b.textContent = 'Abriendo…';
+      try {
+        const { data, error: e } = await sb.storage.from('documentos')
+          .createSignedUrl(ruta, 60);
+        if (e || !data || !data.signedUrl) throw new Error((e && e.message) || 'sin enlace');
+        global.open(data.signedUrl, '_blank', 'noopener');
+      } catch (e) {
+        alert('No se pudo abrir el documento.\n\n' + e.message +
+              '\n\nRuta guardada: ' + ruta);
+      }
+      b.disabled = false; b.textContent = 'Ver';
+    });
+    el.querySelectorAll('[data-val]').forEach(b => b.onclick = () => {
+      const it = (F.items || []).find(x => x.codigo === b.dataset.val);
+      if (it) dlgValidar(it.catalogo_id);
+    });
+    el.querySelectorAll('[data-quit]').forEach(b => b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Quitando…';
+      try { await rpc('cap_desasignar_persona', { p_id: b.dataset.quit });
+        await recargar({ aviso: 'Asignación quitada. Lo ya cursado queda en su historia.' }); }
+      catch (e) { b.disabled = false; b.textContent = 'Quitar'; alert(e.message); }
+    });
+    const ant = el.querySelector('#kcant'); if (ant) ant.onclick = dlgAntiguedad;
+    const pun = el.querySelector('#kcpunt'); if (pun) pun.onclick = dlgPuntual;
+
+    const gr = el.querySelector('#kcroles');
+    if (gr) gr.onclick = async () => {
+      gr.disabled = true; gr.textContent = 'Guardando…';
+      const ids = [...el.querySelectorAll('.kcrol:checked')].map(x => x.value);
+      try { const r = await rpc('cap_persona_roles', { p_persona: personaId, p_roles: ids });
+        await recargar(r); }
+      catch (e) { gr.disabled = false; gr.textContent = 'Guardar comités'; alert(e.message); }
+    };
+    const ga = el.querySelector('#kcacts');
+    if (ga) ga.onclick = async () => {
+      ga.disabled = true; ga.textContent = 'Guardando…';
+      const ids = [...el.querySelectorAll('.kcact:checked')].map(x => x.value);
+      try { const r = await rpc('cap_persona_actividades', { p_persona: personaId, p_act: ids });
+        await recargar(r); }
+      catch (e) { ga.disabled = false; ga.textContent = 'Guardar actividades'; alert(e.message); }
+    };
+  }
+
+  pintar();
+}
+
+/* =================================================================
+   GENERADOR — armar una capacitación con IA a partir de documentos
+   ================================================================= */
+async function generador(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Cargando…');
+  let D, abierto = null, R = null, archivos = [], reloj = null;
+
+  const EST_G = { pendiente:'En cola', procesando:'La IA está trabajando',
+                  borrador:'Borrador listo para revisar', publicada:'Publicada',
+                  error:'Falló', anulada:'Anulada' };
+  const TIPOS = [['titulo','Título'],['texto','Párrafo'],['lista','Lista'],
+                 ['aviso','Aviso destacado'],['separador','Separador']];
+
+  async function traer(id) {
+    D = await rpc('cap_generacion_datos', { p_id: id || null });
+    if (D.uno && D.uno.resultado) R = JSON.parse(JSON.stringify(D.uno.resultado));
+  }
+  function toast(t) {
+    const x = document.createElement('div');
+    x.className = 'kc-toast'; x.textContent = t;
+    document.body.appendChild(x); setTimeout(() => x.remove(), 7000);
+  }
+  function parar() { if (reloj) { clearInterval(reloj); reloj = null; } }
+
+  try { await traer(null); } catch (e) { return error(el, e); }
+
+  /* ---------------------------------------------------------- lista */
+  function vLista() {
+    const L = D.lista || [];
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:22px 0 12px">
+        ${opt && opt.volver ? '<button class="kc-mini" id="kcv">← Volver</button>' : ''}
+      </div>
+      <div style="border-bottom:2px solid var(--kc-ink);padding-bottom:14px;margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:8px">KALU · CAPACITADOR</div>
+        <h1 style="font-size:30px;font-weight:700">Armar una capacitación con IA</h1>
+        <p style="color:var(--kc-ink2);margin:8px 0 0;max-width:66ch">Subís el procedimiento,
+          las fotos, el instructivo — lo que tengas — y la IA arma el contenido y las preguntas.
+          <b>Queda como borrador:</b> lo leés, lo corregís y recién ahí lo publicás. El contenido
+          de una capacitación obligatoria lo firma una persona, no una máquina.</p>
+      </div>
+      ${D.puede_editar !== false
+        ? '<button class="kc-mini p" id="kcnueva" style="margin-bottom:16px">+ Nueva</button>' : ''}
+      ${L.length ? '<div class="kc-gen">' + L.map(g => `
+        <div class="kc-gi ${esc(g.estado)}">
+          <div class="n"><b>${esc(g.codigo ? g.codigo + ' · ' : '')}${esc(g.titulo)}</b>
+            <span>${esc(EST_G[g.estado] || g.estado)}${
+              g.bloques ? ' · ' + g.bloques + ' bloques y ' + g.preguntas + ' preguntas' : ''}${
+              g.fuentes ? ' · ' + g.fuentes + ' archivo(s)' : ''}${
+              g.pedido_por ? ' · pidió ' + esc(g.pedido_por) : ''}</span>
+            ${g.error ? `<span style="color:var(--kc-cr)">${esc(g.error)}</span>` : ''}</div>
+          ${g.estado === 'borrador'
+            ? `<button class="kc-mini p" data-rev="${g.id}">Revisar y publicar</button>` : ''}
+          ${g.estado === 'error'
+            ? `<button class="kc-mini" data-rei="${g.id}">Reintentar</button>` : ''}
+          ${g.estado === 'publicada' ? '<span class="kc-tag si">Publicada</span>' : ''}
+          ${['pendiente','procesando'].includes(g.estado)
+            ? '<span class="kc-tag n">Esperando</span>' : ''}
+        </div>`).join('') + '</div>'
+        : '<p class="kc-vacio">Todavía no armaste ninguna.</p>'}
+    </div>`;
+
+    const v = el.querySelector('#kcv'); if (v) v.onclick = () => { parar(); opt.volver(); };
+    const n = el.querySelector('#kcnueva'); if (n) n.onclick = vNueva;
+    el.querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
+      abierto = b.dataset.rev; await traer(abierto); vRevisar();
+    });
+    el.querySelectorAll('[data-rei]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { await rpc('cap_generar_reintentar', { p_id: b.dataset.rei });
+        await traer(null); vLista(); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+
+    // mientras haya algo en la cola, refrescar solo
+    parar();
+    if (L.some(g => ['pendiente','procesando'].includes(g.estado))) {
+      reloj = setInterval(async () => {
+        try { await traer(null); if (!abierto) vLista(); } catch (e) {}
+      }, 15000);
+    }
+  }
+
+  /* ----------------------------------------------------------- nueva */
+  function vNueva() {
+    parar();
+    archivos = [];
+    el.innerHTML = `<div class="kc-wide" style="max-width:720px">
+      <div style="padding:22px 0 12px"><button class="kc-mini" id="kcatras">← Volver</button></div>
+      <h1 style="font-size:26px;font-weight:700;margin-bottom:16px">Nueva capacitación con IA</h1>
+
+      <div class="kc-p1"><div style="padding:18px 20px">
+        <label for="k1" class="kc-cd" style="display:block;margin-bottom:5px">De qué capacitación se trata</label>
+        <select id="k1" style="width:100%;font:inherit;padding:9px 11px;border:1px solid var(--kc-rule2);
+          border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);margin-bottom:12px">
+          <option value="">— es una nueva —</option>
+          ${(D.catalogo || []).map(c =>
+            `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.titulo)}</option>`).join('')}
+        </select>
+        <div id="knueva">
+          <label class="kc-cd">Código</label>
+          <input type="text" id="k2" placeholder="Ej: T21" style="width:100%;font:inherit;
+            padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+            background:var(--kc-card2);color:var(--kc-ink);margin-bottom:12px">
+        </div>
+        <label class="kc-cd">Título</label>
+        <input type="text" id="k3" style="width:100%;font:inherit;padding:9px 11px;
+          border:1px solid var(--kc-rule2);border-radius:7px;background:var(--kc-card2);
+          color:var(--kc-ink);margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+          <div><label class="kc-cd">Eje</label>
+            <select id="k4" style="width:100%;font:inherit;padding:9px 11px;border:1px solid var(--kc-rule2);
+              border-radius:7px;background:var(--kc-card2);color:var(--kc-ink)">
+              <option value="hse">Seguridad y salud</option><option value="tecnica">Plan de carrera</option>
+              <option value="arl">ARL</option><option value="induccion">Inducción</option></select></div>
+          <div><label class="kc-cd">Vigencia (días)</label>
+            <input type="number" id="k5" min="0" placeholder="365" style="width:100%;font:inherit;
+              padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+              background:var(--kc-card2);color:var(--kc-ink)"></div>
+          <div><label class="kc-cd">Horas</label>
+            <input type="number" id="k6" min="0" step="0.5" style="width:100%;font:inherit;
+              padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+              background:var(--kc-card2);color:var(--kc-ink)"></div>
+          <div><label class="kc-cd">Preguntas</label>
+            <input type="number" id="k7" min="4" max="30" value="8" style="width:100%;font:inherit;
+              padding:9px 11px;border:1px solid var(--kc-rule2);border-radius:7px;
+              background:var(--kc-card2);color:var(--kc-ink)"></div>
+        </div>
+      </div></div>
+
+      <div class="kc-secc">El material</div>
+      <div class="kc-drop" id="kcdrop">
+        <b>Subí los documentos</b>
+        Procedimientos, instructivos, matrices, fotos del equipo o del sitio.
+        PDF, Word, imágenes.<br><br>
+        <input type="file" id="kcfiles" multiple accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp">
+      </div>
+      <div class="kc-arch" id="kclista"></div>
+
+      <label class="kc-cd">Qué querés que tenga en cuenta</label>
+      <textarea id="k8" rows="4" placeholder="Ej: que quede claro cuándo se descarta un EPP y quién lo inspecciona antes de cada turno. Público: auxiliares técnicos, sin formación previa."
+        style="width:100%;font:inherit;padding:10px 12px;border:1px solid var(--kc-rule2);
+        border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);margin-bottom:6px"></textarea>
+      <p class="kc-nota" style="text-align:left;margin:0 0 16px">Cuanto más concreto, mejor sale.
+        Si no subís nada, la IA escribe sólo con esto — y para una capacitación obligatoria eso
+        no alcanza.</p>
+
+      <div class="kc-row" style="max-width:420px">
+        <button class="kc-b2" id="kccan">Cancelar</button>
+        <button class="kc-btn" id="kcgen">Pedir el borrador</button>
+      </div>
+      <p id="kcest" style="font-size:13px;color:var(--kc-ink3);margin-top:12px"></p>
+    </div>`;
+
+    const sel1 = el.querySelector('#k1'), cajaN = el.querySelector('#knueva');
+    sel1.onchange = () => {
+      const c = (D.catalogo || []).find(x => x.id === sel1.value);
+      cajaN.style.display = sel1.value ? 'none' : 'block';
+      if (c) el.querySelector('#k3').value = c.titulo;
+    };
+    el.querySelector('#kcatras').onclick = async () => { await traer(null); vLista(); };
+    el.querySelector('#kccan').onclick = async () => { await traer(null); vLista(); };
+
+    const inp = el.querySelector('#kcfiles');
+    inp.onchange = () => {
+      [...inp.files].forEach(f => archivos.push(f));
+      inp.value = ''; pintarArch();
+    };
+    function pintarArch() {
+      el.querySelector('#kclista').innerHTML = archivos.map((f, i) =>
+        `<div>${esc(f.name)}<span>${Math.round(f.size/1024)} KB</span>
+          <button class="kc-mini" data-q="${i}">Quitar</button></div>`).join('');
+      el.querySelectorAll('#kclista [data-q]').forEach(b => b.onclick = () => {
+        archivos.splice(+b.dataset.q, 1); pintarArch();
+      });
+    }
+
+    el.querySelector('#kcgen').onclick = async () => {
+      const b = el.querySelector('#kcgen'), est = el.querySelector('#kcest');
+      b.disabled = true;
+      try {
+        const subidas = [];
+        for (let i = 0; i < archivos.length; i++) {
+          const f = archivos[i];
+          est.textContent = `Subiendo ${i+1} de ${archivos.length}: ${f.name}…`;
+          subidas.push(await subir(f));
+        }
+        est.textContent = 'Encolando el pedido…';
+        await rpc('cap_generar_pedir', {
+          p_titulo: el.querySelector('#k3').value,
+          p_instrucciones: el.querySelector('#k8').value || null,
+          p_fuentes: subidas,
+          p_catalogo: sel1.value || null,
+          p_codigo: sel1.value ? null : el.querySelector('#k2').value,
+          p_eje: el.querySelector('#k4').value,
+          p_vigencia_dias: el.querySelector('#k5').value === '' ? null : +el.querySelector('#k5').value,
+          p_horas: el.querySelector('#k6').value === '' ? null : +el.querySelector('#k6').value,
+          p_n_preguntas: +el.querySelector('#k7').value || 8 });
+        toast('Pedido encolado. Cuando el borrador esté listo aparece acá para revisar.');
+        await traer(null); vLista();
+      } catch (e) {
+        b.disabled = false; est.textContent = '';
+        alert(e.message);
+      }
+    };
+
+    async function subir(file) {
+      const emp = (D.lista || [])[0] ? null : null;   // la ruta no depende del listado
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
+        .replace(/[^a-z0-9]/g,'').slice(0,5) || 'bin';
+      const ruta = (D.empresa_id || 'empresa') + '/capacitador/fuentes/' +
+        iso().replace(/-/g,'') + '-' + Math.random().toString(16).slice(2,8) + '.' + ext;
+      const st = sb && sb.storage;
+      if (!st) throw new Error('No se puede subir desde acá.');
+      const { error: e } = await st.from('documentos')
+        .upload(ruta, file, { upsert: false, contentType: file.type || undefined });
+      if (e) throw new Error('No se pudo subir «' + file.name + '»: ' + e.message);
+      return { nombre: file.name, storage_path: ruta, tipo_mime: file.type, bytes: file.size };
+    }
+  }
+
+  /* -------------------------------------------------------- revisión */
+  function vRevisar() {
+    parar();
+    const g = D.uno || {};
+    R = R || { bloques: [], preguntas: [] };
+    R.bloques = R.bloques || []; R.preguntas = R.preguntas || [];
+
+    el.innerHTML = `<div class="kc-wide" style="max-width:820px">
+      <div style="padding:22px 0 12px"><button class="kc-mini" id="kcatras">← Volver</button></div>
+      <div style="border-bottom:2px solid var(--kc-ink);padding-bottom:14px;margin-bottom:8px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:8px">BORRADOR PARA REVISAR</div>
+        <h1 style="font-size:26px;font-weight:700">${esc(g.codigo ? g.codigo + ' · ' : '')}${
+          esc(g.titulo || '')}</h1>
+      </div>
+      ${g.resultado && g.resultado.resumen
+        ? `<p style="color:var(--kc-ink2);margin:14px 0">${esc(g.resultado.resumen)}</p>` : ''}
+      ${(g.resultado && (g.resultado.advertencias || []).length)
+        ? `<div class="kc-cent mal"><div class="b">!</div><div>
+            <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">La IA dejó avisos</div>
+            <div style="font-size:13px;color:var(--kc-ink2)">${
+              g.resultado.advertencias.map(esc).join(' · ')}</div></div></div>` : ''}
+      <p class="kc-nota" style="text-align:left;margin:0 0 6px">Leelo completo antes de publicar.
+        Lo que quede acá es lo que va a leer la gente y lo que se le va a evaluar.</p>
+
+      <div class="kc-secc">Contenido<button class="kc-mini" id="kcaddb"
+        style="margin-left:auto;order:3">+ Bloque</button></div>
+      <div id="kcbl"></div>
+
+      <div class="kc-secc">Preguntas<button class="kc-mini" id="kcaddp"
+        style="margin-left:auto;order:3">+ Pregunta</button></div>
+      <div id="kcpr"></div>
+
+      <div class="kc-row" style="max-width:520px;margin-top:22px">
+        <button class="kc-b2" id="kcguardar">Guardar sin publicar</button>
+        <button class="kc-btn" id="kcpub">Revisado — publicar</button>
+      </div>
+      <p class="kc-nota" style="text-align:left">Al publicar queda registrado que lo aprobaste vos.</p>
+    </div>`;
+
+    el.querySelector('#kcatras').onclick = async () => {
+      abierto = null; await traer(null); vLista();
+    };
+    pintarB(); pintarP();
+
+    el.querySelector('#kcaddb').onclick = () => {
+      R.bloques.push({ tipo:'texto', texto:'' }); pintarB();
+    };
+    el.querySelector('#kcaddp').onclick = () => {
+      R.preguntas.push({ enunciado:'', opciones:[{texto:'',correcta:true},{texto:'',correcta:false}] });
+      pintarP();
+    };
+    el.querySelector('#kcguardar').onclick = () => guardar(false);
+    el.querySelector('#kcpub').onclick = () => {
+      const mal = validar();
+      if (mal) return alert(mal);
+      if (!confirm('Publicar «' + (g.titulo || '') + '».\n\nDesde ese momento la gente que la ' +
+                   'tenga pendiente la puede hacer, y lo que responda cuenta.\n\n¿Lo leíste todo?'))
+        return;
+      guardar(true);
+    };
+
+    function validar() {
+      if (!R.bloques.length) return 'No puede quedar sin contenido.';
+      if (R.bloques.some(b => !String(b.texto || '').trim() && b.tipo !== 'separador'))
+        return 'Hay un bloque vacío.';
+      if (!R.preguntas.length) return 'No puede quedar sin preguntas.';
+      for (let i = 0; i < R.preguntas.length; i++) {
+        const q = R.preguntas[i];
+        if (!String(q.enunciado || '').trim()) return 'La pregunta ' + (i+1) + ' está vacía.';
+        const ops = q.opciones || [];
+        if (ops.length < 2) return 'La pregunta ' + (i+1) + ' necesita al menos dos opciones.';
+        if (ops.some(o => !String(o.texto || '').trim()))
+          return 'La pregunta ' + (i+1) + ' tiene una opción vacía.';
+        if (ops.filter(o => o.correcta).length !== 1)
+          return 'La pregunta ' + (i+1) + ' tiene que tener exactamente una respuesta correcta.';
+      }
+      return null;
+    }
+
+    async function guardar(publicar) {
+      const b1 = el.querySelector('#kcguardar'), b2 = el.querySelector('#kcpub');
+      b1.disabled = b2.disabled = true;
+      try {
+        await rpc('cap_borrador_guardar', { p_id: g.id, p_resultado: R });
+        if (publicar) {
+          const r = await rpc('cap_publicar', { p_id: g.id });
+          toast((r && r.aviso) || 'Publicada.');
+        } else toast('Borrador guardado.');
+        abierto = null; await traer(null); vLista();
+      } catch (e) { b1.disabled = b2.disabled = false; alert(e.message); }
+    }
+
+    function pintarB() {
+      el.querySelector('#kcbl').innerHTML = R.bloques.map((b, i) => `
+        <div class="kc-bl" data-i="${i}">
+          <div class="top">
+            <select class="bt">${TIPOS.map(([v,t]) =>
+              `<option value="${v}"${b.tipo===v?' selected':''}>${t}</option>`).join('')}</select>
+            <span class="kc-cd">${i+1} de ${R.bloques.length}</span>
+            <div class="mv">
+              <button class="kc-mini bu">↑</button><button class="kc-mini bd">↓</button>
+              <button class="kc-mini bx">✕</button></div>
+          </div>
+          ${b.tipo === 'separador' ? ''
+            : `<textarea class="bx1" rows="${b.tipo==='titulo'?1:3}"
+                 placeholder="${b.tipo==='lista'
+                   ? 'CASCO — protege de golpes|GAFAS — protege de proyección'
+                   : 'Texto del bloque'}">${esc(b.texto || '')}</textarea>
+               <input type="text" class="bx2" placeholder="Nota al pie (opcional)"
+                 value="${esc(b.nota || '')}">`}
+        </div>`).join('');
+      el.querySelectorAll('#kcbl .kc-bl').forEach(d => {
+        const i = +d.dataset.i;
+        d.querySelector('.bt').onchange = e => { R.bloques[i].tipo = e.target.value; pintarB(); };
+        const t1 = d.querySelector('.bx1'); if (t1) t1.oninput = e => R.bloques[i].texto = e.target.value;
+        const t2 = d.querySelector('.bx2'); if (t2) t2.oninput = e => R.bloques[i].nota = e.target.value;
+        d.querySelector('.bu').onclick = () => { if (i > 0) {
+          [R.bloques[i-1], R.bloques[i]] = [R.bloques[i], R.bloques[i-1]]; pintarB(); } };
+        d.querySelector('.bd').onclick = () => { if (i < R.bloques.length-1) {
+          [R.bloques[i+1], R.bloques[i]] = [R.bloques[i], R.bloques[i+1]]; pintarB(); } };
+        d.querySelector('.bx').onclick = () => { R.bloques.splice(i,1); pintarB(); };
+      });
+    }
+
+    function pintarP() {
+      el.querySelector('#kcpr').innerHTML = R.preguntas.map((q, i) => `
+        <div class="kc-bl" data-i="${i}">
+          <div class="top"><span class="kc-cd">PREGUNTA ${i+1}</span>
+            <div class="mv"><button class="kc-mini qx">✕</button></div></div>
+          <textarea class="qe" rows="2" placeholder="Enunciado">${esc(q.enunciado || '')}</textarea>
+          <div class="qops">${(q.opciones || []).map((o, j) => `
+            <div class="kc-op2" data-j="${j}">
+              <input type="radio" name="q${i}" class="oc"${o.correcta?' checked':''}
+                aria-label="Correcta">
+              <input type="text" class="ot" value="${esc(o.texto || '')}" placeholder="Opción">
+              <button class="kc-mini ox">✕</button>
+            </div>`).join('')}</div>
+          <div style="display:flex;gap:7px;margin:6px 0 8px">
+            <button class="kc-mini qadd">+ Opción</button>
+            <span class="kc-cd" style="align-self:center">La marcada es la correcta</span></div>
+          <input type="text" class="qx1" placeholder="Explicación que se muestra al corregir"
+            value="${esc(q.explicacion || '')}">
+        </div>`).join('');
+      el.querySelectorAll('#kcpr .kc-bl').forEach(d => {
+        const i = +d.dataset.i;
+        d.querySelector('.qe').oninput = e => R.preguntas[i].enunciado = e.target.value;
+        d.querySelector('.qx1').oninput = e => R.preguntas[i].explicacion = e.target.value;
+        d.querySelector('.qx').onclick = () => { R.preguntas.splice(i,1); pintarP(); };
+        d.querySelector('.qadd').onclick = () => {
+          (R.preguntas[i].opciones = R.preguntas[i].opciones || []).push({texto:'',correcta:false});
+          pintarP(); };
+        d.querySelectorAll('.kc-op2').forEach(o => {
+          const j = +o.dataset.j;
+          o.querySelector('.oc').onchange = () => {
+            R.preguntas[i].opciones.forEach((x, k) => x.correcta = (k === j)); };
+          o.querySelector('.ot').oninput = e => R.preguntas[i].opciones[j].texto = e.target.value;
+          o.querySelector('.ox').onclick = () => {
+            R.preguntas[i].opciones.splice(j,1); pintarP(); };
+        });
+      });
+    }
+  }
+
+  if (abierto) vRevisar(); else vLista();
+}
+
+/* =================================================================
+   CERTIFICADO — se imprime a PDF desde el navegador
+   ================================================================= */
+async function certificado(sel, asistenciaId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Emitiendo el certificado…');
+  let D;
+  try { D = await rpc('cap_certificado_datos', { p_asistencia: asistenciaId }); }
+  catch (e) { return error(el, e); }
+  if (!D) return error(el, new Error('No se pudo emitir el certificado.'));
+
+  const E = D.empresa || {}, P = D.persona || {}, C = D.capacitacion || {},
+        A = D.asistencia || {}, V = D.evaluacion, CE = D.certificado || {},
+        CT = D.control || {};
+  const col = E.color || '#0B5D45';
+  const nota = V && V.nota != null ? Number(V.nota) : null;
+  const legal = (C.base_legal || []).filter(Boolean);
+
+  el.className = 'kc';
+  el.innerHTML = `
+    <div class="kc-cacc">
+      ${opt && opt.volver ? '<button class="kc-mini" id="kcv">← Volver</button>' : ''}
+      <button class="kc-mini p" id="kcimp">Descargar o imprimir</button>
+      <span class="kc-cd">Se abre el diálogo de impresión: elegí «Guardar como PDF».</span>
+    </div>
+    <div class="kc-cert" style="--kc-cert-color:${esc(col)}">
+      <div class="kc-cbar"></div>
+      <div class="kc-cin">
+
+        <div class="kc-chead">
+          ${E.logo ? `<img src="${esc(E.logo)}" alt="">` : ''}
+          <div><div class="e">${esc(E.razon_social || E.nombre || '')}</div>
+            ${E.nit ? `<div class="n">NIT ${esc(E.nit)}</div>` : ''}</div>
+          <div class="d">${esc(CT.codigo || 'A.FR014')} · versión ${esc(CT.version || '001')}<br>
+            ${esc(CE.consecutivo || '')}</div>
+        </div>
+
+        <p class="kc-ctit">Certificado de formación</p>
+        <p class="kc-cque">La empresa hace constar que</p>
+        <div class="kc-cnom">${esc(P.nombre || '')}</div>
+        <div class="kc-cced">${P.cedula ? 'C.C. ' + esc(P.cedula) : ''}${
+          P.cargo ? ' · ' + esc(P.cargo) : ''}</div>
+
+        <div class="kc-ccur">
+          <div class="k">${nota != null && V.aprobado ? 'Asistió y aprobó' : 'Asistió a'}</div>
+          <div class="t">${esc(C.codigo || '')} · ${esc(C.titulo || '')}</div>
+          ${C.objetivo ? `<p class="o">${esc(C.objetivo)}</p>` : ''}
+        </div>
+
+        <div class="kc-cdat">
+          <div><div class="k">Fecha</div><div class="v">${A.fecha ? fecha(A.fecha) : '—'}</div></div>
+          <div><div class="k">Intensidad</div><div class="v">${
+            C.horas != null ? Number(C.horas) + ' h' : '—'}</div></div>
+          <div><div class="k">Vigencia</div><div class="v">${
+            A.vence_el ? 'hasta ' + fecha(A.vence_el) : 'No vence'}</div></div>
+          <div><div class="k">${nota != null ? 'Calificación' : 'Modalidad'}</div>
+            <div class="v">${nota != null ? nota + '%'
+              : esc(C.modalidad || '—')}</div></div>
+        </div>
+
+        <div class="kc-cpie">
+          <div class="kc-cfirma">
+            <div class="l">${esc(D.responsable || E.razon_social || E.nombre || '')}</div>
+            <div class="r">${D.responsable ? 'Responsable del SG-SST'
+              : 'Emitido por ' + esc(CE.emitido_por || 'KALU')} ·
+              ${CE.emitido_el ? new Date(CE.emitido_el).toLocaleDateString('es-CO') : ''}</div>
+          </div>
+          <div class="kc-cqr">${qrSvg(urlVerificar(P.token))}
+            <span>Verificar</span></div>
+        </div>
+
+        <p class="kc-cleg">
+          ${legal.length ? 'Marco legal: ' + esc(legal.join(' · ')) + '. ' : ''}Documento
+          emitido electrónicamente por KALU; no requiere firma autógrafa. El código de arriba
+          consulta el estado de formación vigente de la persona al momento de escanearlo.
+          ${A.origen === 'historico'
+            ? 'Formación acreditada con soporte documental anterior a la puesta en marcha del sistema.'
+            : ''}
+        </p>
+      </div>
+    </div>`;
+
+  const v = el.querySelector('#kcv');
+  if (v) v.onclick = () => opt.volver();
+  el.querySelector('#kcimp').onclick = () => global.print();
+}
+
+/* =================================================================
+   VERIFICAR CREDENCIAL — para el supervisor que escanea
+   ================================================================= */
+async function verificar(sel, token) {
+  estilos(); const el = nodo(sel); if (!el) return;
+
+  if (!token) {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wrap"><div class="kc-hero">
+      <div class="kc-cargo">KALU · Verificación</div>
+      <div class="kc-nom">Escaneá una credencial</div>
+      <p style="color:var(--kc-ink2);font-size:14.5px;margin:14px 0 0">
+        Esta página muestra si una persona está habilitada para operar. Se abre sola
+        al escanear el código de su credencial con la cámara del celular.</p>
+      <p class="kc-nota" style="text-align:left;margin:16px 0 0">No hace falta tener
+        usuario de KALU.</p>
+    </div></div>`;
+    return;
+  }
+
+  cargando(el, 'Verificando…');
+  let r;
+  try { r = await rpc('cap_verificar', { p_token: token }); } catch (e) { return error(el, e); }
+
+  if (!r || !r.valido) {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wrap"><div class="kc-hero">
+      <div class="kc-band cr"><div class="m">!</div>
+        <div><div class="t1">Credencial no válida</div>
+        <div class="t2">Ese código no corresponde a ninguna persona.</div></div></div>
+      <p class="kc-nota" style="text-align:left;margin-top:14px">Puede ser un código
+        viejo, mal escaneado, o de otra plataforma. Pedí que abran la credencial de
+        nuevo desde KALU.</p></div></div>`;
+    return;
+  }
+
+  // La baja de la persona manda sobre cualquier otra cosa.
+  const baja = !r.vigente;
+  const F1   = estadoForm(r.formacion);
+  const cls  = baja ? 'cr' : F1.band;
+  const t1   = baja ? 'No vigente' : F1.t1;
+  const t2   = baja ? 'Esta persona ya no figura activa en la empresa.'
+             : r.formacion === 'al_dia'
+               ? 'Tiene al día toda la formación que su cargo exige.'
+             : r.formacion === 'sin_plan'
+               ? 'Su empresa todavía no definió qué formación exige este cargo. ' +
+                 'El módulo no está afirmando que le falte ni que esté al día.'
+               : [r.vencidas  ? r.vencidas  + ' vencida(s)'  : null,
+                  r.atrasadas ? r.atrasadas + ' atrasada(s)' : null]
+                 .filter(Boolean).join(' · ') || 'Le falta formación que su cargo exige.';
+
+  const ct = (n, t, c) => `<div class="kc-ct ${c}"><b>${n}</b><span>${t}</span></div>`;
+
+  el.className = 'kc';
+  el.innerHTML = `<div class="kc-wrap">
+    <div class="kc-hero">
+      <div class="kc-cargo">${esc(r.empresa || '')}</div>
+      <div class="kc-nom">${esc(r.nombre)}</div>
+      <div style="font-size:14px;color:var(--kc-ink2);margin:-9px 0 15px">${
+        esc(r.cargo || '')}${r.cedula ? ' · <span class="mono">' + esc(r.cedula) + '</span>' : ''}</div>
+      <div class="kc-band ${cls}"><div class="m">${cls === 'ok' ? '✓' : '!'}</div>
+        <div><div class="t1">${t1}</div><div class="t2">${esc(t2)}</div></div></div>
+      <div class="kc-cts">
+        ${ct(r.vencidas ?? 0,   'Vencidas',   'v')}
+        ${ct(r.por_vencer ?? 0, 'Por vencer', 'x')}
+        ${ct(r.atrasadas ?? 0,  'Atrasadas',  '')}
+        ${ct(r.al_dia ?? 0,     'Al día',     'a')}
+      </div>
+      ${r.en_cronograma ? `<p style="font-size:13px;color:var(--kc-ink3);
+        margin:11px 0 0;text-align:center">${cola(r.en_cronograma)} No cuentan como
+        falta: todavía no les llegó la fecha.</p>` : ''}
+    </div>
+    <p class="kc-nota" style="text-align:left">Consultado el ${
+      new Date(r.verificado).toLocaleString('es-CO')}. Este estado se calcula en el
+      momento: no es una captura ni un archivo guardado.</p>
+    <p class="kc-nota" style="text-align:left;margin-top:-4px"><b>Qué informa esta
+      credencial:</b> el estado de la formación interna que su empresa le exige.
+      <b>No certifica calificaciones técnicas</b> —Inspector Nivel II, montacarguista,
+      trabajo en alturas— <b>ni aptitud médica ocupacional</b>. Esas las emiten terceros
+      y no se consultan acá. Que falte formación no significa que la persona no pueda
+      estar en el sitio: la decisión de asignarle o no la tarea la toma quien supervisa.</p>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ init
+
+   KALU comparte la sesión entre todos los módulos: ingreso.html guarda
+   el token en localStorage (el "cajón compartido") bajo la clave
+   'sb-<ref>-auth-token', con el objeto crudo de auth de Supabase
+   { access_token, refresh_token, expires_at, user, ... }.
+   Antes capacitador leía su propio 'kalu_ses' en sessionStorage, por eso
+   pedía re-loguear. Ahora lee el cajón compartido: si estás logueado en
+   KALU, entrás acá sin volver a loguearte.
+
+   Además respeta el candado del resto de la plataforma:
+     · único por equipo  → poll de perfiles.sesion_id contra kalu_sid
+     · auto-cierre        → por inactividad (15 min, 60 para gestores)
+     · cierre en cadena   → si cerrás sesión en otra pestaña (kalu_logout)
+   ------------------------------------------------------------------- */
+const SB_REF     = 'nignqeipzlemwfrwmpip';
+const SESS_KEY   = 'sb-' + SB_REF + '-auth-token';
+const LOGOUT_KEY = 'kalu_logout';
+let   _uid = null, _mySid = null, _idleMin = 15, _idleT = null, _pollT = null;
+let   _sidRaro = 0;   // lecturas seguidas con un número distinto
+
+/* =================================================================
+   ARRANQUE — poner una empresa en marcha
+
+   La pantalla que faltaba. Hasta hoy una empresa entraba al módulo
+   porque alguien leía sus documentos y escribía SQL; acá se carga
+   sola, en el orden correcto, y en cada paso dice qué le falta.
+
+   El paso difícil es el primero. El padrón trae el cargo como texto
+   libre —«Ingeniero de Aseguramiento Calidad» y «Ingeniero de
+   Aseguramiento de Calidad» son dos filas distintas para la base— así
+   que la pantalla propone las agrupaciones y una persona las confirma.
+   Nunca al revés: un cargo mal fusionado se lleva puesto el plan de
+   formación de quien lo ocupa.
+   ================================================================= */
+async function arranque(sel) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  cargando(el, 'Mirando cómo está la empresa…');
+
+  let D, A = null, G = null, C = null, prop = null;
+  try { D = await rpc('cap_arranque_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  let tab = 1;
+
+  async function traerA() {
+    if (!A) { A = await rpc('cap_arranque_cargos'); prop = null; }
+    if (!prop) prop = (A.grupos || []).map(g => {
+      // Un cargo puede estar resuelto de dos formas: porque existe con
+      // ese mismo nombre, o porque el texto del padrón ya está mapeado a
+      // un cargo que se llama distinto («Supervisor De División» ya
+      // apunta a «Supervisor de División (Dimensional)»). Si no se mira
+      // lo segundo, la pantalla ofrece crear un cargo que ya está, y
+      // queda uno nuevo vacío al lado del que tiene la gente.
+      const map = (g.variantes || []).map(v => v.ya_mapeado).filter(Boolean);
+      const resuelto = g.ya_existe || (map.length ? map[0] : null);
+      return {
+        clave: g.clave,
+        nombre: g.sugerido,
+        area: '',
+        variantes: (g.variantes || []).map(v => v.texto),
+        gente: g.gente,
+        juntar: !!g.juntar,
+        parecidos: g.parecidos || [],
+        yaExiste: resuelto,
+        crear: !resuelto
+      };
+    });
+    return A;
+  }
+  async function traerG() { if (!G) G = await rpc('cap_grupos_datos'); return G; }
+  async function traerC() { if (!C) C = await rpc('cap_admin_datos'); return C; }
+
+  async function recargar(r) {
+    A = null; G = null; C = null; prop = null;
+    try { D = await rpc('cap_arranque_datos'); } catch (e) {}
+    await pintar();
+    if (r && r.aviso) toast(r.aviso);
+  }
+
+  function toast(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    (el.querySelector('.kc-wide') || el).appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+  }
+
+  function abrir(html, onOk, okTxt) {
+    const d = document.createElement('dialog');
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try { const r = await onOk(d); d.close(); d.remove(); await recargar(r); }
+      catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  /* ------------------------------------------------------------- armazón */
+  async function pintar() {
+    const e = D.empresa || {};
+    const faltan = (D.pasos || []).filter(p => !p.hecho && !p.opcional).length;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <div style="padding:24px 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">KALU · PUESTA EN MARCHA <span style="opacity:.45">· v${KC_VER}</span></div>
+        <h1 style="font-size:30px;font-weight:700">${esc(e.nombre || 'Esta empresa')}</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">
+          ${e.personas || 0} personas en el padrón · ${e.usuarios || 0} con usuario ·
+          módulo <b>${e.modulo_encendido ? 'encendido' : 'apagado'}</b></div></div>
+
+      <div class="kc-cent ${faltan ? 'mal' : 'ok'}">
+        <div class="b">${faltan || '✓'}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:${faltan ? 'var(--kc-cr)' : 'var(--kc-ok)'}">
+          ${faltan ? faltan + ' paso(s) sin hacer' : 'La empresa está lista'}</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${faltan
+          ? 'Mientras falte alguno, encender el módulo le muestra a la gente una pantalla incompleta.'
+          : 'Todo lo necesario está cargado.'}</div></div></div>
+
+      <div class="kc-tabs" style="margin:18px 0 20px">
+        <button class="kc-tab" data-t="1" aria-selected="${tab === 1}">Qué falta</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab === 2}">Organigrama</button>
+        <button class="kc-tab" data-t="3" aria-selected="${tab === 3}">Comités y actividades</button>
+        <button class="kc-tab" data-t="4" aria-selected="${tab === 4}">Encender</button>
+      </div>
+      <div id="kc-v"><div class="kc-carga">Cargando…</div></div></div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      if (+b.dataset.t !== tab) { tab = +b.dataset.t; pintar(); }
+    });
+
+    const v = el.querySelector('#kc-v');
+    if (tab === 1)      v.innerHTML = vFalta();
+    else if (tab === 2) { await traerA(); await traerC(); v.innerHTML = vOrg(); }
+    else if (tab === 3) { await traerG(); v.innerHTML = vGrupos(); }
+    else                v.innerHTML = vEncender();
+    enganchar(v);
+  }
+
+  /* -------------------------------------------------------- 1. qué falta */
+  const IR = { cargos:2, comites:3, encender:4 };
+
+  function vFalta() {
+    return `<div class="kc-pasos">${(D.pasos || []).map((p, i) => `
+      <div class="kc-paso ${p.hecho ? 'ok' : (p.opcional ? 'opt' : 'no')}">
+        <div class="n">${p.hecho ? '✓' : i + 1}</div>
+        <div class="c">
+          <div class="kc-tt">${esc(p.titulo)}${p.opcional
+            ? ' <span style="font-weight:400;color:var(--kc-ink3);font-size:12px">· opcional</span>' : ''}</div>
+          <div class="d">${esc(p.detalle || '')}</div>
+          ${p.ojo ? `<div class="ojo">${esc(p.ojo)}</div>` : ''}
+        </div>
+        ${IR[p.clave] ? `<button class="kc-mini p" data-ir="${IR[p.clave]}">Ir</button>`
+          : p.clave === 'peligros' ? `<button class="kc-mini p" data-matriz="1">Ir</button>`
+          : p.clave === 'catalogo' ? `<button class="kc-mini p" data-cat="1">Ir</button>` : ''}
+      </div>`).join('')}</div>
+      <p class="kc-nota" style="margin-top:14px">Los pasos que no tienen botón se hacen en
+      <b>Administración</b>: el catálogo en «Capacitaciones», las asignaciones con el botón
+      «Plan» de cada cargo, y lo ya dictado en «Cronograma».</p>`;
+  }
+
+  /* ------------------------------------------------------ 2. organigrama */
+  function vOrg() {
+    const cargos = (C && C.cargos || []).filter(c => c.activo);
+    const pend = (prop || []).filter(p => p.crear).length;
+
+    // Los que ya existen no se vuelven a listar: ocupan pantalla y no se
+    // pueden tocar. Se cuentan en una línea y listo.
+    const nuevos = (prop || []).map((p, i) => ({ p, i })).filter(x => !x.p.yaExiste);
+    const yaHay  = (prop || []).length - nuevos.length;
+
+    const propuesta = !(prop || []).length ? '' : (!nuevos.length ? `
+      <h2 style="font-size:20px;margin:4px 0 4px">Del padrón al organigrama</h2>
+      <div class="kc-cent ok"><div class="b">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">
+          Los ${yaHay} cargos del padrón ya están resueltos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Cada forma de escribir el cargo que hay
+        en el padrón apunta a un cargo que existe. Si mañana alguien carga a una persona con una
+        escritura nueva, va a aparecer acá para agruparla.</div></div></div>` : `
+      <h2 style="font-size:20px;margin:4px 0 4px">Del padrón al organigrama</h2>
+      <p class="kc-nota">Estas son las formas en que el cargo aparece escrito en el padrón, ya
+      agrupadas. Revisá los nombres —van a ser los definitivos— y destildá lo que no sea un cargo
+      operativo.${yaHay ? ` Otros ${yaHay} ya están resueltos y no se tocan.` : ''}
+      ${A.sin_cargo ? ` <b>${A.sin_cargo} persona(s)</b> no tienen cargo escrito: eso se arregla
+      en el padrón de KALU.` : ''}</p>
+      <div class="kc-sc"><table><thead><tr>
+        <th style="width:34px"></th><th>Cargo</th><th>Área</th><th class="n">Gente</th>
+        <th>Escrito en el padrón como</th></tr></thead><tbody>
+        ${nuevos.map(({ p, i }) => `<tr class="${p.crear ? '' : 'kc-off'}">
+          <td><input type="checkbox" data-chk="${i}" ${p.crear ? 'checked' : ''}></td>
+          <td><input class="kc-in nom" data-nom="${i}" value="${esc(p.nombre)}">
+              ${p.parecidos.length ? `<div class="kc-mch b" title="No los juntó: decidilo vos">
+                 se parece a ${esc(p.parecidos.join(' · '))}</div>` : ''}</td>
+          <td><input class="kc-in area" data-area="${i}" value="${esc(p.area)}" placeholder="—"></td>
+          <td class="n">${p.gente}</td>
+          <td>${p.variantes.map(t => `<span class="kc-chip2${p.juntar ? ' j' : ''}">${esc(t)}</span>`).join('')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>
+      <div class="kc-row" style="margin:14px 0 26px">
+        <button class="kc-btn" id="kc-crear" ${pend ? '' : 'disabled'}>
+          ${pend ? 'Crear ' + pend + ' cargo(s)' : 'No hay ninguno tildado'}</button></div>`);
+
+    const jerarquia = !cargos.length ? '' : `
+      <h2 style="font-size:20px;margin:26px 0 4px">Quién le reporta a quién</h2>
+      <p class="kc-nota">De esto sale «Mi equipo»: un supervisor ve la formación de la gente cuyos
+      cargos cuelgan del suyo. Un cargo sin jefe no es un error —el gerente no reporta a nadie—
+      pero si están todos sin jefe, nadie supervisa a nadie.</p>
+      <div class="kc-sc"><table><thead><tr><th>Cargo</th><th class="n">Gente</th>
+        <th>Reporta a</th></tr></thead><tbody>
+        ${cargos.map(c => `<tr>
+          <td class="k">${esc(c.nombre)}</td>
+          <td class="n">${c.personas || 0}</td>
+          <td><select class="kc-in" data-jefe="${esc(c.nombre)}">
+            <option value="">— nadie —</option>
+            ${cargos.filter(o => o.id !== c.id).map(o =>
+              `<option ${o.id === c.reporta_a ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}
+          </select></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="kc-row" style="margin:14px 0 10px">
+        <button class="kc-btn" id="kc-jer">Guardar la línea de reporte</button></div>`;
+
+    return propuesta + jerarquia ||
+      '<p class="kc-nota">No hay cargos escritos en el padrón todavía.</p>';
+  }
+
+  /* --------------------------------------------- 3. comités y actividades */
+  function vGrupos() {
+    const lista = (arr, tipo, vacio) => !arr.length
+      ? `<p class="kc-nota">${vacio}</p>`
+      : `<div class="kc-sc"><table><thead><tr><th>Nombre</th><th class="n">Gente</th>
+          <th class="n">Capacit.</th><th></th></tr></thead><tbody>
+          ${arr.map(x => `<tr class="${x.activo ? '' : 'kc-off'}">
+            <td class="k">${esc(x.nombre)}
+              ${x.descripcion || x.proceso
+                ? `<div class="kc-mch">${esc(x.descripcion || x.proceso)}</div>` : ''}
+              ${x.gente && !x.capacitaciones
+                ? '<div class="kc-mch b">tiene gente y ninguna capacitación exigida</div>' : ''}</td>
+            <td class="n">${x.gente}</td><td class="n">${x.capacitaciones}</td>
+            <td><button class="kc-mini" data-ed="${tipo}:${x.id}">Editar</button>
+                <button class="kc-mini" data-on="${tipo}:${x.id}">${x.activo ? 'Apagar' : 'Prender'}</button></td>
+          </tr>`).join('')}</tbody></table></div>`;
+
+    return `
+      <h2 style="font-size:20px;margin:4px 0 4px">Comités y roles</h2>
+      <p class="kc-nota">COPASST, comité de convivencia, brigada de emergencia. Pertenecer a uno
+      obliga a formación propia —el COPASST tiene sus 50 horas— que no depende del cargo.</p>
+      ${lista(G.comites, 'comite', 'Todavía no hay ninguno. Sin el comité creado no se le puede exigir su formación a nadie.')}
+      <div class="kc-row" style="margin:12px 0 26px">
+        <button class="kc-mini p" id="kc-ncom">+ Nuevo comité</button></div>
+
+      <h2 style="font-size:20px;margin:0 0 4px">Actividades de riesgo</h2>
+      <p class="kc-nota">Alturas, espacios confinados, izaje, radiación. No las hace todo el mundo,
+      y quien las hace necesita formación aparte de la de su cargo.</p>
+      ${lista(G.actividades, 'actividad', 'Todavía no hay ninguna.')}
+      <div class="kc-row" style="margin:12px 0 10px">
+        <button class="kc-mini p" id="kc-nact">+ Nueva actividad</button></div>`;
+  }
+
+  /* ---------------------------------------------------------- 4. encender */
+  function vEncender() {
+    const e = D.empresa || {};
+    const paso = (D.pasos || []).find(p => p.clave === 'encender') || {};
+    const faltan = (D.pasos || []).filter(p => !p.hecho && !p.opcional && p.clave !== 'encender');
+
+    if (e.modulo_encendido) return `
+      <div class="kc-cent ok" style="margin-bottom:16px"><div class="b">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">El módulo está encendido</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">La tarjeta del Capacitador aparece en el
+        menú de KALU para toda la empresa.</div></div></div>
+      <p class="kc-nota">Apagarlo saca la tarjeta del menú. <b>No borra nada</b>: los pasaportes,
+      las asistencias y los certificados quedan como están, sólo dejan de mostrarse.</p>
+      <div class="kc-row" style="margin-top:14px">
+        <button class="kc-b2" id="kc-apagar">Apagar el módulo</button></div>`;
+
+    return `
+      <div class="kc-cent" style="background:var(--kc-was);margin-bottom:16px">
+        <div class="b" style="background:var(--kc-wa)">!</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          Esto lo ve ${paso.numero || 0} persona(s) al instante</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Encender el módulo hace aparecer la tarjeta
+        en el menú de todos los que ya entran a KALU. No hay forma de mostrárselo a unos pocos
+        primero.</div></div></div>
+
+      ${faltan.length ? `<div class="kc-cent mal" style="margin-bottom:16px">
+        <div class="b">${faltan.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Todavía falta cargar cosas</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(faltan.map(f => f.titulo).join(' · '))}.
+        Si encendés ahora, la gente entra a un pasaporte incompleto y el módulo pierde credibilidad
+        el primer día.</div></div></div>` : ''}
+
+      <p class="kc-nota">Para confirmar, escribí el nombre corto de la empresa:
+        <b>${esc(e.slug || e.nombre || '')}</b></p>
+      <div class="kc-row" style="margin-top:10px">
+        <input class="kc-in" id="kc-conf" placeholder="${esc(e.slug || '')}" style="flex:1 1 200px">
+        <button class="kc-btn" id="kc-encender" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Encender el módulo</button></div>`;
+  }
+
+  /* ------------------------------------------------------------- eventos */
+  function enganchar(v) {
+    if (D.puede_editar === false) v.querySelectorAll('button:not([data-ir])').forEach(b => b.remove());
+
+    v.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => { tab = +b.dataset.ir; pintar(); });
+    v.querySelectorAll('[data-matriz]').forEach(b => b.onclick = () =>
+      matriz(sel, { volver: () => arranque(sel) }));
+
+    v.querySelectorAll('[data-cat]').forEach(b => b.onclick = () =>
+      impCatalogo(sel, { volver: () => arranque(sel) }));
+
+    /* --- organigrama: la propuesta se edita en memoria, no se guarda sola --- */
+    v.querySelectorAll('[data-chk]').forEach(c => c.onchange = () => {
+      prop[+c.dataset.chk].crear = c.checked;
+      const b = v.querySelector('#kc-crear');
+      const n = prop.filter(p => p.crear).length;
+      if (b) { b.disabled = !n; b.textContent = n ? `Crear ${n} cargo(s)` : 'No hay nada nuevo para crear'; }
+      c.closest('tr').classList.toggle('kc-off', !c.checked);
+    });
+    v.querySelectorAll('[data-nom]').forEach(i =>
+      i.oninput = () => { prop[+i.dataset.nom].nombre = i.value; });
+    v.querySelectorAll('[data-area]').forEach(i =>
+      i.oninput = () => { prop[+i.dataset.area].area = i.value; });
+
+    const bc = v.querySelector('#kc-crear');
+    if (bc) bc.onclick = async () => {
+      const van = prop.filter(p => p.crear && p.nombre.trim());
+      if (!van.length) return;
+      bc.disabled = true; bc.textContent = 'Creando…';
+      try {
+        const r = await rpc('cap_cargos_crear_lote', { p_grupos: prop.map(p => ({
+          nombre: p.nombre.trim(), area: p.area.trim(),
+          variantes: p.variantes, omitir: !p.crear })) });
+        if ((r.choques || []).length) {
+          alert('Se crearon los cargos, pero estas formas de escribirlo ya apuntaban a otro ' +
+                'cargo y no las moví:\n\n' +
+                r.choques.map(c => `· «${c.variante}» → ${c.ya_apunta_a}`).join('\n'));
+        }
+        await recargar(r);
+      } catch (e) {
+        bc.disabled = false; bc.textContent = 'Crear cargos'; alert(e.message);
+      }
+    };
+
+    const bj = v.querySelector('#kc-jer');
+    if (bj) bj.onclick = async () => {
+      const pares = [...v.querySelectorAll('[data-jefe]')].map(s => ({
+        cargo: s.dataset.jefe, reporta_a: s.value }));
+      bj.disabled = true; bj.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_cargos_jerarquia', { p_pares: pares });
+        if ((r.problemas || []).length)
+          alert('No pude aplicar todo:\n\n' +
+                r.problemas.map(p => `· ${p.cargo}: ${p.motivo}`).join('\n'));
+        await recargar({ aviso: `Línea de reporte guardada en ${r.aplicados} cargo(s). ` +
+          `Sin jefe: ${(r.sin_jefe || []).length}.` });
+      } catch (e) {
+        bj.disabled = false; bj.textContent = 'Guardar la línea de reporte'; alert(e.message);
+      }
+    };
+
+    /* --- comités y actividades --- */
+    const nc = v.querySelector('#kc-ncom');
+    if (nc) nc.onclick = () => abrir(
+      `<h3>Comité nuevo</h3>
+       <p>Pertenecer a un comité obliga a formación propia. Después de crearlo hay que asignarle
+          sus capacitaciones en Administración, y sumarle gente desde la ficha de cada persona.</p>
+       <label for="k1">Nombre</label>
+       <input type="text" id="k1" placeholder="Ej: COPASST">
+       <label for="k2">Para qué es</label>
+       <input type="text" id="k2" placeholder="Ej: Comité paritario de seguridad y salud">`,
+      d => rpc('cap_comite_crear', { p_nombre: d.querySelector('#k1').value,
+                                     p_descripcion: d.querySelector('#k2').value }), 'Crear');
+
+    const na = v.querySelector('#kc-nact');
+    if (na) na.onclick = () => abrir(
+      `<h3>Actividad de riesgo nueva</h3>
+       <p>Una tarea que no hace todo el mundo y que exige formación aparte de la del cargo.</p>
+       <label for="k1">Nombre</label>
+       <input type="text" id="k1" placeholder="Ej: Trabajo en alturas">
+       <label for="k2">Proceso</label>
+       <input type="text" id="k2" placeholder="Ej: Operaciones en campo">`,
+      d => rpc('cap_actividad_crear', { p_nombre: d.querySelector('#k1').value,
+                                        p_proceso: d.querySelector('#k2').value }), 'Crear');
+
+    v.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => {
+      const [tipo, id] = b.dataset.ed.split(':');
+      const x = (tipo === 'comite' ? G.comites : G.actividades).find(y => y.id === id);
+      abrir(`<h3>Editar “${esc(x.nombre)}”</h3>
+        <label for="k1">Nombre</label><input type="text" id="k1" value="${esc(x.nombre)}">
+        <label for="k2">${tipo === 'comite' ? 'Para qué es' : 'Proceso'}</label>
+        <input type="text" id="k2" value="${esc(x.descripcion || x.proceso || '')}">`,
+        d => tipo === 'comite'
+          ? rpc('cap_comite_guardar', { p_id: id, p_nombre: d.querySelector('#k1').value,
+                                        p_descripcion: d.querySelector('#k2').value })
+          : rpc('cap_actividad_guardar', { p_id: id, p_nombre: d.querySelector('#k1').value,
+                                           p_proceso: d.querySelector('#k2').value }));
+    });
+
+    v.querySelectorAll('[data-on]').forEach(b => b.onclick = () => {
+      const [tipo, id] = b.dataset.on.split(':');
+      const x = (tipo === 'comite' ? G.comites : G.actividades).find(y => y.id === id);
+      abrir(`<h3>${x.activo ? 'Apagar' : 'Prender'} “${esc(x.nombre)}”</h3>
+        <p>${x.activo
+          ? (x.gente ? `<b>${x.gente} persona(s)</b> figuran acá. Apagándolo dejan de tener que
+                        cumplir la formación que sale de esto.`
+                     : 'No hay nadie asignado.') + ' No se borra: se puede volver a prender.'
+          : 'Vuelve a aparecer y su formación se vuelve a exigir.'}</p>`,
+        () => tipo === 'comite' ? rpc('cap_comite_activar', { p_id: id })
+                                : rpc('cap_actividad_activar', { p_id: id }),
+        x.activo ? 'Apagar' : 'Prender');
+    });
+
+    /* --- el interruptor --- */
+    const be = v.querySelector('#kc-encender');
+    if (be) be.onclick = async () => {
+      const t = (v.querySelector('#kc-conf') || {}).value || '';
+      be.disabled = true; be.textContent = 'Encendiendo…';
+      try { await recargar(await rpc('cap_modulo_encender', { p_confirmar: t })); }
+      catch (e) { be.disabled = false; be.textContent = 'Encender el módulo'; alert(e.message); }
+    };
+    const ba = v.querySelector('#kc-apagar');
+    if (ba) ba.onclick = () => {
+      const e = D.empresa || {};
+      abrir(`<h3>Apagar el módulo</h3>
+       <p>La tarjeta del Capacitador desaparece del menú de <b>toda la empresa</b>. Los datos
+          quedan intactos —pasaportes, asistencias y certificados— y se puede volver a encender
+          cuando quieras, pero mientras esté apagado nadie va a poder entrar.</p>
+       <label for="k1">Escribí <b>${esc(e.slug || e.nombre || '')}</b> para confirmar</label>
+       <input type="text" id="k1" placeholder="${esc(e.slug || '')}">
+       <label for="k2">Motivo</label>
+       <input type="text" id="k2" placeholder="Ej: falta terminar de cargar la matriz">`,
+      d => rpc('cap_modulo_apagar', { p_confirmar: d.querySelector('#k1').value,
+                                      p_motivo: d.querySelector('#k2').value }), 'Apagar');
+    };
+  }
+
+  await pintar();
+}
+
+/* =================================================================
+   PLAN DE UN CARGO — qué formación se le exige a quien lo ocupa
+
+   Se abre desde Cargos. Muestra todo el catálogo activo de la empresa
+   con una casilla por capacitación: se tilda lo que le toca y se guarda
+   una sola vez. Antes esto era un diálogo por capacitación; con 67
+   capacitaciones y 34 cargos, nadie lo hacía.
+
+   El botón de copiar es lo que hace llevaderos 34 cargos. Dos cargos
+   parecidos comparten casi todo, así que se arma uno y se copia. Copiar
+   no confirma nada solo: deja el plan cargado para que alguien lo
+   revise, y lo dice en el aviso.
+   ================================================================= */
+async function planCargo(sel, cargoId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Cargando el plan…');
+
+  let P, cambios = {}, q = '', filtro = 'todas';
+  try { P = await rpc('cap_plan_cargo_datos', { p_cargo: cargoId }); }
+  catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const EJEN = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
+  const vig = d => d == null ? 'No vence' : (d % 365 === 0 ? (d/365) + (d===365?' año':' años')
+                 : d % 30 === 0 ? (d/30) + ' meses' : d + ' días');
+
+  // estado de una fila: lo guardado, salvo que se haya tocado en pantalla
+  const puesta = i => cambios[i.id] ? cambios[i.id].poner : i.asignada;
+  const bloq   = i => cambios[i.id] ? cambios[i.id].bloqueante : (i.bloqueante || 'no');
+  const tocado = () => Object.keys(cambios).filter(k =>
+    cambios[k].poner !== cambios[k].era || cambios[k].bloqueante !== cambios[k].eraB).length;
+
+  function toast(txt) {
+    const t = document.createElement('div');
+    t.className = 'kc-toast'; t.textContent = txt;
+    (el.querySelector('.kc-wide') || el).appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+  }
+
+  function abrir(html, onOk, okTxt) {
+    const d = document.createElement('dialog');
+    d.innerHTML = `<div class="kc-dlg">${html}<div class="kc-row">
+      <button class="kc-b2" id="kcx">Cancelar</button>
+      <button class="kc-btn" id="kck">${okTxt || 'Guardar'}</button></div></div>`;
+    (el.querySelector('.kc-wide') || el).appendChild(d); d.showModal();
+    d.querySelector('#kcx').onclick = () => { d.close(); d.remove(); };
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck'); b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await onOk(d); d.close(); d.remove();
+        P = await rpc('cap_plan_cargo_datos', { p_cargo: cargoId });
+        cambios = {}; pintar();
+        if (r && r.aviso) toast(r.aviso);
+      } catch (e) { b.disabled = false; b.textContent = okTxt || 'Guardar'; alert(e.message); }
+    };
+    return d;
+  }
+
+  function pintar() {
+    const c = P.cargo || {}, items = P.items || [];
+    const puestas = items.filter(puesta).length;
+    const n = {
+      todas: items.length,
+      tildadas: puestas,
+      sin: items.length - puestas,
+      llegan: items.filter(i => i.ya_le_llega).length
+    };
+    const pasa = i => {
+      if (q && !((i.codigo + ' ' + i.titulo).toLowerCase().includes(q))) return false;
+      if (filtro === 'tildadas') return puesta(i);
+      if (filtro === 'sin')      return !puesta(i);
+      if (filtro === 'llegan')   return !!i.ya_le_llega;
+      return true;
+    };
+    const L = items.filter(pasa);
+    const chip = (k, t) => `<button class="kc-chip" data-f="${k}" aria-pressed="${filtro===k}">${t} · ${n[k]}</button>`;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      <button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver a Cargos</button>
+      <div style="padding:0 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:14px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">PLAN DE FORMACIÓN DEL CARGO</div>
+        <h1 style="font-size:28px;font-weight:700">${esc(c.nombre || '')}</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">
+          ${c.gente || 0} persona(s) ocupan este cargo${c.area ? ' · ' + esc(c.area) : ''}</div></div>
+
+      ${!c.gente ? `<div class="kc-cent" style="background:var(--kc-card2)">
+        <div class="b" style="background:var(--kc-ink3)">0</div><div>
+        <div class="kc-tt" style="font-size:15px">Todavía no lo ocupa nadie</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Podés dejar el plan armado igual: cuando
+        entre alguien con este cargo, le va a aplicar desde el primer día.</div></div></div>` : ''}
+
+      <div class="kc-bar2">
+        <input id="kc-bus" class="kc-bus" type="search" placeholder="Buscar por código o título…"
+               value="${esc(q)}" autocomplete="off">
+        ${P.puede_editar === false ? '' :
+          `<button class="kc-mini" id="kc-copiar">Copiar de otro cargo</button>`}
+      </div>
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('todas','Todas')}${chip('tildadas','Le tocan')}${chip('sin','No le tocan')}
+        ${chip('llegan','Ya le llegan por otro lado')}
+      </div>
+
+      ${L.length ? `<div class="kc-sc"><table><thead><tr>
+        <th style="width:34px"></th><th>Código</th><th>Capacitación</th><th>Vigencia</th>
+        <th>Nivel</th><th>Otros cargos</th></tr></thead><tbody>
+        ${L.map(i => `<tr class="${puesta(i) ? '' : 'kc-off'}">
+          <td><input type="checkbox" data-chk="${i.id}" ${puesta(i) ? 'checked' : ''}></td>
+          <td class="k">${esc(i.codigo)}</td>
+          <td><div>${esc(i.titulo)}</div>
+              <div class="kc-cd" style="margin-top:2px">${esc(EJEN[i.eje] || i.eje)} · ${esc(i.tipo)}${
+                i.propia ? ' · propia' : ''}${i.certificable ? ' · certifica' : ''}</div>
+              ${i.ya_le_llega ? `<div class="kc-mch b">ya le llega por ${esc(i.ya_le_llega)}</div>` : ''}
+              ${(i.base_legal || []).length ? `<div class="kc-cd" style="margin-top:3px;color:var(--kc-ink3)">${esc((i.base_legal||[]).join(' · '))}</div>` : ''}</td>
+          <td class="n">${vig(i.vigencia_dias)}</td>
+          <td>${puesta(i) ? `<select class="kc-in" data-bloq="${i.id}">
+              <option value="no" ${bloq(i)==='no'?'selected':''}>Informativa</option>
+              <option value="operacion" ${bloq(i)==='operacion'?'selected':''}>Bloquea la operación</option>
+              <option value="ingreso" ${bloq(i)==='ingreso'?'selected':''}>Bloquea la vinculación</option>
+            </select>` : '<span style="color:var(--kc-ink3)">—</span>'}</td>
+          <td class="n" style="color:var(--kc-ink3)">${i.otros_cargos}</td>
+        </tr>`).join('')}
+      </tbody></table></div>` : '<p class="kc-nota">Nada con ese filtro.</p>'}
+
+      ${P.puede_editar === false ? '' : `<div class="kc-guardar" id="kc-gb">
+        <span id="kc-cuenta"></span>
+        <button class="kc-btn" id="kc-guardar" style="width:auto;padding:0 24px">Guardar el plan</button>
+      </div>`}
+      </div>`;
+
+    el.querySelector('#kc-volver').onclick = () => {
+      if (tocado() && !confirm('Hay cambios sin guardar. ¿Salís igual?')) return;
+      if (opt.volver) opt.volver(); else admin(sel);
+    };
+
+    enganchar();
+    refrescarBarra();
+  }
+
+  function refrescarBarra() {
+    // los contadores de los filtros tienen que seguir lo tildado en pantalla,
+    // no lo último guardado: si no, dicen una cosa y la tabla muestra otra
+    const items = P.items || [], puestas = items.filter(puesta).length;
+    const cuenta = { todas: items.length, tildadas: puestas, sin: items.length - puestas,
+                     llegan: items.filter(i => i.ya_le_llega).length };
+    const TXT = { todas:'Todas', tildadas:'Le tocan', sin:'No le tocan',
+                  llegan:'Ya le llegan por otro lado' };
+    el.querySelectorAll('[data-f]').forEach(x => {
+      x.textContent = TXT[x.dataset.f] + ' · ' + cuenta[x.dataset.f];
+    });
+
+    const b = el.querySelector('#kc-gb'), cta = el.querySelector('#kc-cuenta');
+    if (!b) return;
+    const n = tocado();
+    b.style.display = n ? 'flex' : 'none';
+    if (cta) cta.textContent = n === 1 ? '1 cambio sin guardar' : n + ' cambios sin guardar';
+  }
+
+  function enganchar() {
+    const marcarCambio = (id, poner, bl) => {
+      const it = (P.items || []).find(x => x.id === id);
+      if (!it) return;
+      cambios[id] = {
+        poner: poner, bloqueante: bl,
+        era: it.asignada, eraB: it.bloqueante || 'no'
+      };
+    };
+
+    el.querySelectorAll('[data-chk]').forEach(ch => ch.onchange = () => {
+      const id = ch.dataset.chk;
+      const it = (P.items || []).find(x => x.id === id);
+      marcarCambio(id, ch.checked, bloq(it));
+      // redibujo la fila para mostrar u ocultar el selector de nivel
+      const fila = ch.closest('tr');
+      fila.classList.toggle('kc-off', !ch.checked);
+      const celda = fila.children[4];
+      celda.innerHTML = ch.checked
+        ? `<select class="kc-in" data-bloq="${id}">
+             <option value="no">Informativa</option>
+             <option value="operacion">Bloquea la operación</option>
+             <option value="ingreso">Bloquea la vinculación</option></select>`
+        : '<span style="color:var(--kc-ink3)">—</span>';
+      const s = celda.querySelector('select');
+      if (s) { s.value = bloq(it); s.onchange = () => marcarCambio(id, true, s.value); }
+      refrescarBarra();
+    });
+
+    el.querySelectorAll('[data-bloq]').forEach(s => s.onchange = () => {
+      marcarCambio(s.dataset.bloq, true, s.value); refrescarBarra();
+    });
+
+    el.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filtro = b.dataset.f; pintar(); });
+
+    const bus = el.querySelector('#kc-bus');
+    if (bus) bus.oninput = () => {
+      const cur = bus.selectionStart; q = bus.value.trim().toLowerCase(); pintar();
+      const nn = el.querySelector('#kc-bus'); if (nn) { nn.focus(); nn.setSelectionRange(cur, cur); }
+    };
+
+    const gb = el.querySelector('#kc-guardar');
+    if (gb) gb.onclick = async () => {
+      const items = Object.keys(cambios).map(id => ({
+        catalogo_id: id, poner: cambios[id].poner, bloqueante: cambios[id].bloqueante }));
+      if (!items.length) return;
+      gb.disabled = true; gb.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_plan_cargo_guardar', { p_cargo: cargoId, p_items: items });
+        P = await rpc('cap_plan_cargo_datos', { p_cargo: cargoId });
+        cambios = {}; pintar(); toast(r.aviso);
+      } catch (e) { gb.disabled = false; gb.textContent = 'Guardar el plan'; alert(e.message); }
+    };
+
+    const cp = el.querySelector('#kc-copiar');
+    if (cp) cp.onclick = () => {
+      const otros = (P.otros_cargos || []).filter(o => o.cuantas > 0);
+      if (!otros.length) return alert(
+        'Todavía no hay ningún otro cargo con plan armado para copiar.');
+      abrir(`<h3>Copiar el plan de otro cargo</h3>
+        <p>Trae las capacitaciones de otro cargo a <b>${esc((P.cargo||{}).nombre||'')}</b>.
+           Sólo aparecen los que ya tienen algo asignado.</p>
+        <label for="k1">Copiar desde</label>
+        <select id="k1">${otros.map(o =>
+          `<option value="${o.id}">${esc(o.nombre)} · ${o.cuantas} capacitación(es)</option>`).join('')}</select>
+        <label for="k2" style="display:flex;gap:8px;align-items:flex-start;margin-top:12px">
+          <input type="checkbox" id="k2" style="margin-top:4px">
+          <span>Dejarlo <b>idéntico</b> al origen — quita lo que este cargo tenga y el otro no.
+          Sin tildar, sólo agrega lo que falte.</span></label>`,
+        d => rpc('cap_plan_copiar', {
+          p_desde: d.querySelector('#k1').value, p_hacia: cargoId,
+          p_reemplazar: d.querySelector('#k2').checked }), 'Copiar');
+    };
+  }
+
+  pintar();
+}
+
+/* =================================================================
+   VER UNA CAPACITACIÓN — lo que publicaste, tal como se ve
+
+   Antes de esto, quien publicaba una capacitación no la volvía a ver:
+   el contenido sólo se abría desde el pasaporte de un trabajador al
+   que le aplicara, y sólo si era de autoestudio.
+
+   Muestra el material como lo ve el trabajador, y abajo la evaluación
+   con la respuesta correcta marcada y la explicación — que el
+   trabajador no ve. Eso último es lo que importa cuando el borrador lo
+   escribió una máquina: si la IA se equivocó en cuál opción es la
+   buena, acá se ve antes de que alguien repruebe una pregunta que
+   contestó bien.
+
+   Mirar no es cursar: no abre ningún intento ni registra nada.
+   ================================================================= */
+async function verCurso(sel, catalogoId, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Abriendo la capacitación…');
+
+  let V;
+  try { V = await rpc('cap_ver_curso', { p_catalogo: catalogoId }); }
+  catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const EJEN = { hse:'HSE', tecnica:'Técnica', arl:'ARL', induccion:'Inducción' };
+  const vig = d => d == null ? 'No vence' : (d % 365 === 0 ? (d/365) + (d===365?' año':' años')
+                 : d % 30 === 0 ? (d/30) + ' meses' : d + ' días');
+
+  // mismo dibujo que usa el trabajador, para que lo que se ve acá sea
+  // exactamente lo que va a ver él
+  function bloque(b) {
+    if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
+    if (b.tipo === 'aviso')  return `<div class="kc-avi">${esc(b.texto)}</div>` +
+      (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+    if (b.tipo === 'lista')  return '<ul class="kc-ul">' + String(b.texto||'').split('|').map(x => {
+        const m = x.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\s—\s(.*)$/);
+        return `<li>${m ? '<b>'+esc(m[1])+'</b> — '+esc(m[2]) : esc(x)}</li>`;
+      }).join('') + '</ul>' + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+    if (b.tipo === 'imagen') return `<img src="${esc(b.url)}" alt="${esc(b.nota||'')}"
+      style="width:100%;border-radius:8px;margin-bottom:14px">`;
+    if (b.tipo === 'separador') return '<hr style="border:none;border-top:1px solid var(--kc-rule);margin:20px 0">';
+    return `<p class="kc-p">${esc(b.texto)}</p>` + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+  }
+
+  const c = V.capacitacion || {}, a = V.alcance || {};
+  const avisos = V.avisos || [], cont = V.contenido || [], preg = V.preguntas || [];
+
+  const chip = t => `<span class="kc-chip2">${esc(t)}</span>`;
+
+  el.className = 'kc';
+  el.innerHTML = `<div class="kc-wide">
+    <button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver a Capacitaciones</button>
+
+    <div style="padding:0 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:14px">
+      <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">
+        ASÍ SE VE ${esc(c.codigo || '')}</div>
+      <h1 style="font-size:27px;font-weight:700">${esc(c.titulo || '')}</h1>
+      ${c.objetivo ? `<p style="color:var(--kc-ink2);font-size:14.5px;margin:8px 0 0;max-width:70ch">${esc(c.objetivo)}</p>` : ''}
+      <div style="margin-top:11px">
+        ${chip(EJEN[c.eje] || c.eje || '—')}${chip(c.tipo || '—')}
+        ${chip(vig(c.vigencia_dias))}${c.horas ? chip(c.horas + ' h') : ''}
+        ${c.certificable ? chip('Certifica') : chip('No certifica')}
+        ${c.autoestudio ? chip('Autoestudio') : chip('No es autoestudio')}
+        ${c.propia ? chip('Propia de la empresa') : chip('De la biblioteca')}
+        ${c.activo ? '' : chip('Apagada')}
+        ${chip('versión ' + (c.version ?? 1))}
+      </div>
+      <div style="color:var(--kc-ink2);font-size:13.5px;margin-top:10px">
+        Le aplica a <b>${a.personas || 0}</b> persona(s) · ${a.asignaciones || 0} asignación(es) ·
+        ${a.asistencias || 0} asistencia(s) registradas</div>
+    </div>
+
+    ${avisos.map(t => `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:9px">
+      <div class="b" style="background:var(--kc-wa)">!</div>
+      <div style="font-size:13.5px;color:var(--kc-ink2)">${esc(t)}</div></div>`).join('')}
+
+    <h2 style="font-size:20px;margin:22px 0 4px">El material</h2>
+    <p class="kc-nota">Tal cual lo ve el trabajador en el teléfono.</p>
+    ${cont.length
+      ? `<div class="kc-bl" style="margin-top:12px">${cont.map(bloque).join('')}</div>`
+      : `<p class="kc-nota" style="color:var(--kc-cr)">No tiene contenido cargado. Se puede
+         registrar como charla presencial, pero nadie la puede hacer desde el teléfono.</p>`}
+
+    <h2 style="font-size:20px;margin:30px 0 4px">La evaluación</h2>
+    <p class="kc-nota">La respuesta correcta y la explicación <b>sólo las ves vos</b>. El
+    trabajador ve las opciones sin marcar, y la explicación recién cuando termina.</p>
+    ${preg.length ? preg.map((q, i) => `
+      <div class="kc-vq ${q.correctas === 1 ? '' : 'mal'}">
+        <div class="n">${i + 1}${q.activa ? '' : ' · apagada'}</div>
+        <div class="q">
+          <div class="kc-tt" style="font-size:15.5px">${esc(q.enunciado)}</div>
+          ${q.correctas !== 1 ? `<div class="kc-mch b">${q.correctas === 0
+            ? 'ninguna opción está marcada como correcta — esta pregunta no se puede aprobar'
+            : q.correctas + ' opciones marcadas como correctas — el sistema sólo espera una'}</div>` : ''}
+          <ul class="kc-vo">${(q.opciones || []).map(o =>
+            `<li class="${o.correcta ? 'ok' : ''}">
+               <span class="m">${o.correcta ? '✓' : ''}</span>${esc(o.texto)}</li>`).join('')}</ul>
+          ${q.explicacion ? `<div class="kc-vexp"><b>Por qué:</b> ${esc(q.explicacion)}</div>` : ''}
+        </div>
+      </div>`).join('')
+      : `<p class="kc-nota" style="color:var(--kc-cr)">No tiene preguntas. Sin evaluación no se
+         puede aprobar por autoestudio.</p>`}
+
+    <p class="kc-nota" style="margin:26px 0 10px">Mirar esto <b>no cuenta</b> como haber hecho la
+    capacitación: no se abrió ningún intento y no quedó registrado nada a tu nombre.</p>
+    </div>`;
+
+  el.querySelector('#kc-volver').onclick = () => {
+    if (opt.volver) opt.volver(); else admin(sel);
+  };
+}
+
+/* =================================================================
+   MATRIZ DE PELIGROS — importarla y conectarla con los cargos
+
+   Es la pieza que le da sentido al resto del módulo. Sin matriz,
+   alguien decide de memoria qué capacitación le toca a cada cargo, y
+   cuando la ARL pregunta por qué, no hay respuesta escrita. Con
+   matriz, la respuesta es: porque este peligro exige este control.
+
+   DOS REGLAS QUE ESTA PANTALLA RESPETA
+
+   El Excel no sale del equipo. Se abre en el navegador, se convierte
+   en filas, y al servidor viaja el resultado — no el archivo.
+
+   Y la máquina propone, no resuelve. Puede corregir la escritura de
+   una clasificación contra la norma, porque eso es ortografía. No
+   puede decidir que «Auxiliares END» es «Auxiliar de Inspección»,
+   porque eso es criterio. Lo pregunta.
+   ================================================================= */
+
+/* La librería que lee Excel pesa casi un mega. Se baja sólo cuando
+   alguien va a importar de verdad, no en cada carga del módulo. */
+let _xlsxCargando = null;
+function cargarXLSX() {
+  if (global.XLSX) return Promise.resolve(global.XLSX);
+  if (_xlsxCargando) return _xlsxCargando;
+  _xlsxCargando = new Promise((ok, mal) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload  = () => global.XLSX ? ok(global.XLSX)
+                                  : mal(new Error('La librería cargó pero no quedó disponible'));
+    s.onerror = () => mal(new Error('No se pudo bajar el lector de Excel. ' +
+      'Revisá la conexión: se baja de internet la primera vez que importás.'));
+    document.head.appendChild(s);
+  });
+  return _xlsxCargando;
+}
+
+/* Lo que buscamos en el Excel y con qué palabras reconocerlo. */
+const MZ_CAMPOS = [
+  ['proceso',           ['PROCESO']],
+  ['zona',              ['ZONA', 'LUGAR']],
+  ['actividad',         ['ACTIVIDAD']],
+  ['tarea',             ['TAREA']],
+  ['rutinaria',         ['RUTINARIA']],
+  ['descripcion',       ['DESCRPCIÓN DEL PELIGRO', 'DESCRIPCIÓN DEL PELIGRO', 'DESCR']],
+  ['clasificacion',     ['CLASIFICACIÓN']],
+  ['efectos',           ['EFECTOS']],
+  ['control_fuente',    ['FUENTE']],
+  ['control_medio',     ['MEDIO']],
+  ['control_individuo', ['INDIVIDUO']],
+  ['nd',                ['NIVEL DE DEFICIENCIA']],
+  ['ne',                ['NIVEL DE EXPOSICIÓN']],
+  ['np',                ['NIVEL DE PROBABILIDAD']],
+  ['interpretacion_np', ['INTERPRETACIÓN DEL']],
+  ['nc',                ['NIVEL DE CONSECUENCIA']],
+  ['nr',                ['NIVEL DE RIESGO']],
+  ['nivel_riesgo',      ['INTERPRETACIÓN NR']],
+  ['aceptabilidad',     ['ACEPTABILIDAD']],
+  ['cargos_expuestos',  ['CARGOS EXPUESTOS']],
+  ['peor_consecuencia', ['PEOR CONSECUENCIA']],
+  ['control_admin',     ['CONTROLES ADMINISTRATIVOS']],
+  ['control_epp',       ['EPP', 'EQUIPOS']]
+];
+const MZ_NORMA = ['BIOLOGICO','FISICO','QUIMICO','PSICOSOCIAL','BIOMECANICO',
+                  'CONDICIONES DE SEGURIDAD','FENOMENOS NATURALES'];
+
+const mzTxt = v => v === null || v === undefined ? '' : String(v).replace(/\s+/g,' ').trim();
+const mzMay = v => mzTxt(v).toUpperCase();
+const mzSinTilde = s => mzTxt(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+const mzEsNorma = c => MZ_NORMA.indexOf(mzSinTilde(c)) >= 0 ||
+                       MZ_NORMA.indexOf(mzSinTilde(c).replace(/S$/,'')) >= 0;
+
+/* Una hoja como cuadrícula, con los rangos combinados ya rellenados.
+   Es lo que hace que un peligro conserve su proceso y su actividad
+   aunque en el Excel esas celdas estén vacías. */
+function mzCeldas(XLSX, ws) {
+  if (!ws || !ws['!ref']) return [];
+  const R = XLSX.utils.decode_range(ws['!ref']), M = [];
+  for (let r = R.s.r; r <= R.e.r; r++) {
+    const fila = [];
+    for (let c = R.s.c; c <= R.e.c; c++) {
+      const cel = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+      fila.push(cel ? cel.v : null);
+    }
+    M.push(fila);
+  }
+  (ws['!merges'] || []).forEach(m => {
+    const v = M[m.s.r] ? M[m.s.r][m.s.c] : null;
+    for (let r = m.s.r; r <= m.e.r; r++)
+      for (let c = m.s.c; c <= m.e.c; c++) if (M[r]) M[r][c] = v;
+  });
+  return M;
+}
+
+/* Dónde empieza la tabla. Arriba puede haber logos, títulos y filas
+   vacías: en la matriz de una empresa real el encabezado estaba en la
+   fila 35. */
+function mzFilaEncabezado(M) {
+  for (let i = 0; i < Math.min(M.length, 60); i++) {
+    const f = (M[i] || []).map(mzMay);
+    if (f.some(x => x.includes('PELIGRO')) &&
+        f.some(x => x.includes('PROCESO') || x.includes('ACTIVIDAD') || x.includes('TAREA')))
+      return i;
+  }
+  return -1;
+}
+
+/* Cada campo se busca en la fila de detalle primero y en la de grupo
+   después: el detalle es más específico. */
+function mzMapear(M, hr) {
+  const g = (M[hr] || []).map(mzMay), d = (M[hr+1] || []).map(mzMay);
+  const idx = {}, usadas = {};
+  MZ_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    for (let k = 0; k < claves.length; k++) {
+      const filas = [d, g];
+      for (let ff = 0; ff < filas.length; ff++) {
+        for (let i = 0; i < filas[ff].length; i++) {
+          if (usadas[i]) continue;
+          if (filas[ff][i] && filas[ff][i].includes(claves[k])) {
+            idx[campo] = i; usadas[i] = true; return;
+          }
+        }
+      }
+    }
+  });
+  return idx;
+}
+
+function mzLeer(XLSX, buf) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const hojas = []; let filas = [];
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = mzFilaEncabezado(M);
+    const idx = hr < 0 ? {} : mzMapear(M, hr);
+    // Sin columna de descripción no hay matriz: las hojas de referencia
+    // —el catálogo de la norma, el historial de versiones— tienen
+    // encabezados parecidos y ninguna fila útil.
+    if (hr < 0 || idx.descripcion === undefined) {
+      hojas.push({ nombre: nombre, filas: M.length, peligros: 0, tiene_tabla: false });
+      return;
+    }
+    const propias = [];
+    for (let i = hr + 2; i < M.length; i++) {
+      const r = M[i] || [];
+      if (!mzTxt(r[idx.descripcion])) continue;
+      const f = { hoja: nombre, fila: i + 1 };
+      Object.keys(idx).forEach(k => { f[k] = mzTxt(r[idx[k]]); });
+      propias.push(f);
+    }
+    hojas.push({ nombre: nombre, filas: M.length, peligros: propias.length,
+      tiene_tabla: true, encabezado_en: hr + 1,
+      reconocidas: Object.keys(idx).length,
+      faltantes: MZ_CAMPOS.map(c => c[0]).filter(c => idx[c] === undefined) });
+    filas = filas.concat(propias);
+  });
+  return { hojas: hojas, filas: filas };
+}
+
+function mzResumen(filas) {
+  const cuenta = campo => {
+    const m = {};
+    filas.forEach(f => { const v = f[campo] || '—'; m[v] = (m[v]||0) + 1; });
+    return Object.keys(m).sort((a,b) => m[b]-m[a]).map(k => ({ valor:k, n:m[k] }));
+  };
+  return {
+    peligros: filas.length,
+    clasificaciones: cuenta('clasificacion').map(c => ({ valor:c.valor, n:c.n, norma:mzEsNorma(c.valor) })),
+    zonas: cuenta('zona'),
+    cargos: cuenta('cargos_expuestos'),
+    sin_cargo: filas.filter(f => !f.cargos_expuestos).length,
+    con_capacitacion: filas.filter(f => (f.control_admin||'').toLowerCase().indexOf('apacit') >= 0).length
+  };
+}
+
+
+/* =================================================================
+   LEER EL CATÁLOGO DESDE EL PROCEDIMIENTO DE LA EMPRESA
+
+   Una empresa que lleva años haciendo esto no necesita inventar su
+   catálogo: ya lo tiene escrito. Total QC lo tenía en tres libros
+   distintos, y de ahí salió la forma de esta pantalla.
+
+   TRES FORMAS DE HOJA, Y HAY QUE DISTINGUIRLAS
+
+   1. El PROGRAMA del año: una fila por tema, con objetivo, temario,
+      a quién va dirigida, modalidad, duración y —lo más valioso— a qué
+      programa de riesgo responde. Esto es el catálogo.
+
+   2. El REGISTRO de lo dictado: una fila por persona por evento. Acá
+      el tema se repite cientos de veces. De esto sale UNA ficha por
+      tema, no una por fila.
+
+   3. Las CHARLAS diarias: igual que el registro, pero son charlas.
+
+   LO QUE APRENDIMOS Y NO ERA OBVIO
+
+   «Lo que se exige» y «lo que pasó» no son la misma lista. En Total QC
+   sólo 11 de los 56 temas dictados en 2025 seguían en el plan 2026. Si
+   los otros 45 no existen en el catálogo, 3.030 asistencias no tienen
+   dónde aterrizar. Por eso entran, pero APAGADOS: existen y sostienen
+   su historia, sin exigirle nada a nadie.
+   ================================================================= */
+
+/* Qué buscamos en una hoja de programa, y con qué palabras. */
+const CT_CAMPOS = [
+  ['titulo',          ['TEMA CHARLA', 'NOMBRE DE LA CAPACIT', 'TEMA']],
+  ['objetivo',        ['OBJETIVO']],
+  ['temario',         ['TEMAS']],
+  ['programa_riesgo', ['PG RIESGO', 'SVE ASOC']],
+  ['dirigida_a',      ['DIRIGIDA A', 'DIRIGIDO A']],
+  ['modalidad',       ['MODALIDAD', 'METODOLOG']],
+  ['horas',           ['DURACIÓN', 'DURACION']],
+  ['frecuencia',      ['FRECU']],
+  ['responsable',     ['RESPONSABLE']],
+  ['persona',         ['APELLIDOS']]
+];
+
+/* De qué hoja viene, para el prefijo del código y para saber si lo que
+   entra exige algo o sólo sostiene historia. */
+function ctOrigen(nombreHoja) {
+  const H = mzMay(nombreHoja);
+  if (H.indexOf('HSEQ') >= 0)      return 'HSEQ';
+  if (H.indexOf('INSP') >= 0)      return 'INSP';
+  if (H.indexOf('QAQC') >= 0)      return 'QAQC';
+  if (H.indexOf('FORMACI') >= 0)   return 'FORMACION';
+  return null;
+}
+
+const CT_MODAL = { PRESENCIAL:'presencial', VIRTUAL:'virtual', MIXTA:'mixta' };
+function ctModalidad(v) { return CT_MODAL[mzMay(v)] || null; }
+
+/* «1 Hora», «1h», «2,5 horas» → número. Si no dice horas, no inventa. */
+function ctHoras(v) {
+  const m = mzTxt(v).match(/(\d+(?:[.,]\d+)?)\s*h/i);
+  return m ? Number(m[1].replace(',', '.')) : null;
+}
+
+/* «5 años o actualización de la norma» → 1825 días. Es la única hoja
+   que declara cada cuánto se repite; las demás no dicen nada, y no
+   decir nada NO es «no vence»: es una decisión que le falta a HSE. */
+function ctVigencia(v) {
+  const t = mzTxt(v).toLowerCase();
+  const m = t.match(/(\d+)\s*a[\u00f1n]o/);
+  if (m) return Number(m[1]) * 365;
+  if (t.indexOf('anual') >= 0)     return 365;
+  if (t.indexOf('semestral') >= 0) return 182;
+  return null;
+}
+
+/* Los encabezados se reconocen por CÓMO EMPIEZAN, no por lo que
+   contienen. Buscando «TEMA» adentro de la celda, la palabra SISTEMA
+   daba positivo: una hoja que era sólo el texto del procedimiento
+   —objetivo, alcance, criterios de evaluación, control de versiones—
+   entró como si tuviera 17 capacitaciones, y una de ellas se llamaba
+   «001». Un importador que se equivoca así no avisa: crea basura con
+   cara de dato. */
+function ctEmpieza(celda, clave) {
+  return !!celda && celda.indexOf(clave) === 0;
+}
+
+function ctFilaEncabezado(M) {
+  for (let i = 0; i < Math.min(M.length, 40); i++) {
+    const f = (M[i] || []).map(mzMay);
+    const tieneTema = f.some(x => ctEmpieza(x, 'TEMA') ||
+                                  ctEmpieza(x, 'NOMBRE DE LA CAPACIT'));
+    const tieneAlgo = f.some(x => ctEmpieza(x, 'OBJETIVO') ||
+                                  ctEmpieza(x, 'APELLIDOS') ||
+                                  ctEmpieza(x, 'DIRIGID'));
+    if (tieneTema && tieneAlgo) return i;
+  }
+  return -1;
+}
+
+function ctMapear(M, hr) {
+  const f = (M[hr] || []).map(mzMay), idx = {}, usadas = {};
+  CT_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    for (let k = 0; k < claves.length; k++) {
+      for (let i = 0; i < f.length; i++) {
+        if (usadas[i]) continue;
+        if (ctEmpieza(f[i], claves[k])) { idx[campo] = i; usadas[i] = true; return; }
+      }
+    }
+  });
+  return idx;
+}
+
+/* Lee un libro entero. No decide nada: devuelve qué encontró en cada
+   hoja para que una persona lo confirme. */
+function ctLeer(XLSX, buf, archivo) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const hojas = [], filas = [];
+
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = ctFilaEncabezado(M);
+    const idx = hr < 0 ? {} : ctMapear(M, hr);
+
+    if (hr < 0 || idx.titulo === undefined) {
+      hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', temas: 0 });
+      return;
+    }
+
+    // Una hoja con columna de personas es un REGISTRO de lo dictado:
+    // el tema se repite una vez por asistente. Sin ella, es el PROGRAMA.
+    const esRegistro = idx.persona !== undefined;
+    const org = ctOrigen(nombre);
+    const esCharla = mzMay((M[hr]||[])[idx.titulo]).indexOf('CHARLA') >= 0;
+    const origen = esCharla ? 'CHARLA' : (esRegistro ? 'HIST' : (org || 'PROGRAMA'));
+    const clase  = esCharla ? 'charlas' : (esRegistro ? 'registro' : 'programa');
+
+    const vistos = {}, propias = [];
+    for (let i = hr + 1; i < M.length; i++) {
+      const r = M[i] || [];
+      const t = mzTxt(r[idx.titulo]);
+      if (!t || mzMay(t) === 'ANALISIS' || mzMay(t) === 'TEMA') continue;
+      const k = mzMay(t);
+      if (vistos[k]) continue;      // el mismo tema repetido en la hoja
+      vistos[k] = 1;
+      const g = c => idx[c] !== undefined ? mzTxt(r[idx[c]]) : '';
+      propias.push({
+        origen: origen,
+        titulo: t,
+        objetivo: g('objetivo'),
+        temario: g('temario'),
+        programa_riesgo: g('programa_riesgo'),
+        dirigida_a: g('dirigida_a'),
+        responsable: g('responsable'),
+        frecuencia: g('frecuencia'),
+        modalidad: idx.modalidad !== undefined ? ctModalidad(r[idx.modalidad]) : null,
+        horas: idx.horas !== undefined ? ctHoras(r[idx.horas]) : null,
+        vigencia_dias: idx.frecuencia !== undefined ? ctVigencia(r[idx.frecuencia]) : null,
+        eje: (origen === 'INSP' || origen === 'QAQC' || origen === 'FORMACION') ? 'tecnica' : 'hse',
+        tipo: esCharla ? 'charla' : (origen === 'FORMACION' ? 'curso_externo' : 'capacitacion'),
+        certificable: !esCharla,
+        // Lo que ya no está en el plan del año entra apagado: sostiene
+        // su historia y no le exige nada a nadie.
+        activo: clase === 'programa'
+      });
+    }
+    hojas.push({ archivo: archivo, nombre: nombre, clase: clase, origen: origen,
+                 temas: propias.length, filas: M.length,
+                 columnas: Object.keys(idx).length });
+    propias.forEach(p => filas.push(p));
+  });
+
+  return { hojas: hojas, filas: filas };
+}
+
+/* Junta varios libros en una sola lista. El plan del año manda: si un
+   tema está en el programa Y en el registro, la ficha se crea activa y
+   con los datos del programa, no del registro. */
+function ctUnir(lecturas) {
+  const orden = { HSEQ:1, INSP:1, QAQC:1, FORMACION:1, PROGRAMA:1, HIST:2, CHARLA:3 };
+  const todas = [];
+  lecturas.forEach(L => L.filas.forEach(f => todas.push(f)));
+  todas.sort((a, b) => (orden[a.origen]||9) - (orden[b.origen]||9));
+  const visto = {}, out = [];
+  todas.forEach(f => {
+    const k = llano(f.titulo);
+    if (!k || visto[k]) return;
+    visto[k] = 1; out.push(f);
+  });
+  return out;
+}
+
+
+/* =================================================================
+   LA PANTALLA
+   ================================================================= */
+async function matriz(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Mirando la matriz…');
+
+  let D, E = null, L = null, R = null, tab = 1, abierto = null, buscaDest = '';
+  try { D = await rpc('cap_matriz_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  async function traerE() { if (!E) E = await rpc('cap_expuestos_datos'); return E; }
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+
+  async function recargar(msg) {
+    D = await rpc('cap_matriz_datos'); E = null; L = null; R = null;
+    await pintar(); if (msg) toast(msg);
+  }
+
+  /* ------------------------------------------------------- armazón */
+  async function pintar() {
+    const m = D.matriz || {};
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">MATRIZ DE PELIGROS · GTC 45</div>
+        <h1 style="font-size:28px;font-weight:700">${D.hay_matriz
+          ? esc(m.codigo_doc || 'Matriz cargada') + (m.version ? ' · v' + esc(m.version) : '')
+          : 'Todavía no hay matriz'}</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px">${D.hay_matriz
+          ? D.peligros + ' peligros' + (m.fecha_version ? ' · versión del ' + fecha(m.fecha_version) : '')
+          : 'Sin ella, el plan de formación de cada cargo lo decide alguien de memoria.'}</div></div>
+
+      <div class="kc-tabs" style="margin:0 0 20px">
+        <button class="kc-tab" data-t="1" aria-selected="${tab===1}">La matriz</button>
+        <button class="kc-tab" data-t="2" aria-selected="${tab===2}">Cargos expuestos${
+          D.expuestos_sin_resolver ? ' · ' + D.expuestos_sin_resolver : ''}</button>
+      </div>
+      <div id="kc-v"><div class="kc-carga">Cargando…</div></div></div>`;
+
+    el.querySelectorAll('.kc-tab').forEach(b => b.onclick = () => {
+      if (+b.dataset.t !== tab) { tab = +b.dataset.t; pintar(); }
+    });
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+
+    const v = el.querySelector('#kc-v');
+    if (tab === 1) v.innerHTML = L ? vRevision() : vEstado();
+    else { await traerE(); v.innerHTML = vExpuestos(); }
+    enganchar(v);
+  }
+
+  /* --------------------------------------------- 1a · sin archivo */
+  function vEstado() {
+    const clas = D.por_clasificacion || {}, zonas = D.por_zona || {};
+    const sinPel = D.cargos_sin_peligros || [];
+
+    return `${D.hay_matriz ? `
+      <div class="kc-grid3">
+        <div class="kc-kpi"><b>${D.peligros}</b><span>peligros</span></div>
+        <div class="kc-kpi ${D.expuestos_sin_resolver ? 'mal':'ok'}">
+          <b>${D.expuestos_sin_resolver}</b><span>cargos expuestos sin resolver</span></div>
+        <div class="kc-kpi ${D.peligros_sin_capacitacion ? 'mal':'ok'}">
+          <b>${D.peligros_sin_capacitacion}</b><span>peligros sin capacitación</span></div>
+      </div>
+
+      ${sinPel.length ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:14px">
+        <div class="b" style="background:var(--kc-wa)">${sinPel.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${sinPel.length} cargo(s) no aparecen en ningún peligro</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(sinPel.slice(0,8).join(' · '))}${
+          sinPel.length > 8 ? ' y ' + (sinPel.length-8) + ' más' : ''}.
+        O están escondidos detrás de otro nombre en la matriz, o de verdad no tienen peligros
+        identificados. Lo segundo se lo tiene que responder HSE a sí mismo.</div></div></div>` : ''}
+
+      ${(D.fuera_de_la_norma||[]).length ? `<div class="kc-cent mal" style="margin-top:10px">
+        <div class="b">!</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Clasificaciones que no son GTC 45</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(D.fuera_de_la_norma.join(' · '))}</div></div></div>` : ''}
+
+      <div class="kc-dos2" style="margin-top:18px">
+        <div><h3 class="kc-h3">Por clasificación</h3>${
+          Object.keys(clas).sort((a,b)=>clas[b]-clas[a]).map(k =>
+            `<div class="kc-lin"><span>${esc(k)}</span><b>${clas[k]}</b></div>`).join('')}</div>
+        <div><h3 class="kc-h3">Por zona</h3>${
+          Object.keys(zonas).sort((a,b)=>zonas[b]-zonas[a]).map(k =>
+            `<div class="kc-lin"><span>${esc(k)}</span><b>${zonas[k]}</b></div>`).join('')}</div>
+      </div>` : `
+      <p class="kc-nota">Subí el Excel de la matriz tal como está. No hace falta reordenar
+      columnas ni separar hojas: la pantalla resuelve las celdas combinadas, encuentra la fila de
+      encabezado aunque esté en la 35, y busca cada columna por su nombre.</p>`}
+
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:22px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">${D.hay_matriz ? 'Reemplazar la matriz' : 'Cargar la matriz'}</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${D.hay_matriz
+          ? 'La anterior deja de ser la vigente pero no se borra: es la justificación escrita de por qué se le exigió una capacitación a alguien.'
+          : 'El archivo no sale de tu equipo: se lee acá y al servidor viaja sólo el resultado.'}</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls"
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  /* --------------------------------------- 1b · archivo ya leído */
+  function vRevision() {
+    const conPel = L.hojas.filter(h => h.peligros > 0);
+    const aCorregir = R.clasificaciones.filter(c => c.norma &&
+      c.valor !== c.valor.normalize('NFC') ? false : false);
+    const fuera = R.clasificaciones.filter(c => !c.norma);
+    const faltan = conPel.reduce((a,h) => a.concat(h.faltantes||[]), []);
+
+    return `
+      <div class="kc-grid3">
+        <div class="kc-kpi"><b>${R.peligros}</b><span>peligros encontrados</span></div>
+        <div class="kc-kpi"><b>${conPel.length}</b><span>hojas con peligros</span></div>
+        <div class="kc-kpi"><b>${R.cargos.length}</b><span>cargos expuestos distintos</span></div>
+      </div>
+
+      <h3 class="kc-h3" style="margin-top:20px">Las hojas del archivo</h3>
+      <div class="kc-sc"><table><thead><tr><th>Hoja</th><th class="n">Filas</th>
+        <th class="n">Peligros</th><th>Columnas reconocidas</th></tr></thead><tbody>
+        ${L.hojas.map(h => `<tr class="${h.peligros ? '' : 'kc-off'}">
+          <td class="k">${esc(h.nombre)}</td><td class="n">${h.filas}</td>
+          <td class="n">${h.peligros || '—'}</td>
+          <td>${h.tiene_tabla
+            ? h.reconocidas + ' de ' + MZ_CAMPOS.length +
+              (h.faltantes.length ? ` <span class="kc-mch b">falta ${esc(h.faltantes.join(', '))}</span>` : '')
+            : '<span style="color:var(--kc-ink3)">hoja de referencia, sin peligros</span>'}</td>
+        </tr>`).join('')}
+      </tbody></table></div>
+
+      <h3 class="kc-h3" style="margin-top:22px">Clasificaciones encontradas</h3>
+      <p class="kc-nota">GTC 45 define siete. Las que están bien escritas entran tal cual; las que
+      difieren sólo en tildes se corrigen solas. <b>Lo que no sea ninguna de las siete se guarda
+      como está y queda marcado</b> — no se inventa una equivalencia.</p>
+      <div class="kc-chips2">${R.clasificaciones.map(c =>
+        `<span class="kc-chip3 ${c.norma ? 'ok':'mal'}">${esc(c.valor)} · ${c.n}</span>`).join('')}</div>
+      ${fuera.length ? `<p class="kc-nota" style="color:var(--kc-cr)">
+        ${fuera.length} clasificación(es) fuera de la norma. Se van a importar igual, marcadas.</p>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:22px">Cargos expuestos que trae la matriz</h3>
+      <p class="kc-nota">Después de importar hay que decir qué es cada uno. Acá se ve cuánto
+      arrastra cada texto.</p>
+      <div class="kc-sc"><table><thead><tr><th>Texto en la matriz</th>
+        <th class="n">Peligros</th></tr></thead><tbody>
+        ${R.cargos.map(c => `<tr><td class="k">${esc(c.valor)}</td>
+          <td class="n">${c.n}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${R.sin_cargo ? `<p class="kc-nota" style="color:var(--kc-cr)">
+        ${R.sin_cargo} peligro(s) no dicen a quién exponen. Van a entrar igual, pero no le van a
+        exigir formación a nadie hasta que la matriz lo diga.</p>` : ''}
+
+      <p class="kc-nota" style="margin-top:16px"><b>${R.con_capacitacion}</b> de ${R.peligros}
+      peligros mencionan capacitación en sus controles administrativos, pero ninguno dice cuál.
+      Ese es el paso siguiente.</p>
+
+      <div class="kc-row" style="margin:20px 0 10px;gap:9px">
+        <button class="kc-b2" id="kc-cancelar" style="flex:0 0 auto">Cancelar</button>
+        <button class="kc-btn" id="kc-importar" style="flex:1 1 auto">
+          Importar ${R.peligros} peligro(s)</button></div>
+
+      <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--kc-ink2)">
+        <input type="checkbox" id="kc-conf" style="margin-top:3px">
+        <span>Revisé las hojas y las clasificaciones de arriba${D.hay_matriz
+          ? ', y entiendo que esto reemplaza la matriz vigente' : ''}.</span></label>`;
+  }
+
+  /* ---------------------------------------- 2 · cargos expuestos */
+  function vExpuestos() {
+    const exp = E.expuestos || [];
+    if (!exp.length) return `<p class="kc-nota">Todavía no hay ningún «cargo expuesto»:
+      aparecen cuando se importa la matriz.</p>`;
+
+    const pend = exp.filter(e => e.clase === 'sin_definir').length;
+
+    /* Una tarjeta abierta por vez. Con nueve textos y treinta y pico de
+       cargos en cada lista, tenerlas todas abiertas convierte la pantalla
+       en algo por donde hay que scrollear a ciegas. */
+    return `<p class="kc-nota">La matriz no dice cargos: dice textos. Algunos son un cargo, otros
+    son varios juntos, otros no son personal de la empresa. <b>Esto no se puede adivinar</b> —
+    «Auxiliares END» y «Auxiliar de Inspección» no comparten una sola palabra y son el mismo
+    cargo. Por eso lo decidís vos, de a uno.</p>
+
+    ${pend ? `<div class="kc-cent" style="background:var(--kc-was)">
+      <div class="b" style="background:var(--kc-wa)">${pend}</div><div>
+      <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">Faltan ${pend} de ${exp.length}</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">Mientras alguno quede sin definir, esos
+      peligros no le exigen formación a nadie.</div></div></div>` : ''}
+
+    ${exp.map(e => e.id === abierto ? tarjetaAbierta(e) : tarjetaCerrada(e)).join('')}`;
+  }
+
+  const CLASES = [
+    ['cargo',      'Es un cargo del padrón'],
+    ['varios',     'Son varios cargos en una celda'],
+    ['colectivo',  'Es un colectivo — aplica a varios'],
+    ['tercero',    'No es personal propio (proveedor, visitante, vecino)'],
+    ['ignorar',    'Dejarlo fuera del cálculo'],
+    ['sin_definir','Sin definir todavía']
+  ];
+  const nombreClase = c => (CLASES.find(x => x[0] === c) || ['','—'])[1];
+
+  function tarjetaCerrada(e) {
+    const listo = e.clase !== 'sin_definir';
+    const resumen = e.clase === 'tercero' ? 'No es personal propio'
+      : e.clase === 'ignorar' ? 'Fuera del cálculo'
+      : e.destinos.length ? e.destinos.map(d => esc(d.nombre)).join(' · ')
+      : nombreClase(e.clase);
+    return `<div class="kc-exp ${listo ? 'listo' : 'pend'}">
+      <div class="top">
+        <div style="flex:1 1 auto;min-width:0">
+          <div class="kc-tt" style="font-size:15.5px">${esc(e.texto)}</div>
+          <div class="kc-cd" style="margin-top:3px">${e.peligros} peligro(s) dependen de esto</div>
+          <div style="font-size:13.5px;margin-top:5px;color:${listo ? 'var(--kc-ok)' : 'var(--kc-wa)'}">
+            ${listo ? '✓ ' + resumen : 'Sin definir'}</div>
+        </div>
+        <button class="kc-mini${listo ? '' : ' p'}" data-abrir="${e.id}">
+          ${listo ? 'Cambiar' : 'Resolver'}</button>
+      </div></div>`;
+  }
+
+  function tarjetaAbierta(e) {
+    return `<div class="kc-exp abierta">
+      <div class="top">
+        <div style="flex:1 1 auto;min-width:0">
+          <div class="kc-tt" style="font-size:15.5px">${esc(e.texto)}</div>
+          <div class="kc-cd" style="margin-top:3px">${e.peligros} peligro(s) dependen de esto</div>
+        </div>
+        <select class="kc-in" data-clase="${e.id}" style="max-width:290px">
+          ${CLASES.map(c => `<option value="${c[0]}" ${e.clase===c[0]?'selected':''}>${c[1]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="dest" data-dest="${e.id}"></div>
+      <div class="kc-row" style="margin-top:12px;gap:8px;justify-content:flex-end">
+        <button class="kc-b2" data-cerrar="1" style="flex:0 0 auto">Cancelar</button>
+        <button class="kc-btn" data-guardar="${e.id}" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Guardar y cerrar</button>
+      </div></div>`;
+  }
+
+  function pintarDestinos(id) {
+    const e = (E.expuestos || []).find(x => x.id === id);
+    const box = el.querySelector(`[data-dest="${id}"]`);
+    const sel = el.querySelector(`[data-clase="${id}"]`);
+    if (!e || !box || !sel) return;
+    const clase = sel.value;
+
+    if (['tercero','ignorar','sin_definir'].indexOf(clase) >= 0) {
+      box.innerHTML = `<p class="kc-nota" style="text-align:left;margin:10px 0 0">${
+        clase === 'tercero'
+          ? 'No hace falta elegir a nadie: esos peligros quedan registrados pero no le exigen formación a ningún cargo.'
+          : clase === 'ignorar'
+          ? 'Queda fuera del cálculo.'
+          : 'Elegí arriba qué es este texto.'}</p>`;
+      return;
+    }
+
+    const sug = {}; (e.sugerencias || []).forEach(s2 => { sug[s2.cargo_id] = s2.palabras; });
+    const yaC = {}; (e.destinos || []).forEach(d => { if (d.cargo_id) yaC[d.cargo_id] = 1; });
+    const yaR = {}; (e.destinos || []).forEach(d => { if (d.rol_id) yaR[d.rol_id] = 1; });
+
+    const q = buscaDest.trim().toLowerCase();
+    const pasa = n => !q || n.toLowerCase().indexOf(q) >= 0;
+    const cargos = (E.cargos || []).slice()
+      .sort((a, b) => (sug[b.id]||0) - (sug[a.id]||0) || a.nombre.localeCompare(b.nombre))
+      .filter(c => pasa(c.nombre) || yaC[c.id]);
+    const comites = (E.comites || []).filter(r => pasa(r.nombre) || yaR[r.id]);
+
+    box.innerHTML = `<label>Marcá a quién corresponde</label>
+      <input type="search" class="kc-in" id="kc-bd" placeholder="Buscar un cargo…"
+             value="${esc(buscaDest)}" autocomplete="off" style="width:100%;margin-bottom:6px">
+      <div class="kc-lista">
+        ${cargos.length || comites.length ? '' :
+          '<p class="kc-nota" style="text-align:left;margin:6px 0">Ningún cargo con ese texto.</p>'}
+        ${cargos.map(c => `<label class="kc-dst">
+          <input type="checkbox" class="kdc-${id}" value="${c.id}" ${yaC[c.id]?'checked':''}>
+          <span>${esc(c.nombre)}${sug[c.id] ? ' <span class="kc-mch">sugerido</span>' : ''}</span>
+        </label>`).join('')}
+        ${comites.map(r => `<label class="kc-dst">
+          <input type="checkbox" class="kdr-${id}" value="${r.id}" ${yaR[r.id]?'checked':''}>
+          <span>${esc(r.nombre)} <span class="kc-mch">comité</span></span>
+        </label>`).join('')}
+      </div>
+      <div id="kc-cuenta-dest" class="kc-cd" style="margin-top:6px"></div>`;
+
+    const contar = () => {
+      const n = box.querySelectorAll('input[type=checkbox]:checked').length;
+      const c = box.querySelector('#kc-cuenta-dest');
+      if (c) c.textContent = n === 0 ? 'Todavía no marcaste ninguno'
+                           : n === 1 ? '1 marcado' : n + ' marcados';
+    };
+    box.querySelectorAll('input[type=checkbox]').forEach(x => x.onchange = contar);
+    contar();
+
+    const bd = box.querySelector('#kc-bd');
+    if (bd) bd.oninput = () => {
+      const cur = bd.selectionStart;
+      buscaDest = bd.value;
+      pintarDestinos(id);
+      const nn = el.querySelector('#kc-bd');
+      if (nn) { nn.focus(); nn.setSelectionRange(cur, cur); }
+    };
+  }
+
+  /* ------------------------------------------------------ eventos */
+  function enganchar(v) {
+    if (D.puede_editar === false) v.querySelectorAll('button:not(.kc-tab)').forEach(b => b.remove());
+
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const f = arch.files && arch.files[0];
+      if (!f) return;
+      cargando(el, 'Abriendo el archivo…');
+      try {
+        const XLSX = await cargarXLSX();
+        const buf = await f.arrayBuffer();
+        L = mzLeer(XLSX, new Uint8Array(buf));
+        R = mzResumen(L.filas);
+        if (!R.peligros) {
+          L = null; R = null;
+          await pintar();
+          return alert('No encontré ninguna fila de peligro en ese archivo.\n\n' +
+            'La pantalla busca una hoja con una columna de descripción del peligro. ' +
+            'Si el archivo la tiene con otro nombre, decímelo y la agrego.');
+        }
+        await pintar();
+      } catch (e) { await pintar(); alert(e.message); }
+    };
+
+    const bc = v.querySelector('#kc-cancelar');
+    if (bc) bc.onclick = () => { L = null; R = null; pintar(); };
+
+    const bi = v.querySelector('#kc-importar');
+    if (bi) bi.onclick = async () => {
+      if (!(v.querySelector('#kc-conf') || {}).checked)
+        return alert('Marcá la casilla de abajo cuando hayas revisado las hojas y las clasificaciones.');
+      bi.disabled = true; bi.textContent = 'Importando…';
+      try {
+        const r = await rpc('cap_matriz_importar', {
+          p_matriz: { codigo_doc: null, version: null, fecha_version: null, metodologia: 'GTC 45' },
+          p_filas: L.filas });
+        tab = 2;
+        await recargar(r.aviso);
+      } catch (e) {
+        bi.disabled = false; bi.textContent = 'Importar ' + R.peligros + ' peligro(s)';
+        alert(e.message);
+      }
+    };
+
+    // cargos expuestos: una tarjeta abierta por vez
+    v.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = b.dataset.abrir; buscaDest = '';
+      v.innerHTML = vExpuestos(); enganchar(v);
+      const card = v.querySelector('.kc-exp.abierta');
+      if (card) card.scrollIntoView({ block: 'nearest' });
+    });
+    v.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => {
+      abierto = null; buscaDest = '';
+      v.innerHTML = vExpuestos(); enganchar(v);
+    });
+    v.querySelectorAll('[data-clase]').forEach(s2 => {
+      pintarDestinos(s2.dataset.clase);
+      s2.onchange = () => { buscaDest = ''; pintarDestinos(s2.dataset.clase); };
+    });
+    v.querySelectorAll('[data-guardar]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.guardar;
+      const clase = (v.querySelector(`[data-clase="${id}"]`) || {}).value;
+      const dest = [];
+      v.querySelectorAll('.kdc-' + id + ':checked').forEach(x => dest.push({ cargo_id: x.value }));
+      v.querySelectorAll('.kdr-' + id + ':checked').forEach(x => dest.push({ rol_id: x.value }));
+      b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_expuesto_mapear', {
+          p_expuesto: id, p_clase: clase, p_destinos: dest });
+        abierto = null; buscaDest = '';
+        await recargar(r.aviso);
+      } catch (e2) {
+        b.disabled = false; b.textContent = 'Guardar y cerrar'; alert(e2.message);
+      }
+    });
+  }
+
+  await pintar();
+}
+
+/* =================================================================
+   LEER LAS ASISTENCIAS DE UN REGISTRO
+
+   Una hoja de registro tiene una fila por PERSONA por evento: el mismo
+   tema repetido cientos de veces. De ahí no sale catálogo —eso ya se
+   hizo— sino la historia: quién, qué, cuándo, con qué nota.
+
+   La fecha es el dato que no se puede perder: de ella sale el
+   vencimiento. Por eso se lee con cellDates y se rechaza la fila que
+   no la tenga, en vez de inventarle una.
+   ================================================================= */
+const AS_CAMPOS = [
+  ['capacitacion', ['TEMA CHARLA', 'NOMBRE DE LA CAPACIT', 'TEMA']],
+  ['persona',      ['APELLIDOS']],
+  ['fecha',        ['FECHA']],
+  ['nota',         ['PUNTAJE', 'NOTA', 'CALIFICA']],
+  ['horas',        ['DURACIÓN', 'DURACION']]
+];
+
+function asMapear(M, hr) {
+  const f = (M[hr] || []).map(mzMay), idx = {}, usadas = {};
+  AS_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    for (let k = 0; k < claves.length; k++) {
+      for (let i = 0; i < f.length; i++) {
+        if (usadas[i]) continue;
+        if (ctEmpieza(f[i], claves[k])) { idx[campo] = i; usadas[i] = true; return; }
+      }
+    }
+  });
+  return idx;
+}
+
+/* AAAA-MM-DD sin pasar por UTC: toISOString() sobre una fecha local
+   corre un día para atrás en Colombia y arruinaría el vencimiento. */
+function asFecha(v) {
+  if (v instanceof Date && !isNaN(v)) {
+    return v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') +
+           '-' + String(v.getDate()).padStart(2, '0');
+  }
+  const t = mzTxt(v);
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
+  m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (m) return m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+  return '';
+}
+
+function asNum(v) {
+  const t = mzTxt(v).replace(',', '.');
+  const n = parseFloat(t);
+  return isNaN(n) ? null : n;
+}
+
+function asLeer(XLSX, buf, archivo) {
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const hojas = [], filas = [];
+
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = ctFilaEncabezado(M);
+    const idx = hr < 0 ? {} : asMapear(M, hr);
+
+    // Sin columna de personas no es un registro de asistencia: es otra
+    // cosa —el plan del año, una hoja de referencia— y no se toca.
+    if (hr < 0 || idx.persona === undefined || idx.capacitacion === undefined) {
+      hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 });
+      return;
+    }
+
+    let sinFecha = 0;
+    const propias = [];
+    for (let i = hr + 1; i < M.length; i++) {
+      const r = M[i] || [];
+      const cap = mzTxt(r[idx.capacitacion]), per = mzTxt(r[idx.persona]);
+      if (!cap || !per) continue;
+      const fec = idx.fecha !== undefined ? asFecha(r[idx.fecha]) : '';
+      if (!fec) { sinFecha++; continue; }
+      propias.push({
+        capacitacion: cap, persona: per, fecha: fec,
+        nota:  idx.nota  !== undefined ? asNum(r[idx.nota])  : null,
+        horas: idx.horas !== undefined ? asNum(r[idx.horas]) : null
+      });
+    }
+    hojas.push({ archivo: archivo, nombre: nombre, clase: 'registro',
+                 filas: propias.length, sin_fecha: sinFecha,
+                 con_nota: propias.filter(x => x.nota != null).length });
+    propias.forEach(x => filas.push(x));
+  });
+
+  return { hojas: hojas, filas: filas };
+}
+
+
+/* =================================================================
+   LEER EL LIBRO DEL PROGRAMA (CRONOGRAMA)
+
+   Este libro no es un registro de asistencia: tiene una fila por
+   CAPACITACIÓN, no por persona. Trae qué tema, cuándo se programó,
+   cuándo se dictó, cuántas horas y cuántos fueron. No trae nombres.
+
+   Sirve para el cumplimiento y para la cobertura declarada. No sirve
+   para el pasaporte de nadie: sin nombre no hay acreditación.
+
+   Tres reglas que salieron del libro real, no del diseño:
+
+   1. UNA FECHA DE REALIZACIÓN QUE TODAVÍA NO LLEGÓ NO ES UNA
+      REALIZACIÓN. En el libro 2026 las charlas de septiembre y octubre
+      están escritas en la columna «Fecha Realizada» porque ahí se lleva
+      el calendario. Importarlas tal cual daría por dictada una charla
+      de octubre. Pasan a fecha programada.
+
+   2. UN TEMA SIN NINGUNA FECHA Y SIN ASISTENTES NO ES UN EVENTO. Son
+      líneas de temario disponible. Convertirlas en eventos inventaría
+      incumplimientos que nadie cometió: se listan aparte y no entran.
+
+   3. «INGRESOS DE PERSONAL», «PROGRAMADO POR EL CLIENTE» no son celdas
+      vacías: son la regla que dispara la capacitación.
+   ================================================================= */
+const CR_CAMPOS = [
+  ['titulo',      ['NOMBRE DE LA CAPACITACION', 'NOMBRE DEL TEMA', 'TEMA A REALIZAR',
+                   'NOMBRE DE LA ACTIVIDAD', 'TEMA']],
+  ['objetivo',    ['OBJETIVO']],
+  ['tipo',        ['TIPO']],
+  ['eje',         ['EJE DE FORMACION', 'EJE']],
+  ['modalidad',   ['MODALIDAD']],
+  ['responsable', ['RESPONSABLE']],
+  ['alcance',     ['ALCANCE']],
+  ['programada',  ['FECHA PROGRAMACION', 'FECHA DE PROGRAMACION', 'FECHA PROGRAMADA']],
+  ['realizada',   ['FECHA DE REALIZACION', 'FECHA REALIZADA', 'FECHA DE FINALIZACION']],
+  ['hecho',       ['SI/NO', 'REALIZADO', 'INDICADOR DE CUMPLIMIENTO']],
+  ['horas',       ['HORAS DE DURACION', 'NO. HORAS', 'NUMERO DE HORAS']],
+  ['asistentes',  ['NUMERO DE ASISTENTES', 'NO. DE ASISTENTES']],
+  ['convocados',  ['NUMERO TOTAL DE TRABAJADORES', 'NO. TOTAL DE TRABAJADORES']]
+];
+
+const crAlias = n => (CR_CAMPOS.find(p => p[0] === n) || [null, []])[1];
+
+/* Lo que en estas hojas parece un tema y no lo es: el pie del cuadro,
+   el presupuesto y la lista de opciones del desplegable de modalidad.
+   Exacto donde una palabra sola podría ser un tema real; por prefijo
+   sólo donde no hay duda. */
+const CR_RUIDO_IGUAL = ['CONVENCIONES', 'CONVENCION', 'VIRTUAL', 'PRESENCIAL', 'MIXTO', 'MIXTA',
+  'PLATAFORMA COLMENA', 'AUTOESTUDIO', 'OBSERVACIONES', 'OBSERVACION', 'NOTA', 'NOTAS',
+  'TOTAL', 'GRAN TOTAL',
+  // Pie de las cuatro hojas del PG-HUM-001: una fila «ANALISIS» con el
+  // comentario de cada mes. Iba a entrar como una capacitación con 23
+  // actividades. Va EXACTO y nunca por prefijo: «Análisis de Trabajo
+  // Seguro» es una capacitación de verdad.
+  'ANALISIS'];
+const CR_RUIDO_EMPIEZA = ['PRESUPUESTO', 'TOTALES', 'FECHA DE ACTUALIZACION', 'RESPONSABLE:',
+  'ELABORO', 'REVISO', 'APROBO', 'CAPACITACIONES EJECUTADAS', 'CAPACITACIONES PROGRAMADAS'];
+
+function crEsRuido(t) {
+  const n = mzSinTilde(t);
+  return CR_RUIDO_IGUAL.indexOf(n) >= 0 || CR_RUIDO_EMPIEZA.some(k => ctEmpieza(n, k));
+}
+
+const CR_DISPARO = [
+  [/INGRESO/,                      'ingreso'],
+  [/CLIENTE/,                      'evento_disparador'],
+  [/AVANCE|DEMANDA|REQUERIMIENTO/, 'evento_disparador'],
+  [/VERSION|ACTUALIZA/,            'version_doc']
+];
+
+function crFilaEncabezado(M) {
+  const tit = crAlias('titulo'), fec = crAlias('programada').concat(crAlias('realizada'));
+  for (let i = 0; i < Math.min(M.length, 20); i++) {
+    const f = (M[i] || []).map(mzSinTilde);
+    const hayTit = f.some(c => tit.some(k => ctEmpieza(c, k)));
+    const hayFec = f.some(c => fec.some(k => ctEmpieza(c, k)));
+    if (hayTit && hayFec) return i;
+  }
+  return -1;
+}
+
+/* Una columna se usa una sola vez, salvo «Fecha de realización»: de esa
+   hay hasta siete en la misma fila —la misma charla dictada de nuevo—
+   y todas cuentan. */
+function crMapear(fila) {
+  const f = (fila || []).map(mzSinTilde), m = { realizada: [] }, usadas = {};
+  CR_CAMPOS.forEach(par => {
+    const campo = par[0], claves = par[1];
+    if (campo === 'realizada') {
+      f.forEach((c, i) => {
+        if (usadas[i]) return;
+        if (claves.some(k => ctEmpieza(c, k))) { m.realizada.push(i); usadas[i] = 1; }
+      });
+      return;
+    }
+    for (let k = 0; k < claves.length; k++) {
+      for (let i = 0; i < f.length; i++) {
+        if (usadas[i]) continue;
+        if (ctEmpieza(f[i], claves[k])) { m[campo] = i; usadas[i] = 1; return; }
+      }
+    }
+  });
+  return m;
+}
+
+/* =================================================================
+   LEER EL PROGRAMA EN GRILLA MENSUAL
+
+   El libro de Total QC (PG-HUM-001) no tiene una columna de fechas:
+   tiene una GRILLA. Una fila por tema y, por cada mes del año, seis
+   columnas —PROG, EJE, P. PROG, P. ASIS, P.PRES, P.APRU—. Que un tema
+   esté programado en marzo se dice poniendo algo en la celda PROG de
+   marzo, no escribiendo una fecha.
+
+   EL LIBRO DICE EL MES, NO EL DÍA
+
+   Así que la fecha hay que construirla, y eso es una afirmación. Se
+   toma el ÚLTIMO DÍA DEL MES: el plan dice «en noviembre», entonces
+   recién el 1º de diciembre está incumplido. Con el primer día del mes,
+   una capacitación aparecería vencida desde el día 2 aunque el plan le
+   diera todo el mes — el módulo estaría marcando rojo antes de que el
+   plan lo diga. (Decidido con Marcelo, 28/08/2026.)
+
+   Y para lo EJECUTADO el último día del mes se recorta a hoy: nada se
+   da por dictado en una fecha que todavía no llegó.
+
+   Cada evento se lleva escrito de dónde salió —hoja, fila y mes— para
+   poder volver al papel.
+   ================================================================= */
+const CR_MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO',
+                  'AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+/* Los seis rótulos que se repiten dentro de cada mes. */
+const CR_GRI = [
+  ['prog',       ['PROG']],
+  ['eje',        ['EJE']],
+  ['convocados', ['P. PROG', 'P.PROG']],
+  ['asistentes', ['P. ASIS', 'P.ASIS']]
+];
+
+/* Columnas de la parte fija, antes de que empiecen los meses. */
+const CR_GRI_BASE = [
+  ['titulo',      ['TEMA']],
+  ['objetivo',    ['OBJETIVO']],
+  ['alcance',     ['DIRIGIDA A', 'DIRIGIDO A']],
+  ['modalidad',   ['MODALIDAD']],
+  ['horas',       ['DURACION', 'DURACIÓN']],
+  ['responsable', ['RESPONSABLE']]
+];
+
+const crUltimoDia = (anio, mes) =>
+  `${anio}-${String(mes).padStart(2,'0')}-${new Date(anio, mes, 0).getDate()}`;
+
+/* Dónde arranca cada mes. Se toma la PRIMERA columna de cada corrida
+   del mismo nombre: `mzCeldas` rellena las celdas combinadas, así que
+   «ENERO» aparece repetido en las seis columnas del bloque. Sin esto
+   se detectarían seis eneros. */
+function crBloquesMes(fila) {
+  const f = (fila || []).map(mzSinTilde), out = [];
+  for (let j = 0; j < f.length; j++) {
+    const m = CR_MESES.indexOf(f[j]);
+    if (m < 0) continue;
+    if (j > 0 && f[j - 1] === f[j]) continue;
+    out.push({ col: j, mes: m + 1 });
+  }
+  return out;
+}
+
+/* Lee la celda TAL CUAL está en la hoja, sin rellenar combinaciones.
+
+   Hace falta acá y sólo acá. `mzCeldas` rellena los rangos combinados,
+   que es lo correcto para un título que abarca varias filas — pero en
+   esta grilla hay filas donde el mes entero está combinado en un solo
+   rango de seis columnas. Al rellenarlo, el valor escrito en PROG se
+   copiaba a EJE, a P. PROG y a P. ASIS: el lector daba por DICTADAS 69
+   capacitaciones cuando el libro dice 46. Veintitrés capacitaciones
+   marcadas como hechas sin que nadie las hubiera dictado. */
+function crCrudo(XLSX, ws, org, i, j) {
+  const cel = ws[XLSX.utils.encode_cell({ r: org.r + i, c: org.c + j })];
+  return cel ? cel.v : null;
+}
+
+function crGrilla(M, nombre, XLSX, ws) {
+  let filaMes = -1, bloques = [];
+  for (let i = 0; i < Math.min(M.length, 14); i++) {
+    const b = crBloquesMes(M[i]);
+    if (b.length >= 2) { filaMes = i; bloques = b; break; }
+  }
+  if (filaMes < 0) return null;
+
+  // el encabezado es la fila de abajo: tiene TEMA y PROG
+  let hr = -1;
+  for (let i = filaMes + 1; i < Math.min(M.length, filaMes + 4); i++) {
+    const f = (M[i] || []).map(mzSinTilde);
+    if (f.some(x => x === 'TEMA') && f.some(x => x === 'PROG')) { hr = i; break; }
+  }
+  if (hr < 0) return null;
+
+  const enc = (M[hr] || []).map(mzSinTilde);
+  const base = {};
+  CR_GRI_BASE.forEach(par => {
+    for (let k = 0; k < par[1].length && base[par[0]] === undefined; k++) {
+      const j = enc.findIndex((c, i) => i < bloques[0].col && c === par[1][k]);
+      if (j >= 0) base[par[0]] = j;
+    }
+  });
+  if (base.titulo === undefined) return null;
+
+  // dentro de cada mes, dónde cae cada rótulo
+  const hasta = i => (i + 1 < bloques.length ? bloques[i + 1].col : enc.length);
+  bloques.forEach((b, i) => {
+    b.idx = {};
+    for (let j = b.col; j < hasta(i); j++) {
+      CR_GRI.forEach(par => {
+        if (b.idx[par[0]] === undefined && par[1].indexOf(enc[j]) >= 0) b.idx[par[0]] = j;
+      });
+    }
+  });
+
+  const R = ws && ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+  const org = R ? { r: R.s.r, c: R.s.c } : { r: 0, c: 0 };
+  const crudo = (i, j) => j === undefined ? null : mzTxt(crCrudo(XLSX, ws, org, i, j));
+
+  const anio = Number((nombre.match(/20\d\d/) || [new Date().getFullYear()])[0]);
+  const ejeDef = /HSEQ|HSE/.test(mzSinTilde(nombre)) ? 'hse' : 'tecnica';
+  const hoy = iso();
+  const filas = [], sinFecha = [];
+  let ruido = 0, reps = 0, futs = 0;
+
+  for (let i = hr + 1; i < M.length; i++) {
+    const r = M[i] || [];
+    const tit = mzTxt(r[base.titulo]);
+    if (!tit || tit.length < 4) continue;
+    if (mzSinTilde(tit) === 'TEMA') continue;
+    if (crEsRuido(tit)) { ruido++; continue; }
+
+    // Una fila de tema real SIEMPRE trae objetivo, a quién va dirigida y
+    // modalidad. Si no trae ninguna de las tres, es un pie de tabla o un
+    // rótulo de sección, aunque no esté en ninguna lista de palabras.
+    // Esto atrapa al próximo «ANALISIS» sin que haya que agregarlo a mano.
+    const _obj = base.objetivo  !== undefined ? mzTxt(r[base.objetivo])  : '';
+    const _dir = base.alcance   !== undefined ? mzTxt(r[base.alcance])   : '';
+    const _mod = base.modalidad !== undefined ? mzTxt(r[base.modalidad]) : '';
+    if (!_obj && !_dir && !_mod) { ruido++; continue; }
+
+    const comun = {
+      hoja: nombre, capacitacion: tit,
+      objetivo:    base.objetivo    !== undefined ? mzTxt(r[base.objetivo])    : '',
+      tipo: '', eje: '',
+      modalidad:   base.modalidad   !== undefined ? mzTxt(r[base.modalidad])   : '',
+      responsable: base.responsable !== undefined ? mzTxt(r[base.responsable]) : '',
+      alcance:     base.alcance     !== undefined ? mzTxt(r[base.alcance])     : '',
+      horas:       base.horas       !== undefined ? mzTxt(r[base.horas])       : '',
+      anio: String(anio), eje_defecto: ejeDef
+    };
+
+    let vecesEnElAnio = 0;
+    bloques.forEach(b => {
+      const p = crudo(i, b.idx.prog);
+      const e = crudo(i, b.idx.eje);
+      if (!p && !e) return;
+
+      const fin = crUltimoDia(anio, b.mes);
+      // Programada: el último día del mes, tal como se decidió.
+      // Ejecutada: lo mismo, pero nunca más allá de hoy — dar por
+      // dictada una capacitación en una fecha futura es la mentira
+      // que este módulo no puede permitirse.
+      const realizada = e ? (fin > hoy ? hoy : fin) : '';
+      if (e && fin > hoy) futs++;
+      vecesEnElAnio++;
+      if (vecesEnElAnio > 1) reps++;
+
+      filas.push(Object.assign({}, comun, {
+        fila: i + 1,
+        programada: p ? fin : '',
+        disparador: p ? 'fecha' : 'evento_disparador',
+        disparador_txt: p ? '' : 'Ejecutada sin quedar programada en el libro',
+        realizadas: realizada ? [realizada] : [],
+        convocados: crudo(i, b.idx.convocados),
+        asistentes: crudo(i, b.idx.asistentes),
+        mes: CR_MESES[b.mes - 1]
+      }));
+    });
+
+    // Un tema sin una sola marca en todo el año no es un evento: está
+    // en el programa como temario, sin programación. Se lista y no entra.
+    if (vecesEnElAnio === 0) sinFecha.push(Object.assign({}, comun, { fila: i + 1 }));
+  }
+
+  return { hoja: nombre, estado: 'leida', clase: 'grilla',
+           realizadas_cols: bloques.length, ruido: ruido,
+           repeticiones: reps, futuras: futs,
+           filas: filas, sin_fecha: sinFecha };
+}
+
+function crLeer(XLSX, buf, archivo) {
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const hojas = [], filas = [], sinFecha = [], hoy = iso();
+  const titAl = crAlias('titulo');
+
+  wb.SheetNames.forEach(nombre => {
+    const M = mzCeldas(XLSX, wb.Sheets[nombre]);
+    const hr = crFilaEncabezado(M);
+    const m  = hr < 0 ? {} : crMapear(M[hr]);
+
+    // Dos libros, dos formas. DINAMHO trae una columna de fechas; Total QC
+    // trae una grilla de meses con PROG y EJE. Si no hay columna de fecha,
+    // se prueba la grilla antes de dar la hoja por ignorada.
+    if (hr < 0 || m.titulo === undefined) {
+      const g = crGrilla(M, nombre, XLSX, wb.Sheets[nombre]);
+      if (g) {
+        hojas.push({ archivo: archivo, nombre: nombre, clase: 'grilla',
+                     filas: g.filas.length, repeticiones: g.repeticiones,
+                     futuras: g.futuras, sin_fecha: g.sin_fecha.length, ruido: g.ruido });
+        g.filas.forEach(x => filas.push(x));
+        g.sin_fecha.forEach(x => sinFecha.push(x));
+      } else {
+        hojas.push({ archivo: archivo, nombre: nombre, clase: 'ignorada', filas: 0 });
+      }
+      return;
+    }
+
+    const anioHoja = (nombre.match(/20\d\d/) || [''])[0];
+    const ejeDef = /TECNIC/.test(mzSinTilde(nombre)) ? 'tecnica' : 'hse';
+    let ruido = 0, reps = 0, futs = 0, nSin = 0;
+    const propias = [];
+
+    for (let i = hr + 1; i < M.length; i++) {
+      const r = M[i] || [];
+      const tit = mzTxt(r[m.titulo]);
+      if (!tit || tit.length < 4) continue;
+      if (titAl.indexOf(mzSinTilde(tit)) >= 0) continue;      // encabezado repetido
+      if (crEsRuido(tit)) { ruido++; continue; }
+
+      const crudo = m.programada !== undefined ? r[m.programada] : null;
+      const prog = crudo === null || crudo === undefined ? '' : asFecha(crudo);
+      let disp = 'fecha', dispTxt = '';
+      if (!prog && mzTxt(crudo)) {
+        const n = mzSinTilde(crudo);
+        for (let d = 0; d < CR_DISPARO.length; d++) {
+          if (CR_DISPARO[d][0].test(n)) { disp = CR_DISPARO[d][1]; dispTxt = mzTxt(crudo); break; }
+        }
+      }
+
+      let reales = m.realizada.map(j => asFecha(r[j])).filter(Boolean);
+      const futuras = reales.filter(d => d > hoy);
+      reales = reales.filter(d => d <= hoy);
+      const progF = prog || (futuras.length ? futuras[0] : '');
+      if (futuras.length) futs++;
+      if (reales.length > 1) reps += reales.length - 1;
+
+      const asis = m.asistentes !== undefined ? asNum(r[m.asistentes]) : null;
+      const fila = {
+        hoja: nombre, fila: i + 1, capacitacion: tit,
+        objetivo:    m.objetivo    !== undefined ? mzTxt(r[m.objetivo])    : '',
+        tipo:        m.tipo        !== undefined ? mzTxt(r[m.tipo])        : '',
+        eje:         m.eje         !== undefined ? mzTxt(r[m.eje])         : '',
+        modalidad:   m.modalidad   !== undefined ? mzTxt(r[m.modalidad])   : '',
+        responsable: m.responsable !== undefined ? mzTxt(r[m.responsable]) : '',
+        alcance:     m.alcance     !== undefined ? mzTxt(r[m.alcance])     : '',
+        programada: progF, disparador: disp, disparador_txt: dispTxt,
+        realizadas: reales,
+        horas:      m.horas      !== undefined ? mzTxt(r[m.horas])      : '',
+        asistentes: m.asistentes !== undefined ? mzTxt(r[m.asistentes]) : '',
+        convocados: m.convocados !== undefined ? mzTxt(r[m.convocados]) : '',
+        anio: anioHoja, eje_defecto: ejeDef
+      };
+
+      // Sin fecha, sin regla y sin asistentes no es un evento: es temario.
+      if (!progF && !reales.length && disp === 'fecha' && !(asis > 0)) {
+        nSin++; sinFecha.push(fila); continue;
+      }
+      propias.push(fila);
+    }
+
+    hojas.push({ archivo: archivo, nombre: nombre, clase: 'programa',
+                 filas: propias.length, repeticiones: reps, futuras: futs,
+                 sin_fecha: nSin, ruido: ruido });
+    propias.forEach(x => filas.push(x));
+  });
+
+  return { hojas: hojas, filas: filas, sin_fecha: sinFecha };
+}
+
+
+/* =================================================================
+   PANTALLA · IMPORTAR EL CATÁLOGO
+
+   El archivo no sale del equipo: se lee acá, y al servidor viaja sólo
+   el resultado. Y antes de escribir nada se hace un SIMULACRO: el
+   servidor devuelve qué crearía y qué reusaría, sin tocar un dato.
+   Recién si una persona lo aprueba, se importa.
+   ================================================================= */
+async function impCatalogo(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  let HOJAS = null, FILAS = null, PLAN = null, leyendo = false;
+
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+
+  const CLASE = {
+    programa: ['Plan del año',   'Entra activo: esto exige, vence y bloquea.'],
+    registro: ['Registro de lo dictado', 'Entra apagado: sostiene la historia y no exige nada.'],
+    charlas:  ['Charlas diarias', 'Entran apagadas: el pasaporte no cuenta charlas.'],
+    ignorada: ['Sin tabla de temas', 'No se reconoció ninguna columna de tema. Se saltea.']
+  };
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CATÁLOGO · IMPORTAR</div>
+        <h1 style="font-size:28px;font-weight:700">El catálogo de tu empresa</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:72ch">
+          Si ya tenés un programa de capacitación escrito, no hace falta cargarlo a mano.
+          Subí el archivo tal como está.</div></div>
+      <div id="kc-v"></div></div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    const v = el.querySelector('#kc-v');
+    v.innerHTML = leyendo ? '<div class="kc-carga">Leyendo el archivo…</div>'
+                : PLAN ? vPlan() : HOJAS ? vLectura() : vPedir();
+    enganchar(v);
+  }
+
+  /* ---------------------------------------------------- 1. el archivo */
+  function vPedir() {
+    return `<p class="kc-nota" style="text-align:left;max-width:74ch">
+      Podés subir varios libros a la vez: el programa del año, el consolidado de lo
+      dictado y las charlas. La pantalla los distingue sola — una hoja con una columna
+      de personas es un registro de asistencia, no un plan.</p>
+
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen
+          acá y al servidor viaja sólo la lista de temas.</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls" multiple
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  /* ------------------------------------------- 2. qué se leyó, por hoja */
+  function vLectura() {
+    const porOrigen = {};
+    FILAS.forEach(f => { porOrigen[f.origen] = (porOrigen[f.origen] || 0) + 1; });
+    const activas = FILAS.filter(f => f.activo).length;
+
+    return `<div class="kc-grid3">
+        <div class="kc-kpi"><b>${FILAS.length}</b><span>temas distintos</span></div>
+        <div class="kc-kpi ok"><b>${activas}</b><span>entran activos</span></div>
+        <div class="kc-kpi"><b>${FILAS.length - activas}</b><span>entran apagados</span></div>
+      </div>
+
+      <h3 class="kc-h3" style="margin-top:20px">Qué encontré en cada hoja</h3>
+      <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th>
+        <th>Qué es</th><th class="n">Temas</th></tr></thead><tbody>${
+        HOJAS.map(h => `<tr${h.clase === 'ignorada' ? ' style="opacity:.5"' : ''}>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
+          <td class="k">${esc(h.nombre)}</td>
+          <td><b>${esc((CLASE[h.clase] || ['—'])[0])}</b>
+            <div class="kc-cd" style="margin-top:2px">${esc((CLASE[h.clase] || ['','—'])[1])}</div></td>
+          <td class="n">${h.temas}</td></tr>`).join('')}</tbody></table></div>
+
+      <h3 class="kc-h3" style="margin-top:18px">De dónde viene cada uno</h3>
+      ${Object.keys(porOrigen).sort().map(k =>
+        `<div class="kc-lin"><span>${esc(k)}</span><b>${porOrigen[k]}</b></div>`).join('')}
+
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-sim" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Ver qué pasaría</button>
+        <button class="kc-mini" id="kc-otro">Elegir otros archivos</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Todavía no se guardó nada.</p>`;
+  }
+
+  /* ----------------------------------------- 3. el simulacro del servidor */
+  function vPlan() {
+    const nuevas = PLAN.det_nuevas || [], reuso = PLAN.det_reusadas || [];
+    const sinVig = FILAS.filter(f => f.activo && !f.vigencia_dias).length;
+
+    return `<div class="kc-grid3">
+        <div class="kc-kpi ok"><b>${PLAN.nuevas}</b><span>se crearían</span></div>
+        <div class="kc-kpi"><b>${PLAN.reusadas}</b><span>ya existen, se completan</span></div>
+        <div class="kc-kpi"><b>${PLAN.repetidas}</b><span>repetidas en el archivo</span></div>
+      </div>
+
+      ${sinVig ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:14px">
+        <div class="b" style="background:var(--kc-wa)">${sinVig}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${sinVig} no dicen cada cuánto se repiten</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">El archivo trae la duración pero no la
+          vigencia. Sin vigencia una capacitación no vence nunca: hecha una vez, queda al día
+          para siempre. Se puede importar igual y ponérsela después, capacitación por
+          capacitación — pero es una decisión de HSE, no del importador.</div></div></div>` : ''}
+
+      ${reuso.length ? `<h3 class="kc-h3" style="margin-top:18px">Ya existen · se completan los campos vacíos</h3>
+        <div class="kc-sc"><table><thead><tr><th>Código</th><th>Capacitación</th>
+          <th>Origen</th></tr></thead><tbody>${reuso.map(r => `<tr>
+          <td class="k">${esc(r.codigo)}</td><td class="tit">${esc(r.titulo)}</td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(r.origen||'')}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:18px">Se crearían ${nuevas.length}</h3>
+      <div class="kc-sc" style="max-height:420px;overflow-y:auto"><table><thead><tr>
+        <th>Capacitación</th><th>Origen</th><th>Tipo</th><th>Entra</th></tr></thead><tbody>${
+        nuevas.map(n => `<tr>
+          <td class="tit">${esc(n.titulo)}</td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(n.origen||'')}</td>
+          <td style="font-size:13px">${esc(n.tipo||'')}</td>
+          <td><span class="kc-tag ${n.activa ? 'si' : 'g'}">${n.activa ? 'Activa' : 'Apagada'}</span></td>
+        </tr>`).join('')}</tbody></table></div>
+
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-imp" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Importar ${PLAN.nuevas} capacitación(es)</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Hasta que aprietes Importar,
+        no se guardó nada.</p>`;
+  }
+
+  /* ------------------------------------------------------------ eventos */
+  function enganchar(v) {
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const fs = Array.prototype.slice.call(arch.files || []);
+      if (!fs.length) return;
+      leyendo = true; pintar();
+      try {
+        const XLSX = await cargarXLSX();
+        const lecturas = [];
+        for (let i = 0; i < fs.length; i++) {
+          const buf = await fs[i].arrayBuffer();
+          lecturas.push(ctLeer(XLSX, new Uint8Array(buf), fs[i].name));
+        }
+        HOJAS = []; lecturas.forEach(L => L.hojas.forEach(h => HOJAS.push(h)));
+        FILAS = ctUnir(lecturas);
+        if (!FILAS.length) {
+          HOJAS = null; FILAS = null;
+          toast('No encontré ninguna hoja con una columna de tema. ¿Es el archivo correcto?');
+        }
+      } catch (e) {
+        HOJAS = null; FILAS = null; toast(e.message);
+      }
+      leyendo = false; pintar();
+    };
+
+    const sim = v.querySelector('#kc-sim');
+    if (sim) sim.onclick = async () => {
+      sim.disabled = true; sim.textContent = 'Consultando…';
+      try {
+        PLAN = await rpc('cap_catalogo_importar', { p_filas: FILAS, p_confirmar: false });
+      } catch (e) { alert(e.message); }
+      sim.disabled = false; pintar();
+    };
+
+    const imp = v.querySelector('#kc-imp');
+    if (imp) imp.onclick = async () => {
+      imp.disabled = true; imp.textContent = 'Importando…';
+      try {
+        const r = await rpc('cap_catalogo_importar', { p_filas: FILAS, p_confirmar: true });
+        HOJAS = null; FILAS = null; PLAN = null;
+        pintar(); toast(r.aviso);
+      } catch (e) {
+        imp.disabled = false; imp.textContent = 'Importar'; alert(e.message);
+      }
+    };
+
+    const otro = v.querySelector('#kc-otro');
+    if (otro) otro.onclick = () => { HOJAS = null; FILAS = null; PLAN = null; pintar(); };
+  }
+
+  pintar();
+}
+
+/* =================================================================
+   CONSOLA · VER SIN ADMINISTRAR
+
+   Lo que pidió el cliente en la reunión: mirar el cumplimiento sin
+   tener que entrar a la administración, y que esa misma pantalla se
+   pueda colgar de la consola de KALU.
+
+   No tiene un solo botón que escriba. Y no muestra el número solo:
+   muestra POR QUÉ. «251 atrasadas» no le sirve a nadie para actuar;
+   «17 capacitaciones que nadie programó, 16 de ellas frenando gente»
+   se convierte en una tarde de trabajo concreta.
+
+   La distinción que ordena todo:
+
+     nunca se programó  → el agujero está en el cronograma
+     se dictó y no se
+     registró           → el agujero está en el registro de asistencia
+
+   Son dos problemas distintos, se arreglan en lugares distintos, y
+   hasta hoy ninguna pantalla los separaba.
+   ================================================================= */
+async function consola(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Calculando el cumplimiento…');
+
+  let D, K = null, anio = (opt && opt.anio) || new Date().getFullYear();
+  // El filtro vive acá: una sola cosa, compartida por todos los cortes.
+  let filtro = {};   // { estado, causa, cargo, codigo, eje }
+
+  /* ---- la solapa Buscar ----------------------------------------------
+     «A ver, veamos a Pérez: mostrame su plan, si está al día.» «Veamos
+     cómo están tus inspectores.» Eso es un atajo, no una pantalla nueva:
+     la persona abre SU FICHA, la que ya existe; el cargo pone el filtro
+     del tablero; la capacitación abre su vista. Nada se calcula acá — si
+     esta solapa dijera un estado por su cuenta, podría contradecir a la
+     ficha, y dos pantallas que no coinciden son peores que una sola. */
+  let vista = 'tablero', bq = '', bres = null, bcarg = false, bto = null, bseq = 0;
+
+  try { D = await rpc('cap_consola', { p_anio: anio }); } catch (e) { return error(el, e); }
+  try { K = await rpc('cap_casos'); } catch (e) { K = null; }
+  let I = null;
+  try { I = await rpc('cap_indicadores', { p_anio: anio }); } catch (e) { I = null; }
+  let marcaNombre = '';
+  try {
+    const emp = (await rpc('cap_mi_pasaporte')).empresa;
+    marca(el, emp); marcaNombre = (emp && emp.nombre) || '';
+  } catch (e) {}
+
+  const MES = ['sin fecha','enero','febrero','marzo','abril','mayo','junio','julio',
+               'agosto','septiembre','octubre','noviembre','diciembre'];
+
+  // Estado: colores reservados. Nunca se reusan como paleta de series.
+  const EDO = {
+    vencida:       ['Vencida',        'cr'],
+    atrasada:      ['Atrasada',       'cr'],
+    por_vencer:    ['Por vencer',     'wa'],
+    // 'ink3' y no 'n': --kc-n NO EXISTE. Una variable de color que no
+    // está definida no falla ni avisa — el navegador descarta la regla y
+    // pinta transparente. La barra se dibujaba entera, del largo correcto,
+    // en blanco sobre blanco: decía 100 personas y no se veía nada.
+    // Gris a propósito: «en el cronograma» no es ni bueno ni malo, y los
+    // tres colores del semáforo están reservados.
+    en_cronograma: ['En el cronograma','ink3'],
+    al_dia:        ['Al día',         'ok']
+  };
+  const CAUSA = {
+    sin_programar: ['Nunca se programó este año',
+      'Estas capacitaciones no están en el cronograma. No es que la gente faltara: no se dictaron.',
+      'Se arregla programándolas.'],
+    sin_registrar: ['Se dictó y no quedó registro',
+      'Hay eventos de estas capacitaciones en el año, pero esas personas no figuran en ninguno.',
+      'Se arregla cargando la asistencia.']
+  };
+  const ETIQ = { estado:'Estado', causa:'Causa', cargo:'Cargo', codigo:'Capacitación', eje:'Eje' };
+
+  const CASOS = (K && !K.demasiado && K.casos) ? K.casos : [];
+
+  /* Los casos que pasan el filtro, ignorando opcionalmente una dimensión:
+     un panel se dibuja con todo lo demás filtrado menos él mismo, así
+     nunca se convierte en una sola barra que no se puede soltar. */
+  function pasan(salvo) {
+    return CASOS.filter(c => Object.keys(filtro).every(k =>
+      k === salvo || c[k] === filtro[k]));
+  }
+
+  /* Dos ejes, nunca uno solo. «5.261 atrasadas» no es un dato: es plan
+     por gente, y nadie puede ir a resolver una multiplicación. Cada corte
+     dice cuántas PERSONAS y cuántas CAPACITACIONES. */
+  function contar(campo, lista) {
+    const m = new Map();
+    lista.forEach(c => {
+      const v = c[campo] == null ? '—' : c[campo];
+      let e = m.get(v);
+      if (!e) { e = { k: v, per: new Set(), cap: new Set(), n: 0 }; m.set(v, e); }
+      e.per.add(c.persona); e.cap.add(c.codigo); e.n++;
+    });
+    return [...m.values()]
+      .map(e => ({ k: e.k, personas: e.per.size, caps: e.cap.size, n: e.n }))
+      .sort((a, b) => b.personas - a.personas || b.caps - a.caps);
+  }
+
+  const cuentaDoble = lista => ({
+    personas: new Set(lista.map(c => c.persona)).size,
+    caps:     new Set(lista.map(c => c.codigo)).size
+  });
+
+  /* Una lista de barras horizontales. Un solo color para toda la serie:
+     pintarlas más oscuras cuanto más largas codificaría dos veces el
+     mismo dato y gastaría el único canal libre que queda. El valor va
+     escrito al lado, así que nunca depende del mouse. */
+  function barras(campo, filas, opt2) {
+    opt2 = opt2 || {};
+    if (!filas.length) return '<p class="kc-vacio">Nada con este filtro.</p>';
+    const max = Math.max.apply(null, filas.map(f => f.personas)) || 1;
+    const tope = opt2.tope || filas.length;
+    const vis = filas.slice(0, tope);
+    const resto = filas.slice(tope).length;
+    return `<div class="kc-bras">${vis.map(f => {
+      const act = filtro[campo] === f.k;
+      const et = opt2.etiqueta ? opt2.etiqueta(f.k) : [String(f.k), null];
+      return `<button type="button" class="kc-bra${act ? ' on' : ''}"
+          data-campo="${campo}" data-valor="${esc(String(f.k))}"
+          aria-pressed="${act}"
+          title="${esc(et[0])} · ${f.personas} persona(s) · ${f.caps} capacitación(es)${
+            act ? ' · tocá para soltar el filtro' : ''}">
+        <span class="t">${esc(et[0])}</span>
+        <span class="p"><i style="width:${Math.max(2, Math.round(100 * f.personas / max))}%${
+          et[1] ? ';background:var(--kc-' + et[1] + ')' : ''}"></i></span>
+        <span class="v">${f.personas}<i>p</i></span>
+        <span class="v2">${f.caps}<i>c</i></span></button>`;
+    }).join('')}${resto ? `<div class="kc-bra otras">
+        <span class="t">y ${resto} más</span>
+        <span class="p"></span>
+        <span class="v"></span><span class="v2"></span></div>` : ''}</div>`;
+  }
+
+  const solapas = () => `<div class="kc-tabs" style="margin-bottom:18px">
+      <button class="kc-tab" data-v="tablero" aria-selected="${vista === 'tablero'}">Tablero</button>
+      <button class="kc-tab" data-v="buscar"  aria-selected="${vista === 'buscar'}">Buscar</button>
+    </div>`;
+
+  function engancharSolapas() {
+    el.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+      if (vista === b.dataset.v) return;
+      vista = b.dataset.v; pintar();
+    });
+  }
+
+  async function buscarAhora() {
+    const q = bq.trim();
+    if (q.length < 2) { bres = null; bcarg = false; pintarRes(); return; }
+    // Cada búsqueda lleva número: si se escribe rápido, la respuesta de una
+    // consulta vieja puede llegar después de la nueva y pisarla. Sin esto,
+    // la pantalla muestra el resultado de lo que ya no está escrito.
+    const mio = ++bseq;
+    bcarg = true; pintarRes();
+    let r = null, err = null;
+    try { r = await rpc('cap_buscar', { p_q: q }); } catch (e) { err = e.message; }
+    if (mio !== bseq) return;
+    bres = err ? { error: err } : r; bcarg = false; pintarRes();
+  }
+
+  function pintarRes() {
+    const c = el.querySelector('#kc-bres'); if (!c) return;
+    const q = bq.trim();
+
+    if (bres && bres.error) {
+      c.innerHTML = `<div class="kc-cent mal"><div class="b">!</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">No se pudo buscar</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(bres.error)}</div></div></div>`;
+      return;
+    }
+    if (q.length < 2) {
+      c.innerHTML = `<p class="kc-vacio">Escribí al menos dos letras. Podés poner un nombre,
+        una cédula, un cargo o el código de una capacitación.</p>`;
+      return;
+    }
+    if (bcarg && !bres) { c.innerHTML = '<p class="kc-vacio">Buscando…</p>'; return; }
+    if (!bres) { c.innerHTML = ''; return; }
+
+    const P = bres.personas || [], G = bres.cargos || [], K = bres.capacitaciones || [];
+    if (!P.length && !G.length && !K.length) {
+      c.innerHTML = `<p class="kc-vacio">No encontré nada con «${esc(q)}».</p>`;
+      return;
+    }
+
+    const tope = (a, n) => a.length >= n
+      ? `<tr><td colspan="3" style="color:var(--kc-ink3);font-size:12.5px">
+         Se muestran los primeros ${n}. Si el que buscás no está, escribí un poco más.</td></tr>` : '';
+
+    c.innerHTML =
+      (P.length ? `<h3 class="kc-h3">Personas</h3>
+        <div class="kc-sc" style="margin-bottom:18px"><table><tbody>
+        ${P.map(p => `<tr>
+          <td class="tit"><b>${esc(p.nombre)}</b>${p.vigente ? ''
+            : ' <span class="kc-tag n" title="Sigue en el padrón, pero ya no está vigente">ya no está</span>'}
+            <div style="font-size:12.5px;color:var(--kc-ink3)">${esc(p.cargo)} · ${esc(p.cedula || '')}</div></td>
+          <td class="acc"><button class="kc-mini p" data-bp="${p.id}">Ver su ficha</button></td>
+        </tr>`).join('')}${tope(P, 25)}</tbody></table></div>` : '') +
+
+      (G.length ? `<h3 class="kc-h3">Cargos</h3>
+        <div class="kc-sc" style="margin-bottom:18px"><table><tbody>
+        ${G.map(g => `<tr>
+          <td class="tit"><b>${esc(g.nombre)}</b>
+            <div style="font-size:12.5px;color:var(--kc-ink3)">${g.gente} persona(s) en el padrón</div></td>
+          <td class="acc">${g.gente > 0
+            ? `<button class="kc-mini p" data-bg="${esc(g.nombre)}">Ver su gente en el tablero</button>`
+            // Un botón que filtra a cero y no explica por qué es peor que
+            // no tener botón: quien lo toca cree que no hay nada que ver.
+            : '<span style="font-size:12.5px;color:var(--kc-ink3)">nadie lo tiene escrito así en el padrón</span>'}</td>
+        </tr>`).join('')}${tope(G, 15)}</tbody></table></div>` : '') +
+
+      (K.length ? `<h3 class="kc-h3">Capacitaciones</h3>
+        <div class="kc-sc"><table><tbody>
+        ${K.map(k => `<tr>
+          <td class="k" style="width:56px">${esc(k.codigo || '')}</td>
+          <td class="tit">${esc(k.titulo)}${k.activa ? ''
+            : ' <span class="kc-tag n" title="Está en el catálogo pero apagada: no se le exige a nadie">apagada</span>'}</td>
+          <td class="acc"><button class="kc-mini p" data-bk="${k.id}">Verla</button></td>
+        </tr>`).join('')}${tope(K, 25)}</tbody></table></div>` : '');
+
+    c.querySelectorAll('[data-bp]').forEach(b => b.onclick = () =>
+      ficha(sel, b.dataset.bp, { volver: () => consola(sel, opt) }));
+    c.querySelectorAll('[data-bk]').forEach(b => b.onclick = () =>
+      verCurso(sel, b.dataset.bk, { volver: () => consola(sel, opt) }));
+    c.querySelectorAll('[data-bg]').forEach(b => b.onclick = () => {
+      // El cargo no abre nada propio: pone el filtro del tablero. Por eso
+      // el buscador devuelve el cargo NORMALIZADO y no el texto del
+      // padrón — si devolviera «Supervisor De División», el tablero no lo
+      // conocería y filtraría a cero sin decir nada.
+      filtro = { cargo: b.dataset.bg }; vista = 'tablero'; pintar();
+    });
+  }
+
+  function pintarBusc() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver ? '0' : '24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CONSOLA · FORMACIÓN ${anio}</div>
+        <h1 style="font-size:28px;font-weight:700">Buscar</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
+          Una persona, un cargo o una capacitación. Abre lo que ya existe: nada de lo que
+          veas acá se calcula en esta pantalla.</div></div>
+
+      ${solapas()}
+
+      <div style="margin-bottom:16px">
+        <input id="kc-bq" class="kc-in" autocomplete="off" spellcheck="false"
+          placeholder="Nombre, cédula, cargo o código…" value="${esc(bq)}"
+          style="width:100%;max-width:520px">
+      </div>
+      <div id="kc-bres"></div>
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    engancharSolapas();
+
+    const inp = el.querySelector('#kc-bq');
+    inp.oninput = () => {
+      bq = inp.value;
+      // Un cuarto de segundo: se busca cuando dejás de escribir, no en cada
+      // tecla. Sin esto, escribir «Pérez» son cinco consultas y las cinco
+      // respuestas compiten por la pantalla.
+      clearTimeout(bto); bto = setTimeout(buscarAhora, 250);
+    };
+    pintarRes();
+    try { inp.focus(); inp.setSelectionRange(bq.length, bq.length); } catch (e) {}
+  }
+
+  function pintar() {
+    if (vista === 'buscar') return pintarBusc();
+    const R = D.resumen || {}, C = D.causas || [];
+    const conPlan = (R.personas || 0) - (R.sin_plan || 0);
+    const pct = R.pct_al_dia;
+    const L = pasan();                       // los casos del corte actual
+    const cuenta = e => L.filter(c => c.estado === e).length;
+    const chips = Object.keys(filtro);
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:18px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CONSOLA · FORMACIÓN ${anio}</div>
+        <h1 style="font-size:28px;font-weight:700">Cumplimiento</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:70ch">
+          Sólo lectura. Es la foto de hoy, calculada en el momento.</div></div>
+
+      ${solapas()}
+
+      <!-- Un año archivado se puede mirar. Lo que no se puede es mirarlo sin
+           saber que está archivado: los números de abajo son reales, pero no
+           son los que la empresa decidió que cuentan. Va antes de los
+           indicadores, no al pie. -->
+      ${D.anio_archivado ? `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:16px">
+        <div class="b" style="background:var(--kc-wa)">≡</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${anio} está archivado · estos números no cuentan para la auditoría</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">${esc(D.anio_motivo || '')}
+          Se muestran igual porque son reales; simplemente no son los del año que la
+          empresa decidió mirar.</div></div></div>` : ''}
+
+      <!-- ---------- los indicadores del programa · para proyectar ----------
+           Cada uno con su meta, su numerador y su denominador a la vista:
+           en una reunión la primera pregunta es siempre de dónde sale el
+           número. Sin denominador dice «sin datos», no 0% — un indicador
+           que no se puede calcular no vale cero. -->
+      ${I ? `<div class="kc-kpis">${(I.indicadores || []).map(x => {
+        const hay = x.valor != null;
+        // Sin meta adoptada no hay veredicto. «No cumple» contra un número
+        // que nadie eligió no significa nada, y en una reunión alguien lo
+        // va a repetir como si significara algo.
+        const cls = !x.meta_adoptada ? 'nd' : (x.cumple === true ? 'ok' : x.cumple === false ? 'no' : 'nd');
+        const ref = x.meta_adoptada ? Number(x.meta) : Number(x.sugerida);
+        return `<div class="kc-kpix ${cls}">
+          <div class="n">${esc(x.nombre)}</div>
+          <div class="g">${hay ? x.valor + '<span>%</span>' : '<span class="nd">sin datos</span>'}</div>
+          <div class="me"><i style="width:${hay ? Math.min(100, x.valor) : 0}%"></i>
+            ${x.meta_adoptada ? `<u style="left:${Math.min(100, ref)}%"></u>` : ''}</div>
+          <div class="e">${!x.meta_adoptada
+            ? `<span class="kc-tag n">sin meta</span>
+               <span>KALU sugiere ${x.sugerida}%</span>`
+            : x.cumple === null
+              ? `<span class="kc-tag n">— sin calcular</span> <span>meta ${x.meta}%</span>`
+              : `<span class="kc-tag ${x.cumple ? 'si' : 'no'}">${
+                  x.cumple ? '✓ cumple' : '! no cumple'}</span>
+                 <span>meta ${x.meta}%</span>`}</div>
+          <div class="f">${x.num} de ${x.den} ${esc(x.unidad)}</div>
+          <div class="f2">${esc(x.formula)}</div>
+          ${x.anual_valor != null && x.anual_valor !== x.valor ? `
+          <!-- EL AÑO COMPLETO, AL LADO Y SIN VEREDICTO.
+               A mitad de año siempre se ve peor, porque el denominador
+               incluye lo que todavía no se dictó. Dejarlo como número
+               principal hacía que una empresa sin una sola actividad
+               vencida figurara «no cumple». Va acá para que se pueda
+               reportar, no para juzgar con él. -->
+          <div class="f2" style="margin-top:3px">Del año completo:
+            <b>${x.anual_valor}%</b> · ${x.anual_num} de ${x.anual_den} —
+            incluye lo que todavía no le toca</div>` : ''}
+          ${x.meta_adoptada
+            ? `<div class="f2" title="${esc(x.meta_cuando || '')}">Meta de la empresa${
+                x.meta_fuente ? ' · ' + esc(x.meta_fuente) : ''}${
+                x.meta_quien ? ' · adoptada por ' + esc(x.meta_quien) : ''}</div>`
+            : `<div class="sug"><div>${esc(x.sugerida_por_que || '')}</div>
+               ${I.puede_editar ? `<div class="ad">
+                 <input class="kc-in" type="number" min="1" max="100" step="1"
+                        value="${x.sugerida}" data-val="${x.clave}" aria-label="Meta en %">
+                 <input class="kc-in" type="text" placeholder="De dónde sale · documento y versión"
+                        data-fue="${x.clave}" aria-label="Fuente de la meta">
+                 <button class="kc-mini p" data-meta="${x.clave}">Adoptar meta</button></div>`
+               : '<div style="margin-top:5px">La define quien administra el módulo.</div>'}</div>`}
+        </div>`; }).join('')}</div>
+      <p class="kc-nota" style="text-align:left;margin:-4px 0 16px">KALU sugiere, la empresa
+        adopta. Hasta que alguien la adopte no hay «cumple / no cumple»: el indicador se ve
+        igual, pero sin veredicto. Y un indicador sin denominador dice «sin datos», no 0%.</p>` : ''}
+      <div class="kc-grid3" style="margin-bottom:20px">
+        <div class="kc-kpi ${(R.sin_plan||0) ? 'mal' : 'ok'}">
+          <b>${R.sin_plan ?? 0}</b><span>personas sin plan de formación</span></div>
+        <div class="kc-kpi ${(R.sin_cargo||0) ? 'mal' : 'ok'}">
+          <b>${R.sin_cargo ?? 0}</b><span>personas sin cargo en el organigrama</span></div>
+        <div class="kc-kpi ${(D.eventos && D.eventos.sin_asistencia) ? 'mal' : 'ok'}">
+          <b>${(D.eventos && D.eventos.sin_asistencia) ?? 0}</b>
+          <span>eventos dictados sin asistencia cargada</span></div>
+      </div>
+
+      ${!CASOS.length ? (K && K.demasiado
+        ? `<div class="kc-cent mal"><div class="b">!</div><div>
+           <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">Son ${K.casos} casos</div>
+           <div style="font-size:13px;color:var(--kc-ink2)">Demasiados para filtrarlos en el
+             navegador sin que la pantalla se trabe. Avisame y lo paso al servidor.</div></div></div>`
+        : '<p class="kc-vacio">Todavía no hay ninguna capacitación exigida a nadie.</p>') : `
+
+      <!-- ---------- la fila de filtros: una sola, arriba de todo lo que alcanza ---------- -->
+      <div class="kc-filtros">
+        <span class="kc-cd">Filtro</span>
+        ${chips.length ? chips.map(k => `<button type="button" class="kc-chipf" data-quitar="${k}"
+            title="Quitar este filtro">${esc(ETIQ[k] || k)}: <b>${esc(String(
+            k === 'estado' ? (EDO[filtro[k]] || [filtro[k]])[0]
+          : k === 'causa'  ? (CAUSA[filtro[k]] || [filtro[k]])[0]
+          : filtro[k]))}</b> ✕</button>`).join('')
+          : '<span style="color:var(--kc-ink3);font-size:13.5px">todo · tocá cualquier barra para filtrar</span>'}
+        ${chips.length ? '<button type="button" class="kc-mini" id="kc-limpiar">Limpiar</button>' : ''}
+        <span style="margin-left:auto;font-size:13.5px;color:var(--kc-ink2)">
+          <b style="font-family:var(--kc-fd);font-size:17px;color:var(--kc-ink)">${
+            cuentaDoble(L).personas}</b> personas ·
+          <b style="font-family:var(--kc-fd);font-size:17px;color:var(--kc-ink)">${
+            cuentaDoble(L).caps}</b> capacitaciones</span>
+        <button class="kc-mini" id="kc-pdf"
+          title="Abre el diálogo de impresión: elegí «Guardar como PDF»">Imprimir / PDF</button>
+      </div>
+
+      <div class="kc-grid4" style="margin:14px 0 10px">
+        ${[['vencida','Vencidas'],['atrasada','Atrasadas'],['por_vencer','Por vencer'],
+           ['al_dia','Al día']].map(function (par) {
+          const k = par[0], t = par[1];
+          const d = cuentaDoble(L.filter(c => c.estado === k));
+          const mal = k !== 'al_dia' && d.personas > 0;
+          return `<button type="button" class="kc-kpi2 ${mal ? 'mal' : (d.personas ? 'ok' : '')}"
+              data-campo="estado" data-valor="${k}" aria-pressed="${filtro.estado === k}"
+              title="Tocá para ver sólo esto, con los nombres">
+            <div class="t">${t}</div>
+            <div class="d"><span><b>${d.personas}</b> personas</span>
+              <span><b>${d.caps}</b> capacitaciones</span></div></button>`; }).join('')}
+      </div>
+      <p class="kc-nota" style="text-align:left;margin:0 0 20px">Dos números y nunca uno:
+        multiplicar personas por capacitaciones da un total que no se puede ir a resolver.
+        Tocá cualquiera para ver los nombres.</p>
+
+      <div class="kc-dos2">
+        <div><h3 class="kc-h3">Por estado</h3>
+          ${barras('estado', contar('estado', pasan('estado')),
+            { etiqueta: k => EDO[k] || [k, null] })}</div>
+        <div><h3 class="kc-h3">Por qué está atrasado</h3>
+          ${barras('causa', contar('causa', pasan('causa').filter(c => c.causa)),
+            { etiqueta: k => [(CAUSA[k] || [k])[0], null] })}</div>
+      </div>
+
+      <div class="kc-dos2" style="margin-top:18px">
+        <div><h3 class="kc-h3">Por cargo</h3>
+          ${barras('cargo', contar('cargo', pasan('cargo')), { tope: 12 })}</div>
+        <div><h3 class="kc-h3">Por capacitación</h3>
+          ${barras('codigo', contar('codigo', pasan('codigo')), { tope: 12,
+            etiqueta: k => {
+              const c = CASOS.find(x => x.codigo === k);
+              return [k + ' · ' + (c ? c.titulo : ''), null];
+            } })}</div>
+      </div>
+
+      <h3 class="kc-h3" style="margin-top:22px">El detalle${
+        chips.length ? ' · ' + L.length + ' caso(s)' : ''}</h3>
+      <div class="kc-sc" style="max-height:520px;overflow-y:auto"><table><thead><tr>
+        <th>Persona</th><th>Cargo</th><th>Código</th><th>Capacitación</th>
+        <th>Estado</th><th>Por qué</th><th>Vence</th></tr></thead><tbody>${
+        L.slice(0, 400).map(c => `<tr>
+          <td class="k nom"><div>${esc(c.persona)}</div></td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(c.cargo)}</td>
+          <td class="k">${esc(c.codigo)}</td>
+          <td class="tit">${esc(c.titulo)}</td>
+          <td><span class="kc-tag ${(EDO[c.estado]||['','n'])[1] === 'ok' ? 'si'
+            : (EDO[c.estado]||['','n'])[1] === 'cr' ? 'no'
+            : (EDO[c.estado]||['','n'])[1] === 'wa' ? 'wa' : 'n'}">${
+            esc((EDO[c.estado] || [c.estado])[0])}</span>${
+            c.bloqueante !== 'no' ? ' <span class="kc-tag no" title="Le impide ' +
+            (c.bloqueante === 'ingreso' ? 'ingresar' : 'operar sola') + '">!</span>' : ''}</td>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(c.porque || '')}</td>
+          <td class="n">${c.vence_el ? fecha(c.vence_el) : '—'}</td>
+        </tr>`).join('')}</tbody></table></div>
+      ${L.length > 400 ? `<p class="kc-nota" style="text-align:left">Se muestran los primeros
+        400 de ${L.length}. Filtrá para acortar la lista.</p>` : ''}`}
+
+      <h3 class="kc-h3" style="margin-top:22px">El cronograma ${anio}</h3>
+      ${(D.eventos && D.eventos.sin_asistencia) ? `
+        <div class="kc-cent mal" style="margin-bottom:12px">
+          <div class="b">${D.eventos.sin_asistencia}</div><div>
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">
+            ${D.eventos.sin_asistencia} evento(s) dictados sin una sola asistencia cargada</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">De los ${D.eventos.ejecutados}
+            marcados como dictados este año, ${D.eventos.sin_asistencia} no tienen registrada
+            ni una persona. La capacitación ocurrió; para un auditor, no. <b>Marcar el evento
+            como dictado y registrar quién fue son dos cosas distintas</b>, y sólo se hizo la
+            primera. Este número no se filtra con lo de arriba: vive a nivel de evento, no de
+            persona.</div></div></div>` : ''}
+      ${!(D.anio_meses || []).length
+        ? `<p class="kc-vacio">No hay ningún evento cargado en el cronograma ${anio}.
+           Sin cronograma, todo lo exigido queda atrasado.</p>`
+        : `<div class="kc-sc"><table><thead><tr><th>Mes</th><th class="n">Programados</th>
+            <th class="n">Ejecutados</th><th class="n">Cancelados</th></tr></thead><tbody>${
+            D.anio_meses.map(m => `<tr>
+              <td class="k">${esc(MES[m.mes] || m.mes)}</td>
+              <td class="n">${m.programados}</td>
+              <td class="n">${m.ejecutados}</td>
+              <td class="n">${m.cancelados}</td>
+            </tr>`).join('')}</tbody></table></div>`}
+
+      <p class="kc-nota" style="text-align:left;margin-top:16px">Los porcentajes de personas se
+        calculan sobre quien <b>tiene plan</b>. Contar en el denominador a la gente a la que
+        todavía no se le definió nada no mide cumplimiento: mide cuánto falta del montaje.</p>
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    engancharSolapas();
+    el.querySelectorAll('[data-campo]').forEach(b => b.onclick = () => {
+      const campo = b.dataset.campo, valor = b.dataset.valor;
+      // Tocar el que ya está puesto lo suelta: sin esto hay que buscar
+      // el chip de arriba para volver, y nadie lo encuentra.
+      if (filtro[campo] === valor) delete filtro[campo]; else filtro[campo] = valor;
+      pintar();
+    });
+    el.querySelectorAll('[data-quitar]').forEach(b => b.onclick = () => {
+      delete filtro[b.dataset.quitar]; pintar();
+    });
+    const lim = el.querySelector('#kc-limpiar');
+    if (lim) lim.onclick = () => { filtro = {}; pintar(); };
+    const pdf = el.querySelector('#kc-pdf');
+    if (pdf) pdf.onclick = () => imprimir(pasan());
+    el.querySelectorAll('[data-meta]').forEach(b => b.onclick = async () => {
+      const k = b.dataset.meta;
+      const v = Number((el.querySelector('[data-val="' + k + '"]') || {}).value);
+      const f = ((el.querySelector('[data-fue="' + k + '"]') || {}).value || '').trim();
+      if (!v || v <= 0 || v > 100) { alert('La meta tiene que ser un porcentaje entre 1 y 100.'); return; }
+      b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        await rpc('cap_meta_guardar', { p_anio: anio, p_indicador: k, p_valor: v,
+          p_fuente: f || 'Sugerida por KALU y adoptada sin documento de respaldo' });
+        I = await rpc('cap_indicadores', { p_anio: anio });
+        pintar();
+      } catch (e) { b.disabled = false; b.textContent = 'Adoptar'; alert(e.message); }
+    });
+  }
+
+  /* Imprimir lo que está filtrado, con TODOS los nombres — no los 400
+     que muestra la pantalla. Va en un iframe y no en una ventana nueva:
+     un bloqueador de pop-ups no lo tapa. Se imprime desde el navegador,
+     así que «Guardar como PDF» sale sin depender de ninguna librería. */
+  function imprimir(L) {
+    const chips = Object.keys(filtro).map(k =>
+      (ETIQ[k] || k) + ': ' + (k === 'estado' ? (EDO[filtro[k]] || [filtro[k]])[0]
+                             : k === 'causa'  ? (CAUSA[filtro[k]] || [filtro[k]])[0]
+                             : filtro[k]));
+    const d = cuentaDoble(L);
+    const porPersona = {};
+    L.forEach(c => { (porPersona[c.persona] = porPersona[c.persona] || []).push(c); });
+
+    const html = `<!doctype html><meta charset="utf-8"><title>Formación · ${esc(String(anio))}</title>
+      <style>
+        body{font:12px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;color:#11201B;margin:26px}
+        h1{font-size:19px;margin:0 0 3px} .sub{color:#5A6B65;font-size:12px;margin-bottom:14px}
+        .f{background:#F1F5F3;border:1px solid #DBE3DF;border-radius:6px;padding:8px 11px;
+           margin-bottom:14px;font-size:12px}
+        .kpi{display:flex;gap:26px;margin:0 0 16px;padding:10px 0;border-top:1px solid #DBE3DF;
+             border-bottom:1px solid #DBE3DF}
+        .kpi b{font-size:19px;display:block}
+        h2{font-size:13px;margin:16px 0 5px;padding-top:9px;border-top:1px solid #EEF2F0}
+        table{border-collapse:collapse;width:100%;font-size:11.5px}
+        td{padding:3px 7px 3px 0;vertical-align:top}
+        .c{color:#5A6B65;white-space:nowrap}
+        .pie{margin-top:20px;color:#7E918B;font-size:10.5px;border-top:1px solid #DBE3DF;padding-top:8px}
+        @page{margin:14mm}
+      </style>
+      <h1>Formación · ${esc(String(anio))}</h1>
+      <div class="sub">${esc(marcaNombre || '')} · generado el ${new Date().toLocaleString('es-CO')}</div>
+      ${chips.length ? `<div class="f"><b>Filtro:</b> ${esc(chips.join('  ·  '))}</div>` : ''}
+      <div class="kpi">
+        <div><b>${d.personas}</b>personas</div>
+        <div><b>${d.caps}</b>capacitaciones</div>
+        <div><b>${L.filter(c=>c.bloqueante!=='no').length}</b>casos que impiden ingresar u operar</div>
+      </div>
+      ${Object.keys(porPersona).sort().map(nom => `
+        <h2>${esc(nom)} <span class="c">· ${porPersona[nom].length}</span></h2>
+        <table>${porPersona[nom].map(c => `<tr>
+          <td class="c" style="width:52px">${esc(c.codigo)}</td>
+          <td>${esc(c.titulo)}</td>
+          <td class="c" style="width:110px">${esc((EDO[c.estado] || [c.estado])[0])}${
+            c.bloqueante !== 'no' ? ' · bloquea' : ''}</td>
+          <td class="c" style="width:78px">${c.vence_el ? fecha(c.vence_el) : ''}</td>
+        </tr>`).join('')}</table>`).join('')}
+      <div class="pie">Estado calculado en el momento de imprimir. Informa el estado de la
+        formación interna: no certifica calificaciones técnicas ni aptitud médica ocupacional.</div>`;
+
+    const ifr = document.createElement('iframe');
+    ifr.setAttribute('aria-hidden', 'true');
+    ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(ifr);
+    const doc = ifr.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+    // El iframe NO se saca con un cronómetro. La vista previa de impresión
+    // vive adentro de él: si se lo quita mientras el diálogo está abierto,
+    // el usuario ve una hoja en blanco. Se saca cuando el navegador avisa
+    // que terminó, y hay un plazo largo por si ese aviso nunca llega.
+    setTimeout(() => {
+      const w = ifr.contentWindow;
+      let ido = false;
+      const sacar = () => { if (ido) return; ido = true; ifr.remove(); };
+      try { w.addEventListener('afterprint', () => setTimeout(sacar, 300)); } catch (e) {}
+      setTimeout(sacar, 120000);
+      try { w.focus(); w.print(); } catch (e) { sacar(); alert('El navegador no dejó abrir la impresión: ' + e.message); }
+    }, 250);
+  }
+
+
+  pintar();
+}
+
+
+/* =================================================================
+   PANTALLA · CARGAR LA HISTORIA
+
+   Sin esto el módulo le muestra rojo a una empresa que sí capacita, y
+   todo lo demás —consola, indicadores, semáforo— dice cosas falsas por
+   falta de dato, no por error de cálculo.
+
+   Viaja por partes: diez mil filas en una sola llamada es un paquete
+   que puede no llegar. Como el servidor no carga dos veces la misma
+   persona-capacitación-fecha, reenviar una parte no duplica nada.
+   ================================================================= */
+async function historia(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  let HOJAS = null, FILAS = null, PLAN = null, leyendo = false, avance = null;
+
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 10000);
+  }
+
+  const TROZO = 800;
+
+  /* Manda todo por partes y suma los resultados. Las listas de lo que no
+     cruzó se juntan sin repetir: son para que una persona las lea. */
+  async function correr(confirmar) {
+    const tot = { cargadas:0, repetidas:0, sin_capacitacion:0, sin_persona:0, sin_fecha:0,
+                  faltan_capacitaciones:[], faltan_personas:[] };
+    for (let i = 0; i < FILAS.length; i += TROZO) {
+      avance = { hechas: i, total: FILAS.length, confirmar: confirmar };
+      pintar();
+      const r = await rpc('cap_asistencias_importar', {
+        p_filas: FILAS.slice(i, i + TROZO), p_confirmar: confirmar,
+        p_motivo: 'Carga histórica desde los registros de la empresa' });
+      ['cargadas','repetidas','sin_capacitacion','sin_persona','sin_fecha']
+        .forEach(k => { tot[k] += (r[k] || 0); });
+      ['faltan_capacitaciones','faltan_personas'].forEach(k =>
+        (r[k] || []).forEach(x => { if (tot[k].indexOf(x) < 0) tot[k].push(x); }));
+    }
+    avance = null;
+    return tot;
+  }
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">HISTORIA · ASISTENCIAS</div>
+        <h1 style="font-size:28px;font-weight:700">Cargar lo que ya se hizo</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Los registros de asistencia que la empresa ya lleva. Cada uno entra con
+          <b>su fecha real</b>, y de ahí sale el vencimiento — no desde hoy.</div></div>
+      <div id="kc-v"></div></div>`;
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    const v = el.querySelector('#kc-v');
+    v.innerHTML = avance ? vAvance()
+                : leyendo ? '<div class="kc-carga">Leyendo los archivos…</div>'
+                : PLAN ? vPlan() : HOJAS ? vLectura() : vPedir();
+    enganchar(v);
+  }
+
+  function vAvance() {
+    const pct = Math.round(100 * avance.hechas / Math.max(1, avance.total));
+    return `<div class="kc-cent" style="background:var(--kc-card2)">
+      <div class="b" style="background:var(--kc-ac)">${pct}%</div><div style="flex:1">
+      <div class="kc-tt" style="font-size:15px">${avance.confirmar
+        ? 'Cargando…' : 'Revisando…'}</div>
+      <div style="font-size:13px;color:var(--kc-ink2)">${avance.hechas} de ${avance.total}
+        registros. Va por partes; si se corta, se puede volver a empezar sin duplicar nada.</div>
+      <div class="kc-bar3"><i style="width:${pct}%"></i></div></div></div>`;
+  }
+
+  function vPedir() {
+    return `<p class="kc-nota" style="text-align:left;max-width:74ch">
+      Subí los libros de registro — el consolidado de capacitaciones y el de charlas.
+      Una hoja con una columna de personas es un registro de asistencia; las demás se
+      saltean solas.</p>
+      <p class="kc-nota" style="text-align:left;max-width:74ch;margin-top:0">
+      Si tu archivo <b>no trae nombres</b> —una fila por capacitación con su fecha
+      programada— ése no va acá: va en <b>«↑ Cronograma · sin nombres»</b>.</p>
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:16px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen acá.</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls" multiple
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  function vLectura() {
+    const conNota = FILAS.filter(f => f.nota != null).length;
+    const fechas = FILAS.map(f => f.fecha).sort();
+    return `<div class="kc-grid3">
+        <div class="kc-kpi"><b>${FILAS.length}</b><span>asistencias leídas</span></div>
+        <div class="kc-kpi"><b>${conNota}</b><span>con nota</span></div>
+        <div class="kc-kpi"><b>${fechas.length ? fecha(fechas[0]) + ' → ' + fecha(fechas[fechas.length-1]) : '—'}</b>
+          <span>rango de fechas</span></div>
+      </div>
+      <h3 class="kc-h3" style="margin-top:18px">Qué encontré en cada hoja</h3>
+      <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th><th>Qué es</th>
+        <th class="n">Filas</th><th class="n">Sin fecha</th></tr></thead><tbody>${
+        HOJAS.map(h => `<tr${h.clase === 'ignorada' ? ' style="opacity:.5"' : ''}>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
+          <td class="k">${esc(h.nombre)}</td>
+          <td>${h.clase === 'registro' ? 'Registro de asistencia'
+             : 'Sin columna de personas · se saltea'}</td>
+          <td class="n">${h.filas}</td>
+          <td class="n"${h.sin_fecha ? ' style="color:var(--kc-cr)"' : ''}>${h.sin_fecha || 0}</td>
+        </tr>`).join('')}</tbody></table></div>
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-sim" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Ver qué pasaría</button>
+        <button class="kc-mini" id="kc-otro">Elegir otros archivos</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Todavía no se guardó nada.</p>`;
+  }
+
+  function vPlan() {
+    const P = PLAN, fc = P.faltan_capacitaciones || [], fp = P.faltan_personas || [];
+    return `<div class="kc-grid4">
+        <div class="kc-kpi ok"><b>${P.cargadas}</b><span>${P.confirmado ? 'cargadas' : 'entrarían'}</span></div>
+        <div class="kc-kpi"><b>${P.repetidas}</b><span>ya estaban</span></div>
+        <div class="kc-kpi ${P.sin_persona ? 'mal' : ''}"><b>${P.sin_persona}</b>
+          <span>sin persona en el padrón</span></div>
+        <div class="kc-kpi ${P.sin_capacitacion ? 'mal' : ''}"><b>${P.sin_capacitacion}</b>
+          <span>sin capacitación en el catálogo</span></div>
+      </div>
+
+      ${fp.length ? `<h3 class="kc-h3" style="margin-top:20px">Nombres que no están en el padrón · ${fp.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Casi siempre son personas que ya
+          no trabajan en la empresa. Su historia no entra: para que entre, tienen que estar en el
+          padrón. No los creo yo — el Capacitador lee el padrón, no lo escribe.</p>
+        <div class="kc-cols">${fp.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${fc.length ? `<h3 class="kc-h3" style="margin-top:20px">Capacitaciones que no están en el catálogo · ${fc.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Se escriben distinto que en el
+          catálogo, o nunca se importaron. Con el título exacto se pueden agregar y volver a correr
+          esto: lo ya cargado no se duplica.</p>
+        <div class="kc-cols">${fc.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${P.confirmado ? `<div class="kc-cent" style="background:var(--kc-oks);margin-top:20px">
+        <div class="b" style="background:var(--kc-ok)">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">Listo</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Cada asistencia quedó con su fecha real y
+          su vencimiento calculado desde ahí. Mirá la consola: los indicadores cambian solos.</div>
+        </div></div>`
+      : `<div class="kc-row" style="margin-top:20px">
+        <button class="kc-btn" id="kc-imp" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Cargar ${P.cargadas} asistencia(s)</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+        <p class="kc-nota" style="text-align:left;margin-top:10px">Hasta que aprietes Cargar,
+          no se guardó nada.</p>`}`;
+  }
+
+  function enganchar(v) {
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const fs = Array.prototype.slice.call(arch.files || []);
+      if (!fs.length) return;
+      leyendo = true; pintar();
+      try {
+        const XLSX = await cargarXLSX();
+        HOJAS = []; FILAS = [];
+        for (let i = 0; i < fs.length; i++) {
+          const buf = await fs[i].arrayBuffer();
+          const L = asLeer(XLSX, new Uint8Array(buf), fs[i].name);
+          L.hojas.forEach(h => HOJAS.push(h));
+          L.filas.forEach(x => FILAS.push(x));
+        }
+        if (!FILAS.length) {
+          HOJAS = null; FILAS = null;
+          toast('No encontré ninguna hoja con columna de personas y fecha.');
+        }
+      } catch (e) { HOJAS = null; FILAS = null; toast(e.message); }
+      leyendo = false; pintar();
+    };
+
+    const sim = v.querySelector('#kc-sim');
+    if (sim) sim.onclick = async () => {
+      try { PLAN = await correr(false); PLAN.confirmado = false; }
+      catch (e) { avance = null; alert(e.message); }
+      pintar();
+    };
+
+    const imp = v.querySelector('#kc-imp');
+    if (imp) imp.onclick = async () => {
+      try {
+        const r = await correr(true); r.confirmado = true; PLAN = r;
+        toast(r.cargadas + ' asistencia(s) cargadas.');
+      } catch (e) { avance = null; alert(e.message); }
+      pintar();
+    };
+
+    const otro = v.querySelector('#kc-otro');
+    if (otro) otro.onclick = () => { HOJAS = null; FILAS = null; PLAN = null; pintar(); };
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
+   PANTALLA · CARGAR EL CRONOGRAMA
+
+   El libro del programa dice qué se programó y qué se dictó. Eso
+   arregla el cumplimiento y la cobertura, y hace desaparecer los
+   «nunca se programó este año».
+
+   Lo que NO arregla: nadie queda acreditado. El libro cuenta cuántos
+   fueron, no quiénes. Por eso ese número va a su propia columna y no
+   se suma jamás con las asistencias que tienen nombre y apellido.
+
+   Y no inventa capacitaciones: si el tema no está en el catálogo, la
+   fila no entra y el tema se informa. Crearlas hay que pedirlo, y
+   entran APAGADAS — son historia, no una obligación nueva para nadie.
+   ================================================================= */
+async function cronograma(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  let HOJAS = null, FILAS = null, SINF = null, PLAN = null, leyendo = false, crear = false;
+
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 10000);
+  }
+
+  async function correr(confirmar) {
+    const r = await rpc('cap_cronograma_importar', {
+      p_filas: FILAS, p_confirmar: confirmar, p_crear: crear,
+      p_motivo: 'Carga del cronograma desde el libro del programa' });
+    r.confirmado = confirmar;
+    return r;
+  }
+
+  function pintar() {
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">CRONOGRAMA · IMPORTAR</div>
+        <h1 style="font-size:28px;font-weight:700">Cargar el cronograma</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          El libro del programa del año: qué se programó, qué se dictó y cuántos fueron.
+          <b>No trae nombres</b>, así que sirve para el cumplimiento y la cobertura —
+          no acredita a ninguna persona.</div></div>
+      <div id="kc-v"></div></div>`;
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    const v = el.querySelector('#kc-v');
+    v.innerHTML = leyendo ? '<div class="kc-carga">Leyendo los archivos…</div>'
+                : PLAN ? vPlan() : HOJAS ? vLectura() : vPedir();
+    enganchar(v);
+  }
+
+  function vPedir() {
+    return `<p class="kc-nota" style="text-align:left;max-width:74ch">
+      Subí el libro del programa —el que tiene una fila por capacitación con la fecha
+      programada y la de realización—. Podés subir varios años juntos: cada hoja se lee
+      sola y las que no son un cronograma se saltean.</p>
+      <div class="kc-cent" style="background:var(--kc-was);margin-top:16px">
+        <div class="b" style="background:var(--kc-wa)">?</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">¿Tu archivo tiene una columna con nombres de personas?</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Entonces no es un cronograma: es un
+          <b>registro de asistencia</b> y va en <b>«↑ Asistencias · con nombres»</b>, el botón de
+          al lado. Acá va el libro del programa, que tiene una fila por capacitación y no trae
+          nombres.</div></div></div>
+
+      <div class="kc-cent" style="background:var(--kc-card2);margin-top:12px">
+        <div class="b" style="background:var(--kc-ac)">↑</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px">Elegí uno o varios archivos</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">No salen de tu equipo: se leen acá.</div>
+        <div style="margin-top:10px">
+          <input type="file" id="kc-arch" accept=".xlsx,.xlsm,.xls" multiple
+                 style="font-size:13.5px;max-width:100%"></div></div></div>`;
+  }
+
+  function vLectura() {
+    const reps = HOJAS.reduce((a, h) => a + (h.repeticiones || 0), 0);
+    const futs = HOJAS.reduce((a, h) => a + (h.futuras || 0), 0);
+    const dict = FILAS.filter(f => f.realizadas.length).length;
+
+    return `<div class="kc-grid4">
+        <div class="kc-kpi"><b>${FILAS.length}</b><span>eventos leídos</span></div>
+        <div class="kc-kpi"><b>${dict}</b><span>ya dictados</span></div>
+        <div class="kc-kpi"><b>${reps}</b><span>repeticiones de la misma charla</span></div>
+        <div class="kc-kpi"><b>${SINF.length}</b><span>temas sin fecha · no entran</span></div>
+      </div>
+
+      ${futs ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:16px">
+        <div class="b" style="background:var(--kc-wa)">${futs}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">
+          ${futs} fila(s) dan por dictada una capacitación en una fecha que todavía no llegó</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Pasa cuando la columna de realización se
+          usa como calendario, o cuando el mes marcado todavía no terminó. Cargarlas así daría por
+          hecha una capacitación que no pasó, así que la fecha se recorta: <b>nada se da por dictado
+          más allá de hoy</b>.</div></div></div>` : ''}
+
+      <h3 class="kc-h3" style="margin-top:18px">Qué encontré en cada hoja</h3>
+      <div class="kc-sc"><table><thead><tr><th>Archivo</th><th>Hoja</th><th>Qué es</th>
+        <th class="n">Eventos</th><th class="n">Repeticiones</th><th class="n">Sin fecha</th>
+        <th class="n">Adorno</th></tr></thead><tbody>${
+        HOJAS.map(h => `<tr${h.clase === 'ignorada' ? ' style="opacity:.5"' : ''}>
+          <td style="font-size:13px;color:var(--kc-ink3)">${esc(h.archivo)}</td>
+          <td class="k">${esc(h.nombre)}</td>
+          <td>${h.clase === 'programa' ? 'Cronograma del año'
+             : h.clase === 'grilla' ? 'Cronograma en grilla mensual'
+             : 'Sin tabla de programa · se saltea'}</td>
+          <td class="n">${h.filas}</td>
+          <td class="n">${h.repeticiones || 0}</td>
+          <td class="n">${h.sin_fecha || 0}</td>
+          <td class="n" style="color:var(--kc-ink3)">${h.ruido || 0}</td>
+        </tr>`).join('')}</tbody></table></div>
+
+      ${SINF.length ? `<h3 class="kc-h3" style="margin-top:20px">
+          Temas sin ninguna fecha · ${SINF.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">No tienen fecha programada, ni de
+          realización, ni asistentes. Son temario disponible, no actividades. Meterlos crearía
+          ${SINF.length} incumplimiento(s) que nadie cometió, así que <b>no entran</b>.</p>
+        <div class="kc-cols">${SINF.map(x =>
+          `<div>${esc(x.capacitacion)}</div>`).join('')}</div>` : ''}
+
+      <div class="kc-row" style="margin-top:18px">
+        <button class="kc-btn" id="kc-sim" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Ver qué pasaría</button>
+        <button class="kc-mini" id="kc-otro">Elegir otros archivos</button></div>
+      <p class="kc-nota" style="text-align:left;margin-top:10px">Todavía no se guardó nada.</p>`;
+  }
+
+  function vPlan() {
+    const P = PLAN, fc = P.faltan_capacitaciones || [], cre = P.creadas || [];
+
+    return `<div class="kc-grid4">
+        <div class="kc-kpi ok"><b>${P.eventos}</b>
+          <span>${P.confirmado ? 'eventos cargados' : 'eventos entrarían'}</span></div>
+        <div class="kc-kpi"><b>${P.repeticiones}</b><span>repeticiones</span></div>
+        <div class="kc-kpi"><b>${P.ya_estaban}</b><span>ya estaban</span></div>
+        <div class="kc-kpi ${P.sin_capacitacion ? 'mal' : ''}"><b>${P.sin_capacitacion}</b>
+          <span>filas sin capacitación en el catálogo</span></div>
+      </div>
+
+      ${fc.length ? `<h3 class="kc-h3" style="margin-top:20px">
+          Temas que no están en el catálogo · ${fc.length}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Estas filas no entran mientras el
+          tema no exista. Se pueden crear todas de una: entran <b>apagadas</b> — quedan como
+          historia y no le exigen nada a nadie.</p>
+        <div class="kc-cols">${fc.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${cre.length ? `<h3 class="kc-h3" style="margin-top:20px">
+          Capacitaciones que se ${P.confirmado ? 'crearon' : 'crearían'} · ${P.capacitaciones_creadas}</h3>
+        <p class="kc-nota" style="text-align:left;margin:0 0 8px">Todas apagadas. Si alguna tiene
+          que exigirse de verdad, se prende después desde el catálogo — de a una y a conciencia.</p>
+        <div class="kc-cols">${cre.map(x => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
+
+      ${P.confirmado ? `<div class="kc-cent" style="background:var(--kc-oks);margin-top:20px">
+        <div class="b" style="background:var(--kc-ok)">✓</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-ok)">Listo</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">El cronograma quedó cargado. Ojo con una
+          cosa: los asistentes que trae el libro son un <b>número sin nombres</b>. Cuentan para la
+          cobertura y no acreditan a nadie — para eso hacen falta los registros con nombre y
+          apellido.</div></div></div>`
+      : fc.length ? `<div class="kc-row" style="margin-top:20px">
+        <button class="kc-btn" id="kc-crear" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Crear las ${fc.length} que faltan y volver a revisar</button>
+        <button class="kc-mini" id="kc-imp">Cargar sólo los ${P.eventos} que sí cruzan</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+        <p class="kc-nota" style="text-align:left;margin-top:10px">Si cargás sólo los que cruzan,
+          las otras ${P.sin_capacitacion} fila(s) quedan afuera y el año va a verse más vacío de
+          lo que fue. Nada se guardó todavía.</p>`
+      : `<div class="kc-row" style="margin-top:20px">
+        <button class="kc-btn" id="kc-imp" style="flex:0 0 auto;width:auto;padding:0 22px">
+          Cargar ${P.eventos} evento(s)</button>
+        <button class="kc-mini" id="kc-otro">Empezar de nuevo</button></div>
+        <p class="kc-nota" style="text-align:left;margin-top:10px">Hasta que aprietes Cargar,
+          no se guardó nada${crear ? ' — tampoco las capacitaciones nuevas' : ''}.</p>`}`;
+  }
+
+  function enganchar(v) {
+    const arch = v.querySelector('#kc-arch');
+    if (arch) arch.onchange = async () => {
+      const fs = Array.prototype.slice.call(arch.files || []);
+      if (!fs.length) return;
+      leyendo = true; pintar();
+      try {
+        const XLSX = await cargarXLSX();
+        HOJAS = []; FILAS = []; SINF = [];
+        for (let i = 0; i < fs.length; i++) {
+          const buf = await fs[i].arrayBuffer();
+          const L = crLeer(XLSX, new Uint8Array(buf), fs[i].name);
+          L.hojas.forEach(h => HOJAS.push(h));
+          L.filas.forEach(x => FILAS.push(x));
+          L.sin_fecha.forEach(x => SINF.push(x));
+        }
+        if (!FILAS.length) {
+          HOJAS = null; FILAS = null; SINF = null;
+          toast('No encontré ninguna hoja con tema y fecha. ¿Será un registro de asistencia? Ese va en «Cargar lo que ya se hizo».');
+        }
+      } catch (e) { HOJAS = null; FILAS = null; SINF = null; toast(e.message); }
+      leyendo = false; pintar();
+    };
+
+    const sim = v.querySelector('#kc-sim');
+    if (sim) sim.onclick = async () => {
+      sim.disabled = true; sim.textContent = 'Revisando…';
+      try { PLAN = await correr(false); } catch (e) { alert(e.message); }
+      pintar();
+    };
+
+    // Crear las que faltan no carga nada: vuelve a la vista previa, ahora
+    // contando también los eventos que esas fichas destrabarían.
+    const cr = v.querySelector('#kc-crear');
+    if (cr) cr.onclick = async () => {
+      cr.disabled = true; cr.textContent = 'Revisando de nuevo…';
+      crear = true;
+      try { PLAN = await correr(false); } catch (e) { crear = false; alert(e.message); }
+      pintar();
+    };
+
+    const imp = v.querySelector('#kc-imp');
+    if (imp) imp.onclick = async () => {
+      imp.disabled = true; imp.textContent = 'Cargando…';
+      try {
+        PLAN = await correr(true);
+        toast(PLAN.eventos + ' evento(s) cargados' +
+              (PLAN.capacitaciones_creadas ? ' · ' + PLAN.capacitaciones_creadas +
+               ' capacitación(es) creadas apagadas' : '') + '.');
+      } catch (e) { alert(e.message); }
+      pintar();
+    };
+
+    const otro = v.querySelector('#kc-otro');
+    if (otro) otro.onclick = () => {
+      HOJAS = null; FILAS = null; SINF = null; PLAN = null; crear = false; pintar();
+    };
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
+   PANTALLA · UNIFICAR NOMBRES
+
+   Cuando una empresa reescribe su programa, el mismo curso cambia de
+   título y la historia queda colgada del nombre viejo. En Total QC:
+   «Habitos, comportamientos y conductas seguras en la via» con 101
+   asistencias, y «Capacitación hábitos, Comportamientos…» —la que sí se
+   exige— vacía, o sea atrasada para los 100.
+
+   La gente se capacitó. Lo que se rompió es el nombre.
+
+   Y por eso NO se puede fusionar solo: en la misma lista aparece
+   «Inspección Visual de conexiones» junto a «Inspección Visual y
+   Dimensional». Se parecen mucho y son cosas distintas — fusionarlas le
+   daría por cumplida a alguien una técnica que no hizo, y esa persona
+   iría a inspeccionar.
+   ================================================================= */
+async function fusionar(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Buscando cursos con dos nombres…');
+
+  let D, abierto = null;
+  try { D = await rpc('cap_fusion_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+  async function recargar(msg) {
+    D = await rpc('cap_fusion_datos'); abierto = null; pintar(); if (msg) toast(msg);
+  }
+
+  function pintar() {
+    const P = D.pares || [];
+    const enJuego = P.reduce((a, p) => a + Number(p.asistencias || 0), 0);
+    const puede = D.puede_editar !== false;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">EL MISMO CURSO, DOS NOMBRES</div>
+        <h1 style="font-size:28px;font-weight:700">Unificar nombres</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Cuando el programa se reescribe, el mismo curso cambia de título y la historia queda
+          colgada del nombre viejo. Acá se juntan — <b>la gente ya se capacitó</b>, lo que se
+          rompió es el nombre.</div></div>
+
+      <div class="kc-grid3" style="margin-bottom:16px">
+        <div class="kc-kpi ${P.length ? 'mal' : 'ok'}"><b>${P.length}</b>
+          <span>posibles pares</span></div>
+        <div class="kc-kpi"><b>${enJuego}</b><span>asistencias esperando del otro lado</span></div>
+        <div class="kc-kpi"><b>${D.sin_pareja || 0}</b>
+          <span>con historia y sin pareja parecida</span></div>
+      </div>
+
+      ${!P.length ? `<p class="kc-vacio">No hay capacitaciones apagadas con historia que se
+        parezcan a una activa. Si sabés de alguna que quedó partida en dos, avisá: se puede
+        bajar el umbral de parecido.</p>`
+      : `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:14px">
+          <div class="b" style="background:var(--kc-wa)">!</div><div>
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">Mirá los dos títulos antes de fusionar</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">Parecerse no es ser lo mismo.
+            «Inspección visual de conexiones» y «Inspección visual y dimensional» comparten casi
+            todas las palabras y son técnicas distintas: fusionarlas le daría por cumplida a
+            alguien una que no hizo.</div></div></div>
+        <div class="kc-dest">${P.map(p => tarjeta(p, puede)).join('')}</div>`}
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    enganchar();
+  }
+
+  function tarjeta(p, puede) {
+    const ab = abierto === p.origen_id;
+    const pct = Math.round(Number(p.parecido) * 100);
+    return `<article class="kc-p1 ${pct >= 80 ? '' : 'pend'}">
+      <button type="button" class="cab" data-abrir="${p.origen_id}" aria-expanded="${ab}">
+        <div class="i">${p.asistencias}</div>
+        <div class="c">
+          <div class="kc-tt" style="font-size:15px">${esc(p.origen_titulo)}</div>
+          <div class="kc-cd" style="margin-top:3px">${p.personas} persona(s) ·
+            ${p.desde ? fecha(p.desde) : ''}${p.hasta && p.hasta !== p.desde ? ' → ' + fecha(p.hasta) : ''}
+            · se parece ${pct}% a <b>${esc(p.destino_codigo)}</b></div>
+        </div>
+        <span class="fl">${ab ? '▲' : '▼'}</span>
+      </button>
+      ${!ab ? '' : `<div class="cue">
+        <div class="kc-fus">
+          <div class="lado">
+            <div class="kc-cd">Nombre viejo · apagada</div>
+            <div class="tit">${esc(p.origen_codigo)} · ${esc(p.origen_titulo)}</div>
+            <div class="dat"><b>${p.asistencias}</b> asistencias de <b>${p.personas}</b> personas</div>
+          </div>
+          <div class="fl2">→</div>
+          <div class="lado">
+            <div class="kc-cd">Se exige hoy · activa</div>
+            <select class="kc-in" data-dst="${p.origen_id}">${(D.activas || []).map(a =>
+              `<option value="${a.id}"${a.id === p.destino_id ? ' selected' : ''}>${
+                esc(a.codigo)} · ${esc(a.titulo)}</option>`).join('')}</select>
+            <div class="dat">Hoy se le exige a <b>${p.destino_gente}</b> persona(s)${
+              p.destino_vigencia ? ' · vence al año' : ' · <b>no vence</b>'}</div>
+          </div>
+        </div>
+        <p class="kc-nota" style="text-align:left;margin:10px 0 0">Las asistencias pasan con
+          <b>su fecha original</b>. El vencimiento se recalcula con la vigencia de la capacitación
+          vigente${p.destino_vigencia ? '' : ' — y esa no declara ninguna, así que van a quedar sin vencer'}.
+          La ficha vieja no se borra: queda como prueba de cómo se llamaba el curso.</p>
+        ${puede ? `<div class="kc-row" style="margin-top:13px">
+          <button class="kc-btn" data-fus="${p.origen_id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+            Es el mismo curso · pasar ${p.asistencias}</button>
+          <button class="kc-mini" data-no="${p.origen_id}">No son el mismo</button>
+          <button class="kc-mini" data-cerrar="1">Cancelar</button></div>`
+        : '<p class="kc-nota" style="text-align:left">Sólo lectura.</p>'}
+      </div>`}
+    </article>`;
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = (abierto === b.dataset.abrir) ? null : b.dataset.abrir; pintar();
+    });
+    el.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => { abierto = null; pintar(); });
+    el.querySelectorAll('[data-fus]').forEach(b => b.onclick = async () => {
+      const o = b.dataset.fus;
+      const d = (el.querySelector(`[data-dst="${o}"]`) || {}).value;
+      if (!d) { alert('Elegí la capacitación vigente.'); return; }
+      b.disabled = true; b.textContent = 'Uniendo…';
+      try { const r = await rpc('cap_fusionar', { p_origen: o, p_destino: d }); await recargar(r.aviso); }
+      catch (e) { b.disabled = false; b.textContent = 'Es el mismo curso'; alert(e.message); }
+    });
+    el.querySelectorAll('[data-no]').forEach(b => b.onclick = async () => {
+      const o = b.dataset.no;
+      const d = (el.querySelector(`[data-dst="${o}"]`) || {}).value;
+      b.disabled = true;
+      try { const r = await rpc('cap_fusion_descartar', { p_origen: o, p_destino: d });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
+   PANTALLA · LO QUE DEJÓ DE APLICAR
+
+   «En 2025 trabajamos en alturas excepcionalmente y en 2026 ya no se
+   hará. Sólo causa rojos.»
+
+   Eso no es una capacitación atrasada: nadie está incumpliendo nada.
+   Es una exigencia que dejó de aplicar y que el módulo sigue
+   reclamando porque nunca le dijeron que la actividad se terminó.
+
+   La señal se calcula sola —cero eventos programados este año y gente
+   en rojo— pero la decisión no. «Inspección visual» sin eventos este
+   año puede seguir siendo obligatoria, y retirarla le daría vía libre
+   a alguien que no está formado. Va de a una.
+
+   Se retira la ASIGNACIÓN, no la ficha: alturas puede dejar de
+   aplicarle al taller y seguir aplicándole a la cuadrilla de campo.
+   ================================================================= */
+async function retirar(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Buscando exigencias que ya no aplican…');
+
+  let D, abierto = null, ver = 'propuestas';
+  try { D = await rpc('cap_retiro_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 11000);
+  }
+  async function recargar(msg) {
+    D = await rpc('cap_retiro_datos'); abierto = null; pintar(); if (msg) toast(msg);
+  }
+
+  const todas = () => D.filas || [];
+  // «Dejó de programarse» y «nunca se programó» NO son lo mismo, y se
+  // arreglan en lugares distintos: una se retira, la otra se programa.
+  // Mezclarlas haría que la pantalla proponga tapar un hueco del plan.
+  const props = () => todas().filter(f => f.propuesta);
+  const nunca = () => todas().filter(f => f.clase === 'nunca' && !f.retirada && f.en_rojo > 0);
+  const retis = () => todas().filter(f => f.retirada);
+
+  // ABRIR DONDE HAY ALGO QUE HACER.
+  // La pestaña de arranque era siempre «Dejaron de programarse». En una
+  // empresa sin historia cargada esa lista da CERO —para decir que algo
+  // dejó de programarse hace falta un año anterior con eventos— y todo
+  // cae en «nunca se programó». Quien entraba veía una pantalla vacía y
+  // se iba pensando que no había nada que revisar, con 391 esperando en
+  // la pestaña de al lado.
+  if (!props().length) ver = nunca().length ? 'nunca' : 'todas';
+
+  function pintar() {
+    const P = props(), N = nunca(), R = retis();
+    const SR = D.resumen || {};
+    const Sd = SR.dejo  || { personas: 0, casos: 0, capacitaciones: 0 };
+    const Sn = SR.nunca || { personas: 0, casos: 0, capacitaciones: 0 };
+    // El resumen viene del servidor contado sobre el CONJUNTO. Sumar el
+    // `en_rojo` de cada fila daría persona × capacitación: quien está en rojo
+    // por seis exigencias se contaría seis veces, y en una empresa de 100
+    // saldrían 568 «personas». Ese número no existe y nadie puede ir a
+    // resolverlo. Dos números, nunca uno.
+    const S = D.resumen || { personas: 0, casos: 0, capacitaciones: 0 };
+    const puede = D.puede_editar !== false;
+    const lista = ver === 'propuestas' ? P : ver === 'nunca' ? N
+                : ver === 'retiradas' ? R : todas();
+
+    const chip = (k, t, n) => `<button type="button" class="kc-chip" data-ver="${k}"
+      aria-pressed="${ver === k}">${t} · ${n}</button>`;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">EXIGENCIAS · ${D.anio}</div>
+        <h1 style="font-size:28px;font-weight:700">Lo que dejó de aplicar</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Si una actividad se terminó, su capacitación no está atrasada: <b>dejó de
+          corresponder</b>. Pero eso no es lo mismo que una que <b>nunca se programó</b> —
+          y acá van separadas, porque se arreglan en lugares distintos.</div></div>
+
+      <div class="kc-grid4" style="margin-bottom:8px">
+        <div class="kc-kpi ${P.length ? 'mal' : 'ok'}"><b>${P.length}</b>
+          <span>dejaron de programarse</span></div>
+        <div class="kc-kpi"><b>${Sd.personas}</b><span>personas en rojo por ésas</span></div>
+        <div class="kc-kpi ${N.length ? 'mal' : ''}"><b>${N.length}</b>
+          <span>nunca se programaron</span></div>
+        <div class="kc-kpi"><b>${Sn.personas}</b><span>personas en rojo por ésas</span></div>
+      </div>
+      <p class="kc-nota" style="text-align:left;margin:0 0 14px">
+        <b>Dejó de programarse</b> tuvo eventos en años anteriores y este año ninguno: puede
+        que la actividad se haya terminado, y ahí retirarla es lo correcto.
+        <b>Nunca se programó</b> no tiene un solo evento en ningún año: eso no dejó de
+        aplicar, <b>nunca empezó</b>, y se arregla programándola. Las personas están contadas
+        una sola vez en cada grupo, no sumadas por capacitación.</p>
+
+      <div class="kc-fil" style="padding:0 0 14px">
+        ${chip('propuestas','Dejaron de programarse', P.length)}
+        ${chip('nunca','Nunca se programaron', N.length)}
+        ${chip('todas','Todas', todas().length)}${chip('retiradas','Retiradas', R.length)}
+      </div>
+
+      ${ver === 'nunca' && N.length ? `<div class="kc-cent" style="background:var(--kc-was);margin-bottom:12px">
+        <div class="b" style="background:var(--kc-wa)">${N.length}</div><div>
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-wa)">Esto no dejó de aplicar · nunca empezó</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Ninguna de éstas tiene un evento en
+          ningún año. El rojo es real y la respuesta normal es <b>programarlas</b>, no
+          retirarlas. Retirar acá taparía un hueco del plan con un cartel que dice «ya no
+          corresponde».</div></div></div>` : ''}
+
+      ${!lista.length ? `<p class="kc-vacio">${ver === 'propuestas'
+          ? 'Ninguna exigencia se programó en años anteriores y dejó de programarse este año. No hay nada que retirar.'
+            + (N.length ? ` Ojo: eso no quiere decir que no haya nada que revisar — mirá «Nunca se programaron · ${N.length}».` : '')
+          : ver === 'nunca' ? 'Todas las exigencias tienen al menos un evento en algún año.'
+          : 'Nada acá.'}</p>`
+        : '<div class="kc-dest">' + lista.map(f => tarjeta(f, puede)).join('') + '</div>'}
+
+      ${ver === 'propuestas' && P.length ? `<p class="kc-nota" style="text-align:left;margin-top:14px">
+        Que una capacitación no tenga eventos este año <b>no prueba</b> que dejó de aplicar:
+        también puede ser que falte programarla. Las dos son respuestas — la que no vale es
+        dejarla en rojo sin mirarla.</p>` : ''}
+      </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    enganchar();
+  }
+
+  function tarjeta(f, puede) {
+    const ab = abierto === f.id;
+    const legal = f.base_legal && f.base_legal.length;
+
+    return `<article class="kc-p1 ${f.retirada ? '' : 'pend'}">
+      <button type="button" class="cab" data-abrir="${f.id}" aria-expanded="${ab}">
+        <div class="i">${f.retirada ? '—' : f.en_rojo}</div>
+        <div class="c">
+          <div class="kc-tt" style="font-size:15px">${esc(f.titulo)}
+            ${f.retirada ? '<span class="kc-tag n">retirada</span>' : ''}
+            ${!f.retirada && f.clase === 'nunca' ? '<span class="kc-tag n">nunca se programó</span>' : ''}
+            ${legal && !f.retirada ? '<span class="kc-tag no">base legal</span>' : ''}</div>
+          <div class="kc-cd" style="margin-top:3px">${esc(f.a_quien)} ·
+            ${f.gente} persona(s) · ${f.eventos_anio
+              ? f.eventos_anio + ' evento(s) este año'
+              : '<b>sin eventos en ' + D.anio + '</b>'}${
+            f.ultimo_anio ? ' · último en ' + f.ultimo_anio : ' · nunca se programó'}</div>
+        </div>
+        <span class="fl">${ab ? '▲' : '▼'}</span>
+      </button>
+      ${!ab ? '' : `<div class="cue">
+        <div class="kc-fus">
+          <div class="lado">
+            <div class="kc-cd">Se apaga · la exigencia</div>
+            <div class="tit">${esc(f.a_quien)}</div>
+            <div class="dat"><b>${f.gente}</b> persona(s) dejan de tenerla pendiente${
+              f.en_rojo ? ` · <b>${f.en_rojo}</b> sale(n) de rojo` : ''}</div>
+            ${f.bloqueante && f.bloqueante !== 'no'
+              ? '<div class="dat" style="color:var(--kc-cr)">Hoy bloquea; al retirarla deja de bloquear.</div>' : ''}
+          </div>
+          <div class="fl2">≠</div>
+          <div class="lado">
+            <div class="kc-cd">No se apaga · la historia</div>
+            <div class="tit">${f.asistencias} asistencia(s)</div>
+            <div class="dat">${f.asistencias
+              ? 'Quien la hizo, la hizo' + (f.ultima_vez ? ', la última el ' + fecha(f.ultima_vez) : '') +
+                '. El registro queda y el certificado sigue siendo cierto.'
+              : 'Todavía no hay ninguna asistencia registrada de esta capacitación.'}</div>
+          </div>
+        </div>
+
+        ${f.retirada ? `<p class="kc-nota" style="text-align:left;margin:11px 0 0">
+            <b>Retirada.</b> Motivo: ${esc(f.retirada_motivo || '—')}</p>
+          ${puede ? `<div class="kc-row" style="margin-top:12px">
+            <button class="kc-mini p" data-volver2="${f.id}">Volver a exigirla</button>
+            <button class="kc-mini" data-cerrar="1">Cerrar</button></div>` : ''}`
+        : `${legal ? `<div class="kc-cent mal" style="margin-top:12px">
+            <div class="b">!</div><div>
+            <div class="kc-tt" style="font-size:14px;color:var(--kc-cr)">Esta capacitación tiene base legal</div>
+            <div style="font-size:13px;color:var(--kc-ink2)">${(f.base_legal||[]).map(esc).join(' · ')}.
+              Retirarla es afirmar que la empresa <b>ya no realiza esa actividad</b>. Si alguien la
+              sigue haciendo, la norma se exige igual — y esto no la exime.</div></div></div>` : ''}
+
+          ${f.clase === 'nunca' ? `<div class="kc-cent" style="background:var(--kc-was);margin-top:12px">
+            <div class="b" style="background:var(--kc-wa)">?</div><div>
+            <div class="kc-tt" style="font-size:14px;color:var(--kc-wa)">Nunca tuvo un evento, en ningún año</div>
+            <div style="font-size:13px;color:var(--kc-ink2)">Entonces no dejó de aplicar: nunca
+              empezó. Si la actividad existe, lo que corresponde es <b>programarla</b>. Retirarla
+              acá taparía un hueco del plan con un cartel que dice «ya no corresponde».</div>
+            </div></div>` : ''}
+
+          ${puede ? `<label class="kc-cd" for="m-${f.id}" style="display:block;margin:12px 0 4px">
+              Por qué dejó de aplicar</label>
+            <input class="kc-mot" type="text" id="m-${f.id}" data-mot="${f.id}"
+                   placeholder="Ej: en ${D.anio} no se realizan trabajos en alturas">
+            <div class="kc-row" style="margin-top:12px">
+              ${f.clase === 'nunca'
+                ? `<button class="kc-btn" data-ok="${f.id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+                     Sigue vigente · hay que programarla</button>
+                   <button class="kc-mini" data-ret="${f.id}">Igual ya no aplica · retirar</button>`
+                : `<button class="kc-btn" data-ret="${f.id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+                     Ya no aplica · retirar</button>
+                   <button class="kc-mini" data-ok="${f.id}">Sigue vigente</button>`}
+              <button class="kc-mini" data-cerrar="1">Cancelar</button></div>`
+          : '<p class="kc-nota" style="text-align:left">Sólo lectura.</p>'}`}
+      </div>`}
+    </article>`;
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-ver]').forEach(b => b.onclick = () => {
+      ver = b.dataset.ver; abierto = null; pintar();
+    });
+    el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = (abierto === b.dataset.abrir) ? null : b.dataset.abrir; pintar();
+    });
+    el.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => { abierto = null; pintar(); });
+
+    el.querySelectorAll('[data-ret]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.ret;
+      const campo = el.querySelector(`[data-mot="${id}"]`);
+      const m = campo ? campo.value.trim() : '';
+      // El motivo no es burocracia: una exigencia que desaparece sin
+      // explicación es lo primero que pregunta una auditoría.
+      if (!m) { alert('Escribí por qué dejó de aplicar. Sin eso no se retira.'); if (campo) campo.focus(); return; }
+      b.disabled = true; b.textContent = 'Retirando…';
+      try { const r = await rpc('cap_asignacion_retirar',
+              { p_asignacion: id, p_retirar: true, p_motivo: m });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; b.textContent = 'Ya no aplica · retirar'; alert(e.message); }
+    });
+
+    el.querySelectorAll('[data-volver2]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { const r = await rpc('cap_asignacion_retirar',
+              { p_asignacion: b.dataset.volver2, p_retirar: false });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+
+    el.querySelectorAll('[data-ok]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { const r = await rpc('cap_asignacion_vigente', { p_asignacion: b.dataset.ok });
+            await recargar(r.aviso); }
+      catch (e) { b.disabled = false; alert(e.message); }
+    });
+  }
+
+  pintar();
+}
+
+
+/* =================================================================
+   PANTALLA · ASIGNAR DESDE EL DOCUMENTO
+
+   El plan de la empresa ya dice a quién va dirigida cada capacitación.
+   Lo que no dice es cómo se traduce a los cargos y roles de KALU — y
+   esa traducción NO se hace por capacitación: se hace por texto.
+
+   En Total QC, 107 capacitaciones usan 31 textos distintos, y seis de
+   ellos cubren 80. Resolver «Personal Operativo» una vez asigna 35.
+
+   Lo que se puede deducir, ya viene deducido. Lo que no, se propone y
+   espera confirmación: «Personal Operativo» no es un cargo, es un grupo
+   que sólo la empresa sabe cómo se compone, y arrastra 35. Equivocarse
+   ahí le exige trabajo en alturas a la asistente administrativa.
+   ================================================================= */
+async function destinos(sel, opt) {
+  estilos(); const el = nodo(sel); if (!el) return;
+  opt = opt || {};
+  cargando(el, 'Leyendo a quién va dirigida cada capacitación…');
+
+  let D, abierto = null, busca = '';
+  try { await rpc('cap_destinos_sembrar'); } catch (e) {}
+  try { D = await rpc('cap_destinos_datos'); } catch (e) { return error(el, e); }
+  try { marca(el, (await rpc('cap_mi_pasaporte')).empresa); } catch (e) {}
+
+  const BLQ = [['no','No bloquea'], ['ingreso','Sin esto no se completa la vinculación'],
+               ['operacion','Sin esto no puede operar sola']];
+
+  function toast(t) {
+    const d = document.createElement('div');
+    d.className = 'kc-toast'; d.textContent = t;
+    (el.querySelector('.kc-wide') || el).appendChild(d);
+    setTimeout(() => d.remove(), 9000);
+  }
+
+  async function recargar(msg) {
+    D = await rpc('cap_destinos_datos');
+    abierto = null; busca = '';
+    pintar(); if (msg) toast(msg);
+  }
+
+  function pintar() {
+    const L = D.destinos || [];
+    const sinRes = L.filter(d => !d.resuelto);
+    const cubre = sinRes.reduce((a, d) => a + Number(d.capacitaciones), 0);
+    const puede = D.puede_editar !== false;
+
+    el.className = 'kc';
+    el.innerHTML = `<div class="kc-wide">
+      ${opt.volver ? '<button class="kc-mini" id="kc-volver" style="margin:18px 0 12px">← Volver</button>' : ''}
+      <div style="padding:${opt.volver?'0':'24px'} 0 14px;border-bottom:2px solid var(--kc-ink);margin-bottom:16px">
+        <div class="kc-cd" style="color:var(--kc-ac);margin-bottom:9px">A QUIÉN LE LLEGA</div>
+        <h1 style="font-size:28px;font-weight:700">Asignar desde el documento</h1>
+        <div style="color:var(--kc-ink2);font-size:14px;margin-top:6px;max-width:74ch">
+          Tu programa ya dice a quién va dirigida cada capacitación. Acá se traduce ese texto a
+          los cargos y roles de KALU — <b>una vez por texto</b>, no una vez por capacitación.</div></div>
+
+      <div class="kc-grid3" style="margin-bottom:16px">
+        <div class="kc-kpi"><b>${L.length}</b><span>textos distintos</span></div>
+        <div class="kc-kpi ${sinRes.length ? 'mal' : 'ok'}">
+          <b>${sinRes.length}</b><span>sin resolver</span></div>
+        <div class="kc-kpi ${cubre ? 'mal' : 'ok'}">
+          <b>${cubre}</b><span>capacitaciones esperando</span></div>
+      </div>
+
+      ${!L.length ? `<p class="kc-vacio">Ninguna capacitación activa trae escrito a quién va
+        dirigida. Eso se carga al importar el catálogo desde el procedimiento de la empresa.</p>`
+      : `<div class="kc-dest">${L.map(d => tarjeta(d, puede)).join('')}</div>`}
+    </div>`;
+
+    const bv = el.querySelector('#kc-volver');
+    if (bv) bv.onclick = () => opt.volver();
+    enganchar();
+  }
+
+  function tarjeta(d, puede) {
+    const ab = abierto === d.id;
+    const prop = d.cargos_mencionados || [];
+    const eleg = (d.elegidos || []).map(x => x.cargo_id || x.rol_id);
+    // Si nunca se resolvió, la propuesta viene pre-marcada: el trabajo de
+    // la persona es revisar, no cargar de cero.
+    const marcados = d.resuelto ? eleg : prop.map(p => p.cargo_id);
+    // Cuando NO hay propuesta no se preselecciona nada. Caer en «a todo el
+    // personal» por descarte es el peor default posible: «Personal
+    // Operativo» no es todo el personal, y apretar Guardar sin mirar le
+    // asignaría 34 capacitaciones a la empresa entera. Que no haya una
+    // respuesta obvia tiene que verse, no taparse con una por defecto.
+    const alc = d.alcance || (d.rol_propuesto ? 'rol' : prop.length ? 'cargo' : null);
+
+    return `<article class="kc-p1 ${d.resuelto ? '' : 'pend'}">
+      <button type="button" class="cab" data-abrir="${d.id}" aria-expanded="${ab}">
+        <div class="i">${d.capacitaciones}</div>
+        <div class="c">
+          <div class="kc-tt" style="font-size:15px">${esc(d.texto)}</div>
+          <div class="kc-cd" style="margin-top:3px">${d.resuelto
+            ? (d.alcance === 'todos'   ? 'A todo el personal'
+             : d.alcance === 'ignorar' ? 'Marcado para ignorar'
+             : (d.elegidos || []).map(x => esc(x.nombre)).join(' · ') || 'sin destino')
+            : (d.rol_propuesto ? 'Se propone el rol «' + esc(d.rol_propuesto) + '»'
+             : prop.length ? 'Se proponen ' + prop.length + ' cargo(s)'
+             : 'Sin propuesta: hay que decidirlo')}</div>
+        </div>
+        <span class="kc-tag ${d.resuelto ? 'si' : 'no'}">${d.resuelto ? 'Resuelto' : 'Pendiente'}</span>
+        <span class="fl">${ab ? '▲' : '▼'}</span>
+      </button>
+      ${!ab ? '' : `<div class="cue">
+        <!-- Cuáles son. Sin esto la decisión es a ciegas: nadie puede
+             decir quién es «Personal Operativo» sin ver qué se le
+             estaría exigiendo. -->
+        ${(d.lista || []).length ? `<details class="lis" ${d.resuelto ? '' : 'open'}>
+          <summary>Las ${d.lista.length} capacitaciones de este texto</summary>
+          <div class="cgs2">${d.lista.map(c => `<div class="li">
+            <b>${esc(c.codigo)}</b> ${esc(c.titulo)}
+            <span class="kc-cd">· ${esc(c.tipo || '')}</span></div>`).join('')}</div>
+        </details>` : ''}
+
+        ${alc ? '' : `<p class="kc-nota" style="text-align:left;margin:0 0 9px;color:var(--kc-wa)">
+          Este texto no coincide con ningún cargo del organigrama, así que no hay nada que
+          proponer. Mirá la lista de arriba —qué se les estaría exigiendo— y decidí a quién
+          le llega.</p>`}
+        <div class="kc-row" style="margin-bottom:10px">
+          ${[['todos','A todo el personal'],['cargo','A ciertos cargos'],
+             ['rol','A un rol'],['ignorar','No asignar a nadie']].map(o =>
+            `<label class="kc-op"><input type="radio" name="alc-${d.id}" value="${o[0]}"
+               data-alc="${d.id}" ${alc === o[0] ? 'checked' : ''}> ${o[1]}</label>`).join('')}
+        </div>
+
+        <div class="zona" data-zona="cargo-${d.id}" ${alc === 'cargo' ? '' : 'hidden'}>
+          <input class="kc-in" type="search" placeholder="Buscar cargo…" data-bus="${d.id}"
+                 style="margin-bottom:8px">
+          ${prop.length ? `<p class="kc-nota" style="text-align:left;margin:0 0 8px">
+            Vienen marcados los que el texto menciona. Revisá antes de guardar.</p>` : ''}
+          <div class="cgs" data-cgs="${d.id}">${(D.cargos || []).map(c =>
+            `<label class="kc-op" data-nom="${esc(c.nombre.toLowerCase())}">
+               <input type="checkbox" class="kcd-${d.id}" value="${c.id}"
+                 ${marcados.indexOf(c.id) >= 0 ? 'checked' : ''}>
+               ${esc(c.nombre)} <span class="kc-cd">· ${c.personas}</span></label>`).join('')}</div>
+        </div>
+
+        <div class="zona" data-zona="rol-${d.id}" ${alc === 'rol' ? '' : 'hidden'}>
+          <label class="kc-lb" for="rol-${d.id}">Rol</label>
+          <input class="kc-in" id="rol-${d.id}" data-rol="${d.id}" list="roles-${d.id}"
+                 value="${esc(d.rol_propuesto || (d.elegidos||[]).map(x=>x.nombre)[0] || '')}"
+                 placeholder="Ej: Conductor">
+          <datalist id="roles-${d.id}">${(D.roles || []).map(r =>
+            `<option value="${esc(r.nombre)}">`).join('')}</datalist>
+          <p class="kc-nota" style="text-align:left;margin:6px 0 0">Si el rol no existe se crea
+            solo. Después hay que afiliarle la gente desde la ficha de cada persona: el
+            documento dice qué rol, no quién lo tiene.</p>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="kc-lb" for="blq-${d.id}">¿Bloquea?</label>
+          <select class="kc-in" id="blq-${d.id}" data-blq="${d.id}">${BLQ.map(b =>
+            `<option value="${b[0]}" ${d.bloqueante === b[0] ? 'selected' : ''}>${b[1]}</option>`).join('')}</select>
+          <p class="kc-nota" style="text-align:left;margin:6px 0 0">Bloquear tiene que ser raro.
+            Inducción o alturas, sí; una charla de ergonomía, no. Si todo bloquea, el sistema
+            deja a todo el mundo trabado y deja de servir.</p>
+        </div>
+
+        ${puede ? `<div class="kc-row" style="margin-top:14px">
+          <button class="kc-btn" data-guardar="${d.id}" style="flex:0 0 auto;width:auto;padding:0 20px">
+            Guardar y asignar ${d.capacitaciones}</button>
+          <button class="kc-mini" data-cerrar="1">Cancelar</button></div>`
+        : '<p class="kc-nota" style="text-align:left">Sólo lectura.</p>'}
+      </div>`}
+    </article>`;
+  }
+
+  function enganchar() {
+    el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+      abierto = (abierto === b.dataset.abrir) ? null : b.dataset.abrir;
+      pintar();
+    });
+    el.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => { abierto = null; pintar(); });
+    el.querySelectorAll('[data-alc]').forEach(r => r.onchange = () => {
+      const id = r.dataset.alc, v = r.value;
+      ['cargo','rol'].forEach(z => {
+        const box = el.querySelector(`[data-zona="${z}-${id}"]`);
+        if (box) box.hidden = (v !== z);
+      });
+    });
+    el.querySelectorAll('[data-bus]').forEach(i => i.oninput = () => {
+      const q = i.value.trim().toLowerCase();
+      el.querySelectorAll(`[data-cgs="${i.dataset.bus}"] [data-nom]`).forEach(lb => {
+        lb.hidden = !!q && lb.dataset.nom.indexOf(q) < 0;
+      });
+    });
+    el.querySelectorAll('[data-guardar]').forEach(b => b.onclick = async () => {
+      const id = b.dataset.guardar;
+      const alc = (el.querySelector(`[data-alc="${id}"]:checked`) || {}).value;
+      if (!alc) { alert('Elegí a quién le llega antes de guardar.'); return; }
+      const dest = [];
+      if (alc === 'cargo') {
+        el.querySelectorAll('.kcd-' + id + ':checked').forEach(x => dest.push({ cargo_id: x.value }));
+        if (!dest.length) { alert('Elegí al menos un cargo, o cambiá el alcance.'); return; }
+      }
+      const rol = alc === 'rol'
+        ? ((el.querySelector(`[data-rol="${id}"]`) || {}).value || '').trim() : null;
+      if (alc === 'rol' && !rol) { alert('Escribí el nombre del rol.'); return; }
+      const blq = (el.querySelector(`[data-blq="${id}"]`) || {}).value || 'no';
+      b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        const r = await rpc('cap_destino_resolver', { p_destino: id, p_alcance: alc,
+          p_destinos: dest, p_rol_nuevo: rol, p_bloqueante: blq });
+        await recargar(r.aviso);
+      } catch (e) {
+        b.disabled = false; b.textContent = 'Guardar'; alert(e.message);
+      }
+    });
+  }
+
+  pintar();
+}
+
+/* ---- cajón compartido (localStorage) ---- */
+function _leerCajon()    { try { return JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { return null; } }
+function _guardarCajon(d){ try { localStorage.setItem(SESS_KEY, JSON.stringify(d)); } catch (e) {} }
+function _limpiarCajon() { try { localStorage.removeItem(SESS_KEY); localStorage.removeItem('kalu_sid'); } catch (e) {} }
+
+/* Lee la sesión que dejó ingreso.html en el cajón compartido. El objeto
+   guardado es el crudo de Supabase: { access_token, refresh_token,
+   expires_at (epoch en SEGUNDOS), user{ id, email } }. */
+function sesion() {
+  try {
+    const s = _leerCajon();
+    if (!s || !s.access_token) return null;
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      token:   s.access_token,
+      refresh: s.refresh_token || null,
+      email:   (s.user && s.user.email) || '',
+      uid:     (s.user && s.user.id) || null,
+      expira:  s.expires_at || 0,
+      vencida: s.expires_at ? (s.expires_at <= now) : false
+    };
+  } catch (e) { return null; }
+}
+
+/* Renueva el token sin re-loguear (usa el refresh_token del cajón). */
+async function _refrescar(rt) {
+  if (!rt) return null;
+  const K = global.KALU || {};
+  try {
+    const r = await fetch(K.SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: K.SB_KEY },
+      body: JSON.stringify({ refresh_token: rt })
+    });
+    const d = await r.json();
+    if (!r.ok || !d || !d.access_token) return null;
+    _guardarCajon(d);
+    return d;
+  } catch (e) { return null; }
+}
+
+/* ---- candado: único por equipo + inactividad + cierre en cadena ---- */
+function _cerrarLocal() {
+  try { if (_idleT) clearTimeout(_idleT); if (_pollT) clearInterval(_pollT); } catch (e) {}
+  location.href = 'index.html';
+}
+function _forzarSalida(msg) {
+  _limpiarCajon();
+  try { localStorage.setItem(LOGOUT_KEY, String(Date.now())); } catch (e) {}
+  if (msg) { try { alert(msg); } catch (e) {} }
+  _cerrarLocal();
+}
+function _resetIdle() {
+  if (_idleT) clearTimeout(_idleT);
+  _idleT = setTimeout(function () {
+    _forzarSalida('Cerramos tu sesión por inactividad.');
+  }, (_idleMin || 15) * 60000);
+}
+/* EL CANDADO ECHABA A LA GENTE DE SU PROPIA COMPUTADORA.
+
+   El número de sesión se leía del navegador UNA SOLA VEZ, al cargar la
+   página, y quedaba congelado en memoria; el de la base se releía cada 30
+   segundos. Entonces cualquier cosa que reescribiera el número —abrir otra
+   pestaña, volver al portal y entrar de nuevo, renovar el token— dejaba a
+   la pestaña abierta comparando contra un valor viejo. Se cerraba sola
+   diciendo «se inició sesión en otro equipo», con la persona sentada
+   adelante y nadie más usando su usuario. A Jennifer la sacaba cada cuatro
+   minutos.
+
+   Dos cambios, y ninguno afloja el candado:
+
+   1. El número del navegador se RELEE en cada chequeo. El navegador
+      comparte ese dato entre todas las pestañas de la misma máquina, así
+      que dos pestañas propias siempre coinciden. Una computadora distinta
+      tiene su propio almacenamiento: ahí el candado salta igual.
+
+   2. Hacen falta DOS lecturas distintas seguidas, con 30 segundos de por
+      medio, antes de echar a nadie. Una sola puede ser el instante entre
+      que se escribe la base y se escribe el navegador durante un reingreso
+      propio. Echar a alguien por una carrera de milisegundos es el peor
+      falso positivo posible: le interrumpe el trabajo y le hace creer que
+      le robaron la cuenta.                                              */
+async function _chequearSesion() {
+  if (!_uid) return;
+  let mio = null;
+  try { mio = localStorage.getItem('kalu_sid') || null; } catch (e) {}
+  if (!mio) { _sidRaro = 0; return; }   // sin número propio no hay con qué comparar
+  try {
+    const r = await sb.from('perfiles').select('sesion_id').eq('id', _uid).maybeSingle();
+    const sid = (r && r.data && r.data.sesion_id) || null;
+    if (!sid || sid === mio) { _sidRaro = 0; return; }
+    _sidRaro++;
+    if (_sidRaro >= 2)
+      _forzarSalida('Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión.');
+  } catch (e) {}
+}
+async function _armarGuards() {
+  // el rol define cuánta inactividad se tolera (gestores 60, resto 15)
+  try {
+    const r = await sb.from('perfiles').select('rol,es_super').eq('id', _uid).maybeSingle();
+    const p = (r && r.data) || {};
+    const gestor = p.es_super === true || ['hse', 'supervisor', 'admin'].indexOf(p.rol) >= 0;
+    _idleMin = gestor ? 60 : 15;
+  } catch (e) { _idleMin = 15; }
+  try { _mySid = localStorage.getItem('kalu_sid') || null; } catch (e) { _mySid = null; }
+  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(function (ev) {
+    window.addEventListener(ev, _resetIdle, { passive: true });
+  });
+  _resetIdle();
+  if (_pollT) clearInterval(_pollT);
+  _pollT = setInterval(_chequearSesion, 30000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) _chequearSesion(); });
+  window.addEventListener('storage', function (e) { if (e.key === LOGOUT_KEY) _cerrarLocal(); });
+}
+
+/* Arma el cliente de Supabase con el token vigente en el header.
+   SINCRÓNICO y retrocompatible: los hosts que ya lo llamaban así
+   (p.ej. app.html) siguen funcionando sin cambios. */
+function init(cfg) {
+  cfg = cfg || {};
+  if (cfg.client) { sb = cfg.client; return sesion(); }
+
+  if (!global.supabase || !global.supabase.createClient)
+    throw new Error('Falta supabase-js. Cargalo antes de capacitador.js');
+
+  const K   = global.KALU || {};
+  const url = cfg.url || K.SB_URL;
+  const key = cfg.key || K.SB_KEY;
+  if (!url || !key)
+    throw new Error('No encontré la configuración. Cargá config.js antes, ' +
+                    'o pasale { url, key } a KaluCap.init');
+
+  const s = sesion();
+  sb = global.supabase.createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: (s && !s.vencida) ? { Authorization: 'Bearer ' + s.token } : {} }
+  });
+  return s;
+}
+
+/* Entrada recomendada para páginas standalone (capacitador.html):
+   renueva el token si hace falta ANTES de armar el cliente, y prende el
+   candado de sesión. Pasá { guardias:false } si el host ya lo maneja. */
+async function iniciar(cfg) {
+  cfg = cfg || {};
+  let s = sesion();
+  if (s && s.refresh) {
+    const now = Math.floor(Date.now() / 1000);
+    if (s.vencida || (s.expira && s.expira - now < 120)) {
+      if (await _refrescar(s.refresh)) s = sesion();
+    }
+  }
+  init(cfg);                       // arma el cliente leyendo el cajón ya renovado
+  if (s && !s.vencida && cfg.guardias !== false) { _uid = s.uid; _armarGuards(); }
+  return s;
+}
+
+global.KaluCap = { init, iniciar, sesion, pasaporte, curso, supervision, admin, ficha,
+                   certificado, generador, verificar, arranque, planCargo, verCurso,
+                   matriz, impCatalogo, consola, destinos, historia, fusionar,
+                   cronograma, retirar,
+                   version: KC_VER,
+                   get cliente() { return sb; } };
+
+})(typeof window !== 'undefined' ? window : this);

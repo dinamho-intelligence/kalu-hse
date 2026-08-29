@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '65';
+const KC_VER = '66';
 
 let sb = null;
 
@@ -465,6 +465,10 @@ const CSS = `
  border-radius:6px;padding:5px 10px;cursor:pointer;font-family:var(--kc-fd);
  font-weight:600;font-size:12.5px;white-space:nowrap}
 .kc-mini.p{background:var(--kc-ac);border-color:var(--kc-ac);color:var(--kc-ground)}
+/* La deuda de evidencia no se pinta como un botón principal —no es la
+   acción que más queremos que toquen— pero tampoco puede pasar por un
+   botón cualquiera: dice que falta un papel que un auditor va a pedir. */
+.kc-mini.d{border-color:var(--kc-cr);color:var(--kc-cr);background:var(--kc-crs)}
 .kc-cent{display:flex;align-items:center;gap:12px;border-radius:10px;padding:13px 16px;
  margin:16px 0}
 .kc-cent.ok{background:var(--kc-oks)}.kc-cent.mal{background:var(--kc-crs)}
@@ -860,7 +864,13 @@ function tablaHistorial(H, opt) {
         <td class="n">${x.horas != null ? Number(x.horas) : '—'}</td>
         <td class="n">${x.vence_el ? fecha(x.vence_el) : 'no vence'}</td>
         <td>${x.soporte ? `<a class="kc-mini" href="${esc(x.soporte)}"
-              target="_blank" rel="noopener">Ver</a>`
+              target="_blank" rel="noopener" title="${x.soporte_de === 'jornada'
+                ? 'La planilla firmada de esa jornada' : 'Constancia a nombre de la persona'}">Ver</a>${
+              // Un certificado a nombre de la persona no prueba lo mismo
+              // que una firma en una lista de veinte. Las dos valen; la
+              // pantalla no las hace pasar por iguales.
+              x.soporte_de === 'jornada'
+                ? '<div class="kc-cd" style="margin-top:2px;color:var(--kc-ink3)">de la jornada</div>' : ''}`
             : '<span style="color:var(--kc-cr);font-size:12.5px">falta</span>'}</td>
       </tr>`; }).join('')}</tbody></table></div>
     <p class="kc-nota" style="text-align:left;margin-top:10px">Esto es lo que
@@ -2146,11 +2156,24 @@ async function admin(sel) {
               e.ejecutado && e.fecha ? e.asistieron + ' de ' + (e.convocados || '?') + ' asistieron' : null,
               !e.ejecutado && e.fecha && e.convocados ? e.convocados + ' convocados' : null,
               e.reprogramado_de ? 'movida desde el ' + e.reprogramado_de : null,
+              // No se programó: se dedujo de asistencias cargadas de un
+              // libro. Mostrarla igual que una planificada sería hacer
+              // pasar una deducción por un plan.
+              e.fuente === 'agrupado_historico' ? 'reconstruida del histórico' : null,
               e.cancelado_motivo ? 'cancelada: ' + esc(e.cancelado_motivo) : null
             ].filter(Boolean).join(' · ')}</div>
         </div>
         <span class="kc-tag ${TAG[s][0]}">${TAG[s][1]}</span>
         <div class="kc-eva">${
+          // LA LISTA FIRMADA. Se carga UNA VEZ por jornada y respalda a
+          // todos los que estuvieron: el soporte casi nunca es por
+          // persona, es una hoja con veinte firmas. De a uno serían
+          // miles de cargas y no iba a pasar nunca.
+          e.ejecutado
+            ? `<button class="kc-mini${e.soporte ? '' : ' d'}" data-e="soporte" data-i="${e.id}"
+                 title="${e.soporte ? 'Ver o cambiar la lista de asistencia firmada'
+                                    : 'Todavía no está cargada la lista de asistencia firmada'}">${
+                e.soporte ? '✓ Lista' : 'Falta la lista'}</button>` : ''}${
           e.fecha && !e.cancelado && e.fecha <= hoyS
             ? `<button class="kc-mini${e.ejecutado ? '' : ' p'}" data-e="lista" data-i="${e.id}">${
                 e.ejecutado ? 'Ver lista' : 'Pasar lista'}</button>` : ''}${
@@ -2192,6 +2215,23 @@ async function admin(sel) {
         <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">${n.atrasado} evento(s) pasaron de fecha sin dictarse</div>
         <div style="font-size:13px;color:var(--kc-ink2)">Ante la ARL un cronograma incumplido pesa más que uno reprogramado.
           Movelos de fecha o cancelalos con el motivo.</div></div></div>` : ''}
+      ${(() => {
+        // LA EVIDENCIA DE QUE SE DICTÓ.
+        // Un cronograma cumplido sin listas firmadas no se puede sostener
+        // ante un auditor: la pantalla dice «dictado» y no hay con qué
+        // probarlo. Se cuenta sólo sobre lo ejecutado — pedir la lista de
+        // algo que todavía no se dictó no tiene sentido.
+        const ej = (CRO.eventos || []).filter(e => e.ejecutado && !e.cancelado);
+        const fal = ej.filter(e => !e.soporte).length;
+        return (fal && filtro === 'todas') ? `<div class="kc-cent" style="background:var(--kc-crs)">
+          <div class="b" style="background:var(--kc-cr)">${fal}</div><div style="flex:1">
+          <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">
+            ${fal} de ${ej.length} jornada(s) dictadas no tienen la lista de asistencia firmada</div>
+          <div style="font-size:13px;color:var(--kc-ink2)">Es el papel que pide un auditor cuando
+            pregunta con qué se prueba que se dictó. Se carga <b>una vez por jornada</b> y respalda
+            a todos los que estuvieron: buscá el botón <b>«Falta la lista»</b> en cada una.</div>
+          </div></div>` : '';
+      })()}
       ${Object.keys(porMes).length === 0 && !sinFecha.length
         ? '<p class="kc-vacio">Nada con ese filtro.</p>'
         : Object.keys(porMes).sort((a,b)=>a-b).map(m =>
@@ -2620,6 +2660,65 @@ async function admin(sel) {
 
     if (accion === 'lista') {
       dlgLista(id, e);
+
+    /* LA LISTA DE ASISTENCIA DE UNA JORNADA.
+       Se sube una vez y respalda a todos los que estuvieron. No emite
+       certificado a nadie: una planilla con veinte firmas no es el diploma
+       de ninguno de los veinte, y hacerla pasar por eso sería fabricar una
+       constancia individual que nadie firmó. */
+    } else if (accion === 'soporte') {
+      const dd0 = abrir(`<h3>Lista de asistencia</h3>
+        <p>${esc((e && e.codigo) || '')} · ${esc((e && e.titulo) || '')}${
+          e && e.fecha ? ' · ' + fecha(e.fecha) : ''}</p>
+        <p style="font-size:13px;color:var(--kc-ink2)">La planilla firmada de esa jornada.
+          Respalda a <b>${(e && e.asistieron) || 0}</b> asistencia(s) de una sola vez.
+          ${e && e.soporte ? `<br>Ya hay una cargada: <a href="${esc(e.soporte)}" target="_blank"
+            rel="noopener">verla</a>. Si subís otra, la reemplaza.` : ''}</p>
+        <label for="k0">Archivo</label>
+        <input type="file" id="k0" accept=".pdf,.jpg,.jpeg,.png">
+        <p id="kcsub" style="font-size:12.5px;margin:-6px 0 12px"></p>
+        <label for="k1">O pegá la ruta / enlace donde ya está</label>
+        <input type="text" id="k1" value="${esc((e && e.soporte) || '')}" placeholder="documentos/…">
+        <label for="k2">Quién la emitió</label>
+        <input type="text" id="k2" value="interno" placeholder="interno, Colmena, Ingetest…">`,
+        async d => {
+          let ruta = d.querySelector('#k1').value.trim();
+          const f = d.querySelector('#k0').files[0];
+          if (f) ruta = await subirLista(f, e && e.codigo);
+          if (!ruta) throw new Error('Elegí un archivo o pegá la ruta donde está la planilla.');
+          const r = await rpc('cap_evento_soporte', { p_evento: id, p_storage_path: ruta,
+            p_nombre: null, p_emitido_por: d.querySelector('#k2').value });
+          CRO = null;
+          return r;
+        }, 'Guardar la lista');
+
+      async function subirLista(file, codigo) {
+        const nota = dd0.querySelector('#kcsub');
+        nota.style.color = 'var(--kc-ink3)';
+        nota.textContent = 'Subiendo el archivo…';
+        // La empresa va primera en la ruta: el bucket sólo deja escribir
+        // adentro de la carpeta de la propia empresa.
+        if (!CRO || !CRO.empresa_id)
+          throw new Error('No se pudo determinar tu empresa para guardar el archivo. Pegá la ruta a mano.');
+        const ext = (file.name.split('.').pop() || 'pdf').toLowerCase()
+          .replace(/[^a-z0-9]/g, '').slice(0, 5) || 'pdf';
+        const cod = String(codigo || 'jornada').replace(/[^A-Za-z0-9_-]/g, '');
+        const ruta = CRO.empresa_id + '/capacitador/jornadas/' + cod + '-' +
+          iso().replace(/-/g, '') + '-' + Math.random().toString(16).slice(2, 8) + '.' + ext;
+        const st = sb && sb.storage;
+        if (!st) throw new Error('No se puede subir desde acá. Pegá la ruta del documento.');
+        const { error: er } = await st.from('documentos')
+          .upload(ruta, file, { upsert: false, contentType: file.type || undefined });
+        if (er) {
+          nota.style.color = 'var(--kc-cr)';
+          nota.textContent = 'No se pudo subir: ' + er.message +
+            ' · Guardá la planilla donde la guardan siempre y pegá acá la ruta.';
+          throw new Error('El archivo no se subió. Mirá el aviso de arriba.');
+        }
+        nota.style.color = 'var(--kc-ok)';
+        nota.textContent = 'Archivo subido.';
+        return ruta;
+      }
 
     } else if (accion === 'crear') {
       abrir(`<h3>Programar una capacitación</h3>

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '59';
+const KC_VER = '60';
 
 let sb = null;
 
@@ -1948,17 +1948,25 @@ async function admin(sel) {
     // Sin una sola actividad programada en el año. Es el «0/0» de la
     // columna 2026: el dato ya estaba a la vista, lo que faltaba era
     // poder quedarse sólo con ésas y hacer algo al respecto.
-    // Las activas se parten en dos y los números cierran a la vista:
-    // programadas + sin programar = activas. Si algún día no cierran, se
-    // nota sin que nadie tenga que revisar nada.
-    const sinProg = act.filter(c => (c.eventos || 0) === 0);
-    const conProg = act.filter(c => (c.eventos || 0) > 0);
+    // «Sin evento este año» NO es lo mismo que «falta programarla». El
+    // catálogo tiene competencias de cinco años, cursos externos y cosas
+    // que se disparan por ingreso: que no tengan actividad este año es
+    // normal. Medido en Total QC: 129 sin evento, pero sólo 54 con gente
+    // atrasada. Mostrar las 129 le daba a Jennifer 75 tareas que no
+    // existen.
+    //
+    // Así que el filtro pregunta lo que importa: ¿hay alguien en rojo
+    // por ésta? Se perdió que programadas + sin programar cerraran
+    // contra activas, y está bien perderlo: era una cuenta prolija sobre
+    // un número que nadie podía usar.
+    const conProg  = act.filter(c => (c.eventos || 0) > 0);
+    const faltaPro = act.filter(c => (c.eventos || 0) === 0 && (c.en_rojo || 0) > 0);
     const n = {
       todas: C.length, activas: act.length,
       bloqueo: act.filter(c => c.bloqueo > 0).length,
       huerfanas: huerf.length,
       conprog: conProg.length,
-      sinprog: sinProg.length,
+      faltapro: faltaPro.length,
       apagadas: C.length - act.length
     };
     const pasa = c => {
@@ -1968,7 +1976,7 @@ async function admin(sel) {
       if (filtro === 'bloqueo')   return c.activo && c.bloqueo > 0;
       if (filtro === 'huerfanas') return c.activo && c.personas === 0;
       if (filtro === 'conprog')   return c.activo && (c.eventos || 0) > 0;
-      if (filtro === 'sinprog')   return c.activo && (c.eventos || 0) === 0;
+      if (filtro === 'faltapro')  return c.activo && (c.eventos || 0) === 0 && (c.en_rojo || 0) > 0;
       return true;
     };
     const L = C.filter(pasa);
@@ -2009,7 +2017,7 @@ async function admin(sel) {
       <div class="kc-fil" style="padding:0 0 14px">
         ${chip('todas','Todas')}${chip('activas','Activas')}${chip('bloqueo','Bloqueantes')}
         ${chip('huerfanas','Sin gente')}
-        ${chip('conprog','Programadas este año')}${chip('sinprog','Sin programar este año')}
+        ${chip('conprog','Programadas este año')}${chip('faltapro','Falta programar')}
         ${chip('apagadas','Apagadas')}
       </div>
       ${L.length ? `<div class="kc-sc"><table><thead><tr>
@@ -2030,7 +2038,9 @@ async function admin(sel) {
                 `<span class="kc-mch${a.bloqueante!=='no'?' b':''}">${esc(a.destino)}</span>`).join('') +
               (c.asignaciones.length > 3 ? `<span class="kc-mch">+${c.asignaciones.length-3}</span>` : '') + '</div>'
             : '<span style="color:var(--kc-cr);font-size:13px">nadie</span>'}</td>
-        <td class="n"${c.personas===0?' style="color:var(--kc-cr)"':''}>${c.personas}</td>
+        <td class="n"${c.personas===0?' style="color:var(--kc-cr)"':''}>${c.personas}${
+          (c.en_rojo || 0) > 0
+            ? `<div style="font-size:11.5px;color:var(--kc-cr)">${c.en_rojo} en rojo</div>` : ''}</td>
         <td class="n">${c.hechos}/${c.eventos}</td>
         <td class="acc"><div style="display:flex;gap:6px">
           <button class="kc-mini" data-ver="${c.id}">Ver</button>
@@ -2038,9 +2048,9 @@ async function admin(sel) {
           <button class="kc-mini" data-c="asignar" data-i="${c.id}">Asignar</button>
           <button class="kc-mini${c.activo?'':' p'}" data-c="${c.activo?'apagar':'prender'}" data-i="${c.id}">${
             c.activo ? 'Apagar' : 'Prender'}</button>
-          ${c.activo && (c.eventos || 0) === 0
+          ${c.activo && (c.eventos || 0) === 0 && (c.en_rojo || 0) > 0
             ? `<button class="kc-mini p" data-c="programar" data-i="${c.id}"
-                 title="No tiene ninguna actividad programada este año">Programar</button>` : ''}
+                 title="${c.en_rojo} persona(s) atrasadas y ninguna actividad programada este año">Programar</button>` : ''}
           ${c.activo ? `<button class="kc-mini" data-c="convalidar" data-i="${c.id}">Convalidar</button>` : ''}
           </div></td>
       </tr>`).join('') + '</tbody></table></div>'
@@ -2274,9 +2284,11 @@ async function admin(sel) {
       }).join('');
       return abrir(`<h3>Programar ${esc(c.codigo)}</h3>
         <p>${esc(c.titulo)}</p>
-        <p>Hoy no tiene ninguna actividad programada en ${A}, y por eso las
-           <b>${c.personas}</b> persona(s) a las que le aplica figuran atrasadas.
-           Poniéndole el mes dejan de figurar así y pasan a <b>«en el cronograma»</b>.</p>
+        <p>Hoy no tiene ninguna actividad programada en ${A}, y hay
+           <b>${c.en_rojo || 0}</b> persona(s) atrasadas por ella${
+             (c.en_rojo || 0) < c.personas ? ` —de las ${c.personas} a las que le aplica—` : ''}.
+           Poniéndole el mes dejan de figurar atrasadas y pasan a
+           <b>«en el cronograma»</b>.</p>
         <label for="k1">¿En qué mes?</label><select id="k1">${ops}</select>
         <p class="kc-nota" style="text-align:left;margin:0 0 12px">Queda para el último día del
           mes: el plan da todo el mes, así que recién al mes siguiente hay incumplimiento.

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '68';
+const KC_VER = '69';
 
 let sb = null;
 
@@ -6399,6 +6399,17 @@ async function consola(sel, opt) {
                  <span>meta ${x.meta}%</span>`}</div>
           <div class="f">${x.num} de ${x.den} ${esc(x.unidad)}</div>
           <div class="f2">${esc(x.formula)}</div>
+          ${x.fuera_del_cronograma > 0 ? `
+          <!-- LO QUE ESTA TARJETA NO MIDE.
+               Cumplir el cronograma no es estar al día: se puede dictar
+               el 100% de lo programado y tener a toda la empresa en rojo,
+               si lo programado no cubre lo que se exige. Total QC: 61 de
+               61 dictadas, 100 personas atrasadas. Sin este renglón, el
+               100% verde queda al lado del rojo sin nada que los
+               conecte, y ante un auditor eso es peor que un número feo. -->
+          <div class="f2" style="margin-top:5px;color:var(--kc-cr)">
+            Pero <b>${x.fuera_del_cronograma} capacitación(es)</b> con gente atrasada
+            no están en el cronograma. Cumplir el programa no es estar al día.</div>` : ''}
           ${x.anual_valor != null && x.anual_valor !== x.valor ? `
           <!-- EL AÑO COMPLETO, AL LADO Y SIN VEREDICTO.
                A mitad de año siempre se ve peor, porque el denominador

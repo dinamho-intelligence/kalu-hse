@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '64';
+const KC_VER = '65';
 
 let sb = null;
 
@@ -796,33 +796,78 @@ function tablaHistorial(H, opt) {
   const con = H.filter(x => x.estado === 'asistio').length;
   const viejas = H.filter(x => !x.se_le_exige_hoy).length;
 
-  return `<div class="kc-grid3" style="margin-bottom:14px">
+  /* CON QUÉ SE PRUEBA CADA LÍNEA.
+
+     Un auditor no discute la fila que dice ASISTIÓ. Pregunta otras tres
+     cosas: mostrame el soporte firmado, quién la dictó, y esto se
+     registró ese día o se cargó después. Hasta la v65 las 32 filas se
+     veían todas igual de sólidas y ninguna tenía con qué respaldarse.
+
+     Los contadores en rojo van sólo en la ficha que mira HSE (opt.evidencia).
+     En el pasaporte del trabajador se muestran los mismos datos fila por
+     fila, pero sin el cartel: la falta de evidencia es una deuda de la
+     empresa, y ponérsela en rojo a quien no puede resolverla es acusar
+     al que fue a la capacitación. */
+  const sinSop = H.filter(x => !x.soporte).length;
+  const sinQ   = H.filter(x => !x.quien_dicto).length;
+  const cargad = H.filter(x => x.origen === 'historico').length;
+
+  const alerta = (opt.evidencia && H.length && (sinSop || sinQ))
+    ? `<div class="kc-cent" style="background:var(--kc-crs);margin-bottom:14px">
+        <div class="b" style="background:var(--kc-cr)">!</div><div style="flex:1">
+        <div class="kc-tt" style="font-size:15px;color:var(--kc-cr)">
+          Lo que un auditor va a pedir y hoy no está</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">
+          ${sinSop ? `<b>${sinSop} de ${H.length}</b> sin el soporte firmado. ` : ''}
+          ${sinQ   ? `<b>${sinQ}</b> sin constancia de quién la dictó. ` : ''}
+          ${cargad ? `<b>${cargad}</b> se cargaron de un histórico, no se registraron el día. ` : ''}
+          Las líneas son válidas; lo que falta es con qué respaldarlas.</div></div></div>`
+    : '';
+
+  return alerta + `<div class="kc-grid3" style="margin-bottom:14px">
       <div class="kc-kpi"><b>${con}</b><span>asistencias</span></div>
       <div class="kc-kpi"><b>${hs ? (Math.round(hs * 10) / 10) : '—'}</b><span>horas</span></div>
       <div class="kc-kpi"><b>${viejas}</b><span>de temas que hoy no se le exigen</span></div>
     </div>
     <div class="kc-sc"><table><thead><tr><th>Fecha</th><th>Código</th>
-      <th>Capacitación</th><th>Resultado</th><th class="n">Nota</th>
-      <th class="n">Horas</th><th>Vence</th><th></th></tr></thead><tbody>${
+      <th>Capacitación</th><th>Quién la dictó</th><th>Resultado</th><th class="n">Nota</th>
+      <th class="n">Horas</th><th>Vence</th><th>Soporte</th></tr></thead><tbody>${
     H.map(x => {
       const a = ASIS[x.estado] || [x.estado, 'n'];
       return `<tr>
-        <td class="n">${x.fecha ? fecha(x.fecha) : '—'}</td>
+        <td class="n">${x.fecha ? fecha(x.fecha) : '—'}
+          ${x.origen === 'historico'
+            // «Asistió el 10 de agosto» y «alguien escribió el 28 que
+            // asistió el 10» son dos afirmaciones distintas.
+            ? `<div class="kc-cd" style="margin-top:2px;color:var(--kc-ink3)" title="${
+                x.registrada_el ? 'Se registró el ' + fecha(String(x.registrada_el).slice(0,10)) : ''
+              }">cargada de un histórico</div>` : ''}</td>
         <td class="k">${esc(x.codigo || '')}</td>
         <td class="tit">${esc(x.titulo || '')}
           <div class="kc-cd" style="margin-top:2px">${esc(x.eje || '')} · ${esc(x.tipo || '')}${
+            x.modalidad ? ' · ' + esc(x.modalidad) : ''}${
             x.se_le_exige_hoy ? '' : ' · ya no se le exige'}${
             x.capacitacion_activa ? '' : ' · apagada'}</div></td>
+        <td>${x.quien_dicto
+          ? esc(x.quien_dicto) + (x.proveedor
+              // Quién firma hace a la validez: en alturas o brigada, un
+              // externo sin licencia invalida la capacitación aunque la
+              // persona haya ido.
+              ? ' <span class="kc-tag n" title="Lo dictó un tercero">externo</span>' : '')
+          : '<span style="color:var(--kc-ink3)">no consta</span>'}</td>
         <td><span class="kc-tag ${a[1]}">${esc(a[0])}</span></td>
         <td class="n">${x.nota != null ? Number(x.nota) : '—'}</td>
         <td class="n">${x.horas != null ? Number(x.horas) : '—'}</td>
         <td class="n">${x.vence_el ? fecha(x.vence_el) : 'no vence'}</td>
         <td>${x.soporte ? `<a class="kc-mini" href="${esc(x.soporte)}"
-              target="_blank" rel="noopener">Soporte</a>` : ''}</td>
+              target="_blank" rel="noopener">Ver</a>`
+            : '<span style="color:var(--kc-cr);font-size:12.5px">falta</span>'}</td>
       </tr>`; }).join('')}</tbody></table></div>
     <p class="kc-nota" style="text-align:left;margin-top:10px">Esto es lo que
       <b>pasó</b>, no lo que se exige. Una línea marcada «ya no se le exige» es un
-      registro válido de algo que hizo: la empresa cambió su plan, no la historia.</p>`;
+      registro válido de algo que hizo: la empresa cambió su plan, no la historia.
+      <b>«Falta» en soporte no invalida la asistencia</b>: dice que todavía no está
+      cargado el papel con el que se prueba.</p>`;
 }
 
 /* ---------------------------------------------------- estado de formación
@@ -2803,7 +2848,7 @@ async function ficha(sel, personaId, opt) {
     else if (s === 'cargo')  v.innerHTML = vCargo();
     else if (s === 'grupos') v.innerHTML = vGrupos();
     else if (s === 'hist')   v.innerHTML = tablaHistorial(F.historial,
-      { vacio: 'No hay ninguna asistencia registrada para esta persona.' });
+      { vacio: 'No hay ninguna asistencia registrada para esta persona.', evidencia: true });
     else                     v.innerHTML = vPuntual();
     enganchar();
   }

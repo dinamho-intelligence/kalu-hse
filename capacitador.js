@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '62';
+const KC_VER = '63';
 
 let sb = null;
 
@@ -6277,6 +6277,76 @@ async function consola(sel, opt) {
     });
   }
 
+  /* Imprimir lo que está filtrado, con TODOS los nombres — no los 400
+     que muestra la pantalla. Va en un iframe y no en una ventana nueva:
+     un bloqueador de pop-ups no lo tapa. Se imprime desde el navegador,
+     así que «Guardar como PDF» sale sin depender de ninguna librería. */
+  function imprimir(L) {
+    const chips = Object.keys(filtro).map(k =>
+      (ETIQ[k] || k) + ': ' + (k === 'estado' ? (EDO[filtro[k]] || [filtro[k]])[0]
+                             : k === 'causa'  ? (CAUSA[filtro[k]] || [filtro[k]])[0]
+                             : filtro[k]));
+    const d = cuentaDoble(L);
+    const porPersona = {};
+    L.forEach(c => { (porPersona[c.persona] = porPersona[c.persona] || []).push(c); });
+
+    const html = `<!doctype html><meta charset="utf-8"><title>Formación · ${esc(String(anio))}</title>
+      <style>
+        body{font:12px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;color:#11201B;margin:26px}
+        h1{font-size:19px;margin:0 0 3px} .sub{color:#5A6B65;font-size:12px;margin-bottom:14px}
+        .f{background:#F1F5F3;border:1px solid #DBE3DF;border-radius:6px;padding:8px 11px;
+           margin-bottom:14px;font-size:12px}
+        .kpi{display:flex;gap:26px;margin:0 0 16px;padding:10px 0;border-top:1px solid #DBE3DF;
+             border-bottom:1px solid #DBE3DF}
+        .kpi b{font-size:19px;display:block}
+        h2{font-size:13px;margin:16px 0 5px;padding-top:9px;border-top:1px solid #EEF2F0}
+        table{border-collapse:collapse;width:100%;font-size:11.5px}
+        td{padding:3px 7px 3px 0;vertical-align:top}
+        .c{color:#5A6B65;white-space:nowrap}
+        .pie{margin-top:20px;color:#7E918B;font-size:10.5px;border-top:1px solid #DBE3DF;padding-top:8px}
+        @page{margin:14mm}
+      </style>
+      <h1>Formación · ${esc(String(anio))}</h1>
+      <div class="sub">${esc(marcaNombre || '')} · generado el ${new Date().toLocaleString('es-CO')}</div>
+      ${chips.length ? `<div class="f"><b>Filtro:</b> ${esc(chips.join('  ·  '))}</div>` : ''}
+      <div class="kpi">
+        <div><b>${d.personas}</b>personas</div>
+        <div><b>${d.caps}</b>capacitaciones</div>
+        <div><b>${L.filter(c=>c.bloqueante!=='no').length}</b>casos que impiden ingresar u operar</div>
+      </div>
+      ${Object.keys(porPersona).sort().map(nom => `
+        <h2>${esc(nom)} <span class="c">· ${porPersona[nom].length}</span></h2>
+        <table>${porPersona[nom].map(c => `<tr>
+          <td class="c" style="width:52px">${esc(c.codigo)}</td>
+          <td>${esc(c.titulo)}</td>
+          <td class="c" style="width:110px">${esc((EDO[c.estado] || [c.estado])[0])}${
+            c.bloqueante !== 'no' ? ' · bloquea' : ''}</td>
+          <td class="c" style="width:78px">${c.vence_el ? fecha(c.vence_el) : ''}</td>
+        </tr>`).join('')}</table>`).join('')}
+      <div class="pie">Estado calculado en el momento de imprimir. Informa el estado de la
+        formación interna: no certifica calificaciones técnicas ni aptitud médica ocupacional.</div>`;
+
+    const ifr = document.createElement('iframe');
+    ifr.setAttribute('aria-hidden', 'true');
+    ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(ifr);
+    const doc = ifr.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+    // El iframe NO se saca con un cronómetro. La vista previa de impresión
+    // vive adentro de él: si se lo quita mientras el diálogo está abierto,
+    // el usuario ve una hoja en blanco. Se saca cuando el navegador avisa
+    // que terminó, y hay un plazo largo por si ese aviso nunca llega.
+    setTimeout(() => {
+      const w = ifr.contentWindow;
+      let ido = false;
+      const sacar = () => { if (ido) return; ido = true; ifr.remove(); };
+      try { w.addEventListener('afterprint', () => setTimeout(sacar, 300)); } catch (e) {}
+      setTimeout(sacar, 120000);
+      try { w.focus(); w.print(); } catch (e) { sacar(); alert('El navegador no dejó abrir la impresión: ' + e.message); }
+    }, 250);
+  }
+
+
   pintar();
 }
 
@@ -7341,67 +7411,6 @@ async function destinos(sel, opt) {
         b.disabled = false; b.textContent = 'Guardar'; alert(e.message);
       }
     });
-  }
-
-  /* Imprimir lo que está filtrado, con TODOS los nombres — no los 400
-     que muestra la pantalla. Va en un iframe y no en una ventana nueva:
-     un bloqueador de pop-ups no lo tapa. Se imprime desde el navegador,
-     así que «Guardar como PDF» sale sin depender de ninguna librería. */
-  function imprimir(L) {
-    const chips = Object.keys(filtro).map(k =>
-      (ETIQ[k] || k) + ': ' + (k === 'estado' ? (EDO[filtro[k]] || [filtro[k]])[0]
-                             : k === 'causa'  ? (CAUSA[filtro[k]] || [filtro[k]])[0]
-                             : filtro[k]));
-    const d = cuentaDoble(L);
-    const porPersona = {};
-    L.forEach(c => { (porPersona[c.persona] = porPersona[c.persona] || []).push(c); });
-
-    const html = `<!doctype html><meta charset="utf-8"><title>Formación · ${esc(String(anio))}</title>
-      <style>
-        body{font:12px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;color:#11201B;margin:26px}
-        h1{font-size:19px;margin:0 0 3px} .sub{color:#5A6B65;font-size:12px;margin-bottom:14px}
-        .f{background:#F1F5F3;border:1px solid #DBE3DF;border-radius:6px;padding:8px 11px;
-           margin-bottom:14px;font-size:12px}
-        .kpi{display:flex;gap:26px;margin:0 0 16px;padding:10px 0;border-top:1px solid #DBE3DF;
-             border-bottom:1px solid #DBE3DF}
-        .kpi b{font-size:19px;display:block}
-        h2{font-size:13px;margin:16px 0 5px;padding-top:9px;border-top:1px solid #EEF2F0}
-        table{border-collapse:collapse;width:100%;font-size:11.5px}
-        td{padding:3px 7px 3px 0;vertical-align:top}
-        .c{color:#5A6B65;white-space:nowrap}
-        .pie{margin-top:20px;color:#7E918B;font-size:10.5px;border-top:1px solid #DBE3DF;padding-top:8px}
-        @page{margin:14mm}
-      </style>
-      <h1>Formación · ${esc(String(anio))}</h1>
-      <div class="sub">${esc(marcaNombre || '')} · generado el ${new Date().toLocaleString('es-CO')}</div>
-      ${chips.length ? `<div class="f"><b>Filtro:</b> ${esc(chips.join('  ·  '))}</div>` : ''}
-      <div class="kpi">
-        <div><b>${d.personas}</b>personas</div>
-        <div><b>${d.caps}</b>capacitaciones</div>
-        <div><b>${L.filter(c=>c.bloqueante!=='no').length}</b>casos que impiden ingresar u operar</div>
-      </div>
-      ${Object.keys(porPersona).sort().map(nom => `
-        <h2>${esc(nom)} <span class="c">· ${porPersona[nom].length}</span></h2>
-        <table>${porPersona[nom].map(c => `<tr>
-          <td class="c" style="width:52px">${esc(c.codigo)}</td>
-          <td>${esc(c.titulo)}</td>
-          <td class="c" style="width:110px">${esc((EDO[c.estado] || [c.estado])[0])}${
-            c.bloqueante !== 'no' ? ' · bloquea' : ''}</td>
-          <td class="c" style="width:78px">${c.vence_el ? fecha(c.vence_el) : ''}</td>
-        </tr>`).join('')}</table>`).join('')}
-      <div class="pie">Estado calculado en el momento de imprimir. Informa el estado de la
-        formación interna: no certifica calificaciones técnicas ni aptitud médica ocupacional.</div>`;
-
-    const ifr = document.createElement('iframe');
-    ifr.setAttribute('aria-hidden', 'true');
-    ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-    document.body.appendChild(ifr);
-    const doc = ifr.contentWindow.document;
-    doc.open(); doc.write(html); doc.close();
-    setTimeout(() => {
-      ifr.contentWindow.focus(); ifr.contentWindow.print();
-      setTimeout(() => ifr.remove(), 1000);
-    }, 250);
   }
 
   pintar();

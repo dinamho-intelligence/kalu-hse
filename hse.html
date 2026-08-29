@@ -421,7 +421,10 @@ async function login(){
       MYCED=(p0.cedula||'');
       cargarBranding(MYEMP);
       rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true);
-      var _gestor=(p0.es_super===true)||rol==='hse'||rol==='supervisor'||rol==='admin';
+      var _accHse={}; try{ var _ah=await sbGet('accesos?select=rol,nivel,estado&usuario_id=eq.'+MYID+'&modulo=eq.hse'); _accHse=(_ah&&_ah[0])||{}; }catch(_){}
+      var _accGestor=(_accHse.estado!=='baja')&&(['coordinador','supervisor'].indexOf(_accHse.rol)>-1);
+      if(_accGestor) rolOk=true;
+      var _gestor=(p0.es_super===true)||rol==='hse'||rol==='supervisor'||rol==='admin'||_accGestor;
       OPERADOR=(rolOk && !_gestor);
       estadoBloqueado=(est && est!=='activo'); // baja / pendiente / rechazado
     }catch(_){ rolOk=false; }
@@ -2276,7 +2279,10 @@ if(typeof logAud==='undefined'){ function logAud(){} }
       MYEMP=p0.empresa_id||null; MYNAME=(p0.nombre||(sess.user&&sess.user.email)||''); MYCED=(p0.cedula||''); MYEMAIL=(sess.user&&sess.user.email)||'';
       cargarBranding(MYEMP);
       var rolOk=(rol==='hse'||rol==='supervisor'||p0.acceso_consola===true);
-      var _gestor=(p0.es_super===true)||rol==='hse'||rol==='supervisor'||rol==='admin';
+      var _accHse={}; try{ var _ah=await sbGet('accesos?select=rol,nivel,estado&usuario_id=eq.'+MYID+'&modulo=eq.hse'); _accHse=(_ah&&_ah[0])||{}; }catch(_){}
+      var _accGestor=(_accHse.estado!=='baja')&&(['coordinador','supervisor'].indexOf(_accHse.rol)>-1);
+      if(_accGestor) rolOk=true;
+      var _gestor=(p0.es_super===true)||rol==='hse'||rol==='supervisor'||rol==='admin'||_accGestor;
       OPERADOR=(rolOk && !_gestor);
       if((est&&est!=='activo')||!rolOk){ window._clearSession(); TOKEN=null; return; }
       window._idleMin=_gestor?60:15; window.MY_SESION=localStorage.getItem('kalu_sid')||null;

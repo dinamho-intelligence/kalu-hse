@@ -2291,6 +2291,7 @@ function _pairs(m){ return Object.entries(m).sort(function(a,b){return b[1]-a[1]
 var DASH_CAT=[
   {key:'tar_cat', t:'Tarjetas por categoría', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().tar.map(function(x){return x.categoria;}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:NAR}; }},
   {key:'tar_lugar', t:'Tarjetas por lugar', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().tar.map(function(x){return x.lugar;}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
+  {key:'tabla_lugar', t:'Resumen por lugar (tabla)', tipo:'table', tabla:function(){ var m={}; _R().tar.forEach(function(t){ var l=t.lugar||'—'; if(!m[l])m[l]={s:0,i:0,ab:0,ce:0}; if((t.clase||'')==='seguro')m[l].s++; else if((t.clase||'')==='inseguro'){ m[l].i++; if((t.estado||'')==='cerrada')m[l].ce++; else m[l].ab++; } }); var rows=Object.keys(m).map(function(l){ var x=m[l]; return {l:l,s:x.s,i:x.i,ab:x.ab,pct:(x.i?Math.round(x.ce/x.i*100):null)}; }).sort(function(a,b){ return (b.s+b.i)-(a.s+a.i); }); if(!rows.length) return '<div class="detempty">Sin datos.</div>'; return '<table class="ttbl" style="width:100%"><thead><tr><th>Lugar</th><th>Seg.</th><th>Inseg.</th><th>Abiertas</th><th>% cierre</th></tr></thead><tbody>'+rows.map(function(r){ return '<tr><td>'+esc(r.l)+'</td><td>'+r.s+'</td><td>'+r.i+'</td><td>'+(r.ab?('<b style="color:#F0B04A">'+r.ab+'</b>'):'0')+'</td><td>'+(r.pct==null?'—':(r.pct+'%'))+'</td></tr>'; }).join('')+'</tbody></table>'; }},
   {key:'tar_clase', t:'Seguras vs inseguras', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.clase||'—';})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return k==='seguro'?VE:RO;})}; }},
   {key:'tar_riesgo', t:'Tarjetas por riesgo', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.riesgo;})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){var kk=String(k).toLowerCase();return kk==='alto'?RO:kk==='medio'?AM:kk==='bajo'?VE:GR;})}; }},
   {key:'tar_obs', t:'Tarjetas por observador', tipo:'bar', calc:function(){ var p=topN(tally(_R().tar.map(function(x){return x.observador_nombre;})),8); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:NAR}; }},
@@ -2333,9 +2334,9 @@ function dashRender(){
       +'<button title="Mover derecha" class="gbtn" style="padding:3px 7px" onclick="dashMover('+i+',1)">▶</button>'
       +'<button title="Tamaño (S/M/L)" class="gbtn" style="padding:3px 8px" onclick="dashTam('+i+')">'+(w.size||'M')+'</button>'
       +'<button title="Quitar" class="gbtn" style="padding:3px 7px;background:rgba(255,59,48,.12);border-color:#FF3B30;color:#FF8A82" onclick="dashQuitar('+i+')">✕</button>'
-      +'</div><div style="position:relative;height:230px"><canvas id="dw'+i+'"></canvas></div></div>';
+      +'</div>'+((d&&d.tipo==='table')?('<div style="max-height:250px;overflow:auto">'+(d.tabla?d.tabla():'')+'</div>'):('<div style="position:relative;height:230px"><canvas id="dw'+i+'"></canvas></div>'))+'</div>';
   }).join('');
-  DASH_LAYOUT.forEach(function(w,i){ var d=_catDef(w.key); if(!d) return; var r=d.calc()||{labels:[],data:[]}; dashChart('dw'+i,d.tipo,r); });
+  DASH_LAYOUT.forEach(function(w,i){ var d=_catDef(w.key); if(!d||d.tipo==='table') return; var r=d.calc()||{labels:[],data:[]}; dashChart('dw'+i,d.tipo,r); });
 }
 function dashChart(id,tipo,r){
   var el=document.getElementById(id); if(!el||!window.Chart) return;

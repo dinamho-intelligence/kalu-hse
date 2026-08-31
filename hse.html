@@ -150,6 +150,7 @@
   .sem-bad{background:rgba(255,59,48,.15);color:#FF8A82;border:1px solid rgba(255,59,48,.4)}
   .sem-done{background:rgba(120,140,160,.15);color:#9fb0c0;border:1px solid rgba(120,140,160,.35)}
   .sem-none{background:rgba(120,140,160,.08);color:#8a97a5;border:1px dashed rgba(120,140,160,.35)}
+  .sem-sin{background:rgba(255,59,48,.18);color:#FF8A82;border:1px solid rgba(255,59,48,.55);font-weight:800}
   .gbtn{background:rgba(242,140,0,.14);border:1px solid var(--nar);color:var(--nar);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
   .gform label{display:block;font-size:12px;color:#aeb6c0;margin:10px 0 4px;font-weight:600}
   .gform input,.gform textarea{width:100%;background:#12151a;border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:9px;font-size:13px;font-family:inherit;box-sizing:border-box}
@@ -228,7 +229,7 @@
           <select id="fClase" onchange="renderTar()"><option value="">Todas (seguras + inseguras)</option><option value="seguro">Solo seguras</option><option value="inseguro">Solo inseguras</option></select>
           <select id="fCat" onchange="renderTar()"><option value="">Toda categoría</option></select>
           <select id="fLugar" onchange="renderTar()"><option value="">Todo lugar</option></select>
-          <select id="fEstado" onchange="renderTar()"><option value="">Todos los estados</option><option value="abiertas">Sin cerrar</option><option value="sinplazo">Por asignar plazo</option><option value="porvencer">Por vencer</option><option value="vencidas">Vencidas</option><option value="cerradas">Cerradas</option></select>
+          <select id="fEstado" onchange="renderTar()"><option value="">Todos los estados</option><option value="abiertas">Sin cerrar</option><option value="sintratar">Sin tratar</option><option value="sinplazo">Por asignar plazo</option><option value="porvencer">Por vencer</option><option value="vencidas">Vencidas</option><option value="cerradas">Cerradas</option></select>
           <input id="fPers" oninput="renderTar()" placeholder="Buscar persona…">
           <label class="gestor-only" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="fVerElim" onchange="verElim=this.checked;renderTar()" style="width:auto"> Ver eliminadas</label>
           <span style="flex:1"></span>
@@ -1309,6 +1310,7 @@ function tarFiltered(){
       if(fe==='abiertas' && ((t.clase||'')!=='inseguro' || (t.estado||'')==='cerrada')) return false;
       if(fe==='vencidas' && s.cls!=='sem-bad') return false;
       if(fe==='porvencer' && s.cls!=='sem-warn') return false;
+      if(fe==='sintratar' && !_sinTratar(t)) return false;
       if(fe==='sinplazo' && ((t.clase||'')!=='inseguro' || (t.estado||'')==='cerrada' || t.fecha_limite)) return false;
     }
     return true;
@@ -1334,9 +1336,11 @@ function renderTar(){
   var sm=segMetrics();
   document.getElementById('tarSeg').innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +'<span class="sem sem-none">Inseguras <b>'+sm.total+'</b></span>'
+    +'<span class="sem sem-sin">Sin tratar <b>'+sm.sinTratar+'</b></span>'
     +'<span class="sem sem-warn">Sin cerrar <b>'+sm.abiertas+'</b></span>'
     +'<span class="sem sem-bad">Vencidas <b>'+sm.venc+'</b></span>'
     +'<span class="sem sem-done">Cerradas <b>'+sm.cerr+'</b></span>'
+    +'<span class="sem sem-ok">% tratadas <b>'+sm.pctTrat+'%</b></span>'
     +'<span class="sem sem-ok">% de cierre <b>'+sm.pct+'%</b></span>'
     +(sm.prom!=null?'<span class="sem sem-none">Tiempo prom. cierre <b>'+sm.prom+'d</b></span>':'')
     +'</div>';
@@ -1360,12 +1364,13 @@ function sugerirPlazo(t){ var d=SEM_DIAS[String(t.riesgo||'').toLowerCase()]; re
 function semTarjeta(t){
   if((t.clase||'')==='seguro') return {txt:'Refuerzo',cls:'sem-none'};
   if((t.estado||'')==='cerrada') return {txt:'Cerrada',cls:'sem-done'};
-  if(!t.fecha_limite) return {txt:'Por asignar plazo',cls:'sem-none'};
+  if(!t.fecha_limite){ var _av=Array.isArray(t.avances)?t.avances:[]; return _av.length?{txt:'En gestión',cls:'sem-none'}:{txt:'Sin tratar',cls:'sem-sin',sin:true}; }
   var dias=_diasEntre(_hoyISO(), String(t.fecha_limite).slice(0,10));
   if(dias<0) return {txt:'Vencida ('+(-dias)+'d)',cls:'sem-bad'};
   if(dias<=2) return {txt:'Por vencer ('+dias+'d)',cls:'sem-warn'};
   return {txt:'En plazo ('+dias+'d)',cls:'sem-ok'};
 }
+function _sinTratar(t){ return (t.clase||'')==='inseguro' && !!semTarjeta(t).sin; }
 function _repISO(t){ return String(t.creado||t.fecha||'').slice(0,10); }
 function tarTiemposHSEHTML(){
   var ins=(TAR||[]).filter(function(t){return !t.eliminada && (t.clase||'')==='inseguro';});
@@ -1399,10 +1404,12 @@ function segMetrics(){
   var cerr=ins.filter(function(t){return (t.estado||'')==='cerrada';});
   var venc=ins.filter(function(t){return semTarjeta(t).cls==='sem-bad';}).length;
   var abiertas=ins.filter(function(t){return (t.estado||'')!=='cerrada';}).length;
+  var sinTratar=ins.filter(function(t){return _sinTratar(t);}).length;
+  var pctTrat=total?Math.round((total-sinTratar)/total*100):0;
   var pct=total?Math.round(cerr.length/total*100):0;
   var difs=cerr.map(function(t){ var c=String(t.creado||t.fecha||'').slice(0,10); var f=String(t.cerrada_at||'').slice(0,10); if(!c||!f) return null; var d=_diasEntre(c,f); return (d>=0?d:null); }).filter(function(x){return x!=null;});
   var prom=difs.length?Math.round(difs.reduce(function(a,b){return a+b;},0)/difs.length):null;
-  return {total:total,abiertas:abiertas,venc:venc,cerr:cerr.length,pct:pct,prom:prom};
+  return {total:total,abiertas:abiertas,venc:venc,cerr:cerr.length,pct:pct,prom:prom,sinTratar:sinTratar,pctTrat:pctTrat};
 }
   /* ===== Bitácora de avances de la tarjeta (histórico con fechas + responsable del paso) ===== */
 var AVANCE_TIPOS=[['interno','Interno','var(--nar)'],['cliente','Cliente','var(--cy)'],['proveedor','Proveedor','var(--amber)'],['visita','Visita / inspección','var(--verde)']];

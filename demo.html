@@ -11,6 +11,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
 .top{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(21,28,36,.9),rgba(21,28,36,0));backdrop-filter:blur(6px);z-index:5}
 .top b{font-size:16px;letter-spacing:.3px}.top small{display:block;color:var(--tx2);font-size:11.5px;letter-spacing:.6px;text-transform:uppercase}
 .badge{margin-left:auto;font-size:11px;color:var(--gold);border:1px solid #3a3320;background:#1c1a12;padding:4px 10px;border-radius:999px;letter-spacing:.5px}
+.salir-btn{font-size:11px;color:var(--tx2);border:1px solid var(--line);background:transparent;padding:5px 12px;border-radius:8px;cursor:pointer;letter-spacing:.5px}
+.salir-btn:hover{color:#fff;border-color:#4a5563}
 .kav{border-radius:50%;background-image:var(--face);background-size:cover;background-position:center top;position:relative;flex:0 0 auto;box-shadow:0 0 0 2px rgba(85,179,208,.35),0 0 18px rgba(85,179,208,.35)}
 .kav::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(85,179,208,.35);animation:pulse 3s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.08);opacity:.15}}
@@ -63,7 +65,7 @@ textarea{flex:1;background:transparent;border:0;color:var(--tx);font:inherit;fon
 </head><body>
 <div id="gate"><div class="gsp"></div><div>Verificando acceso…</div></div>
 <div class="sala">
-  <div class="top"><div class="kav mini" id="topAv"></div><div><b>KALU</b><small>Dinamho Intelligence</small></div><span class="badge">DEMO EN VIVO</span></div>
+  <div class="top"><div class="kav mini" id="topAv"></div><div><b>KALU</b><small>Dinamho Intelligence</small></div><span class="badge">DEMO EN VIVO</span><button class="salir-btn" onclick="salir()">Salir</button></div>
   <div class="stage" id="stage"><div class="hero"></div><h2>Hola, soy KALU</h2><p>La inteligencia que vive dentro de la plataforma</p></div>
   <div class="stream" id="stream"></div>
   <div id="lightbox" onclick="cerrarLB()"><span class="x" onclick="cerrarLB()">×</span><img id="lbimg" src="" alt=""></div>
@@ -88,9 +90,10 @@ var SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 var SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 (function(){
   function irLogin(){ location.replace('demo-acceso.html'); }
-  function abrir(){ var g=document.getElementById('gate'); if(g)g.remove(); try{document.getElementById('input').focus();}catch(e){} }
+  function abrir(){ var g=document.getElementById('gate'); if(g)g.remove(); try{document.getElementById('input').focus();}catch(e){} try{ if(typeof kaluSay==='function' && typeof state!=='undefined' && state==='name'){ kaluSay('¡Hola! 👋 Soy <b>KALU</b>. ¿Cómo te llamás?',null,600); } }catch(e){} }
   if(!window.supabase){ irLogin(); return; }
   var sbg=window.supabase.createClient(SB_URL,SB_ANON,{auth:{persistSession:true,autoRefreshToken:true,storage:window.localStorage}});
+  window._sbg=sbg;
   sbg.auth.getSession().then(function(res){
     var s=res&&res.data&&res.data.session;
     if(!s){ irLogin(); return; }
@@ -101,6 +104,7 @@ var SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
     }).catch(function(){ abrir(); }); // si el RPC aún no está, no bloqueo
   }).catch(irLogin);
 })();
+function salir(){ try{ if(window._sbg){ window._sbg.auth.signOut().finally(function(){location.replace('demo-acceso.html');}); return; } }catch(e){} location.replace('demo-acceso.html'); }
 var state='name',nombre='',step=0,hist=[];
 var TOUR=[
  {t:"Todo arranca por acá: un solo acceso a todos los módulos, desde teléfono, tablet o PC.",img:"login",cap:"<b>Ingreso · Plataforma KALU</b> — un login para toda la operación."},

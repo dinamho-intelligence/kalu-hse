@@ -347,6 +347,9 @@ const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const NAR='#F28C00',CY='#00D4FF',VE='#25C26E',AM='#E8930C',RO='#FF3B30',GR='#5E6873';
 const PALETA=[NAR,CY,VE,AM,RO,'#B57BFF','#00B894','#FF9F1C'];
+/* Regla de color del riesgo, una sola vez: alto=rojo · medio=amarillo · bajo=verde · N/A=azul */
+function _colRiesgo(v){ var k=String(v==null?'':v).toLowerCase(); if(k==='alto')return RO; if(k==='medio')return AM; if(k==='bajo')return VE; return CY; }
+function _colClase(v){ var k=String(v==null?'':v).toLowerCase(); return k==='seguro'?VE:(k==='inseguro'?RO:CY); }
 let TOKEN=null, charts=[], MYID=null, MYEMP=null, MYNAME=null, verElim=false, AUDIT=null, ATSDATA=null, verElimAts=false;
 function $(id){return document.getElementById(id);}
 /* ---- Branding por empresa (logo + color + nombre) ---- */
@@ -546,7 +549,7 @@ function render(ats,inv,tar){
   const rrLab=['Alto','Medio','Bajo'].filter(k=>riesgoRes[k]);
   const rrExtra=Object.keys(riesgoRes).filter(k=>['Alto','Medio','Bajo'].indexOf(k)===-1);
   const rLabels=rrLab.concat(rrExtra);
-  doughnut('cRiesgo',rLabels,rLabels.map(k=>riesgoRes[k]),rLabels.map(k=>k==='Alto'?RO:k==='Medio'?AM:k==='Bajo'?VE:GR),l=>showDetalle('Riesgo residual: '+l,riesgoDetalle[l]||[],[{k:'descripcion',t:'Peligro'},{k:'clasificacion',t:'Clasif.'},{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'}]));
+  doughnut('cRiesgo',rLabels,rLabels.map(k=>riesgoRes[k]),rLabels.map(k=>_colRiesgo(k)),l=>showDetalle('Riesgo residual: '+l,riesgoDetalle[l]||[],[{k:'descripcion',t:'Peligro'},{k:'clasificacion',t:'Clasif.'},{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'}]));
   const est=Object.entries(tally(ats.map(r=>norm(r.estado))));
   bar('cEstado',est.map(x=>x[0]),est.map(x=>x[1]),AM,false,l=>showDetalle('ATS — estado: '+l,ats.filter(r=>norm(r.estado)===l),[{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'},{k:'fecha',t:'Fecha'}]));
   const porFecha=tally(ats.map(r=>r.fecha)); const fechas=Object.keys(porFecha).sort();
@@ -2320,14 +2323,14 @@ var DASH_CAT=[
   {key:'tar_lugar', t:'Tarjetas por lugar', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().tar.map(function(x){return x.lugar;}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
   {key:'tabla_lugar', t:'Resumen por lugar (tabla)', tipo:'table', tabla:function(){ var m={}; _R().tar.forEach(function(t){ var l=t.lugar||'—'; if(!m[l])m[l]={s:0,i:0,ab:0,ce:0}; if((t.clase||'')==='seguro')m[l].s++; else if((t.clase||'')==='inseguro'){ m[l].i++; if((t.estado||'')==='cerrada')m[l].ce++; else m[l].ab++; } }); var rows=Object.keys(m).map(function(l){ var x=m[l]; return {l:l,s:x.s,i:x.i,ab:x.ab,pct:(x.i?Math.round(x.ce/x.i*100):null)}; }).sort(function(a,b){ return (b.s+b.i)-(a.s+a.i); }); if(!rows.length) return '<div class="detempty">Sin datos.</div>'; return '<table class="ttbl" style="width:100%"><thead><tr><th>Lugar</th><th>Seg.</th><th>Inseg.</th><th>Abiertas</th><th>% cierre</th></tr></thead><tbody>'+rows.map(function(r){ return '<tr><td>'+esc(r.l)+'</td><td>'+r.s+'</td><td>'+r.i+'</td><td>'+(r.ab?('<b style="color:#F0B04A">'+r.ab+'</b>'):'0')+'</td><td>'+(r.pct==null?'—':(r.pct+'%'))+'</td></tr>'; }).join('')+'</tbody></table>'; }},
   {key:'tar_clase', t:'Seguras vs inseguras', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.clase||'—';})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return k==='seguro'?VE:RO;})}; }},
-  {key:'tar_riesgo', t:'Tarjetas por riesgo', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.riesgo;})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){var kk=String(k).toLowerCase();return kk==='alto'?RO:kk==='medio'?AM:kk==='bajo'?VE:GR;})}; }},
+  {key:'tar_riesgo', t:'Tarjetas por riesgo', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.riesgo;})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return _colRiesgo(k);})}; }},
   {key:'tar_obs', t:'Tarjetas por observador', tipo:'bar', calc:function(){ var p=topN(tally(_R().tar.map(function(x){return x.observador_nombre;})),8); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:NAR}; }},
   {key:'tar_estado', t:'Inseguras por estado', tipo:'doughnut', calc:function(){ var ins=_R().tar.filter(function(t){return (t.clase||'')==='inseguro';}); var m={Cerradas:0,Vencidas:0,'Por vencer':0,'En plazo':0,'Sin plazo':0}; ins.forEach(function(t){ var s=(typeof semTarjeta==='function')?semTarjeta(t):{cls:''}; if((t.estado||'')==='cerrada')m.Cerradas++; else if(s.cls==='sem-bad')m.Vencidas++; else if(s.cls==='sem-warn')m['Por vencer']++; else if(s.cls==='sem-ok')m['En plazo']++; else m['Sin plazo']++; }); var l=Object.keys(m).filter(function(k){return m[k];}); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return k==='Cerradas'?GR:k==='Vencidas'?RO:k==='Por vencer'?AM:k==='En plazo'?VE:'#8a97a5';})}; }},
   {key:'tar_tend', t:'Tendencia: seguras vs inseguras', tipo:'line', calc:function(){ var dias={}; _R().tar.forEach(function(t){ var d=String(t.fecha||t.creado||'').slice(0,10); if(!d) return; if(!dias[d])dias[d]={s:0,i:0}; if((t.clase||'')==='seguro')dias[d].s++; else if((t.clase||'')==='inseguro')dias[d].i++; }); var f=Object.keys(dias).sort(); return {labels:f, series:[{label:'Seguras',data:f.map(function(k){return dias[k].s;}),color:VE},{label:'Inseguras',data:f.map(function(k){return dias[k].i;}),color:RO}]}; }},
   {key:'ats_resp', t:'ATS por responsable', tipo:'bar', calc:function(){ var p=topN(tally(_R().ats.map(function(x){return x.responsable;})),8); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
   {key:'ats_estado', t:'ATS por estado', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().ats.map(function(x){return norm(x.estado);}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:AM}; }},
   {key:'inv_estado', t:'Investigaciones por estado', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().inv.map(function(x){return norm(x.estado)||'Sin estado';}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:VE}; }},
-  {key:'riesgo_res', t:'Riesgo residual (ATS)', tipo:'doughnut', calc:function(){ var m={}; _R().ats.forEach(function(r){ var j=(typeof parseATS==='function')?parseATS(r):null; if(j&&Array.isArray(j.peligros))j.peligros.forEach(function(p){ var nr=p.nivel_riesgo_residual||'—'; m[nr]=(m[nr]||0)+1; }); }); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){var kk=String(k).toLowerCase();return kk==='alto'?RO:kk==='medio'?AM:kk==='bajo'?VE:GR;})}; }},
+  {key:'riesgo_res', t:'Riesgo residual (ATS)', tipo:'doughnut', calc:function(){ var m={}; _R().ats.forEach(function(r){ var j=(typeof parseATS==='function')?parseATS(r):null; if(j&&Array.isArray(j.peligros))j.peligros.forEach(function(p){ var nr=p.nivel_riesgo_residual||'—'; m[nr]=(m[nr]||0)+1; }); }); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return _colRiesgo(k);})}; }},
   {key:'tar_sede', t:'Tarjetas por sede', tipo:'bar', calc:function(){ var m={}; _R().tar.forEach(function(t){ var s=_sedeDe(t); m[s]=(m[s]||0)+1; }); var p=_pairs(m); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:VE}; }},
   {key:'tabla_sede', t:'Resumen por sede (tabla)', tipo:'table', tabla:function(){ var m={}; _R().tar.forEach(function(t){ var s=_sedeDe(t); if(!m[s])m[s]={seg:0,ins:0,ce:0,st:0}; if((t.clase||'')==='seguro')m[s].seg++; else if((t.clase||'')==='inseguro'){ m[s].ins++; if((t.estado||'')==='cerrada')m[s].ce++; if(typeof _sinTratar==='function'&&_sinTratar(t))m[s].st++; } }); var rows=Object.keys(m).map(function(s){var x=m[s];return {s:s,seg:x.seg,ins:x.ins,st:x.st,pct:(x.ins?Math.round(x.ce/x.ins*100):null)};}).sort(function(a,b){return (b.seg+b.ins)-(a.seg+a.ins);}); if(!rows.length) return '<div class="detempty">Sin datos.</div>'; return '<table class="ttbl" style="width:100%"><thead><tr><th>Sede</th><th>Seg.</th><th>Inseg.</th><th>Sin tratar</th><th>% cierre</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+esc(r.s)+'</td><td>'+r.seg+'</td><td>'+r.ins+'</td><td>'+(r.st?('<b style="color:#FF8A82">'+r.st+'</b>'):'0')+'</td><td>'+(r.pct==null?'—':(r.pct+'%'))+'</td></tr>';}).join('')+'</tbody></table>'; }}
 ];
@@ -2367,7 +2370,8 @@ function _dashCalc(spec){
   if(!spec.split){
     var m={}; src.forEach(function(r){ var k=dimVal(r); if(k==null||k==='')k='—'; m[k]=(m[k]||0)+1; });
     var pairs=(spec.dim==='fecha')?Object.keys(m).sort().map(function(k){return [k,m[k]];}):_pairs(m);
-    return {labels:pairs.map(function(x){return x[0];}),data:pairs.map(function(x){return x[1];}),color:NAR};
+    var _cols=pairs.map(function(x){return _dashColorByField(spec.dim,x[0]);}); var _hasc=_cols.some(function(c){return !!c;});
+    return {labels:pairs.map(function(x){return x[0];}),data:pairs.map(function(x){return x[1];}),color:NAR,colors:_hasc?_cols.map(function(c){return c||GR;}):null};
   }
   var splVal=_fieldVal(spec.fuente,spec.split);
   var dimSet={}, splSet={}, mm={};
@@ -2376,9 +2380,10 @@ function _dashCalc(spec){
   if(spec.dim==='fecha') labels.sort();
   else labels.sort(function(a,b){ var ta=0,tb=0; Object.keys(splSet).forEach(function(s){ta+=mm[a+'||'+s]||0;tb+=mm[b+'||'+s]||0;}); return tb-ta; });
   var pal=[VE,RO,NAR,CY,AM,'#B57BFF','#00B894','#FF9F1C'];
-  var series=Object.keys(splSet).map(function(s,i){ return {label:s,color:pal[i%pal.length],data:labels.map(function(d){return mm[d+'||'+s]||0;})}; });
+  var series=Object.keys(splSet).map(function(s,i){ return {label:s,color:(_dashColorByField(spec.split,s)||pal[i%pal.length]),data:labels.map(function(d){return mm[d+'||'+s]||0;})}; });
   return {labels:labels, series:series};
 }
+function _dashColorByField(key,v){ if(key==='riesgo') return _colRiesgo(v); if(key==='clase') return _colClase(v); return null; }
 function _customDef(spec){ return {t:(spec.titulo||'Personalizado'), tipo:spec.tipo||'bar', calc:function(){return _dashCalc(spec);}}; }
 function dashPersonalizada(){
   var _s='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:8px';
@@ -2464,7 +2469,7 @@ function dashChart(id,tipo,r){
   } else {
     var bmulti=Array.isArray(r.series)&&r.series.length, bds;
     if(bmulti){ bds=r.series.map(function(s){return {label:s.label,data:s.data,backgroundColor:s.color||NAR,borderRadius:6};}); }
-    else { bds=[{data:r.data,backgroundColor:r.color||NAR,borderRadius:6}]; }
+    else { bds=[{data:r.data,backgroundColor:(r.colors&&r.colors.length?r.colors:(r.color||NAR)),borderRadius:6}]; }
     cfg={type:'bar',data:{labels:r.labels,datasets:bds},options:{indexAxis:((!bmulti&&r.labels.length>6)?'y':'x'),responsive:true,maintainAspectRatio:false,plugins:{legend:{display:!!bmulti,position:'bottom',labels:{font:{size:10}}}},scales:{x:{grid:{color:grid}},y:{grid:{color:grid},beginAtZero:true,ticks:{precision:0}}}}};
   }
   try{ DASH_CHARTS.push(new Chart(el,cfg)); }catch(e){}

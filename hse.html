@@ -508,7 +508,7 @@ function render(ats,inv,tar){
     if(j&&Array.isArray(j.peligros)){
       j.peligros.forEach(p=>{
         const cl=norm(p.clasificacion)||'Sin clasificar'; peligrosClase[cl]=(peligrosClase[cl]||0)+1;
-        const nr=(p.nivel_riesgo_residual||'—'); riesgoRes[nr]=(riesgoRes[nr]||0)+1;
+        const nr=(p.nivel_riesgo_residual||'S/D'); riesgoRes[nr]=(riesgoRes[nr]||0)+1;
         (peligrosDetalle[cl]=peligrosDetalle[cl]||[]).push({responsable:r.responsable,tarea:r.tarea,descripcion:p.descripcion,riesgo:nr,clasificacion:cl});
         (riesgoDetalle[nr]=riesgoDetalle[nr]||[]).push({responsable:r.responsable,tarea:r.tarea,descripcion:p.descripcion,clasificacion:cl});
       });
@@ -2323,14 +2323,14 @@ var DASH_CAT=[
   {key:'tar_lugar', t:'Tarjetas por lugar', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().tar.map(function(x){return x.lugar;}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
   {key:'tabla_lugar', t:'Resumen por lugar (tabla)', tipo:'table', tabla:function(){ var m={}; _R().tar.forEach(function(t){ var l=t.lugar||'—'; if(!m[l])m[l]={s:0,i:0,ab:0,ce:0}; if((t.clase||'')==='seguro')m[l].s++; else if((t.clase||'')==='inseguro'){ m[l].i++; if((t.estado||'')==='cerrada')m[l].ce++; else m[l].ab++; } }); var rows=Object.keys(m).map(function(l){ var x=m[l]; return {l:l,s:x.s,i:x.i,ab:x.ab,pct:(x.i?Math.round(x.ce/x.i*100):null)}; }).sort(function(a,b){ return (b.s+b.i)-(a.s+a.i); }); if(!rows.length) return '<div class="detempty">Sin datos.</div>'; return '<table class="ttbl" style="width:100%"><thead><tr><th>Lugar</th><th>Seg.</th><th>Inseg.</th><th>Abiertas</th><th>% cierre</th></tr></thead><tbody>'+rows.map(function(r){ return '<tr><td>'+esc(r.l)+'</td><td>'+r.s+'</td><td>'+r.i+'</td><td>'+(r.ab?('<b style="color:#F0B04A">'+r.ab+'</b>'):'0')+'</td><td>'+(r.pct==null?'—':(r.pct+'%'))+'</td></tr>'; }).join('')+'</tbody></table>'; }},
   {key:'tar_clase', t:'Seguras vs inseguras', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.clase||'—';})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return k==='seguro'?VE:RO;})}; }},
-  {key:'tar_riesgo', t:'Tarjetas por riesgo', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){return x.riesgo;})); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return _colRiesgo(k);})}; }},
+  {key:'tar_riesgo', t:'Tarjetas por riesgo', tipo:'doughnut', calc:function(){ var m=tally(_R().tar.map(function(x){ var r=x.riesgo; return (r==null||String(r).trim()==='')?'S/D':r; })); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return _colRiesgo(k);})}; }},
   {key:'tar_obs', t:'Tarjetas por observador', tipo:'bar', calc:function(){ var p=topN(tally(_R().tar.map(function(x){return x.observador_nombre;})),8); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:NAR}; }},
   {key:'tar_estado', t:'Inseguras por estado', tipo:'doughnut', calc:function(){ var ins=_R().tar.filter(function(t){return (t.clase||'')==='inseguro';}); var m={Cerradas:0,Vencidas:0,'Por vencer':0,'En plazo':0,'Sin plazo':0}; ins.forEach(function(t){ var s=(typeof semTarjeta==='function')?semTarjeta(t):{cls:''}; if((t.estado||'')==='cerrada')m.Cerradas++; else if(s.cls==='sem-bad')m.Vencidas++; else if(s.cls==='sem-warn')m['Por vencer']++; else if(s.cls==='sem-ok')m['En plazo']++; else m['Sin plazo']++; }); var l=Object.keys(m).filter(function(k){return m[k];}); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return k==='Cerradas'?GR:k==='Vencidas'?RO:k==='Por vencer'?AM:k==='En plazo'?VE:'#8a97a5';})}; }},
   {key:'tar_tend', t:'Tendencia: seguras vs inseguras', tipo:'line', calc:function(){ var dias={}; _R().tar.forEach(function(t){ var d=String(t.fecha||t.creado||'').slice(0,10); if(!d) return; if(!dias[d])dias[d]={s:0,i:0}; if((t.clase||'')==='seguro')dias[d].s++; else if((t.clase||'')==='inseguro')dias[d].i++; }); var f=Object.keys(dias).sort(); return {labels:f, series:[{label:'Seguras',data:f.map(function(k){return dias[k].s;}),color:VE},{label:'Inseguras',data:f.map(function(k){return dias[k].i;}),color:RO}]}; }},
   {key:'ats_resp', t:'ATS por responsable', tipo:'bar', calc:function(){ var p=topN(tally(_R().ats.map(function(x){return x.responsable;})),8); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
   {key:'ats_estado', t:'ATS por estado', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().ats.map(function(x){return norm(x.estado);}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:AM}; }},
   {key:'inv_estado', t:'Investigaciones por estado', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().inv.map(function(x){return norm(x.estado)||'Sin estado';}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:VE}; }},
-  {key:'riesgo_res', t:'Riesgo residual (ATS)', tipo:'doughnut', calc:function(){ var m={}; _R().ats.forEach(function(r){ var j=(typeof parseATS==='function')?parseATS(r):null; if(j&&Array.isArray(j.peligros))j.peligros.forEach(function(p){ var nr=p.nivel_riesgo_residual||'—'; m[nr]=(m[nr]||0)+1; }); }); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return _colRiesgo(k);})}; }},
+  {key:'riesgo_res', t:'Riesgo residual (ATS)', tipo:'doughnut', calc:function(){ var m={}; _R().ats.forEach(function(r){ var j=(typeof parseATS==='function')?parseATS(r):null; if(j&&Array.isArray(j.peligros))j.peligros.forEach(function(p){ var nr=p.nivel_riesgo_residual||'S/D'; m[nr]=(m[nr]||0)+1; }); }); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){return _colRiesgo(k);})}; }},
   {key:'tar_sede', t:'Tarjetas por sede', tipo:'bar', calc:function(){ var m={}; _R().tar.forEach(function(t){ var s=_sedeDe(t); m[s]=(m[s]||0)+1; }); var p=_pairs(m); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:VE}; }},
   {key:'tabla_sede', t:'Resumen por sede (tabla)', tipo:'table', tabla:function(){ var m={}; _R().tar.forEach(function(t){ var s=_sedeDe(t); if(!m[s])m[s]={seg:0,ins:0,ce:0,st:0}; if((t.clase||'')==='seguro')m[s].seg++; else if((t.clase||'')==='inseguro'){ m[s].ins++; if((t.estado||'')==='cerrada')m[s].ce++; if(typeof _sinTratar==='function'&&_sinTratar(t))m[s].st++; } }); var rows=Object.keys(m).map(function(s){var x=m[s];return {s:s,seg:x.seg,ins:x.ins,st:x.st,pct:(x.ins?Math.round(x.ce/x.ins*100):null)};}).sort(function(a,b){return (b.seg+b.ins)-(a.seg+a.ins);}); if(!rows.length) return '<div class="detempty">Sin datos.</div>'; return '<table class="ttbl" style="width:100%"><thead><tr><th>Sede</th><th>Seg.</th><th>Inseg.</th><th>Sin tratar</th><th>% cierre</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+esc(r.s)+'</td><td>'+r.seg+'</td><td>'+r.ins+'</td><td>'+(r.st?('<b style="color:#FF8A82">'+r.st+'</b>'):'0')+'</td><td>'+(r.pct==null?'—':(r.pct+'%'))+'</td></tr>';}).join('')+'</tbody></table>'; }}
 ];
@@ -2341,7 +2341,7 @@ var DASH_FUENTES={
     {key:'categoria',label:'Categoría',val:function(t){return t.categoria;}},
     {key:'lugar',label:'Lugar',val:function(t){return t.lugar;}},
     {key:'sede',label:'Sede',val:function(t){return _sedeDe(t);}},
-    {key:'riesgo',label:'Riesgo',val:function(t){return t.riesgo;}},
+    {key:'riesgo',label:'Riesgo',val:function(t){ var r=t.riesgo; return (r==null||String(r).trim()==='')?'S/D':r; }},
     {key:'clase',label:'Clase (seg/inseg)',val:function(t){return t.clase;}},
     {key:'observador',label:'Observador',val:function(t){return t.observador_nombre;}},
     {key:'estado',label:'Estado',val:function(t){ if((t.clase||'')==='seguro')return 'Refuerzo'; if((t.estado||'')==='cerrada')return 'Cerrada'; if(typeof _sinTratar==='function'&&_sinTratar(t))return 'Sin tratar'; return 'En gestión'; }},
@@ -2454,9 +2454,22 @@ function dashRender(){
       +'<button title="Quitar" class="gbtn" style="padding:3px 7px;background:rgba(255,59,48,.12);border-color:#FF3B30;color:#FF8A82" onclick="dashQuitar('+i+')">✕</button>'
       +'</div>'+((d&&d.tipo==='table')?('<div style="max-height:250px;overflow:auto">'+(d.tabla?d.tabla():'')+'</div>'):('<div style="position:relative;height:230px"><canvas id="dw'+i+'"></canvas></div>'))+'</div>';
   }).join('');
-  DASH_LAYOUT.forEach(function(w,i){ var d=(w.key==='__custom__'&&w.spec)?_customDef(w.spec):_catDef(w.key); if(!d||d.tipo==='table') return; var r=d.calc()||{labels:[],data:[]}; dashChart('dw'+i,d.tipo,r); });
+  DASH_LAYOUT.forEach(function(w,i){ var d=(w.key==='__custom__'&&w.spec)?_customDef(w.spec):_catDef(w.key); if(!d||d.tipo==='table') return; var r=d.calc()||{labels:[],data:[]}; dashChart('dw'+i,d.tipo,r,function(lbl,slab){ dashDrill(i,lbl,slab); }); });
 }
-function dashChart(id,tipo,r){
+var _DRILL={ tar_cat:{f:'tar',d:'categoria'}, tar_lugar:{f:'tar',d:'lugar'}, tar_riesgo:{f:'tar',d:'riesgo'}, tar_clase:{f:'tar',d:'clase'}, tar_obs:{f:'tar',d:'observador'}, tar_estado:{f:'tar',d:'estado'}, tar_sede:{f:'tar',d:'sede'}, tar_tend:{f:'tar',d:'fecha',s:'clase'}, ats_resp:{f:'ats',d:'responsable'}, ats_estado:{f:'ats',d:'estado'}, inv_estado:{f:'inv',d:'estado'} };
+function dashDrill(i,label,seriesLabel){
+  var w=DASH_LAYOUT[i]; if(!w) return; var f,d,s;
+  if(w.key==='__custom__'&&w.spec){ f=w.spec.fuente; d=w.spec.dim; s=w.spec.split; }
+  else { var dd=_DRILL[w.key]; if(!dd) return; f=dd.f; d=dd.d; s=dd.s; }
+  var src=f==='ats'?_R().ats:(f==='inv'?_R().inv:_R().tar);
+  var dv=_fieldVal(f,d), sv=s?_fieldVal(f,s):null;
+  var rows=src.filter(function(r){ var v=dv(r); if(v==null||v==='')v='—'; if(String(v)!==String(label)) return false; if(s&&seriesLabel!=null){ var vs=sv(r); if(vs==null||vs==='')vs='—'; if(String(vs)!==String(seriesLabel)) return false; } return true; });
+  var cols = f==='ats'?[{k:'fecha',t:'Fecha'},{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'},{k:'cliente',t:'Cliente'},{k:'zona',t:'Zona'},{k:'estado',t:'Estado'}]
+    : f==='inv'?[{k:'inv_id',t:'Serial',mono:true},{k:'fecha_evento',t:'Fecha'},{k:'reporta',t:'Reporta'},{k:'cliente',t:'Cliente'},{k:'estado',t:'Estado'}]
+    : [{k:'fecha',t:'Fecha'},{k:'observador_nombre',t:'Observador'},{k:'clase',t:'Clase'},{k:'riesgo',t:'Riesgo'},{k:'lugar',t:'Lugar'},{k:'descripcion',t:'Descripción'}];
+  showDetalle(_fieldLabel(f,d)+': '+label+(seriesLabel!=null?(' · '+seriesLabel):''), rows, cols);
+}
+function dashChart(id,tipo,r,onClick){
   var el=document.getElementById(id); if(!el||!window.Chart) return;
   var grid='rgba(255,255,255,0.06)'; var cfg;
   if(tipo==='doughnut'){
@@ -2472,6 +2485,7 @@ function dashChart(id,tipo,r){
     else { bds=[{data:r.data,backgroundColor:(r.colors&&r.colors.length?r.colors:(r.color||NAR)),borderRadius:6}]; }
     cfg={type:'bar',data:{labels:r.labels,datasets:bds},options:{indexAxis:((!bmulti&&r.labels.length>6)?'y':'x'),responsive:true,maintainAspectRatio:false,plugins:{legend:{display:!!bmulti,position:'bottom',labels:{font:{size:10}}}},scales:{x:{grid:{color:grid}},y:{grid:{color:grid},beginAtZero:true,ticks:{precision:0}}}}};
   }
+  if(onClick){ cfg.options.onClick=function(e,els,chart){ if(!els||!els.length) return; var it=els[0]; var lbl=r.labels[it.index]; var slab=null; if(Array.isArray(r.series)&&r.series.length){ var d0=chart.data.datasets[it.datasetIndex]; slab=d0&&d0.label; } onClick(lbl,slab); }; cfg.options.onHover=function(e,els){ if(e&&e.native&&e.native.target) e.native.target.style.cursor=(els&&els.length)?'pointer':'default'; }; }
   try{ DASH_CHARTS.push(new Chart(el,cfg)); }catch(e){}
 }
 function dashMover(i,d){ var j=i+d; if(j<0||j>=DASH_LAYOUT.length) return; var t=DASH_LAYOUT[i]; DASH_LAYOUT[i]=DASH_LAYOUT[j]; DASH_LAYOUT[j]=t; dashRender(); }

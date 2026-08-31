@@ -289,6 +289,7 @@ async function syncCola(){ if(_syncing||!navigator.onLine)return; _syncing=true;
         reg.foto_paths = _paths.length?_paths:null; reg.foto_path = _paths.length?_paths[0]:null;
         reg.firma_path=await sbUpload(reg.id+'/firma.png', it.firmaBlob, 'image/png');
         await sbRpc('registrar_tarjeta',{t:reg});
+        try{ if(reg.zona_id) await sbRpc('tarjeta_zona_anon',{p_id:reg.id,p_zona:reg.zona_id}); }catch(_){}
         if(it.pdfBlob){ await guardarPdfTarjeta(reg, it.ts, it.pdfBlob); }
         await idbDel('cola', it.id);
       }catch(e){ if(!navigator.onLine || /Failed to fetch|NetworkError/i.test(e.message||'')){ break; } // sin señal: cortar y reintentar luego
@@ -398,7 +399,7 @@ async function cargarZonas(){
   if(ZONAS.length){
     var bySede={}, orden=[];
     ZONAS.forEach(function(z){ var s=z.sede_nombre||'General'; if(!bySede[s]){bySede[s]=[];orden.push(s);} bySede[s].push(z); });
-    orden.forEach(function(s){ opts+='<optgroup label="'+esc(s)+'">'+bySede[s].map(function(z){return '<option value="'+esc(z.nombre).replace(/"/g,'&quot;')+'">'+esc(z.nombre)+'</option>';}).join('')+'</optgroup>'; });
+    orden.forEach(function(s){ opts+='<optgroup label="'+esc(s)+'">'+bySede[s].map(function(z){return '<option value="'+z.id+'">'+esc(z.nombre)+'</option>';}).join('')+'</optgroup>'; });
   }
   opts+='<option value="__nueva__">➕ Otra (no está en la lista)</option>';
   sel.innerHTML=opts;
@@ -413,8 +414,9 @@ function onLugarSel(){
 }
 function _lugarElegido(){
   var sel=$('lugarSel'); var v=sel?sel.value:'';
-  if(v==='__nueva__'){ var n=(($('lugarNuevo')||{}).value||'').trim(); return {lugar:n||null, nueva:n||null}; }
-  return {lugar:v||null, nueva:null};
+  if(v==='__nueva__'){ var n=(($('lugarNuevo')||{}).value||'').trim(); return {lugar:n||null, zona_id:null, nueva:n||null}; }
+  if(v){ var z=(ZONAS||[]).find(function(x){return x.id===v;}); return {lugar:(z?z.nombre:null), zona_id:v, nueva:null}; }
+  return {lugar:null, zona_id:null, nueva:null};
 }
 function setClase(c){
   clase=c;
@@ -500,7 +502,7 @@ async function registrar(){
   const firmaDataUrl=cv.toDataURL('image/png');
   const reg={
     id:id, empresa_id:obs.empresa_id, observador_id:obs.id, observador_nombre:obs.nombre, observador_cedula:obs.cedula,
-    observado_nombre:$('observado').value.trim()||null, lugar:(_lugarElegido().lugar),
+    observado_nombre:$('observado').value.trim()||null, lugar:(_lugarElegido().lugar), zona_id:(_lugarElegido().zona_id),
     clase:clase, tipo:(clase==='inseguro'?pickVal.tipo:null), categoria:pickVal.categoria,
     descripcion:$('desc').value.trim(), riesgo:(clase==='inseguro'?pickVal.riesgo:null),
     detuvo_tarea:(clase==='inseguro'?(pickVal.detuvo==='si'):null),
@@ -518,6 +520,7 @@ async function registrar(){
     const firmaPath=await sbUpload(id+'/firma.png', firmaBlob, 'image/png');
     reg.foto_paths = paths.length?paths:null; reg.foto_path = paths.length?paths[0]:null; reg.firma_path=firmaPath;
     await sbRpc('registrar_tarjeta',{t:reg});
+    try{ if(reg.zona_id) await sbRpc('tarjeta_zona_anon',{p_id:id,p_zona:reg.zona_id}); }catch(_){}
     try{ var _zn=_lugarElegido().nueva; if(_zn) await sbRpc('zona_proponer',{emp:obs.empresa_id,p_nombre:_zn,p_quien:obs.nombre}); }catch(_){}
     try{ var _cc=await sbRpc('consecutivo_tarjeta',{id:id}); if(_cc){ reg.consecutivo=_cc; pdfBlob=buildTarjetaPdf(reg, ts, obs.empresa, firmaDataUrl, fotoUrls).output('blob'); } }catch(_){}
     await guardarPdfTarjeta(reg, ts, pdfBlob);

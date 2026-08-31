@@ -317,6 +317,7 @@
           <span style="font-size:13px;color:var(--tx2)">Memoria:</span>
           <select id="dashMem" onchange="dashCargarMem(this.value)" style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--tx);padding:8px 10px;font-size:13px"><option value="">— nueva —</option></select>
           <button class="gbtn" onclick="dashAgregarMenu()">+ Agregar ventana</button>
+          <button class="gbtn" style="background:rgba(0,212,255,.12);border-color:#00d4ff;color:#7fe6ff" onclick="dashPersonalizada()">➕ Gráfico personalizado</button>
           <button class="gbtn" onclick="dashGuardar(false)">💾 Guardar</button>
           <button class="gbtn" onclick="dashGuardar(true)">Guardar como…</button>
           <button class="gbtn" style="background:rgba(255,59,48,.12);border-color:#FF3B30;color:#FF8A82" onclick="dashBorrarMem()">Borrar memoria</button>
@@ -2313,6 +2314,7 @@ var DASH_LAYOUT=[], DASH_MEMS=[], DASH_MEM_ID=null, DASH_CHARTS=[], DASH_INIT=fa
 var DASH_COL={S:4,M:6,L:12};
 function _R(){ return window.RAW||{ats:[],inv:[],tar:[]}; }
 function _pairs(m){ return Object.entries(m).sort(function(a,b){return b[1]-a[1];}); }
+function _sedeDe(t){ if(!t||!t.zona_id) return 'Sin sede'; var z=(ZONAS_HSE||[]).find(function(x){return x.id===t.zona_id;}); return (z&&z.sede_nombre)||'Sin sede'; }
 var DASH_CAT=[
   {key:'tar_cat', t:'Tarjetas por categoría', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().tar.map(function(x){return x.categoria;}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:NAR}; }},
   {key:'tar_lugar', t:'Tarjetas por lugar', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().tar.map(function(x){return x.lugar;}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
@@ -2325,12 +2327,98 @@ var DASH_CAT=[
   {key:'ats_resp', t:'ATS por responsable', tipo:'bar', calc:function(){ var p=topN(tally(_R().ats.map(function(x){return x.responsable;})),8); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:CY}; }},
   {key:'ats_estado', t:'ATS por estado', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().ats.map(function(x){return norm(x.estado);}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:AM}; }},
   {key:'inv_estado', t:'Investigaciones por estado', tipo:'bar', calc:function(){ var p=_pairs(tally(_R().inv.map(function(x){return norm(x.estado)||'Sin estado';}))); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:VE}; }},
-  {key:'riesgo_res', t:'Riesgo residual (ATS)', tipo:'doughnut', calc:function(){ var m={}; _R().ats.forEach(function(r){ var j=(typeof parseATS==='function')?parseATS(r):null; if(j&&Array.isArray(j.peligros))j.peligros.forEach(function(p){ var nr=p.nivel_riesgo_residual||'—'; m[nr]=(m[nr]||0)+1; }); }); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){var kk=String(k).toLowerCase();return kk==='alto'?RO:kk==='medio'?AM:kk==='bajo'?VE:GR;})}; }}
+  {key:'riesgo_res', t:'Riesgo residual (ATS)', tipo:'doughnut', calc:function(){ var m={}; _R().ats.forEach(function(r){ var j=(typeof parseATS==='function')?parseATS(r):null; if(j&&Array.isArray(j.peligros))j.peligros.forEach(function(p){ var nr=p.nivel_riesgo_residual||'—'; m[nr]=(m[nr]||0)+1; }); }); var l=Object.keys(m); return {labels:l,data:l.map(function(k){return m[k];}),colors:l.map(function(k){var kk=String(k).toLowerCase();return kk==='alto'?RO:kk==='medio'?AM:kk==='bajo'?VE:GR;})}; }},
+  {key:'tar_sede', t:'Tarjetas por sede', tipo:'bar', calc:function(){ var m={}; _R().tar.forEach(function(t){ var s=_sedeDe(t); m[s]=(m[s]||0)+1; }); var p=_pairs(m); return {labels:p.map(function(x){return x[0];}),data:p.map(function(x){return x[1];}),color:VE}; }},
+  {key:'tabla_sede', t:'Resumen por sede (tabla)', tipo:'table', tabla:function(){ var m={}; _R().tar.forEach(function(t){ var s=_sedeDe(t); if(!m[s])m[s]={seg:0,ins:0,ce:0,st:0}; if((t.clase||'')==='seguro')m[s].seg++; else if((t.clase||'')==='inseguro'){ m[s].ins++; if((t.estado||'')==='cerrada')m[s].ce++; if(typeof _sinTratar==='function'&&_sinTratar(t))m[s].st++; } }); var rows=Object.keys(m).map(function(s){var x=m[s];return {s:s,seg:x.seg,ins:x.ins,st:x.st,pct:(x.ins?Math.round(x.ce/x.ins*100):null)};}).sort(function(a,b){return (b.seg+b.ins)-(a.seg+a.ins);}); if(!rows.length) return '<div class="detempty">Sin datos.</div>'; return '<table class="ttbl" style="width:100%"><thead><tr><th>Sede</th><th>Seg.</th><th>Inseg.</th><th>Sin tratar</th><th>% cierre</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+esc(r.s)+'</td><td>'+r.seg+'</td><td>'+r.ins+'</td><td>'+(r.st?('<b style="color:#FF8A82">'+r.st+'</b>'):'0')+'</td><td>'+(r.pct==null?'—':(r.pct+'%'))+'</td></tr>';}).join('')+'</tbody></table>'; }}
 ];
 function _catDef(key){ for(var i=0;i<DASH_CAT.length;i++) if(DASH_CAT[i].key===key) return DASH_CAT[i]; return null; }
+/* ===== Constructor de gráficos personalizados (qué vs qué) ===== */
+var DASH_FUENTES={
+  tar:{label:'Tarjetas', fields:[
+    {key:'categoria',label:'Categoría',val:function(t){return t.categoria;}},
+    {key:'lugar',label:'Lugar',val:function(t){return t.lugar;}},
+    {key:'sede',label:'Sede',val:function(t){return _sedeDe(t);}},
+    {key:'riesgo',label:'Riesgo',val:function(t){return t.riesgo;}},
+    {key:'clase',label:'Clase (seg/inseg)',val:function(t){return t.clase;}},
+    {key:'observador',label:'Observador',val:function(t){return t.observador_nombre;}},
+    {key:'estado',label:'Estado',val:function(t){ if((t.clase||'')==='seguro')return 'Refuerzo'; if((t.estado||'')==='cerrada')return 'Cerrada'; if(typeof _sinTratar==='function'&&_sinTratar(t))return 'Sin tratar'; return 'En gestión'; }},
+    {key:'fecha',label:'Fecha (día)',val:function(t){return String(t.fecha||t.creado||'').slice(0,10);}}
+  ]},
+  ats:{label:'ATS', fields:[
+    {key:'responsable',label:'Responsable',val:function(r){return r.responsable;}},
+    {key:'zona',label:'Zona',val:function(r){return r.zona;}},
+    {key:'estado',label:'Estado',val:function(r){return norm(r.estado);}},
+    {key:'cliente',label:'Cliente',val:function(r){return r.cliente;}},
+    {key:'fecha',label:'Fecha (día)',val:function(r){return String(r.fecha||'').slice(0,10);}}
+  ]},
+  inv:{label:'Investigaciones', fields:[
+    {key:'estado',label:'Estado',val:function(r){return norm(r.estado);}},
+    {key:'reporta',label:'Reporta',val:function(r){return r.reporta;}},
+    {key:'cliente',label:'Cliente',val:function(r){return r.cliente;}},
+    {key:'fecha',label:'Fecha (día)',val:function(r){return String(r.fecha_evento||'').slice(0,10);}}
+  ]}
+};
+function _dashFields(f){ return (DASH_FUENTES[f]||{}).fields||[]; }
+function _fieldVal(f,key){ var fs=_dashFields(f); for(var i=0;i<fs.length;i++) if(fs[i].key===key) return fs[i].val; return function(){return '';}; }
+function _fieldLabel(f,key){ var fs=_dashFields(f); for(var i=0;i<fs.length;i++) if(fs[i].key===key) return fs[i].label; return key; }
+function _dashCalc(spec){
+  var src=spec.fuente==='ats'?_R().ats:(spec.fuente==='inv'?_R().inv:_R().tar);
+  var dimVal=_fieldVal(spec.fuente,spec.dim);
+  if(!spec.split){
+    var m={}; src.forEach(function(r){ var k=dimVal(r); if(k==null||k==='')k='—'; m[k]=(m[k]||0)+1; });
+    var pairs=(spec.dim==='fecha')?Object.keys(m).sort().map(function(k){return [k,m[k]];}):_pairs(m);
+    return {labels:pairs.map(function(x){return x[0];}),data:pairs.map(function(x){return x[1];}),color:NAR};
+  }
+  var splVal=_fieldVal(spec.fuente,spec.split);
+  var dimSet={}, splSet={}, mm={};
+  src.forEach(function(r){ var d=dimVal(r); if(d==null||d==='')d='—'; var s=splVal(r); if(s==null||s==='')s='—'; dimSet[d]=1; splSet[s]=1; mm[d+'||'+s]=(mm[d+'||'+s]||0)+1; });
+  var labels=Object.keys(dimSet);
+  if(spec.dim==='fecha') labels.sort();
+  else labels.sort(function(a,b){ var ta=0,tb=0; Object.keys(splSet).forEach(function(s){ta+=mm[a+'||'+s]||0;tb+=mm[b+'||'+s]||0;}); return tb-ta; });
+  var pal=[VE,RO,NAR,CY,AM,'#B57BFF','#00B894','#FF9F1C'];
+  var series=Object.keys(splSet).map(function(s,i){ return {label:s,color:pal[i%pal.length],data:labels.map(function(d){return mm[d+'||'+s]||0;})}; });
+  return {labels:labels, series:series};
+}
+function _customDef(spec){ return {t:(spec.titulo||'Personalizado'), tipo:spec.tipo||'bar', calc:function(){return _dashCalc(spec);}}; }
+function dashPersonalizada(){
+  var _s='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:8px';
+  var fu=Object.keys(DASH_FUENTES).map(function(k){return '<option value="'+k+'">'+esc(DASH_FUENTES[k].label)+'</option>';}).join('');
+  document.getElementById('detTit').textContent='Gráfico personalizado — elegí qué vs qué';
+  document.getElementById('detBody').innerHTML='<div class="umsg" style="margin-bottom:10px">Elegí la <b>fuente</b>, la <b>dimensión</b> (el eje) y, si querés comparar, un <b>"comparar por"</b> (ej: dimensión Sede, comparar por Clase = seguras vs inseguras por sede).</div>'
+    +'<div class="gform">'
+    +'<label>Título</label><input id="dcTit" style="'+_s+'" placeholder="(opcional — si lo dejás vacío, KALU le pone uno)">'
+    +'<label>Fuente</label><select id="dcFuente" style="'+_s+'" onchange="_dashCustDims()">'+fu+'</select>'
+    +'<label>Dimensión (eje)</label><select id="dcDim" style="'+_s+'"></select>'
+    +'<label>Comparar por (opcional — el "vs")</label><select id="dcSplit" style="'+_s+'"></select>'
+    +'<label>Tipo</label><select id="dcTipo" style="'+_s+'"><option value="bar">Barras</option><option value="doughnut">Torta</option><option value="line">Línea</option></select>'
+    +'<button class="gbtn" style="background:rgba(37,194,110,.14);border-color:#25C26E;color:#4FD98B;margin-top:6px" onclick="dashAddCustom()">+ Agregar al tablero</button>'
+    +'</div>';
+  document.getElementById('detalle').classList.remove('hide');
+  _dashCustDims();
+}
+function _dashCustDims(){
+  var f=(document.getElementById('dcFuente')||{}).value||'tar'; var fs=_dashFields(f);
+  var dim=document.getElementById('dcDim'), spl=document.getElementById('dcSplit');
+  if(dim) dim.innerHTML=fs.map(function(x){return '<option value="'+x.key+'">'+esc(x.label)+'</option>';}).join('');
+  if(spl) spl.innerHTML='<option value="">— ninguno —</option>'+fs.map(function(x){return '<option value="'+x.key+'">'+esc(x.label)+'</option>';}).join('');
+}
+function dashAddCustom(){
+  var f=(document.getElementById('dcFuente')||{}).value||'tar';
+  var dim=(document.getElementById('dcDim')||{}).value||'';
+  var split=(document.getElementById('dcSplit')||{}).value||'';
+  var tipo=(document.getElementById('dcTipo')||{}).value||'bar';
+  var tit=((document.getElementById('dcTit')||{}).value||'').trim();
+  if(!dim){ alert('Elegí una dimensión.'); return; }
+  if(split===dim) split='';
+  if(tipo==='doughnut') split='';
+  if(!tit){ tit=(DASH_FUENTES[f]?DASH_FUENTES[f].label:f)+' por '+_fieldLabel(f,dim)+(split?(' vs '+_fieldLabel(f,split)):''); }
+  DASH_LAYOUT.push({key:'__custom__',size:(split?'L':'M'),spec:{fuente:f,dim:dim,split:split||null,tipo:tipo,titulo:tit}});
+  cerrarDet(); dashRender();
+}
 async function dashInit(){
   if(DASH_INIT){ dashRender(); return; }
   DASH_INIT=true;
+  if(!ZONAS_HSE){ try{ await loadZonas(); }catch(e){} }
   try{ DASH_MEMS=(await sbRpc('dash_listar'))||[]; }catch(e){ DASH_MEMS=[]; }
   dashLlenarSelect();
   if(DASH_MEMS.length){ dashCargarMem(DASH_MEMS[0].id); }
@@ -2351,7 +2439,7 @@ function dashRender(){
   var g=document.getElementById('dashGrid'); if(!g) return;
   var vac=document.getElementById('dashVacio'); if(vac) vac.style.display=DASH_LAYOUT.length?'none':'';
   g.innerHTML=DASH_LAYOUT.map(function(w,i){
-    var d=_catDef(w.key); var tit=d?d.t:w.key; var col=DASH_COL[w.size||'M']||6;
+    var d=(w.key==='__custom__'&&w.spec)?_customDef(w.spec):_catDef(w.key); var tit=d?d.t:w.key; var col=DASH_COL[w.size||'M']||6;
     return '<div class="dashw card" style="grid-column:span '+col+';padding:12px 14px">'
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">'
       +'<span style="font-size:12.5px;font-weight:700;color:var(--tx);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(tit)+'</span>'
@@ -2361,7 +2449,7 @@ function dashRender(){
       +'<button title="Quitar" class="gbtn" style="padding:3px 7px;background:rgba(255,59,48,.12);border-color:#FF3B30;color:#FF8A82" onclick="dashQuitar('+i+')">✕</button>'
       +'</div>'+((d&&d.tipo==='table')?('<div style="max-height:250px;overflow:auto">'+(d.tabla?d.tabla():'')+'</div>'):('<div style="position:relative;height:230px"><canvas id="dw'+i+'"></canvas></div>'))+'</div>';
   }).join('');
-  DASH_LAYOUT.forEach(function(w,i){ var d=_catDef(w.key); if(!d||d.tipo==='table') return; var r=d.calc()||{labels:[],data:[]}; dashChart('dw'+i,d.tipo,r); });
+  DASH_LAYOUT.forEach(function(w,i){ var d=(w.key==='__custom__'&&w.spec)?_customDef(w.spec):_catDef(w.key); if(!d||d.tipo==='table') return; var r=d.calc()||{labels:[],data:[]}; dashChart('dw'+i,d.tipo,r); });
 }
 function dashChart(id,tipo,r){
   var el=document.getElementById(id); if(!el||!window.Chart) return;
@@ -2374,7 +2462,10 @@ function dashChart(id,tipo,r){
     else { ds=[{data:r.data,borderColor:r.color||NAR,backgroundColor:'rgba(242,140,0,.15)',fill:true,tension:.3,pointRadius:2}]; }
     cfg={type:'line',data:{labels:r.labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:!!multi,position:'bottom',labels:{padding:8,font:{size:10}}}},scales:{x:{grid:{color:grid}},y:{grid:{color:grid},beginAtZero:true,ticks:{precision:0}}}}};
   } else {
-    cfg={type:'bar',data:{labels:r.labels,datasets:[{data:r.data,backgroundColor:r.color||NAR,borderRadius:6}]},options:{indexAxis:(r.labels.length>6?'y':'x'),responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:grid}},y:{grid:{color:grid},beginAtZero:true,ticks:{precision:0}}}}};
+    var bmulti=Array.isArray(r.series)&&r.series.length, bds;
+    if(bmulti){ bds=r.series.map(function(s){return {label:s.label,data:s.data,backgroundColor:s.color||NAR,borderRadius:6};}); }
+    else { bds=[{data:r.data,backgroundColor:r.color||NAR,borderRadius:6}]; }
+    cfg={type:'bar',data:{labels:r.labels,datasets:bds},options:{indexAxis:((!bmulti&&r.labels.length>6)?'y':'x'),responsive:true,maintainAspectRatio:false,plugins:{legend:{display:!!bmulti,position:'bottom',labels:{font:{size:10}}}},scales:{x:{grid:{color:grid}},y:{grid:{color:grid},beginAtZero:true,ticks:{precision:0}}}}};
   }
   try{ DASH_CHARTS.push(new Chart(el,cfg)); }catch(e){}
 }

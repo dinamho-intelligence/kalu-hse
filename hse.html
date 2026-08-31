@@ -2413,51 +2413,47 @@ function dashRefrescar(){ var v=document.getElementById('viewDash'); if(v && !v.
 
 </script>
 <script>
-/* ===== Unificar lugares de tarjetas contra el catálogo de zonas ===== */
+/* ===== Unificar lugares de tarjetas contra el catálogo de zonas (sede + zona) ===== */
 function _uNorm(s){ return String(s==null?'':s).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function _zLabel(z){ return (z && z.sede_nombre?(z.sede_nombre+' · '):'')+((z&&z.nombre)||''); }
 async function unificarLugares(){
   document.getElementById('detTit').textContent='Unificar lugares de tarjetas';
   document.getElementById('detBody').innerHTML='<div class="loading">Cargando lugares y zonas…</div>';
   document.getElementById('detalle').classList.remove('hide');
   var _dc=document.querySelector('#detalle .detcard'); if(_dc) _dc.style.maxWidth='1040px';
-  // lugares distintos (no eliminadas) con conteo
   var m={};
   (TAR||[]).forEach(function(t){ if(t.eliminada) return; var l=(t.lugar==null?'':String(t.lugar).trim()); if(l==='') return; m[l]=(m[l]||0)+1; });
   var lugares=Object.keys(m).map(function(l){return {l:l,n:m[l]};}).sort(function(a,b){return b.n-a.n;});
-  // zonas activas del catálogo (destino canónico)
   var zonas=[];
   try{ zonas=(await sbRpc('zonas_activas',{emp:MYEMP}))||[]; }catch(e){}
   window._UNIF_ZONAS=zonas;
   if(!lugares.length){ document.getElementById('detBody').innerHTML='<div class="detempty">No hay lugares en las tarjetas.</div>'; return; }
-  if(!zonas.length){ document.getElementById('detBody').innerHTML='<div class="detempty" style="color:#F0B04A">Todavía no hay zonas <b>activas</b> en el catálogo. Creá/aprobá zonas primero (pestaña Zonas) y volvé.</div>'; return; }
-  var zByNorm={}; zonas.forEach(function(z){ zByNorm[_uNorm(z.nombre)]=z.nombre; });
+  if(!zonas.length){ document.getElementById('detBody').innerHTML='<div class="detempty" style="color:#F0B04A">Todavía no hay zonas <b>activas</b> en el catálogo. Creá/aprobá zonas (con su sede) en la pestaña Zonas y volvé.</div>'; return; }
+  var zByNorm={}; zonas.forEach(function(z){ var k=_uNorm(z.nombre); if(!(k in zByNorm)) zByNorm[k]=z; });
   function _suger(l){
     var nl=_uNorm(l);
-    if(zByNorm[nl]) return {n:zByNorm[nl],conf:'exacta'};
+    if(zByNorm[nl]) return {z:zByNorm[nl],conf:'exacta'};
     var best=null;
-    zonas.forEach(function(z){ var nz=_uNorm(z.nombre); if(!nz) return; if(nl.indexOf(nz)>-1 || nz.indexOf(nl)>-1){ if(!best || Math.abs(nz.length-nl.length)<best.d) best={n:z.nombre,d:Math.abs(nz.length-nl.length)}; } });
-    return best?{n:best.n,conf:'parecida'}:null;
+    zonas.forEach(function(z){ var nz=_uNorm(z.nombre); if(!nz) return; if(nl.indexOf(nz)>-1 || nz.indexOf(nl)>-1){ var d=Math.abs(nz.length-nl.length); if(!best || d<best.d) best={z:z,d:d}; } });
+    return best?{z:best.z,conf:'parecida'}:null;
   }
-  var _sel='background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:7px;padding:6px 8px;font-size:12.5px;max-width:230px';
-  var rows=lugares.map(function(x,i){
+  var _sel='background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:7px;padding:6px 8px;font-size:12.5px;min-width:260px;max-width:320px';
+  var rows=lugares.map(function(x){
     var sg=_suger(x.l);
-    var opts='<option value="">— dejar así —</option>'+zonas.map(function(z){ return '<option value="'+esc(z.nombre).replace(/"/g,'&quot;')+'"'+((sg&&sg.n===z.nombre)?' selected':'')+'>'+esc(z.nombre)+'</option>'; }).join('');
+    var opts='<option value="">— dejar así —</option>'+zonas.map(function(z){ return '<option value="'+z.id+'"'+((sg&&sg.z.id===z.id)?' selected':'')+'>'+esc(_zLabel(z))+'</option>'; }).join('');
     var tag=sg?(' <span class="badge '+(sg.conf==='exacta'?'seg':'pend')+'" style="margin-left:4px">'+sg.conf+'</span>'):'';
     return '<tr><td style="white-space:nowrap"><b>'+esc(x.l)+'</b>'+tag+'</td><td style="color:var(--nar);font-weight:700">'+x.n+'</td><td>→</td><td><select class="unifSel" data-lugar="'+esc(x.l).replace(/"/g,'&quot;')+'" style="'+_sel+'" onchange="_unifPrev()">'+opts+'</select></td></tr>';
   }).join('');
-  document.getElementById('detBody').innerHTML='<div class="umsg" style="margin-bottom:10px">Elegí a qué <b>zona del catálogo</b> mandar cada lugar suelto. Lo que dejes en «— dejar así —» no se toca. Al aplicar, se reescribe el lugar de esas tarjetas (queda en la auditoría). Las zonas salen de las que aprobaste en la pestaña Zonas.</div>'
-    +'<div class="twrap" style="max-height:44vh"><table class="ttbl" style="width:100%"><thead><tr><th>Lugar actual</th><th>Tarjetas</th><th></th><th>Unificar a…</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+  document.getElementById('detBody').innerHTML='<div class="umsg" style="margin-bottom:10px">Elegí a qué <b>zona del catálogo</b> (Sede · Zona) mandar cada lugar suelto. Lo que dejes en «— dejar así —» no se toca. Al aplicar, la tarjeta queda vinculada a esa zona (con su sede) y el lugar toma el nombre canónico. Queda en la auditoría.</div>'
+    +'<div class="twrap" style="max-height:44vh"><table class="ttbl" style="width:100%"><thead><tr><th>Lugar actual</th><th>Tarjetas</th><th></th><th>Unificar a (Sede · Zona)</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
     +'<div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="gbtn" style="background:rgba(37,194,110,.14);border-color:#25C26E;color:#4FD98B" onclick="aplicarUnificacion()">✓ Aplicar unificación</button><span id="unifPrev" style="font-size:12.5px;color:var(--tx2)"></span></div>';
   _unifPrev();
 }
 function _unifCambios(){
-  var out=[];
+  var out=[]; var zById={}; (window._UNIF_ZONAS||[]).forEach(function(z){ zById[z.id]=z; });
   Array.prototype.forEach.call(document.querySelectorAll('.unifSel'),function(sel){
-    var dest=sel.value||''; var lug=sel.getAttribute('data-lugar')||'';
-    if(dest && dest.trim().toLowerCase()!==lug.trim().toLowerCase()){
-      var n=(TAR||[]).filter(function(t){return !t.eliminada && String(t.lugar||'').trim()===lug;}).length;
-      out.push({lugar:lug,dest:dest,n:n});
-    }
+    var zid=sel.value||''; var lug=sel.getAttribute('data-lugar')||'';
+    if(zid){ var z=zById[zid]; var n=(TAR||[]).filter(function(t){return !t.eliminada && String(t.lugar||'').trim()===lug;}).length; out.push({lugar:lug,zid:zid,dest:_zLabel(z)||zid,n:n}); }
   });
   return out;
 }
@@ -2469,12 +2465,12 @@ async function aplicarUnificacion(){
   var c=_unifCambios();
   if(!c.length){ alert('No seleccionaste ninguna unificación.'); return; }
   var tot=c.reduce(function(a,b){return a+b.n;},0);
-  if(!confirm('Vas a reescribir el lugar de '+tot+' tarjeta(s), en '+c.length+' grupo(s). Queda en la auditoría. ¿Confirmás?')) return;
+  if(!confirm('Vas a vincular '+tot+' tarjeta(s) a su zona (sede+zona), en '+c.length+' grupo(s). Queda en la auditoría. ¿Confirmás?')) return;
   var okN=0, errN=0;
   for(var i=0;i<c.length;i++){
     try{
-      await sbPatch('tarjetas?empresa_id=eq.'+encodeURIComponent(MYEMP)+'&lugar=eq.'+encodeURIComponent(c[i].lugar), {lugar:c[i].dest});
-      try{ await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:'(varias)',accion:'unificar',motivo:'unificar lugar',actor:MYNAME,detalle:'«'+c[i].lugar+'» → «'+c[i].dest+'» ('+c[i].n+' tarjetas)'}); }catch(_){}
+      await sbRpc('tarjeta_unificar',{emp:MYEMP,p_lugar:c[i].lugar,p_zona:c[i].zid});
+      try{ await sbInsert('eliminaciones',{empresa_id:MYEMP,tabla:'tarjetas',registro_id:'(varias)',accion:'unificar',motivo:'unificar lugar/zona',actor:MYNAME,detalle:'«'+c[i].lugar+'» → «'+c[i].dest+'» ('+c[i].n+' tarjetas)'}); }catch(_){}
       okN++;
     }catch(e){ errN++; }
   }

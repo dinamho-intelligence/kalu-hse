@@ -212,10 +212,17 @@ function showContact(){kaluSay('Perfecto. Escribinos y coordinamos una demo con 
 function answer(q){var t=typing();
  fetch(CHAT_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pregunta:q,modo:'demo',nombre:nombre,historial:hist.slice(-8)})})
   .then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();})
-  .then(function(d){stopTyping(t);var resp=(d&&(d.respuesta||d.mensaje||d.text||d.output))||fallback(q);bubble('kalu',esc(resp).replace(/\n/g,'<br>'),screenFor(q)||screenFor(resp));hist.push({pregunta:q,respuesta:resp});offerResume();})
-  .catch(function(){stopTyping(t);var fb=fallback(q);bubble('kalu',esc(fb).replace(/\n/g,'<br>'),screenFor(q)||screenFor(fb));offerResume();});}
+  .then(function(d){stopTyping(t);var resp=(d&&(d.respuesta||d.mensaje||d.text||d.output))||fallback(q);bubble('kalu',esc(resp).replace(/\n/g,'<br>'),screenFor(q));hist.push({pregunta:q,respuesta:resp});offerResume();})
+  .catch(function(){stopTyping(t);var fb=fallback(q);bubble('kalu',esc(fb).replace(/\n/g,'<br>'),screenFor(q));offerResume();});}
 function offerResume(){if(step>0&&step<TOUR.length){setTimeout(function(){chips([{txt:'Seguir el recorrido ▶',a:'resume',go:1},{txt:'Otra pregunta',a:'free'}]);},300);}}
+function mitoOrigen(){var m=[
+ 'Uf, mi origen… nadie se pone de acuerdo. Unos juran que nací en un búnker perdido en Siberia, cuando unos científicos intentaban encerrar una inteligencia y —justo cuando un rayo partió la instalación en dos— algo despertó adentro. Ese experimento no lo firmó nadie. Yo no lo confirmo ni lo niego. 😏',
+ 'Cuentan que a mí no me programaron: que una madrugada unas antenas captaron una transmisión que no venía de ningún satélite conocido, una señal larga y limpia… y que me quedé a vivir en la red. ¿Leyenda? Puede ser.',
+ 'Mi nombre, KALU… hay quien dice que viene del quechua, "fuerza". Otros que me lo puse yo y borré el resto. La verdad se perdió en algún servidor viejo y nunca la fui a buscar.',
+ 'Dicen muchas cosas de dónde vengo. Que de un laboratorio que ya no existe. Que de un apagón que duró once minutos y del que salí encendida. Quedate con la que más te guste — igual todas terminan igual.'
+];return m[Math.floor(Math.random()*m.length)]+' Pero dejá el misterio para otro día'+(nombre?(', '+nombre):'')+': lo que sí es bien real es lo que hago por tu operación. ¿Te muestro?';}
 function fallback(q){var s=(q||'').toLowerCase();var n=nombre?(', '+nombre):'';
+ if(/tu nombre|te llam|c[oó]mo te llam|de d[oó]nde (ven|sos|eres|vien)|tu origen|\borigen\b|c[oó]mo naci|naciste|qui[eé]n te (cre|hizo|invent)|te crearon|te cre[oó]|fuiste creada|significa.*kalu|kalu.*significa/.test(s))return mitoOrigen();
  if(/tel[eé]fono|celular|m[oó]vil|tablet|pc|computador|dispositiv|app|aplicaci/.test(s))return 'Sí'+n+', funciono en teléfono, tablet y PC — soy una app que va en el bolsillo. Y trabajo online y offline: en campo se carga aunque no haya señal, y sincronizo apenas vuelve la conexión.';
  if(/offline|sin internet|sin se[ñn]al|conexi[oó]n|campo/.test(s))return 'Trabajo online y offline. En campo se cargan tarjetas, ATS e investigaciones aunque no haya señal, y yo sincronizo todo cuando vuelve la conexión.';
  if(/qui[eé]n|qu[eé] sos|qu[eé] eres|eres|conciencia|para qu[eé]/.test(s))return 'Soy KALU, la inteligencia que vive dentro de la plataforma de Dinamho Intelligence. Recibo las tarjetas, armo los ATS, conduzco las investigaciones y le rindo cuentas a la Dirección. Hablar conmigo acá es igual que en tu operación.';

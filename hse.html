@@ -482,7 +482,9 @@ async function cargar(){
       sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,rol_reporta,descripcion,testigos,historial&eliminada=eq.false'),
       sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha,creado,estado,cerrada_at,fecha_limite,zona_id&eliminada=eq.false')
     ]);
-    window.RAW={ats:ats,inv:inv,tar:tar}; render(ats,inv,tar); if(typeof dashRefrescar==='function') dashRefrescar();
+    window.RAW={ats:ats,inv:inv,tar:tar}; render(ats,inv,tar);
+    try{ window.RAW.bib=(await sbGet('cap_biblioteca?select=*'))||[]; }catch(_){ window.RAW.bib=[]; }
+    if(typeof dashRefrescar==='function') dashRefrescar();
   }catch(e){ $('loading').textContent='No se pudieron cargar los datos ('+e.message+'). ¿Corriste el SQL de lectura?'; }
 }
 function parseATS(row){
@@ -2315,7 +2317,7 @@ if(typeof logAud==='undefined'){ function logAud(){} }
 /* ===== Mi tablero: dashboards armables + memorias ===== */
 var DASH_LAYOUT=[], DASH_MEMS=[], DASH_MEM_ID=null, DASH_CHARTS=[], DASH_INIT=false;
 var DASH_COL={S:4,M:6,L:12};
-function _R(){ return window.RAW||{ats:[],inv:[],tar:[]}; }
+function _R(){ return window.RAW||{ats:[],inv:[],tar:[],bib:[]}; }
 function _pairs(m){ return Object.entries(m).sort(function(a,b){return b[1]-a[1];}); }
 function _sedeDe(t){ if(!t||!t.zona_id) return 'Sin sede'; var z=(ZONAS_HSE||[]).find(function(x){return x.id===t.zona_id;}); return (z&&z.sede_nombre)||'Sin sede'; }
 var DASH_CAT=[
@@ -2337,6 +2339,7 @@ var DASH_CAT=[
 function _catDef(key){ for(var i=0;i<DASH_CAT.length;i++) if(DASH_CAT[i].key===key) return DASH_CAT[i]; return null; }
 /* ===== Constructor de gráficos personalizados (qué vs qué) ===== */
 var DASH_FUENTES={
+  bib:{label:'Capacitaciones (biblioteca)', fields:[]},
   tar:{label:'Tarjetas', fields:[
     {key:'categoria',label:'Categoría',val:function(t){return t.categoria;}},
     {key:'lugar',label:'Lugar',val:function(t){return t.lugar;}},
@@ -2361,11 +2364,21 @@ var DASH_FUENTES={
     {key:'fecha',label:'Fecha (día)',val:function(r){return String(r.fecha_evento||'').slice(0,10);}}
   ]}
 };
-function _dashFields(f){ return (DASH_FUENTES[f]||{}).fields||[]; }
+function _bibFields(){
+  var rows=(window.RAW&&window.RAW.bib)||[]; if(!rows.length) return [];
+  var r0=rows[0]||{}; var out=[];
+  Object.keys(r0).forEach(function(k){
+    if(/(^id$)|(_id$)|(_at$)|(^created)|(^updated)|(^uuid)/i.test(k)) return;
+    var lbl=k.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+    out.push({key:k,label:lbl,val:(function(kk){ return function(row){ var v=row[kk]; if(Array.isArray(v)) return v.length?String(v[0]):'—'; if(v===true) return 'Sí'; if(v===false) return 'No'; return v; }; })(k)});
+  });
+  return out;
+}
+function _dashFields(f){ if(f==='bib') return _bibFields(); return (DASH_FUENTES[f]||{}).fields||[]; }
 function _fieldVal(f,key){ var fs=_dashFields(f); for(var i=0;i<fs.length;i++) if(fs[i].key===key) return fs[i].val; return function(){return '';}; }
 function _fieldLabel(f,key){ var fs=_dashFields(f); for(var i=0;i<fs.length;i++) if(fs[i].key===key) return fs[i].label; return key; }
 function _dashCalc(spec){
-  var src=spec.fuente==='ats'?_R().ats:(spec.fuente==='inv'?_R().inv:_R().tar);
+  var src=spec.fuente==='ats'?_R().ats:(spec.fuente==='inv'?_R().inv:(spec.fuente==='bib'?(_R().bib||[]):_R().tar));
   var dimVal=_fieldVal(spec.fuente,spec.dim);
   if(!spec.split){
     var m={}; src.forEach(function(r){ var k=dimVal(r); if(k==null||k==='')k='—'; m[k]=(m[k]||0)+1; });
@@ -2461,11 +2474,12 @@ function dashDrill(i,label,seriesLabel){
   var w=DASH_LAYOUT[i]; if(!w) return; var f,d,s;
   if(w.key==='__custom__'&&w.spec){ f=w.spec.fuente; d=w.spec.dim; s=w.spec.split; }
   else { var dd=_DRILL[w.key]; if(!dd) return; f=dd.f; d=dd.d; s=dd.s; }
-  var src=f==='ats'?_R().ats:(f==='inv'?_R().inv:_R().tar);
+  var src=f==='ats'?_R().ats:(f==='inv'?_R().inv:(f==='bib'?(_R().bib||[]):_R().tar));
   var dv=_fieldVal(f,d), sv=s?_fieldVal(f,s):null;
   var rows=src.filter(function(r){ var v=dv(r); if(v==null||v==='')v='—'; if(String(v)!==String(label)) return false; if(s&&seriesLabel!=null){ var vs=sv(r); if(vs==null||vs==='')vs='—'; if(String(vs)!==String(seriesLabel)) return false; } return true; });
   var cols = f==='ats'?[{k:'fecha',t:'Fecha'},{k:'responsable',t:'Responsable'},{k:'tarea',t:'Tarea'},{k:'cliente',t:'Cliente'},{k:'zona',t:'Zona'},{k:'estado',t:'Estado'}]
     : f==='inv'?[{k:'inv_id',t:'Serial',mono:true},{k:'fecha_evento',t:'Fecha'},{k:'reporta',t:'Reporta'},{k:'cliente',t:'Cliente'},{k:'estado',t:'Estado'}]
+    : f==='bib'? _bibFields().slice(0,6).map(function(x){return {k:x.key,t:x.label};})
     : [{k:'fecha',t:'Fecha'},{k:'observador_nombre',t:'Observador'},{k:'clase',t:'Clase'},{k:'riesgo',t:'Riesgo'},{k:'lugar',t:'Lugar'},{k:'descripcion',t:'Descripción'}];
   showDetalle(_fieldLabel(f,d)+': '+label+(seriesLabel!=null?(' · '+seriesLabel):''), rows, cols);
 }

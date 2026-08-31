@@ -585,7 +585,7 @@ function showDetalle(tit,rows,cols){
   document.getElementById('detBody').innerHTML=html;
   document.getElementById('detalle').classList.remove('hide');
 }
-function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); }
+function cerrarDet(){ document.getElementById('detalle').classList.add('hide'); var _dc=document.querySelector('#detalle .detcard'); if(_dc) _dc.style.maxWidth=''; }
 </script>
 <script>
 // ===== EXPEDIENTES (bloque 2 de la consola HSE) =====
@@ -2419,6 +2419,7 @@ async function unificarLugares(){
   document.getElementById('detTit').textContent='Unificar lugares de tarjetas';
   document.getElementById('detBody').innerHTML='<div class="loading">Cargando lugares y zonas…</div>';
   document.getElementById('detalle').classList.remove('hide');
+  var _dc=document.querySelector('#detalle .detcard'); if(_dc) _dc.style.maxWidth='1040px';
   // lugares distintos (no eliminadas) con conteo
   var m={};
   (TAR||[]).forEach(function(t){ if(t.eliminada) return; var l=(t.lugar==null?'':String(t.lugar).trim()); if(l==='') return; m[l]=(m[l]||0)+1; });

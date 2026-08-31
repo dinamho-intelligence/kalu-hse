@@ -477,7 +477,7 @@ async function cargar(){
     const [ats,inv,tar]=await Promise.all([
       sbGet('ats?select=responsable,tarea,cliente,zona,estado,modo,fecha,cuadrilla,historial&eliminada=eq.false'),
       sbGet('investigaciones?select=inv_id,estado,fase,cliente,fecha_evento,reporta,rol_reporta,descripcion,testigos,historial&eliminada=eq.false'),
-      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha,creado,estado,cerrada_at,fecha_limite&eliminada=eq.false')
+      sbGet('tarjetas?select=clase,tipo,categoria,riesgo,observador_nombre,lugar,descripcion,fecha,creado,estado,cerrada_at,fecha_limite,zona_id&eliminada=eq.false')
     ]);
     window.RAW={ats:ats,inv:inv,tar:tar}; render(ats,inv,tar); if(typeof dashRefrescar==='function') dashRefrescar();
   }catch(e){ $('loading').textContent='No se pudieron cargar los datos ('+e.message+'). ¿Corriste el SQL de lectura?'; }

@@ -484,8 +484,8 @@ async function cargar(){
     ]);
     window.RAW={ats:ats,inv:inv,tar:tar}; render(ats,inv,tar);
     try{ window.RAW.bib=(await sbGet('cap_biblioteca?select=*'))||[]; }catch(_){ window.RAW.bib=[]; }
-    try{ window.RAW.casos=(await sbGet('cap_casos?select=*'))||[]; }catch(_){ window.RAW.casos=[]; }
-    try{ window.RAW.evento=(await sbGet('cap_evento?select=*'))||[]; }catch(_){ window.RAW.evento=[]; }
+    try{ var _cc=await sbRpc('cap_casos'); window.RAW.casos=(_cc&&!_cc.demasiado&&Array.isArray(_cc.casos))?_cc.casos:[]; window.RAW.casosDemasiado=!!(_cc&&_cc.demasiado); }catch(_){ window.RAW.casos=[]; }
+    try{ var _anio=new Date().getFullYear(); var _cr=await sbRpc('cap_cronograma_datos',{p_anio:_anio}); window.RAW.evento=(_cr&&Array.isArray(_cr.eventos))?_cr.eventos:[]; }catch(_){ window.RAW.evento=[]; }
     if(typeof dashRefrescar==='function') dashRefrescar();
   }catch(e){ $('loading').textContent='No se pudieron cargar los datos ('+e.message+'). ¿Corriste el SQL de lectura?'; }
 }
@@ -2404,7 +2404,7 @@ function _dashColorByField(key,v){ if(key==='riesgo') return _colRiesgo(v); if(k
 function _customDef(spec){ return {t:(spec.titulo||'Personalizado'), tipo:spec.tipo||'bar', calc:function(){return _dashCalc(spec);}}; }
 function dashPersonalizada(){
   var _s='width:100%;background:#0f141b;color:#eef2f6;border:1px solid #333d4a;border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:8px';
-  var fu=Object.keys(DASH_FUENTES).map(function(k){return '<option value="'+k+'">'+esc(DASH_FUENTES[k].label)+'</option>';}).join('');
+  var fu=Object.keys(DASH_FUENTES).filter(function(k){ if(['bib','casos','evento'].indexOf(k)>-1) return ((_R()[k]||[]).length>0); return true; }).map(function(k){return '<option value="'+k+'">'+esc(DASH_FUENTES[k].label)+'</option>';}).join('');
   document.getElementById('detTit').textContent='Gráfico personalizado — elegí qué vs qué';
   document.getElementById('detBody').innerHTML='<div class="umsg" style="margin-bottom:10px">Elegí la <b>fuente</b>, la <b>dimensión</b> (el eje) y, si querés comparar, un <b>"comparar por"</b> (ej: dimensión Sede, comparar por Clase = seguras vs inseguras por sede).</div>'
     +'<div class="gform">'

@@ -18,8 +18,10 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",R
 #login button{width:100%;background:var(--grad);border:0;color:#fff;font-weight:700;border-radius:9px;padding:12px;font-size:14px;cursor:pointer}
 .err{color:#ff8a82;font-size:12.5px;min-height:16px;margin-top:2px}
 .hide{display:none!important}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:6px}
 @media(max-width:720px){.kpis{grid-template-columns:1fr 1fr}}
+.kpigrupo{margin-bottom:16px}
+.kpigrupo h4{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 8px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px}
 .kpi .n{font-size:23px;font-weight:800;line-height:1.1}
 .kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;letter-spacing:.4px;text-transform:uppercase}
@@ -67,13 +69,31 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
-  <div id="kpis" class="kpis">
-    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
-    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
-    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
-    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+  <div id="periodo" class="muted" style="margin-bottom:12px"></div>
+
+  <div class="kpigrupo">
+    <h4>Ventas (Facturación a clientes)</h4>
+    <div id="kpisFacturado" class="kpis">
+      <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+      <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+    </div>
   </div>
-  <div id="periodo" class="muted" style="margin:-10px 0 16px"></div>
+
+  <div class="kpigrupo">
+    <h4>Compras</h4>
+    <div id="kpisCompras" class="kpis">
+      <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+      <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+    </div>
+  </div>
+
+  <div class="kpigrupo">
+    <h4>Cartera (a la fecha de hoy)</h4>
+    <div id="kpisCartera" class="kpis">
+      <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+      <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+    </div>
+  </div>
 
   <div class="sec">
     <h2>¿En qué se está gastando?</h2>
@@ -92,10 +112,8 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <div class="sec">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <h2 style="margin:0">Facturas pendientes de pago (top 20 por valor)</h2>
-    </div>
-    <div id="tablaPend"><div class="muted">Cargando…</div></div>
+    <h2>Clientes con mayor saldo pendiente (cartera por cobrar)</h2>
+    <div class="excard"><div class="excanv" style="height:280px"><canvas id="chCarteraCliente"></canvas></div></div>
   </div>
 </div>
 
@@ -178,7 +196,7 @@ async function cargarTodo(){
   try{
     [FACTURAS,COMPRAS,MOVS]=await Promise.all([
       sbGet('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera&limit=10000'),
-      sbGet('biz_compra?select=orden_compra,proveedor,valor,estado,categoria_proveedor,saldo_factura,valor_factura&limit=10000'),
+      sbGet('biz_compra?select=orden_compra,proveedor,valor,estado,categoria_proveedor,saldo_factura,valor_factura,fecha&limit=10000'),
       sbGet('biz_movimiento_tesoreria?select=valor,clasificacion_texto,origen_hoja&limit=10000'),
     ]);
     pintarKpis();
@@ -189,26 +207,49 @@ async function cargarTodo(){
   }
 }
 function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
+function estadoLimpio(s){ return (s||'').replace(/[\s\u00a0]+/g,' ').trim(); }
+function enRango(fechaStr, desde, hasta){
+  if(!fechaStr) return false;
+  return fechaStr >= desde && fechaStr <= hasta;
+}
 function pintarKpis(){
-  var facturasValidas = FACTURAS.filter(r => (r.estado||'').trim().toLowerCase() !== 'anulado');
-  var comprasValidas = COMPRAS.filter(r => r.estado !== 'Anulada / Rechazada');
+  var hoy = new Date();
+  var hoyStr = hoy.toISOString().slice(0,10);
+  var inicioAnioStr = hoy.getFullYear()+'-01-01';
+  var hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
+  var hace30Str = hace30.toISOString().slice(0,10);
 
-  var totalFacturado = sum(facturasValidas, r=>r.valor_total_factura);
-  var totalCompras = sum(comprasValidas, r=>r.valor);
-  var carteraClientes = sum(FACTURAS.filter(r => r.estado === 'Pdte de Pago'), r=>r.valor_total_factura);
+  var facturasValidas = FACTURAS.filter(r => estadoLimpio(r.estado).toLowerCase() !== 'anulado');
+  var comprasValidas = COMPRAS.filter(r => estadoLimpio(r.estado) !== 'Anulada / Rechazada');
+
+  // Facturado
+  var facturadoAnio = sum(facturasValidas.filter(r=>enRango(r.fecha_factura, inicioAnioStr, hoyStr)), r=>r.valor_total_factura);
+  var facturadoUltMes = sum(facturasValidas.filter(r=>enRango(r.fecha_factura, hace30Str, hoyStr)), r=>r.valor_total_factura);
+
+  // Compras
+  var comprasAnio = sum(comprasValidas.filter(r=>enRango(r.fecha, inicioAnioStr, hoyStr)), r=>r.valor);
+  var comprasUltMes = sum(comprasValidas.filter(r=>enRango(r.fecha, hace30Str, hoyStr)), r=>r.valor);
+
+  // Cartera (a la fecha de hoy, sin filtro de fecha — es el saldo actual)
+  var carteraClientes = sum(FACTURAS.filter(r => estadoLimpio(r.estado) === 'Pdte de Pago'), r=>r.valor_total_factura);
   var carteraProveedores = sum(comprasValidas.filter(r=>r.saldo_factura!=null && r.saldo_factura>0), r=>r.saldo_factura);
 
-  document.getElementById('kpis').innerHTML=[
-    kpi(fmtCOP(totalFacturado),'','Total facturado','Excluye anuladas', '#eef2f6'),
-    kpi(fmtCOP(totalCompras),'','Total en compras','Excluye anuladas/rechazadas', '#eef2f6'),
-    kpi(fmtCOP(carteraClientes),'','Cartera por cobrar','Facturas en estado "Pdte de Pago"', ROJO),
-    kpi(fmtCOP(carteraProveedores),'','Cartera por pagar','Saldo pendiente a proveedores', AMBER),
+  document.getElementById('kpisFacturado').innerHTML=[
+    kpi(fmtCOP(facturadoAnio),'','Año '+hoy.getFullYear(),'Excluye anuladas', '#eef2f6'),
+    kpi(fmtCOP(facturadoUltMes),'','Últimos 30 días','Del '+hace30Str+' al '+hoyStr, '#eef2f6'),
   ].join('');
 
-  var fechasFactura = FACTURAS.map(r=>r.fecha_factura).filter(Boolean).sort();
-  if(fechasFactura.length){
-    document.getElementById('periodo').textContent = 'Datos de facturación: ' + fechasFactura[0] + ' a ' + fechasFactura[fechasFactura.length-1];
-  }
+  document.getElementById('kpisCompras').innerHTML=[
+    kpi(fmtCOP(comprasAnio),'','Año '+hoy.getFullYear(),'Excluye anuladas/rechazadas', '#eef2f6'),
+    kpi(fmtCOP(comprasUltMes),'','Últimos 30 días','Del '+hace30Str+' al '+hoyStr, '#eef2f6'),
+  ].join('');
+
+  document.getElementById('kpisCartera').innerHTML=[
+    kpi(fmtCOP(carteraClientes),'','Por cobrar','Facturas en estado "Pdte de Pago"', ROJO),
+    kpi(fmtCOP(carteraProveedores),'','Por pagar','Saldo pendiente a proveedores', AMBER),
+  ].join('');
+
+  document.getElementById('periodo').textContent = 'Consulta al '+hoyStr+' · Fuente: Excel de Total QC sincronizado por n8n';
 }
 function kpi(n,unidad,label,sub,col){
   return '<div class="kpi"><div class="n" style="color:'+(col||'#eef2f6')+'">'+n+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
@@ -243,16 +284,13 @@ function drawDoughnut(canvasId,entries,colors){
 function pintarGraficos(){
   drawBar('chCompraCat', tally(COMPRAS, r=>r.categoria_proveedor, r=>r.valor, 10), NAR, true);
   drawBar('chTesoClasif', tally(MOVS, r=>r.clasificacion_texto, r=>Math.abs(r.valor), 10), CY, true);
-  drawDoughnut('chFacturaEstado', tally(FACTURAS, r=>r.estado, ()=>1, 8));
-  drawDoughnut('chCompraEstado', tally(COMPRAS, r=>r.estado, ()=>1, 8));
+  drawDoughnut('chFacturaEstado', tally(FACTURAS, r=>estadoLimpio(r.estado)||'Sin estado', ()=>1, 8));
+  drawDoughnut('chCompraEstado', tally(COMPRAS, r=>estadoLimpio(r.estado)||'Sin estado', ()=>1, 8));
 }
 function pintarPendientes(){
-  var pend=FACTURAS.filter(r=>!r.fecha_pago && r.valor_total_factura).sort((a,b)=>(b.valor_total_factura||0)-(a.valor_total_factura||0)).slice(0,20);
-  if(!pend.length){ document.getElementById('tablaPend').innerHTML='<div class="muted">No hay facturas pendientes. 👌</div>'; return; }
-  var rows=pend.map(function(r){
-    return '<tr><td>'+esc(r.numero_factura)+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+fmtCOP(r.valor_total_factura)+'</td><td>'+esc(r.estado||'—')+'</td><td>'+esc(r.fecha_vencimiento||'—')+'</td></tr>';
-  }).join('');
-  document.getElementById('tablaPend').innerHTML='<table class="dl"><thead><tr><th>Factura</th><th>Cliente</th><th>Valor</th><th>Estado</th><th>Vencimiento</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  var pend = FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago' && r.valor_total_factura);
+  var porCliente = tally(pend, r=>r.cliente, r=>r.valor_total_factura, 10);
+  drawBar('chCarteraCliente', porCliente, ROJO, true);
 }
 
 document.getElementById('pass').addEventListener('keydown',function(e){ if(e.key==='Enter') entrar(); });

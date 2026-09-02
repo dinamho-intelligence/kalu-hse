@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '70';
+const KC_VER = '71';
 
 let sb = null;
 
@@ -749,6 +749,106 @@ const CSS = `
 }
 `;
 
+
+/* =================================================================
+   LA VOZ DE KALU
+
+   No se construye acá: ya existe. `kalu-hse-tts` es el mismo webhook
+   que usan el ATS, las investigaciones y el demo — le mandás texto y
+   devuelve un mp3. Que Kalu suene igual en todo el producto es lo que
+   hace que se sienta un producto y no cuatro cosas sueltas.
+
+   TRES COSAS QUE NO SON ADORNO:
+
+   · COLA CON FICHA. Cada pedido lleva un número. Si la persona pasa a
+     la pantalla siguiente mientras el audio anterior venía viajando,
+     ese audio llega tarde y hay que tirarlo — si no, Kalu termina
+     leyendo la pantalla que ya pasó.
+
+   · SI EL WEBHOOK FALLA, HABLA EL NAVEGADOR. `speechSynthesis` suena
+     peor, pero suena. Una capacitación muda a mitad de camino es una
+     capacitación perdida; una con voz fea se termina igual.
+
+   · EL NAVEGADOR PUEDE NEGARSE A REPRODUCIR. Si nadie tocó la pantalla
+     todavía, Chrome bloquea el audio sin avisar. Por eso, cuando falla,
+     el botón queda diciendo que hay que tocarlo — en vez de quedarse
+     mudo y que parezca que la voz no anda.
+   ================================================================= */
+const KC_TTS = 'https://dnmintell.app.n8n.cloud/webhook/kalu-hse-tts';
+
+const _voz = (function () {
+  let prendida = false, ficha = 0, sonando = null, bloqueado = false;
+  try { prendida = localStorage.getItem('kalu_voz') !== '0'; } catch (e) {}
+
+  function parar() {
+    ficha++;
+    try { if (sonando) { sonando.pause(); sonando = null; } } catch (e) {}
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+  }
+
+  function navegador(txt, mia) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance(txt);
+      u.lang = 'es-419'; u.rate = 1.03;
+      if (mia === ficha) speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  async function decir(txt) {
+    if (!prendida) return;
+    txt = String(txt || '').trim();
+    if (!txt) return;
+    parar();
+    const mia = ficha;
+    try {
+      const r = await fetch(KC_TTS, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto: txt.slice(0, 4000) })
+      });
+      if (!r.ok) throw new Error('tts');
+      const b = await r.blob();
+      if (mia !== ficha || !prendida) return;
+      if (!b || b.size < 200) throw new Error('vacio');
+      const url = URL.createObjectURL(b);
+      const a = new Audio(url);
+      sonando = a;
+      a.addEventListener('ended', () => { try { URL.revokeObjectURL(url); } catch (e) {} });
+      await a.play();
+      bloqueado = false;
+    } catch (e) {
+      // El navegador bloquea el audio hasta que alguien toca la pantalla.
+      // Eso no es lo mismo que un error del servicio, y se avisa distinto.
+      if (e && e.name === 'NotAllowedError') { bloqueado = true; return; }
+      navegador(txt, mia);
+    }
+  }
+
+  return {
+    decir, parar,
+    get prendida() { return prendida; },
+    get bloqueado() { return bloqueado; },
+    alternar() {
+      prendida = !prendida;
+      if (!prendida) parar(); else bloqueado = false;
+      try { localStorage.setItem('kalu_voz', prendida ? '1' : '0'); } catch (e) {}
+      return prendida;
+    }
+  };
+})();
+
+/* Lo que Kalu tiene que leer de una pantalla: el texto, no la maqueta.
+   Las imágenes se saltean —leer una URL en voz alta no le sirve a
+   nadie— pero su epígrafe sí se lee, porque suele explicar la foto. */
+function _textoDe(bloques) {
+  return (bloques || []).map(function (b) {
+    if (b.tipo === 'separador') return '';
+    if (b.tipo === 'imagen')    return b.nota || '';
+    if (b.tipo === 'lista')     return String(b.texto || '').split('|').join('. ');
+    return [b.texto, b.nota].filter(Boolean).join('. ');
+  }).filter(Boolean).join('. ').replace(/\s+/g, ' ').trim();
+}
+
 function estilos() {
   if (document.getElementById('kc-css')) return;
   const s = document.createElement('style');
@@ -1321,16 +1421,55 @@ async function curso(sel, catalogoId, opt) {
         <div class="kc-tt" id="kc-ct"></div></div>
         <div style="margin-left:auto;text-align:right;flex:0 0 auto">
           <div class="kc-cd" id="kc-paso"></div>
-          <button class="kc-mini" id="kc-salir" style="margin-top:5px">Salir</button></div></div>
+          <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:5px">
+            <button class="kc-mini" id="kc-voz"></button>
+            <button class="kc-mini" id="kc-salir">Salir</button></div></div></div>
         <div class="kc-bar"><i id="kc-bi"></i></div></div>
       <div class="kc-main" id="kc-m"></div>
       <div class="kc-foot"><button class="kc-btn" id="kc-b"></button></div></div>`;
     el.querySelector('#kc-salir').onclick = () => {
+      _voz.parar();
       guardar();
       if (opt && opt.volver) opt.volver(); else pasaporte(sel);
     };
+    const bv = el.querySelector('#kc-voz');
+    function pintarVoz() {
+      // El orden importa: si la voz está apagada, está apagada — que
+      // diga «tocá para escuchar» cuando la persona acaba de silenciarla
+      // es el botón contradiciendo a quien lo apretó.
+      bv.textContent = !_voz.prendida ? '🔇 En silencio'
+                     : (_voz.bloqueado ? '🔈 Tocá para escuchar' : '🔊 Kalu lee');
+      bv.title = _voz.prendida ? 'Kalu te lee la capacitación en voz alta'
+                               : 'Leer en silencio';
+    }
+    bv.onclick = () => {
+      const ahora = _voz.alternar();
+      pintarVoz();
+      // Este clic ES el gesto que el navegador estaba esperando: si
+      // estaba bloqueado, ahora sí puede sonar, y arranca por donde va.
+      if (ahora) leerPantalla();
+    };
+    pintarVoz();
+    _pintarVoz = pintarVoz;
     sello();
     render();
+  }
+
+  let _pintarVoz = function () {};
+
+  /* Kalu lee la pantalla de lectura donde está parada la persona.
+     Las preguntas del examen NO se leen solas: se lee el enunciado
+     cuando la persona lo pide, pero las opciones se leen en pantalla.
+     Escuchar cuatro opciones seguidas y tener que acordarse de las
+     cuatro convierte una pregunta de conocimiento en una de memoria. */
+  function leerPantalla() {
+    if (fin) return;
+    if (i < pant.length) _voz.decir(_textoDe(pant[i]));
+    else {
+      const q = Q[i - pant.length];
+      if (q) _voz.decir(q.enunciado);
+    }
+    setTimeout(_pintarVoz, 900);
   }
 
   function render() {
@@ -1346,10 +1485,16 @@ async function curso(sel, catalogoId, opt) {
       b.disabled = false;
       b.textContent = i === pant.length - 1 ? 'Empezar las preguntas' : 'Seguir';
       b.onclick = () => { i++; guardar(); window.scrollTo(0,0); render(); };
+      leerPantalla();
       return;
     }
     const k = i - pant.length, q = Q[k];
     el.querySelector('#kc-paso').textContent = `Pregunta ${k+1}/${Q.length}`;
+    // También se lee el enunciado. Un botón que dice «Kalu lee» y no lee
+    // nada es la clase de mentira muda que este módulo viene sacando; y
+    // para quien lee con dificultad, escuchar la pregunta es justo lo
+    // que la hace contestable. Las opciones no: están en pantalla.
+    leerPantalla();
     m.innerHTML = avisoRetomado() +
       `<p class="kc-cd" style="margin-bottom:8px">PREGUNTA ${k+1} DE ${Q.length}</p>
       <p class="kc-q">${esc(q.enunciado)}</p><div class="kc-ops">` +

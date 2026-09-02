@@ -69,6 +69,7 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+  <div id="errorGlobal"></div>
   <div id="periodo" class="muted" style="margin-bottom:12px"></div>
 
   <div class="kpigrupo">
@@ -192,7 +193,6 @@ function salir(){ try{ if(_idleT)clearTimeout(_idleT); }catch(e){} TOKEN=null; c
 /* ===== carga y agregación (client-side, mismo patrón que el Explorador de Dirección) ===== */
 let FACTURAS=[], COMPRAS=[], MOVS=[];
 async function cargarTodo(){
-  document.getElementById('kpis').innerHTML='<div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>'.repeat(4);
   try{
     [FACTURAS,COMPRAS,MOVS]=await Promise.all([
       sbGet('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera&limit=10000'),
@@ -203,7 +203,8 @@ async function cargarTodo(){
     pintarGraficos();
     pintarPendientes();
   }catch(err){
-    document.getElementById('kpis').innerHTML='<div class="sec"><div class="err" style="color:#ff8a82">No se pudieron cargar los datos ('+esc(err.message)+').</div></div>';
+    document.getElementById('errorGlobal').innerHTML='<div class="sec"><div class="err" style="color:#ff8a82">No se pudieron cargar los datos: '+esc(err.message)+'</div></div>';
+    console.error('KALU Biz error:', err);
   }
 }
 function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }

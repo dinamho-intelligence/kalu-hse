@@ -1,0 +1,251 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KALU Biz · Total QC</title>
+<style>
+:root{--bg:#0b0e13;--panel:#0f141b;--card:#141a22;--line:#28303b;--line2:#333d4a;--tx:#eef2f6;--tx2:#9fabb8;--tx3:#6b7784;--nar:#f7941d;--cy:#00d4ff;--verde:#25c26e;--amber:#f7941d;--rojo:#e23b3b;--grad:linear-gradient(120deg,#e23b3b,#f7941d)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 18px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.wm{font-weight:800;font-size:22px;letter-spacing:3px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bt{font-size:10px;letter-spacing:2px;color:var(--tx3);text-transform:uppercase}
+.btn{background:#141a22;border:1px solid var(--line2);color:var(--tx);border-radius:9px;padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--nar)}
+.btn.pri{background:rgba(0,212,255,.12);border-color:var(--cy);color:#7fe6ff}
+#login{max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+#login h1{font-size:18px;margin-bottom:4px}#login p{color:var(--tx2);font-size:13px;margin-bottom:16px}
+#login input{width:100%;background:#0b0f14;border:1px solid var(--line2);color:var(--tx);border-radius:9px;padding:11px 12px;font-size:14px;margin-bottom:10px}
+#login button{width:100%;background:var(--grad);border:0;color:#fff;font-weight:700;border-radius:9px;padding:12px;font-size:14px;cursor:pointer}
+.err{color:#ff8a82;font-size:12.5px;min-height:16px;margin-top:2px}
+.hide{display:none!important}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:720px){.kpis{grid-template-columns:1fr 1fr}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px}
+.kpi .n{font-size:23px;font-weight:800;line-height:1.1}
+.kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;letter-spacing:.4px;text-transform:uppercase}
+.kpi .s{font-size:11px;color:var(--tx3);margin-top:5px}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.sec h2{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.muted{color:var(--tx3);font-size:13px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+.excard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 8px}
+.excard h3{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.excanv{position:relative;height:220px}
+.exempty{color:var(--tx3);font-size:12.5px;padding:30px 8px;text-align:center}
+table.dl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.dl th{text-align:left;color:var(--tx3);text-transform:uppercase;font-size:10px;letter-spacing:.5px;padding:8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+table.dl td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx2);vertical-align:top}
+table.dl tr:hover td{background:rgba(255,255,255,.02)}
+.tabs{display:flex;gap:4px;background:#0f141b;border:1px solid var(--line);border-radius:11px;padding:4px;margin-bottom:14px}
+.tab{padding:7px 13px;border-radius:8px;font-size:13px;color:var(--tx2);cursor:pointer;border:0;background:transparent;font-weight:600}
+.tab.on{background:var(--nar);color:#0b0e13}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="brand" style="margin-bottom:14px"><span class="wm">KALU</span><span class="bt">Biz · Total QC</span></div>
+  <h1>Acceso KALU Biz</h1>
+  <p>Panel financiero. Ingresá con tu correo autorizado.</p>
+  <input id="email" type="email" placeholder="correo@empresa.com" autocomplete="username">
+  <input id="pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+  <button id="btnLogin" onclick="entrar()">Ingresar</button>
+  <div class="err" id="loginErr"></div>
+  <div style="text-align:center;margin-top:16px"><a href="index.html" style="color:var(--tx2);text-decoration:none;font-size:13px">← Volver al inicio</a></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="wrap hide">
+  <div class="top">
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Biz · Total QC</span></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn pri" id="btnRefresh" onclick="cargarTodo()">↻ Actualizar</button>
+      <button class="btn" onclick="salir()">Salir</button>
+    </div>
+  </div>
+
+  <div id="kpis" class="kpis">
+    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+    <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
+  </div>
+
+  <div class="sec">
+    <h2>¿En qué se está gastando?</h2>
+    <div class="grid2">
+      <div class="excard"><h3>Compras por categoría de proveedor</h3><div class="excanv"><canvas id="chCompraCat"></canvas></div></div>
+      <div class="excard"><h3>Tesorería por clasificación (top 10)</h3><div class="excanv"><canvas id="chTesoClasif"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>Cartera</h2>
+    <div class="grid2">
+      <div class="excard"><h3>Facturas por estado (clientes)</h3><div class="excanv"><canvas id="chFacturaEstado"></canvas></div></div>
+      <div class="excard"><h3>Compras por estado (proveedores)</h3><div class="excanv"><canvas id="chCompraEstado"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">Facturas pendientes de pago (top 20 por valor)</h2>
+    </div>
+    <div id="tablaPend"><div class="muted">Cargando…</div></div>
+  </div>
+</div>
+
+<script>
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+const SB_REF='nignqeipzlemwfrwmpip';
+const SESS_KEY='sb-'+SB_REF+'-auth-token';
+const LOGOUT_KEY='kalu_logout';
+let TOKEN=null, MYID=null, MY_SESION=null, IDLE_MIN=60, _idleT=null, _pollT=null;
+let CH={};
+const NAR='#f7941d', CY='#00d4ff', VERDE='#25c26e', ROJO='#e23b3b', AMBER='#f7941d';
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmt(n){ if(n==null||isNaN(n)) return '—'; return new Intl.NumberFormat('es-CO',{maximumFractionDigits:0}).format(n); }
+function fmtCOP(n){ if(n==null||isNaN(n)) return '—'; return '$'+fmt(n); }
+async function sbGet(path){
+  const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
+  if(!r.ok) throw new Error('get '+path+' '+r.status); return r.json();
+}
+async function sbRpc(fn,body){
+  const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  if(!r.ok) throw new Error('rpc '+fn+' '+r.status); return r.json();
+}
+/* ===== sesión compartida + auto-cierre por inactividad (mismo patrón que Tablero de Dirección) ===== */
+function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){ } }
+function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||'null'); }catch(_){ return null; } }
+function clearSession(){ try{ localStorage.removeItem(SESS_KEY); }catch(_){ } }
+async function refrescarToken(rt){ if(!rt) return false; try{ var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); var d=await r.json(); if(!r.ok||!d.access_token) return false; TOKEN=d.access_token; saveSession(d); return true; }catch(_){ return false; } }
+function resetIdle(){ if(_idleT)clearTimeout(_idleT); _idleT=setTimeout(function(){ forzarSalida('Cerramos tu sesión por inactividad.'); }, (IDLE_MIN||60)*60000); }
+function cerrarLocal(){ try{ TOKEN=null; if(_idleT)clearTimeout(_idleT); }catch(_){ } location.href='index.html'; }
+function forzarSalida(msg){ clearSession(); try{ localStorage.setItem(LOGOUT_KEY,String(Date.now())); }catch(_){ } if(msg){ try{ alert(msg); }catch(_){ } } cerrarLocal(); }
+function armarGuards(){ ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(ev){ window.addEventListener(ev,resetIdle,{passive:true}); }); resetIdle(); window.addEventListener('storage',function(e){ if(e.key===LOGOUT_KEY)cerrarLocal(); }); }
+/* ===== acceso al módulo biz: super, o accesos.modulo='biz' activo ===== */
+async function tengoAccesoBiz(){
+  try{
+    var perfil=await sbGet('perfiles?select=id,es_super&id=eq.'+MYID);
+    if(perfil && perfil[0] && perfil[0].es_super) return true;
+  }catch(_){}
+  try{
+    var acc=await sbGet('accesos?select=id&usuario_id=eq.'+MYID+'&modulo=eq.biz&estado=eq.activo');
+    return !!(acc && acc.length);
+  }catch(_){ return false; }
+}
+async function restoreSession(){
+  var s=readSession();
+  if(!s || !s.access_token) return;
+  TOKEN=s.access_token;
+  var now=Math.floor(Date.now()/1000);
+  if(s.expires_at && s.expires_at < now+60){ if(!await refrescarToken(s.refresh_token)){ clearSession(); TOKEN=null; return; } s=readSession()||s; }
+  MYID=(s.user&&s.user.id)||null;
+  if(!await tengoAccesoBiz()){ TOKEN=null; return; }
+  document.getElementById('login').classList.add('hide');
+  document.getElementById('app').classList.remove('hide');
+  armarGuards();
+  cargarTodo();
+}
+async function entrar(){
+  var b=document.getElementById('btnLogin'), e=document.getElementById('loginErr');
+  var email=document.getElementById('email').value.trim(), pass=document.getElementById('pass').value;
+  if(!email||!pass){e.textContent='Completá correo y contraseña.';return;}
+  b.disabled=true;b.textContent='Ingresando…';e.textContent='';
+  try{
+    var r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({email,password:pass})});
+    var d=await r.json();
+    if(!r.ok||!d.access_token){e.textContent='Correo o contraseña incorrectos.';b.disabled=false;b.textContent='Ingresar';return;}
+    TOKEN=d.access_token; MYID=(d.user&&d.user.id)||null;
+    if(!await tengoAccesoBiz()){e.textContent='Tu correo no tiene acceso a KALU Biz.';TOKEN=null;b.disabled=false;b.textContent='Ingresar';return;}
+    saveSession(d); armarGuards();
+    document.getElementById('login').classList.add('hide');
+    document.getElementById('app').classList.remove('hide');
+    cargarTodo();
+  }catch(err){e.textContent='No se pudo conectar. Reintentá.';b.disabled=false;b.textContent='Ingresar';}
+}
+function salir(){ try{ if(_idleT)clearTimeout(_idleT); }catch(e){} TOKEN=null; clearSession(); location.href='index.html'; }
+
+/* ===== carga y agregación (client-side, mismo patrón que el Explorador de Dirección) ===== */
+let FACTURAS=[], COMPRAS=[], MOVS=[];
+async function cargarTodo(){
+  document.getElementById('kpis').innerHTML='<div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>'.repeat(4);
+  try{
+    [FACTURAS,COMPRAS,MOVS]=await Promise.all([
+      sbGet('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera&limit=10000'),
+      sbGet('biz_compra?select=orden_compra,proveedor,valor,estado,categoria_proveedor,saldo_factura,valor_factura&limit=10000'),
+      sbGet('biz_movimiento_tesoreria?select=valor,clasificacion_texto,origen_hoja&limit=10000'),
+    ]);
+    pintarKpis();
+    pintarGraficos();
+    pintarPendientes();
+  }catch(err){
+    document.getElementById('kpis').innerHTML='<div class="sec"><div class="err" style="color:#ff8a82">No se pudieron cargar los datos ('+esc(err.message)+').</div></div>';
+  }
+}
+function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
+function pintarKpis(){
+  var totalFacturado = sum(FACTURAS, r=>r.valor_total_factura);
+  var totalCompras = sum(COMPRAS, r=>r.valor);
+  var carteraClientes = sum(FACTURAS.filter(r=>!r.fecha_pago), r=>r.valor_total_factura);
+  var carteraProveedores = sum(COMPRAS.filter(r=>r.saldo_factura!=null), r=>r.saldo_factura);
+  document.getElementById('kpis').innerHTML=[
+    kpi(fmtCOP(totalFacturado),'','Total facturado','', '#eef2f6'),
+    kpi(fmtCOP(totalCompras),'','Total en compras','', '#eef2f6'),
+    kpi(fmtCOP(carteraClientes),'','Cartera por cobrar','Facturas sin fecha de pago', ROJO),
+    kpi(fmtCOP(carteraProveedores),'','Cartera por pagar','Saldo pendiente a proveedores', AMBER),
+  ].join('');
+}
+function kpi(n,unidad,label,sub,col){
+  return '<div class="kpi"><div class="n" style="color:'+(col||'#eef2f6')+'">'+n+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
+}
+function tally(arr,keyFn,valFn,top){
+  var m={};
+  arr.forEach(function(r){ var k=keyFn(r)||'Sin clasificar'; var v=valFn?valFn(r):1; m[k]=(m[k]||0)+(typeof v==='number'&&!isNaN(v)?v:0); });
+  var entries=Object.keys(m).map(function(k){return [k,m[k]];}).sort(function(a,b){return b[1]-a[1];});
+  return entries.slice(0,top||10);
+}
+function destroyChart(id){ if(CH[id]){ try{CH[id].destroy();}catch(e){} delete CH[id]; } }
+function drawBar(canvasId,entries,color,horizontal){
+  destroyChart(canvasId);
+  var canv=document.getElementById(canvasId);
+  if(!entries.length){ canv.parentElement.innerHTML='<div class="exempty">Sin datos</div>'; return; }
+  var labels=entries.map(e=>e[0]), data=entries.map(e=>e[1]);
+  CH[canvasId]=new Chart(canv,{type:'bar',data:{labels:labels,datasets:[{data:data,backgroundColor:color,borderRadius:6}]},
+    options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return fmtCOP(ctx.parsed[horizontal?'x':'y']);}}}},
+      scales:{x:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#95A0AD',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#95A0AD',font:{size:10}},beginAtZero:true}}}});
+}
+function drawDoughnut(canvasId,entries,colors){
+  destroyChart(canvasId);
+  var canv=document.getElementById(canvasId);
+  if(!entries.length){ canv.parentElement.innerHTML='<div class="exempty">Sin datos</div>'; return; }
+  var labels=entries.map(e=>e[0]), data=entries.map(e=>e[1]);
+  CH[canvasId]=new Chart(canv,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors||[NAR,CY,VERDE,ROJO,'#9b59b6','#3498db'],borderColor:'#12161C',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+      plugins:{legend:{position:'bottom',labels:{color:'#9fabb8',padding:8,font:{size:10}}},
+        tooltip:{callbacks:{label:function(ctx){return ctx.label+': '+fmtCOP(ctx.parsed);}}}}}});
+}
+function pintarGraficos(){
+  drawBar('chCompraCat', tally(COMPRAS, r=>r.categoria_proveedor, r=>r.valor, 10), NAR, true);
+  drawBar('chTesoClasif', tally(MOVS, r=>r.clasificacion_texto, r=>Math.abs(r.valor), 10), CY, true);
+  drawDoughnut('chFacturaEstado', tally(FACTURAS, r=>r.estado, ()=>1, 8));
+  drawDoughnut('chCompraEstado', tally(COMPRAS, r=>r.estado, ()=>1, 8));
+}
+function pintarPendientes(){
+  var pend=FACTURAS.filter(r=>!r.fecha_pago && r.valor_total_factura).sort((a,b)=>(b.valor_total_factura||0)-(a.valor_total_factura||0)).slice(0,20);
+  if(!pend.length){ document.getElementById('tablaPend').innerHTML='<div class="muted">No hay facturas pendientes. 👌</div>'; return; }
+  var rows=pend.map(function(r){
+    return '<tr><td>'+esc(r.numero_factura)+'</td><td>'+esc(r.cliente||'—')+'</td><td>'+fmtCOP(r.valor_total_factura)+'</td><td>'+esc(r.estado||'—')+'</td><td>'+esc(r.fecha_vencimiento||'—')+'</td></tr>';
+  }).join('');
+  document.getElementById('tablaPend').innerHTML='<table class="dl"><thead><tr><th>Factura</th><th>Cliente</th><th>Valor</th><th>Estado</th><th>Vencimiento</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+document.getElementById('pass').addEventListener('keydown',function(e){ if(e.key==='Enter') entrar(); });
+restoreSession();
+</script>
+</body></html>

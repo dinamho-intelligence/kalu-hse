@@ -68,12 +68,12 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <div id="kpis" class="kpis">
-    <div id="periodo" class="muted" style="margin:-10px 0 16px"></div>
     <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
     <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
     <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
     <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
   </div>
+  <div id="periodo" class="muted" style="margin:-10px 0 16px"></div>
 
   <div class="sec">
     <h2>¿En qué se está gastando?</h2>
@@ -181,7 +181,15 @@ async function cargarTodo(){
       sbGet('biz_compra?select=orden_compra,proveedor,valor,estado,categoria_proveedor,saldo_factura,valor_factura&limit=10000'),
       sbGet('biz_movimiento_tesoreria?select=valor,clasificacion_texto,origen_hoja&limit=10000'),
     ]);
-    function pintarKpis(){
+    pintarKpis();
+    pintarGraficos();
+    pintarPendientes();
+  }catch(err){
+    document.getElementById('kpis').innerHTML='<div class="sec"><div class="err" style="color:#ff8a82">No se pudieron cargar los datos ('+esc(err.message)+').</div></div>';
+  }
+}
+function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
+function pintarKpis(){
   var facturasValidas = FACTURAS.filter(r => (r.estado||'').trim().toLowerCase() !== 'anulado');
   var comprasValidas = COMPRAS.filter(r => r.estado !== 'Anulada / Rechazada');
 
@@ -201,25 +209,6 @@ async function cargarTodo(){
   if(fechasFactura.length){
     document.getElementById('periodo').textContent = 'Datos de facturación: ' + fechasFactura[0] + ' a ' + fechasFactura[fechasFactura.length-1];
   }
-}
-    pintarGraficos();
-    pintarPendientes();
-  }catch(err){
-    document.getElementById('kpis').innerHTML='<div class="sec"><div class="err" style="color:#ff8a82">No se pudieron cargar los datos ('+esc(err.message)+').</div></div>';
-  }
-}
-function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
-function pintarKpis(){
-  var totalFacturado = sum(FACTURAS, r=>r.valor_total_factura);
-  var totalCompras = sum(COMPRAS, r=>r.valor);
-  var carteraClientes = sum(FACTURAS.filter(r=>!r.fecha_pago), r=>r.valor_total_factura);
-  var carteraProveedores = sum(COMPRAS.filter(r=>r.saldo_factura!=null), r=>r.saldo_factura);
-  document.getElementById('kpis').innerHTML=[
-    kpi(fmtCOP(totalFacturado),'','Total facturado','', '#eef2f6'),
-    kpi(fmtCOP(totalCompras),'','Total en compras','', '#eef2f6'),
-    kpi(fmtCOP(carteraClientes),'','Cartera por cobrar','Facturas sin fecha de pago', ROJO),
-    kpi(fmtCOP(carteraProveedores),'','Cartera por pagar','Saldo pendiente a proveedores', AMBER),
-  ].join('');
 }
 function kpi(n,unidad,label,sub,col){
   return '<div class="kpi"><div class="n" style="color:'+(col||'#eef2f6')+'">'+n+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';

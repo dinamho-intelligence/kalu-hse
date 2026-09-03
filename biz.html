@@ -40,8 +40,29 @@ table.dl th{text-align:left;color:var(--tx3);text-transform:uppercase;font-size:
 table.dl td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);color:var(--tx2);vertical-align:top}
 table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .tabs{display:flex;gap:4px;background:#0f141b;border:1px solid var(--line);border-radius:11px;padding:4px;margin-bottom:14px}
-.tab{padding:7px 13px;border-radius:8px;font-size:13px;color:var(--tx2);cursor:pointer;border:0;background:transparent;font-weight:600}
+.tab{padding:8px 15px;border-radius:8px;font-size:13px;color:var(--tx2);cursor:pointer;border:0;background:transparent;font-weight:600}
 .tab.on{background:var(--nar);color:#0b0e13}
+.chatmsgs{height:56vh;min-height:320px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px 14px 0 0}
+.cbub{max-width:82%;display:flex;flex-direction:column;gap:3px}
+.cbub.vos{align-self:flex-end;align-items:flex-end}
+.cbub.kalu{align-self:flex-start}
+.cwho{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--tx3)}
+.cbub.kalu .cwho{color:var(--nar)}
+.ctxt{padding:11px 14px;border-radius:14px;font-size:13.5px;line-height:1.6}
+.cbub.kalu .ctxt{background:var(--card);border:1px solid var(--line);color:var(--tx);border-bottom-left-radius:4px}
+.cbub.vos .ctxt{background:linear-gradient(135deg,var(--nar),#C86E00);color:#0A0C0F;border-bottom-right-radius:4px;font-weight:500}
+.chatsug{display:flex;flex-wrap:wrap;gap:7px;padding:10px 16px;background:var(--panel);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.sug{background:var(--card);border:1px solid var(--line);color:var(--tx2);border-radius:16px;padding:7px 12px;font-size:12px;cursor:pointer;text-align:left}
+.chatin{display:flex;gap:8px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-top:1px solid var(--line2);border-radius:0 0 14px 14px}
+.chatin textarea{flex:1;background:#0b0f14;border:1px solid var(--line2);border-radius:12px;color:var(--tx);font-size:14px;padding:11px 13px;font-family:inherit;resize:none;outline:none;max-height:100px}
+.chatin textarea:focus{border-color:var(--nar)}
+.chatmic{width:44px;border:1px solid var(--line2);border-radius:12px;background:#0b0f14;color:var(--tx2);font-size:16px;cursor:pointer;flex:0 0 auto}
+.chatmic.on{background:var(--rojo);color:#fff;border-color:var(--rojo)}
+.chatsend{width:44px;border:none;border-radius:12px;background:var(--nar);color:#0A0C0F;font-size:18px;font-weight:800;cursor:pointer;flex:0 0 auto}
+.chatsend:disabled{opacity:.5}
+.typ span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--nar);animation:blink 1.2s infinite both}
+.typ span:nth-child(2){animation-delay:.2s}.typ span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -69,6 +90,12 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+  <div class="tabs">
+    <button class="tab on" id="tabPanel" onclick="verVista('panel')">📊 Panel</button>
+    <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
+  </div>
+
+  <div id="viewPanel">
   <div id="errorGlobal"></div>
   <div id="periodo" class="muted" style="margin-bottom:12px"></div>
 
@@ -116,7 +143,92 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     <h2>Clientes con mayor saldo pendiente (cartera por cobrar)</h2>
     <div class="excard"><div class="excanv" style="height:280px"><canvas id="chCarteraCliente"></canvas></div></div>
   </div>
+  </div>
+
+  <div id="viewChat" class="hide">
+    <div id="chatMsgs" class="chatmsgs"></div>
+    <div id="chatSug" class="chatsug"></div>
+    <div class="chatin">
+      <textarea id="chatInput" rows="1" placeholder="Preguntale a KALU sobre tus datos…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarChat();}"></textarea>
+      <button id="chatMicBtn" class="chatmic" onclick="toggleDictado()" title="Hablar">🎤</button>
+      <button id="chatSend" class="chatsend" onclick="enviarChat()">➤</button>
+    </div>
+  </div>
 </div>
+
+<script>
+function verVista(v){
+  document.getElementById('tabPanel').classList.toggle('on', v==='panel');
+  document.getElementById('tabChat').classList.toggle('on', v==='chat');
+  document.getElementById('viewPanel').classList.toggle('hide', v!=='panel');
+  document.getElementById('viewChat').classList.toggle('hide', v!=='chat');
+  if(v==='chat') initChat();
+}
+const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-biz-chat';
+let chatHist=[];
+const SUGERENCIAS_BIZ=['¿Cuánto facturamos este mes?','¿Cuál es la cartera pendiente por cobrar?','¿En qué estamos gastando más?','¿Cómo viene la cartera de proveedores?'];
+function initChat(){
+  const m=document.getElementById('chatMsgs'); if(!m||m.dataset.init) return; m.dataset.init='1';
+  chatBubble('kalu','Hola, soy KALU. Preguntame lo que quieras sobre Compras, Tesorería o Facturación de Total QC — te respondo con tus datos reales.');
+  const sug=document.getElementById('chatSug'); if(sug) sug.innerHTML=SUGERENCIAS_BIZ.map(function(q){return '<button class="sug" onclick="usarSug(this)">'+esc(q)+'</button>';}).join('');
+}
+function usarSug(b){ document.getElementById('chatInput').value=b.textContent; enviarChat(); }
+function chatBubble(who,txt){
+  const m=document.getElementById('chatMsgs');
+  const d=document.createElement('div'); d.className='cbub '+who;
+  d.innerHTML='<div class="cwho">'+(who==='kalu'?'KALU':'Vos')+'</div><div class="ctxt">'+esc(txt).replace(/\n/g,'<br>')+'</div>';
+  m.appendChild(d); m.scrollTop=m.scrollHeight; return d;
+}
+function armarContexto(){
+  // Resumen compacto (no mandamos las miles de filas crudas, solo lo ya agregado)
+  return {
+    fecha_consulta: new Date().toISOString().slice(0,10),
+    ventas_totales_validas: FACTURAS.filter(r=>estadoLimpio(r.estado).toLowerCase()!=='anulado').reduce((a,r)=>a+(r.valor_total_factura||0),0),
+    compras_totales_validas: COMPRAS.filter(r=>estadoLimpio(r.estado)!=='Anulada / Rechazada').reduce((a,r)=>a+(r.valor||0),0),
+    cartera_por_cobrar: FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago').reduce((a,r)=>a+(r.valor_total_factura||0),0),
+    cartera_por_pagar: COMPRAS.filter(r=>r.saldo_factura>0).reduce((a,r)=>a+(r.saldo_factura||0),0),
+    top_categorias_compra: tally(COMPRAS, r=>r.categoria_proveedor, r=>r.valor, 10),
+    top_clasificacion_tesoreria: tally(MOVS, r=>r.clasificacion_texto, r=>Math.abs(r.valor), 10),
+    top_clientes_pendientes: tally(FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago'), r=>r.cliente, r=>r.valor_total_factura, 10),
+    facturas_por_estado: tally(FACTURAS, r=>estadoLimpio(r.estado), ()=>1, 10),
+    compras_por_estado: tally(COMPRAS, r=>estadoLimpio(r.estado), ()=>1, 10),
+  };
+}
+async function enviarChat(){
+  const ta=document.getElementById('chatInput'); const q=(ta.value||'').trim(); if(!q) return;
+  chatBubble('vos',q); ta.value='';
+  const btn=document.getElementById('chatSend'); btn.disabled=true;
+  const bub=chatBubble('kalu',''); bub.querySelector('.ctxt').innerHTML='<span class="typ"><span></span><span></span><span></span></span>';
+  try{
+    const r=await fetch(CHAT_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pregunta:q,contexto:armarContexto(),historial:chatHist.slice(-6),token:TOKEN})});
+    if(!r.ok) throw new Error('http '+r.status);
+    const d=await r.json();
+    const resp=(d&&(d.respuesta||d.mensaje||d.text))||'No pude responder eso ahora.';
+    bub.querySelector('.ctxt').innerHTML=esc(resp).replace(/\n/g,'<br>');
+    chatHist.push({pregunta:q,respuesta:resp});
+  }catch(e){ bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">No me pude conectar. Falta activar el flujo de n8n (kalu-biz-chat).</span>'; }
+  finally{ btn.disabled=false; ta.focus(); const m=document.getElementById('chatMsgs'); if(m)m.scrollTop=m.scrollHeight; }
+}
+/* Dictado por voz (Web Speech API — nativo del navegador, sin webhook extra) */
+let _rec=null, _dictando=false;
+function toggleDictado(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert('Tu navegador no soporta dictado por voz. Probá desde Chrome.'); return; }
+  const btn=document.getElementById('chatMicBtn');
+  if(_dictando){ if(_rec) _rec.stop(); return; }
+  _rec = new SR();
+  _rec.lang='es-CO'; _rec.interimResults=false; _rec.maxAlternatives=1;
+  _rec.onstart=function(){ _dictando=true; btn.classList.add('on'); };
+  _rec.onend=function(){ _dictando=false; btn.classList.remove('on'); };
+  _rec.onerror=function(){ _dictando=false; btn.classList.remove('on'); };
+  _rec.onresult=function(ev){
+    const texto=ev.results[0][0].transcript;
+    const ta=document.getElementById('chatInput');
+    ta.value=(ta.value?ta.value+' ':'')+texto;
+  };
+  _rec.start();
+}
+</script>
 
 <script>
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';

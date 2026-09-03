@@ -166,7 +166,7 @@ function verVista(v){
 }
 const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-biz-chat';
 let chatHist=[];
-const SUGERENCIAS_BIZ=['¿Cuánto facturamos este mes?','¿Cuál es la cartera pendiente por cobrar?','¿En qué estamos gastando más?','¿Cómo viene la cartera de proveedores?'];
+const SUGERENCIAS_BIZ=['¿Cuál es el gasto más desmesurado y por qué?','¿Cuánto facturamos este mes?','Dame un plan de choque para bajar la cartera de proveedores','¿En qué estamos gastando más y cómo lo controlo?'];
 function initChat(){
   const m=document.getElementById('chatMsgs'); if(!m||m.dataset.init) return; m.dataset.init='1';
   chatBubble('kalu','Hola, soy KALU. Preguntame lo que quieras sobre Compras, Tesorería o Facturación de Total QC — te respondo con tus datos reales.');
@@ -180,18 +180,31 @@ function chatBubble(who,txt){
   m.appendChild(d); m.scrollTop=m.scrollHeight; return d;
 }
 function armarContexto(){
-  // Resumen compacto (no mandamos las miles de filas crudas, solo lo ya agregado)
+  var comprasValidas = COMPRAS.filter(r=>estadoLimpio(r.estado)!=='Anulada / Rechazada');
+  // Top 20 compras individuales (no agregadas) — para poder señalar un gasto puntual desmesurado
+  var compraTop20 = comprasValidas.filter(r=>r.valor).sort((a,b)=>(b.valor||0)-(a.valor||0)).slice(0,20)
+    .map(r=>({orden_compra:r.orden_compra, proveedor:r.proveedor, categoria:r.categoria_proveedor, valor:r.valor, fecha:r.fecha, estado:estadoLimpio(r.estado)}));
+  // Evolución mensual de compras (últimos meses con datos)
+  var porMes={};
+  comprasValidas.forEach(function(r){ if(!r.fecha) return; var m=r.fecha.slice(0,7); porMes[m]=(porMes[m]||0)+(r.valor||0); });
+  var comprasPorMes = Object.keys(porMes).sort().slice(-8).map(m=>[m,porMes[m]]);
+  // Gasto acumulado por proveedor (para detectar concentración de riesgo)
+  var proveedorTop = tally(comprasValidas, r=>r.proveedor, r=>r.valor, 12);
+
   return {
     fecha_consulta: new Date().toISOString().slice(0,10),
     ventas_totales_validas: FACTURAS.filter(r=>estadoLimpio(r.estado).toLowerCase()!=='anulado').reduce((a,r)=>a+(r.valor_total_factura||0),0),
-    compras_totales_validas: COMPRAS.filter(r=>estadoLimpio(r.estado)!=='Anulada / Rechazada').reduce((a,r)=>a+(r.valor||0),0),
+    compras_totales_validas: comprasValidas.reduce((a,r)=>a+(r.valor||0),0),
     cartera_por_cobrar: FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago').reduce((a,r)=>a+(r.valor_total_factura||0),0),
-    cartera_por_pagar: COMPRAS.filter(r=>r.saldo_factura>0).reduce((a,r)=>a+(r.saldo_factura||0),0),
+    cartera_por_pagar: comprasValidas.filter(r=>r.saldo_factura>0).reduce((a,r)=>a+(r.saldo_factura||0),0),
     top_categorias_compra: tally(COMPRAS, r=>r.categoria_proveedor, r=>r.valor, 10),
     top_clasificacion_tesoreria: tally(MOVS, r=>r.clasificacion_texto, r=>Math.abs(r.valor), 10),
     top_clientes_pendientes: tally(FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago'), r=>r.cliente, r=>r.valor_total_factura, 10),
     facturas_por_estado: tally(FACTURAS, r=>estadoLimpio(r.estado), ()=>1, 10),
     compras_por_estado: tally(COMPRAS, r=>estadoLimpio(r.estado), ()=>1, 10),
+    compras_top20_individuales: compraTop20,
+    compras_evolucion_mensual: comprasPorMes,
+    proveedores_top_gasto_acumulado: proveedorTop,
   };
 }
 async function enviarChat(){

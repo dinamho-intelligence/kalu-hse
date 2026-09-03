@@ -26,9 +26,13 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",R
 .kpi .n{font-size:23px;font-weight:800;line-height:1.1}
 .kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;letter-spacing:.4px;text-transform:uppercase}
 .kpi .s{font-size:11px;color:var(--tx3);margin-top:5px}
+.kpi.parcial{border-style:dashed;border-color:var(--line2)}
+.tagparcial{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#0b0e13;background:var(--amber);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 .sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
 .sec h2{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
 .muted{color:var(--tx3);font-size:13px}
+.cobertura{font-size:11.5px;color:var(--tx3);margin-top:2px}
+.cobertura b{color:var(--tx2);font-weight:600}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:720px){.grid2{grid-template-columns:1fr}}
 .excard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 8px}
@@ -67,7 +71,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-
 <!-- LOGIN -->
 <div id="login">
   <div class="brand" style="margin-bottom:14px"><span class="wm">KALU</span><span class="bt">Biz · Total QC</span></div>
@@ -79,7 +82,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   <div class="err" id="loginErr"></div>
   <div style="text-align:center;margin-top:16px"><a href="index.html" style="color:var(--tx2);text-decoration:none;font-size:13px">← Volver al inicio</a></div>
 </div>
-
 <!-- APP -->
 <div id="app" class="wrap hide">
   <div class="top">
@@ -89,16 +91,14 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
       <button class="btn" onclick="salir()">Salir</button>
     </div>
   </div>
-
   <div class="tabs">
     <button class="tab on" id="tabPanel" onclick="verVista('panel')">📊 Panel</button>
     <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
   </div>
-
   <div id="viewPanel">
   <div id="errorGlobal"></div>
-  <div id="periodo" class="muted" style="margin-bottom:12px"></div>
-
+  <div id="periodo" class="muted" style="margin-bottom:4px"></div>
+  <div id="cobertura" class="cobertura" style="margin-bottom:12px"></div>
   <div class="kpigrupo">
     <h4>Ventas (Facturación a clientes)</h4>
     <div id="kpisFacturado" class="kpis">
@@ -106,7 +106,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
     </div>
   </div>
-
   <div class="kpigrupo">
     <h4>Compras</h4>
     <div id="kpisCompras" class="kpis">
@@ -114,7 +113,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
     </div>
   </div>
-
   <div class="kpigrupo">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <h4 style="margin:0">Cartera (a la fecha de hoy)</h4>
@@ -125,7 +123,10 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
     </div>
   </div>
-
+  <div class="sec">
+    <h2>Compras mes a mes · año calendario</h2>
+    <div class="excard"><div class="excanv" style="height:250px"><canvas id="chCierreMensual"></canvas></div></div>
+  </div>
   <div class="sec">
     <h2>¿En qué se está gastando?</h2>
     <div class="grid2">
@@ -133,7 +134,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
       <div class="excard"><h3>Tesorería por clasificación (top 10)</h3><div class="excanv"><canvas id="chTesoClasif"></canvas></div></div>
     </div>
   </div>
-
   <div class="sec">
     <h2>Cartera</h2>
     <div class="grid2">
@@ -141,13 +141,11 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
       <div class="excard"><h3>Compras por estado (proveedores)</h3><div class="excanv"><canvas id="chCompraEstado"></canvas></div></div>
     </div>
   </div>
-
   <div class="sec">
     <h2>Clientes con mayor saldo pendiente (cartera por cobrar)</h2>
     <div class="excard"><div class="excanv" style="height:280px"><canvas id="chCarteraCliente"></canvas></div></div>
   </div>
   </div>
-
   <div id="viewChat" class="hide">
     <div id="chatMsgs" class="chatmsgs"></div>
     <div class="chatin">
@@ -157,7 +155,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 </div>
-
 <script>
 function verVista(v){
   document.getElementById('tabPanel').classList.toggle('on', v==='panel');
@@ -213,19 +210,22 @@ function toggleDictado(){
   _rec.start();
 }
 </script>
-
 <script>
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const SB_REF='nignqeipzlemwfrwmpip';
 const SESS_KEY='sb-'+SB_REF+'-auth-token';
 const LOGOUT_KEY='kalu_logout';
+const EMPRESA_ID='1e77b05c-a142-4314-aab6-f8d4637b5586';
 let TOKEN=null, MYID=null, MY_SESION=null, IDLE_MIN=60, _idleT=null, _pollT=null;
 let CH={};
 const NAR='#f7941d', CY='#00d4ff', VERDE='#25c26e', ROJO='#e23b3b', AMBER='#f7941d';
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmt(n){ if(n==null||isNaN(n)) return '—'; return new Intl.NumberFormat('es-CO',{maximumFractionDigits:0}).format(n); }
 function fmtCOP(n){ if(n==null||isNaN(n)) return '—'; return '$'+fmt(n); }
+/* Fecha local en YYYY-MM-DD. NO usar toISOString(): convierte a UTC y en
+   Colombia (UTC-5) después de las 19:00 devuelve el día siguiente. */
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 async function sbGet(path){
   const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN}});
   if(!r.ok) throw new Error('get '+path+' '+r.status); return r.json();
@@ -303,16 +303,26 @@ async function entrar(){
   }catch(err){e.textContent='No se pudo conectar. Reintentá.';b.disabled=false;b.textContent='Ingresar';}
 }
 function salir(){ try{ if(_idleT)clearTimeout(_idleT); }catch(e){} TOKEN=null; clearSession(); location.href='index.html'; }
-
-/* ===== carga y agregación (client-side, mismo patrón que el Explorador de Dirección) ===== */
-let FACTURAS=[], COMPRAS=[], MOVS=[];
+/* ===== carga y agregación ===== */
+/* COMPRAS (biz_compra, hoja "Ordenes de Compra") quedó fuera a propósito: esa hoja
+   dejó de alimentarse en junio de 2026. Todo lo de compras sale ahora de
+   biz_compra_factura (hoja "Control Fac - OC") y de las funciones que aplican
+   las reglas confirmadas por Cielo y Dania el 03/09/2026. */
+let FACTURAS=[], MOVS=[], COMPRAS_F=[], CIERRE=[], CARTERA_PAGAR=[], COBERTURA=null;
 async function cargarTodo(){
   try{
-    [FACTURAS,COMPRAS,MOVS]=await Promise.all([
+    var anio = new Date().getFullYear();
+    var res = await Promise.all([
       sbGetAll('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera'),
-      sbGetAll('biz_compra?select=orden_compra,proveedor,valor,estado,categoria_proveedor,saldo_factura,valor_factura,fecha'),
       sbGetAll('biz_movimiento_tesoreria?select=valor,clasificacion_texto,origen_hoja'),
+      sbGetAll('biz_compra_factura?select=po,proveedor,categoria_proveedor,valor_neto,estado_oc,estado_factura,saldo_factura,mes_compra'),
+      sbRpc('biz_cierre_mensual',{p_empresa_id:EMPRESA_ID,p_anio:anio}),
+      sbRpc('biz_cartera_por_pagar',{p_empresa_id:EMPRESA_ID}),
+      sbRpc('biz_compras_cobertura',{p_empresa_id:EMPRESA_ID})
     ]);
+    FACTURAS=res[0]; MOVS=res[1]; COMPRAS_F=res[2];
+    CIERRE=res[3]||[]; CARTERA_PAGAR=res[4]||[];
+    COBERTURA=(res[5]&&res[5][0])||null;
     pintarKpis();
     pintarGraficos();
     pintarPendientes();
@@ -322,63 +332,95 @@ async function cargarTodo(){
   }
 }
 function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
+function num(v){ var n=Number(v); return isNaN(n)?0:n; }
 let excluirCarteraJefes = true; // arranca excluida, como lo pide Cielo por defecto
 function toggleCarteraJefes(){
   excluirCarteraJefes = !excluirCarteraJefes;
   pintarKpis();
 }
-function estadoLimpio(s){ return (s||'').replace(/[\s\u00a0]+/g,' ').trim(); }
+function estadoLimpio(s){ return (s||'').replace(/[\s ]+/g,' ').trim(); }
 function enRango(fechaStr, desde, hasta){
   if(!fechaStr) return false;
   return fechaStr >= desde && fechaStr <= hasta;
 }
+/* Mes calendario: del día 1 al último día del mes. Regla de Marcelo (03/09/2026):
+   nunca ventanas móviles de 30 días ni de fecha a fecha. */
+function mesAnterior(hoy){
+  var primeroDeEste = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  var ultimoAnterior = new Date(primeroDeEste.getTime() - 86400000);
+  var primeroAnterior = new Date(ultimoAnterior.getFullYear(), ultimoAnterior.getMonth(), 1);
+  return {desde: ymd(primeroAnterior), hasta: ymd(ultimoAnterior),
+          etiqueta: primeroAnterior.toLocaleDateString('es-CO',{month:'long',year:'numeric'})};
+}
 function pintarKpis(){
   var hoy = new Date();
-  var hoyStr = hoy.toISOString().slice(0,10);
-  var inicioAnioStr = hoy.getFullYear()+'-01-01';
-  var hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
-  var hace30Str = hace30.toISOString().slice(0,10);
+  var hoyStr = ymd(hoy);
+  var anio = hoy.getFullYear();
+  var inicioAnioStr = anio+'-01-01';
+  var ma = mesAnterior(hoy);
 
-  var facturasValidas = FACTURAS.filter(r => estadoLimpio(r.estado).toLowerCase() !== 'anulado');
-  var comprasValidas = COMPRAS.filter(r => estadoLimpio(r.estado) !== 'Anulada / Rechazada');
-
-  // Facturado
-  var facturadoAnio = sum(facturasValidas.filter(r=>enRango(r.fecha_factura, inicioAnioStr, hoyStr)), r=>r.valor_total_factura);
-  var facturadoUltMes = sum(facturasValidas.filter(r=>enRango(r.fecha_factura, hace30Str, hoyStr)), r=>r.valor_total_factura);
-
-  // Compras
-  var comprasAnio = sum(comprasValidas.filter(r=>enRango(r.fecha, inicioAnioStr, hoyStr)), r=>r.valor);
-  var comprasUltMes = sum(comprasValidas.filter(r=>enRango(r.fecha, hace30Str, hoyStr)), r=>r.valor);
-
-  // Cartera (a la fecha de hoy, sin filtro de fecha — es el saldo actual)
-  var carteraClientes = sum(FACTURAS.filter(r => estadoLimpio(r.estado) === 'Pdte de Pago'), r=>r.valor_total_factura);
-  var comprasParaCartera = excluirCarteraJefes
-    ? comprasValidas.filter(r => estadoLimpio(r.categoria_proveedor) !== 'Cartera Jefes')
-    : comprasValidas;
-  var carteraProveedores = sum(comprasParaCartera.filter(r=>r.saldo_factura!=null && r.saldo_factura>0), r=>r.saldo_factura);
-
+  /* ---------- Ventas ---------- */
+  var facturasValidas = FACTURAS.filter(function(r){ return estadoLimpio(r.estado).toLowerCase() !== 'anulado'; });
+  var facturadoAnio  = sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, inicioAnioStr, hoyStr);}), function(r){return r.valor_total_factura;});
+  var facturadoMesAnt= sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, ma.desde, ma.hasta);}), function(r){return r.valor_total_factura;});
   document.getElementById('kpisFacturado').innerHTML=[
-    kpi(fmtCOP(facturadoAnio),'','Año '+hoy.getFullYear(),'Excluye anuladas', '#eef2f6'),
-    kpi(fmtCOP(facturadoUltMes),'','Últimos 30 días','Del '+hace30Str+' al '+hoyStr, '#eef2f6'),
+    kpi(fmtCOP(facturadoAnio),'','Año '+anio+' a la fecha','Del '+inicioAnioStr+' al '+hoyStr+' · excluye anuladas'),
+    kpi(fmtCOP(facturadoMesAnt),'','Último mes cerrado · '+ma.etiqueta,'Del '+ma.desde+' al '+ma.hasta)
   ].join('');
 
-  document.getElementById('kpisCompras').innerHTML=[
-    kpi(fmtCOP(comprasAnio),'','Año '+hoy.getFullYear(),'Excluye anuladas/rechazadas', '#eef2f6'),
-    kpi(fmtCOP(comprasUltMes),'','Últimos 30 días','Del '+hace30Str+' al '+hoyStr, '#eef2f6'),
-  ].join('');
+  /* ---------- Compras (mes calendario, desde biz_cierre_mensual) ---------- */
+  var cerrados = CIERRE.filter(function(m){return m.estado==='cerrado';});
+  var enCurso  = CIERRE.filter(function(m){return m.estado==='en curso';});
+  var futuro   = CIERRE.filter(function(m){return m.estado==='comprometido';});
+  var sumaC = function(a){ return a.reduce(function(s,m){ return s+num(m.compras); },0); };
+  var ultimoCerrado = cerrados.length ? cerrados[cerrados.length-1] : null;
+  var totalAnio = sumaC(cerrados)+sumaC(enCurso)+sumaC(futuro);
+  var kpisC = [];
+  if(ultimoCerrado){
+    kpisC.push(kpi(fmtCOP(num(ultimoCerrado.compras)),'','Último mes cerrado · '+ultimoCerrado.etiqueta,'Del '+ultimoCerrado.desde+' al '+ultimoCerrado.hasta));
+  }
+  if(cerrados.length){
+    kpisC.push(kpi(fmtCOP(sumaC(cerrados)),'','Acumulado cerrado','Del '+cerrados[0].desde+' al '+cerrados[cerrados.length-1].hasta));
+  }
+  kpisC.push(kpi(fmtCOP(totalAnio),'','Año calendario '+anio,'Del '+anio+'-01-01 al '+anio+'-12-31 · incluye '+fmtCOP(sumaC(futuro))+' comprometido a futuro'));
+  if(enCurso.length){
+    kpisC.push(kpi(fmtCOP(sumaC(enCurso)),'','Mes en curso · '+enCurso[0].etiqueta+'<span class="tagparcial">parcial</span>','Del '+enCurso[0].desde+' al '+hoyStr+' · el mes no terminó',null,true));
+  }
+  document.getElementById('kpisCompras').innerHTML = kpisC.join('');
 
+  /* ---------- Cartera ---------- */
+  var carteraClientes = sum(FACTURAS.filter(function(r){return estadoLimpio(r.estado)==='Pdte de Pago';}), function(r){return r.valor_total_factura;});
+  var gTerceros = CARTERA_PAGAR.find(function(g){return g.grupo==='Terceros';});
+  var gJefes    = CARTERA_PAGAR.find(function(g){return g.grupo==='Cartera Jefes';});
+  var saldoTerceros = gTerceros?num(gTerceros.saldo):0;
+  var saldoJefes    = gJefes?num(gJefes.saldo):0;
+  var carteraProveedores = excluirCarteraJefes ? saldoTerceros : (saldoTerceros+saldoJefes);
   document.getElementById('kpisCartera').innerHTML=[
     kpi(fmtCOP(carteraClientes),'','Por cobrar','Facturas en estado "Pdte de Pago"', ROJO),
-    kpi(fmtCOP(carteraProveedores),'','Por pagar', excluirCarteraJefes ? 'Saldo pendiente a proveedores (sin Cartera Jefes)' : 'Saldo pendiente a proveedores (con Cartera Jefes)', AMBER),
+    kpi(fmtCOP(carteraProveedores),'','Por pagar', excluirCarteraJefes
+        ? 'Pendiente por Pagar, sin Cartera Jefes ('+fmtCOP(saldoJefes)+' excluidos)'
+        : 'Pendiente por Pagar, incluye Cartera Jefes ('+fmtCOP(saldoJefes)+')', AMBER)
   ].join('');
-
   var btnCJ = document.getElementById('btnCarteraJefes');
   if (btnCJ) btnCJ.textContent = excluirCarteraJefes ? 'Cartera Jefes: Excluida ↺' : 'Cartera Jefes: Incluida ↺';
 
+  /* ---------- Encabezado: período y frescura ---------- */
   document.getElementById('periodo').textContent = 'Consulta al '+hoyStr+' · Fuente: Excel de Total QC sincronizado por n8n';
+  var cob = document.getElementById('cobertura');
+  if(COBERTURA){
+    var horas = num(COBERTURA.horas_desde_carga);
+    var alerta = horas > 36;
+    cob.innerHTML =
+      'Compras leídas del Excel hace <b'+(alerta?' style="color:#f7941d"':'')+'>'+fmt(horas)+' h</b>'+
+      (alerta?' ⚠️ la sincronización puede estar detenida':'')+
+      ' · <b>'+fmt(COBERTURA.filas)+'</b> facturas · '+
+      '<b>'+COBERTURA.pct_con_mes_compra+'%</b> con mes asignado · '+
+      '<b>'+COBERTURA.pct_con_centro_costo+'%</b> con centro de costo · '+
+      'última orden emitida el <b>'+esc(COBERTURA.ultima_compra||'—')+'</b>';
+  } else { cob.textContent=''; }
 }
-function kpi(n,unidad,label,sub,col){
-  return '<div class="kpi"><div class="n" style="color:'+(col||'#eef2f6')+'">'+n+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
+function kpi(n,unidad,label,sub,col,parcial){
+  return '<div class="kpi'+(parcial?' parcial':'')+'"><div class="n" style="color:'+(col||'#eef2f6')+'">'+n+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';
 }
 function tally(arr,keyFn,valFn,top){
   var m={};
@@ -390,8 +432,9 @@ function destroyChart(id){ if(CH[id]){ try{CH[id].destroy();}catch(e){} delete C
 function drawBar(canvasId,entries,color,horizontal){
   destroyChart(canvasId);
   var canv=document.getElementById(canvasId);
+  if(!canv) return;
   if(!entries.length){ canv.parentElement.innerHTML='<div class="exempty">Sin datos</div>'; return; }
-  var labels=entries.map(e=>e[0]), data=entries.map(e=>e[1]);
+  var labels=entries.map(function(e){return e[0];}), data=entries.map(function(e){return e[1];});
   CH[canvasId]=new Chart(canv,{type:'bar',data:{labels:labels,datasets:[{data:data,backgroundColor:color,borderRadius:6}]},
     options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return fmtCOP(ctx.parsed[horizontal?'x':'y']);}}}},
@@ -400,25 +443,47 @@ function drawBar(canvasId,entries,color,horizontal){
 function drawDoughnut(canvasId,entries,colors){
   destroyChart(canvasId);
   var canv=document.getElementById(canvasId);
+  if(!canv) return;
   if(!entries.length){ canv.parentElement.innerHTML='<div class="exempty">Sin datos</div>'; return; }
-  var labels=entries.map(e=>e[0]), data=entries.map(e=>e[1]);
+  var labels=entries.map(function(e){return e[0];}), data=entries.map(function(e){return e[1];});
   CH[canvasId]=new Chart(canv,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors||[NAR,CY,VERDE,ROJO,'#9b59b6','#3498db'],borderColor:'#12161C',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
       plugins:{legend:{position:'bottom',labels:{color:'#9fabb8',padding:8,font:{size:10}}},
         tooltip:{callbacks:{label:function(ctx){return ctx.label+': '+fmtCOP(ctx.parsed);}}}}}});
 }
+/* Compras mes a mes: los meses cerrados en naranja, el mes en curso y lo
+   comprometido a futuro en gris, para que nadie lea septiembre como una caída. */
+function drawCierreMensual(){
+  destroyChart('chCierreMensual');
+  var canv=document.getElementById('chCierreMensual');
+  if(!canv) return;
+  if(!CIERRE.length){ canv.parentElement.innerHTML='<div class="exempty">Sin datos</div>'; return; }
+  var labels=CIERRE.map(function(m){ return (m.etiqueta||'').split(' ')[0].slice(0,3); });
+  var data=CIERRE.map(function(m){ return num(m.compras); });
+  var colores=CIERRE.map(function(m){ return m.estado==='cerrado' ? NAR : 'rgba(159,171,184,.35)'; });
+  CH['chCierreMensual']=new Chart(canv,{type:'bar',
+    data:{labels:labels,datasets:[{data:data,backgroundColor:colores,borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        title:function(ctx){ var m=CIERRE[ctx[0].dataIndex]; return m.etiqueta+' ('+m.estado+')'; },
+        label:function(ctx){ var m=CIERRE[ctx.dataIndex]; return fmtCOP(ctx.parsed.y)+' · '+m.facturas+' facturas · '+m.desde+' a '+m.hasta; }
+      }}},
+      scales:{x:{grid:{display:false},ticks:{color:'#95A0AD',font:{size:10}}},
+              y:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#95A0AD',font:{size:10}},beginAtZero:true}}}});
+}
 function pintarGraficos(){
-  drawBar('chCompraCat', tally(COMPRAS, r=>r.categoria_proveedor, r=>r.valor, 10), NAR, true);
-  drawBar('chTesoClasif', tally(MOVS, r=>r.clasificacion_texto, r=>Math.abs(r.valor), 10), CY, true);
-  drawDoughnut('chFacturaEstado', tally(FACTURAS, r=>estadoLimpio(r.estado)||'Sin estado', ()=>1, 8));
-  drawDoughnut('chCompraEstado', tally(COMPRAS, r=>estadoLimpio(r.estado)||'Sin estado', ()=>1, 8));
+  drawCierreMensual();
+  var comprasVal = COMPRAS_F.filter(function(r){ return estadoLimpio(r.estado_oc)!=='Anulada / Rechazada'; });
+  drawBar('chCompraCat', tally(comprasVal, function(r){return r.categoria_proveedor;}, function(r){return r.valor_neto;}, 10), NAR, true);
+  drawBar('chTesoClasif', tally(MOVS, function(r){return r.clasificacion_texto;}, function(r){return Math.abs(r.valor);}, 10), CY, true);
+  drawDoughnut('chFacturaEstado', tally(FACTURAS, function(r){return estadoLimpio(r.estado)||'Sin estado';}, function(){return 1;}, 8));
+  drawDoughnut('chCompraEstado', tally(COMPRAS_F, function(r){return estadoLimpio(r.estado_oc)||'Sin estado';}, function(){return 1;}, 8));
 }
 function pintarPendientes(){
-  var pend = FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago' && r.valor_total_factura);
-  var porCliente = tally(pend, r=>r.cliente, r=>r.valor_total_factura, 10);
+  var pend = FACTURAS.filter(function(r){ return estadoLimpio(r.estado)==='Pdte de Pago' && r.valor_total_factura; });
+  var porCliente = tally(pend, function(r){return r.cliente;}, function(r){return r.valor_total_factura;}, 10);
   drawBar('chCarteraCliente', porCliente, ROJO, true);
 }
-
 document.getElementById('pass').addEventListener('keydown',function(e){ if(e.key==='Enter') entrar(); });
 restoreSession();
 </script>

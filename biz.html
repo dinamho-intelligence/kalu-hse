@@ -116,7 +116,10 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <div class="kpigrupo">
-    <h4>Cartera (a la fecha de hoy)</h4>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h4 style="margin:0">Cartera (a la fecha de hoy)</h4>
+      <button class="btn" id="btnCarteraJefes" onclick="toggleCarteraJefes()" style="font-size:12px;padding:6px 11px"></button>
+    </div>
     <div id="kpisCartera" class="kpis">
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
@@ -319,6 +322,11 @@ async function cargarTodo(){
   }
 }
 function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
+let excluirCarteraJefes = true; // arranca excluida, como lo pide Cielo por defecto
+function toggleCarteraJefes(){
+  excluirCarteraJefes = !excluirCarteraJefes;
+  pintarKpis();
+}
 function estadoLimpio(s){ return (s||'').replace(/[\s\u00a0]+/g,' ').trim(); }
 function enRango(fechaStr, desde, hasta){
   if(!fechaStr) return false;
@@ -344,7 +352,10 @@ function pintarKpis(){
 
   // Cartera (a la fecha de hoy, sin filtro de fecha — es el saldo actual)
   var carteraClientes = sum(FACTURAS.filter(r => estadoLimpio(r.estado) === 'Pdte de Pago'), r=>r.valor_total_factura);
-  var carteraProveedores = sum(comprasValidas.filter(r=>r.saldo_factura!=null && r.saldo_factura>0), r=>r.saldo_factura);
+  var comprasParaCartera = excluirCarteraJefes
+    ? comprasValidas.filter(r => estadoLimpio(r.categoria_proveedor) !== 'Cartera Jefes')
+    : comprasValidas;
+  var carteraProveedores = sum(comprasParaCartera.filter(r=>r.saldo_factura!=null && r.saldo_factura>0), r=>r.saldo_factura);
 
   document.getElementById('kpisFacturado').innerHTML=[
     kpi(fmtCOP(facturadoAnio),'','Año '+hoy.getFullYear(),'Excluye anuladas', '#eef2f6'),
@@ -358,8 +369,11 @@ function pintarKpis(){
 
   document.getElementById('kpisCartera').innerHTML=[
     kpi(fmtCOP(carteraClientes),'','Por cobrar','Facturas en estado "Pdte de Pago"', ROJO),
-    kpi(fmtCOP(carteraProveedores),'','Por pagar','Saldo pendiente a proveedores', AMBER),
+    kpi(fmtCOP(carteraProveedores),'','Por pagar', excluirCarteraJefes ? 'Saldo pendiente a proveedores (sin Cartera Jefes)' : 'Saldo pendiente a proveedores (con Cartera Jefes)', AMBER),
   ].join('');
+
+  var btnCJ = document.getElementById('btnCarteraJefes');
+  if (btnCJ) btnCJ.textContent = excluirCarteraJefes ? 'Cartera Jefes: Excluida ↺' : 'Cartera Jefes: Incluida ↺';
 
   document.getElementById('periodo').textContent = 'Consulta al '+hoyStr+' · Fuente: Excel de Total QC sincronizado por n8n';
 }

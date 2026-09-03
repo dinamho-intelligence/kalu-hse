@@ -42,7 +42,7 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .tabs{display:flex;gap:4px;background:#0f141b;border:1px solid var(--line);border-radius:11px;padding:4px;margin-bottom:14px}
 .tab{padding:8px 15px;border-radius:8px;font-size:13px;color:var(--tx2);cursor:pointer;border:0;background:transparent;font-weight:600}
 .tab.on{background:var(--nar);color:#0b0e13}
-.chatmsgs{height:56vh;min-height:320px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px 14px 0 0}
+.chatmsgs{height:64vh;min-height:380px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px 14px 0 0}
 .cbub{max-width:82%;display:flex;flex-direction:column;gap:3px}
 .cbub.vos{align-self:flex-end;align-items:flex-end}
 .cbub.kalu{align-self:flex-start}
@@ -147,7 +147,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 
   <div id="viewChat" class="hide">
     <div id="chatMsgs" class="chatmsgs"></div>
-    <div id="chatSug" class="chatsug"></div>
     <div class="chatin">
       <textarea id="chatInput" rows="1" placeholder="Preguntale a KALU sobre tus datos…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarChat();}"></textarea>
       <button id="chatMicBtn" class="chatmic" onclick="toggleDictado()" title="Hablar">🎤</button>
@@ -166,13 +165,10 @@ function verVista(v){
 }
 const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-biz-chat';
 let chatHist=[];
-const SUGERENCIAS_BIZ=['¿Cuál es el gasto más desmesurado y por qué?','¿Cuánto facturamos este mes?','Dame un plan de choque para bajar la cartera de proveedores','¿En qué estamos gastando más y cómo lo controlo?'];
 function initChat(){
   const m=document.getElementById('chatMsgs'); if(!m||m.dataset.init) return; m.dataset.init='1';
   chatBubble('kalu','Hola, soy KALU. Preguntame lo que quieras sobre Compras, Tesorería o Facturación de Total QC — te respondo con tus datos reales.');
-  const sug=document.getElementById('chatSug'); if(sug) sug.innerHTML=SUGERENCIAS_BIZ.map(function(q){return '<button class="sug" onclick="usarSug(this)">'+esc(q)+'</button>';}).join('');
 }
-function usarSug(b){ document.getElementById('chatInput').value=b.textContent; enviarChat(); }
 function chatBubble(who,txt){
   const m=document.getElementById('chatMsgs');
   const d=document.createElement('div'); d.className='cbub '+who;
@@ -184,12 +180,18 @@ function armarContexto(){
   // Top 20 compras individuales (no agregadas) — para poder señalar un gasto puntual desmesurado
   var compraTop20 = comprasValidas.filter(r=>r.valor).sort((a,b)=>(b.valor||0)-(a.valor||0)).slice(0,20)
     .map(r=>({orden_compra:r.orden_compra, proveedor:r.proveedor, categoria:r.categoria_proveedor, valor:r.valor, fecha:r.fecha, estado:estadoLimpio(r.estado)}));
-  // Evolución mensual de compras (últimos meses con datos)
-  var porMes={};
-  comprasValidas.forEach(function(r){ if(!r.fecha) return; var m=r.fecha.slice(0,7); porMes[m]=(porMes[m]||0)+(r.valor||0); });
-  var comprasPorMes = Object.keys(porMes).sort().slice(-8).map(m=>[m,porMes[m]]);
+  // Evolución mensual de COMPROMISOS de compra (orden de compra emitida), año completo, todos los meses con datos
+  var porMesCompra={};
+  comprasValidas.forEach(function(r){ if(!r.fecha) return; var m=r.fecha.slice(0,7); porMesCompra[m]=(porMesCompra[m]||0)+(r.valor||0); });
+  var comprasPorMes = Object.keys(porMesCompra).sort().map(m=>[m,porMesCompra[m]]);
   // Gasto acumulado por proveedor (para detectar concentración de riesgo)
   var proveedorTop = tally(comprasValidas, r=>r.proveedor, r=>r.valor, 12);
+  // PAGOS REALES a proveedores (abonos ejecutados), año completo por mes
+  var porMesPago={};
+  ABONOS.forEach(function(r){ if(!r.fecha||!r.valor) return; var m=r.fecha.slice(0,7); porMesPago[m]=(porMesPago[m]||0)+(r.valor||0); });
+  var pagosPorMes = Object.keys(porMesPago).sort().map(m=>[m,porMesPago[m]]);
+  var pagosTotalPorAnio = {};
+  ABONOS.forEach(function(r){ if(!r.fecha||!r.valor) return; var a=r.fecha.slice(0,4); pagosTotalPorAnio[a]=(pagosTotalPorAnio[a]||0)+r.valor; });
 
   return {
     fecha_consulta: new Date().toISOString().slice(0,10),
@@ -197,13 +199,16 @@ function armarContexto(){
     compras_totales_validas: comprasValidas.reduce((a,r)=>a+(r.valor||0),0),
     cartera_por_cobrar: FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago').reduce((a,r)=>a+(r.valor_total_factura||0),0),
     cartera_por_pagar: comprasValidas.filter(r=>r.saldo_factura>0).reduce((a,r)=>a+(r.saldo_factura||0),0),
+    pagos_reales_a_proveedores_total: ABONOS.reduce((a,r)=>a+(r.valor||0),0),
+    pagos_reales_a_proveedores_por_anio: pagosTotalPorAnio,
+    pagos_reales_a_proveedores_por_mes: pagosPorMes,
     top_categorias_compra: tally(COMPRAS, r=>r.categoria_proveedor, r=>r.valor, 10),
     top_clasificacion_tesoreria: tally(MOVS, r=>r.clasificacion_texto, r=>Math.abs(r.valor), 10),
     top_clientes_pendientes: tally(FACTURAS.filter(r=>estadoLimpio(r.estado)==='Pdte de Pago'), r=>r.cliente, r=>r.valor_total_factura, 10),
     facturas_por_estado: tally(FACTURAS, r=>estadoLimpio(r.estado), ()=>1, 10),
     compras_por_estado: tally(COMPRAS, r=>estadoLimpio(r.estado), ()=>1, 10),
     compras_top20_individuales: compraTop20,
-    compras_evolucion_mensual: comprasPorMes,
+    compras_evolucion_mensual_completa: comprasPorMes,
     proveedores_top_gasto_acumulado: proveedorTop,
   };
 }
@@ -334,13 +339,14 @@ async function entrar(){
 function salir(){ try{ if(_idleT)clearTimeout(_idleT); }catch(e){} TOKEN=null; clearSession(); location.href='index.html'; }
 
 /* ===== carga y agregación (client-side, mismo patrón que el Explorador de Dirección) ===== */
-let FACTURAS=[], COMPRAS=[], MOVS=[];
+let FACTURAS=[], COMPRAS=[], MOVS=[], ABONOS=[];
 async function cargarTodo(){
   try{
-    [FACTURAS,COMPRAS,MOVS]=await Promise.all([
+    [FACTURAS,COMPRAS,MOVS,ABONOS]=await Promise.all([
       sbGetAll('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera'),
       sbGetAll('biz_compra?select=orden_compra,proveedor,valor,estado,categoria_proveedor,saldo_factura,valor_factura,fecha'),
       sbGetAll('biz_movimiento_tesoreria?select=valor,clasificacion_texto,origen_hoja'),
+      sbGetAll('biz_abono?select=factura,orden_compra,proveedor,valor,fecha'),
     ]);
     pintarKpis();
     pintarGraficos();

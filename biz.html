@@ -294,6 +294,10 @@ async function enviarChat(){
   chatBubble('vos',q); ta.value=''; ULTIMA_PREGUNTA=q;
   const btn=document.getElementById('chatSend'); btn.disabled=true;
   const bub=chatBubble('kalu',''); bub.querySelector('.ctxt').innerHTML='<span class="typ"><span></span><span></span><span></span></span>';
+  if(!await asegurarToken()){
+    bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">Tu sesión venció. Entrá de nuevo.</span>';
+    btn.disabled=false; setTimeout(function(){ clearSession(); location.href='index.html'; }, 2500); return;
+  }
   try{
     const r=await fetch(CHAT_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pregunta:q,historial:chatHist.slice(-6),token:TOKEN,usuario:YO})});
     if(!r.ok) throw new Error('http '+r.status);
@@ -464,6 +468,20 @@ function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||'
 function clearSession(){ try{ localStorage.removeItem(SESS_KEY); }catch(_){ } }
 async function refrescarToken(rt){ if(!rt) return false; try{ var r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})}); var d=await r.json(); if(!r.ok||!d.access_token) return false; TOKEN=d.access_token; saveSession(d); return true; }catch(_){ return false; } }
 function resetIdle(){ if(_idleT)clearTimeout(_idleT); _idleT=setTimeout(function(){ forzarSalida('Cerramos tu sesión por inactividad.'); }, (IDLE_MIN||60)*60000); }
+/* Los tokens de Supabase duran una hora. Al entrar la pagina ya lo renovaba,
+   pero despues no volvia a mirarlo: a la hora, el chat mandaba un token vencido
+   y n8n recibia un 401 — KALU quedaba sin poder consultar nada y no habia forma
+   de que se diera cuenta desde adentro. Ahora se revisa ANTES de cada consulta. */
+async function asegurarToken(){
+  var s=readSession(); if(!s || !s.access_token) return false;
+  var now=Math.floor(Date.now()/1000);
+  if(s.expires_at && s.expires_at < now+120){          // 2 min de colchon
+    if(!await refrescarToken(s.refresh_token)) return false;
+    return !!TOKEN;
+  }
+  TOKEN = s.access_token;
+  return true;
+}
 function cerrarLocal(){ try{ TOKEN=null; if(_idleT)clearTimeout(_idleT); }catch(_){ } location.href='index.html'; }
 function forzarSalida(msg){ clearSession(); try{ localStorage.setItem(LOGOUT_KEY,String(Date.now())); }catch(_){ } if(msg){ try{ alert(msg); }catch(_){ } } cerrarLocal(); }
 function armarGuards(){ ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(function(ev){ window.addEventListener(ev,resetIdle,{passive:true}); }); resetIdle(); window.addEventListener('storage',function(e){ if(e.key===LOGOUT_KEY)cerrarLocal(); }); }
@@ -535,6 +553,10 @@ async function cargarTodo(){
      mostrarlos separados, o el botón parece roto. */
   var btn=document.getElementById('btnRefresh');
   if(btn){ btn.disabled=true; btn.textContent='Actualizando…'; }
+  if(!await asegurarToken()){
+    if(btn){ btn.disabled=false; btn.textContent='↻ Actualizar'; }
+    clearSession(); location.href='index.html'; return;
+  }
   try{
     var anio = new Date().getFullYear();
     var res = await Promise.all([

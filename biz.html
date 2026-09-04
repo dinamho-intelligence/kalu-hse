@@ -98,6 +98,36 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .hnota.on{display:block}
 .hnota textarea{width:100%;background:#0b0f14;border:1px solid var(--line2);border-radius:8px;color:var(--tx);font-size:13px;padding:9px 11px;font-family:inherit;resize:vertical;min-height:62px;outline:none}
 .hnota textarea:focus{border-color:var(--nar)}
+.hprint{margin-left:auto;background:#0f141b;border:1px solid var(--cy);color:#7fe6ff;border-radius:16px;padding:6px 13px;font-size:12.5px;cursor:pointer;font-weight:600}
+#hPrintHead{display:none}
+/* ---------- impresión / PDF ----------
+   La pantalla es negra; el papel no. Se invierte todo y se sacan los controles,
+   que en una hoja impresa no sirven para nada. */
+@media print{
+  @page{margin:14mm}
+  body{background:#fff!important;color:#111!important;font-size:10.5pt;line-height:1.5}
+  .top,.tabs,.hfiltros,.hacc,.hnota,#viewPanel,#viewChat,#errorGlobal,#periodo,#cobertura{display:none!important}
+  .wrap{max-width:100%;padding:0}
+  #hPrintHead{display:block!important;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #111}
+  #hPrintHead .pt{font-size:17pt;font-weight:800;margin:0 0 3px;color:#111}
+  #hPrintHead .ps{font-size:9pt;color:#444;margin:0}
+  #hPrintHead .pw{margin-top:8px;font-size:8.5pt;color:#7a3a00;border:1px solid #c98a3a;background:#fdf4e6;padding:5px 8px;border-radius:3px}
+  #viewHallazgos{display:block!important}
+  .hcard{background:#fff!important;border:1px solid #bbb!important;border-left:3px solid #777!important;
+    box-shadow:none!important;margin-bottom:9px;padding:11px 13px;break-inside:avoid;page-break-inside:avoid}
+  .hcard.alta{border-left-color:#b23a2c!important}
+  .hcard.media{border-left-color:#c4700a!important}
+  .hcard.resuelto{opacity:1!important}
+  .htit{color:#111!important;font-size:12pt}
+  .hbadge{background:#f2f2f2!important;border-color:#ccc!important;color:#333!important}
+  .hbadge.pub{background:#e8f4ec!important;border-color:#7aa98d!important;color:#2c6b52!important}
+  .hbadge.priv{background:#fdf4e6!important;border-color:#c98a3a!important;color:#7a3a00!important}
+  .hcifras{border-top-color:#ddd!important}
+  .hcifra,.hcifra b{color:#333!important}
+  .hresp{background:#f5f5f5!important;border-color:#ccc!important;color:#222!important}
+  .hresp em{color:#666!important}
+  .hvacio{color:#444!important;background:#fff!important;border-color:#ccc!important}
+}
 .typ span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--nar);animation:blink 1.2s infinite both}
 .typ span:nth-child(2){animation-delay:.2s}.typ span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
@@ -184,6 +214,7 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   <div id="viewHallazgos" class="hide">
     <div class="muted" style="margin-bottom:10px">Lo que KALU encontró solo. <b style="color:var(--tx2)">Privados hasta que los publiques</b> — nadie más los ve.</div>
     <div class="hfiltros" id="hFiltros"></div>
+    <div id="hPrintHead"></div>
     <div id="hLista"></div>
   </div>
   <div id="viewChat" class="hide">
@@ -351,8 +382,13 @@ function salir(){ try{ if(_idleT)clearTimeout(_idleT); }catch(e){} TOKEN=null; c
    dejó de alimentarse en junio de 2026. Todo lo de compras sale ahora de
    biz_compra_factura (hoja "Control Fac - OC") y de las funciones que aplican
    las reglas confirmadas por Cielo y Dania el 03/09/2026. */
-let FACTURAS=[], MOVS=[], COMPRAS_F=[], CIERRE=[], CARTERA_PAGAR=[], COBERTURA=null;
+let FACTURAS=[], MOVS=[], COMPRAS_F=[], CIERRE=[], CARTERA_PAGAR=[], COBERTURA=null, ULTIMA_PANTALLA=null;
 async function cargarTodo(){
+  /* Ojo: esto recarga la PANTALLA desde la base. NO vuelve a leer el Excel —
+     eso lo hace la ETL una vez por día. Son dos relojes distintos y hay que
+     mostrarlos separados, o el botón parece roto. */
+  var btn=document.getElementById('btnRefresh');
+  if(btn){ btn.disabled=true; btn.textContent='Actualizando…'; }
   try{
     var anio = new Date().getFullYear();
     var res = await Promise.all([
@@ -366,12 +402,18 @@ async function cargarTodo(){
     FACTURAS=res[0]; MOVS=res[1]; COMPRAS_F=res[2];
     CIERRE=res[3]||[]; CARTERA_PAGAR=res[4]||[];
     COBERTURA=(res[5]&&res[5][0])||null;
+    ULTIMA_PANTALLA = new Date();
+    document.getElementById('errorGlobal').innerHTML='';
     pintarKpis();
     pintarGraficos();
     pintarPendientes();
+    if(btn){ btn.textContent='✓ Actualizado'; }
   }catch(err){
     document.getElementById('errorGlobal').innerHTML='<div class="sec"><div class="err" style="color:#ff8a82">No se pudieron cargar los datos: '+esc(err.message)+'</div></div>';
     console.error('KALU Biz error:', err);
+    if(btn){ btn.textContent='✗ Falló'; }
+  }finally{
+    if(btn) setTimeout(function(){ btn.disabled=false; btn.textContent='↻ Actualizar'; }, 1600);
   }
 }
 function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
@@ -448,14 +490,21 @@ function pintarKpis(){
   if (btnCJ) btnCJ.textContent = excluirCarteraJefes ? 'Cartera Jefes: Excluida ↺' : 'Cartera Jefes: Incluida ↺';
 
   /* ---------- Encabezado: período y frescura ---------- */
-  document.getElementById('periodo').textContent = 'Consulta al '+hoyStr+' · Fuente: Excel de Total QC sincronizado por n8n';
+  /* Dos relojes, y hay que decir cuál es cuál. El botón Actualizar mueve el
+     primero; el segundo solo se mueve cuando corre la ETL, una vez por día. */
+  var hh = ULTIMA_PANTALLA
+      ? String(ULTIMA_PANTALLA.getHours()).padStart(2,'0')+':'+String(ULTIMA_PANTALLA.getMinutes()).padStart(2,'0')
+      : '—';
+  document.getElementById('periodo').innerHTML =
+      'Consulta al '+hoyStr+' · pantalla actualizada a las <b style="color:var(--tx2)">'+hh+'</b>';
   var cob = document.getElementById('cobertura');
   if(COBERTURA){
     var horas = num(COBERTURA.horas_desde_carga);
     var alerta = horas > 36;
     cob.innerHTML =
-      'Compras leídas del Excel hace <b'+(alerta?' style="color:#f7941d"':'')+'>'+fmt(horas)+' h</b>'+
-      (alerta?' ⚠️ la sincronización puede estar detenida':'')+
+      'Excel leído hace <b'+(alerta?' style="color:#f7941d"':'')+'>'+fmt(horas)+' h</b>'+
+      ' <span style="color:var(--tx3)">(se sincroniza solo, una vez por día a las 6:15 — el botón Actualizar no lo cambia)</span>'+
+      (alerta?' <b style="color:#f7941d">⚠️ la sincronización puede estar detenida</b>':'')+
       ' · <b>'+fmt(COBERTURA.filas)+'</b> facturas · '+
       '<b>'+COBERTURA.pct_con_mes_compra+'%</b> con mes asignado · '+
       '<b>'+COBERTURA.pct_con_centro_costo+'%</b> con centro de costo · '+
@@ -572,7 +621,27 @@ async function actualizarBadge(){
 function pintarFiltros(){
   document.getElementById('hFiltros').innerHTML = H_ESTADOS.map(function(f){
     return '<button class="hchip'+(hFiltro===f.k?' on':'')+'" onclick="filtrarHallazgos('+(f.k?"'"+f.k+"'":'null')+')">'+f.t+'</button>';
-  }).join('');
+  }).join('') + '<button class="hprint" onclick="imprimirHallazgos()">⤓ Guardar como PDF</button>';
+}
+/* Se imprime lo que está filtrado en pantalla: si querés solo los nuevos,
+   filtrá primero. El encabezado deja constancia del filtro y del corte. */
+function imprimirHallazgos(){
+  var f = H_ESTADOS.filter(function(x){ return x.k===hFiltro; })[0];
+  var ahora = new Date();
+  var sello = ahora.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})
+            + ' · ' + String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0');
+  var privados = HALLAZGOS.filter(function(h){ return !h.publicado; }).length;
+  document.getElementById('hPrintHead').innerHTML =
+      '<p class="pt">KALU Biz · Hallazgos</p>'
+    + '<p class="ps">Total QC SAS · '+HALLAZGOS.length+' hallazgos'
+    + (f && f.k ? ' · filtro: '+esc(f.t) : ' · todos los estados')
+    + ' · emitido el '+sello
+    + (COBERTURA ? ' · datos del Excel leídos hace '+fmt(num(COBERTURA.horas_desde_carga))+' h' : '')
+    + '</p>'
+    + (privados
+        ? '<p class="pw"><b>Documento confidencial.</b> Incluye '+privados+' hallazgo'+(privados>1?'s':'')+' sin publicar, visible'+(privados>1?'s':'')+' solo para la dirección. Una vez impreso, no se puede despublicar.</p>'
+        : '');
+  window.print();
 }
 function filtrarHallazgos(k){ hFiltro=k; cargarHallazgos(); }
 function pintarHallazgos(){

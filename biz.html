@@ -144,9 +144,6 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   .hresp em{color:#666!important}
   .hvacio{color:#444!important;background:#fff!important;border-color:#ccc!important}
 }
-.cvoz{align-self:flex-start;margin-top:5px;background:transparent;border:1px solid var(--line2);
-  color:var(--tx3);border-radius:14px;padding:3px 11px;font-size:11.5px;cursor:pointer;font-weight:600}
-.cvoz:hover{border-color:var(--nar);color:var(--nar)}
 .typ span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--nar);animation:blink 1.2s infinite both}
 .typ span:nth-child(2){animation-delay:.2s}.typ span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
@@ -280,8 +277,7 @@ function chatBubble(who,txt){
   const m=document.getElementById('chatMsgs');
   const d=document.createElement('div'); d.className='cbub '+who;
   d.innerHTML='<div class="cwho">'+(who==='kalu'?'KALU':'Vos')+'</div><div class="ctxt">'+esc(txt).replace(/\n/g,'<br>')+'</div>'
-    + (who==='kalu' ? '<div class="cacc"><button class="cvoz hide" title="Escuchar">🔊 Escuchar</button>'
-                    + '<button class="cnota hide" title="Guardar en la libreta">📌 A la libreta</button></div>' : '');
+    + (who==='kalu' ? '<div class="cacc"><button class="cnota hide" title="Guardar en la libreta">📌 A la libreta</button></div>' : '');
   if(who==='kalu'){
     var bn=d.querySelector('.cnota');
     /* El botón guarda ESTA burbuja, sin ambigüedad. Decirle "guardá eso" a KALU
@@ -290,35 +286,9 @@ function chatBubble(who,txt){
   }
   m.appendChild(d); m.scrollTop=m.scrollHeight; return d;
 }
-/* ===== Voz de KALU (Web Speech API del navegador) =====
-   Se usa la del navegador y no kalu-hse-tts a propósito: la del ATS es un
-   servicio pago y se justifica para alguien en campo con guantes puestos, no
-   para leer cifras en un escritorio. Si algún día hace falta esa voz acá, se
-   reemplaza hablar() por una llamada al webhook y listo. */
-let _hablando=false;
-function textoParaVoz(html){
-  var t=document.createElement('div'); t.innerHTML=html;
-  return (t.textContent||'')
-    .replace(/\|/g,' ')            // las tablas se leerían como "barra"
-    .replace(/[*#_`]/g,'')
-    .replace(/\$\s?/g,'')          // "$" se lee "dólar"
-    .replace(/\s{2,}/g,' ')
-    .trim();
-}
-function hablar(texto, boton){
-  if(!('speechSynthesis' in window)){ alert('Tu navegador no puede leer en voz alta. Probá desde Chrome.'); return; }
-  if(_hablando){ window.speechSynthesis.cancel(); _hablando=false; if(boton) boton.textContent='🔊 Escuchar'; return; }
-  var u=new SpeechSynthesisUtterance(texto);
-  u.lang='es-CO'; u.rate=1.02; u.pitch=1;
-  var vs=window.speechSynthesis.getVoices()||[];
-  var v=vs.filter(function(x){return /^es(-|_)?CO/i.test(x.lang);})[0]
-     || vs.filter(function(x){return /^es/i.test(x.lang);})[0];
-  if(v) u.voice=v;
-  u.onstart=function(){ _hablando=true; if(boton) boton.textContent='⏹ Parar'; };
-  u.onend=u.onerror=function(){ _hablando=false; if(boton) boton.textContent='🔊 Escuchar'; };
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
-}
+/* La voz de KALU en Biz queda PENDIENTE a propósito.
+   Va a ser la misma de los ATS (kalu-hse-tts), no la del navegador: KALU tiene
+   UNA voz en todos los módulos. Decisión de Marcelo, 04/09/2026. */
 async function enviarChat(){
   const ta=document.getElementById('chatInput'); const q=(ta.value||'').trim(); if(!q) return;
   chatBubble('vos',q); ta.value=''; ULTIMA_PREGUNTA=q;
@@ -332,21 +302,11 @@ async function enviarChat(){
     bub.querySelector('.ctxt').innerHTML=esc(resp).replace(/\n/g,'<br>');
     chatHist.push({pregunta:q,respuesta:resp});
     var bnota=bub.querySelector('.cnota'); if(bnota) bnota.classList.remove('hide');
-    /* Voz adentro, voz afuera: si la pregunta se dictó, la respuesta se lee sola.
-       Si se escribió, queda el botón por si la querés escuchar. */
-    const bv=bub.querySelector('.cvoz');
-    if(bv){
-      const texto=textoParaVoz(bub.querySelector('.ctxt').innerHTML);
-      bv.classList.remove('hide');
-      bv.onclick=function(){ hablar(texto, bv); };
-      if(_preguntaDictada) hablar(texto, bv);
-    }
-    _preguntaDictada=false;
-  }catch(e){ bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">No me pude conectar. Falta activar el flujo de n8n (kalu-biz-chat).</span>'; _preguntaDictada=false; }
+  }catch(e){ bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">No me pude conectar. Falta activar el flujo de n8n (kalu-biz-chat).</span>'; }
   finally{ btn.disabled=false; ta.focus(); const m=document.getElementById('chatMsgs'); if(m)m.scrollTop=m.scrollHeight; }
 }
 /* Dictado por voz (Web Speech API — nativo del navegador, sin webhook extra) */
-let _rec=null, _dictando=false, _preguntaDictada=false;
+let _rec=null, _dictando=false;
 function toggleDictado(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert('Tu navegador no soporta dictado por voz. Probá desde Chrome.'); return; }
@@ -361,7 +321,6 @@ function toggleDictado(){
     const texto=ev.results[0][0].transcript;
     const ta=document.getElementById('chatInput');
     ta.value=(ta.value?ta.value+' ':'')+texto;
-    _preguntaDictada=true;   // preguntó hablando -> se le contesta hablando
   };
   _rec.start();
 }

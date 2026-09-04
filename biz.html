@@ -98,6 +98,11 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .hnota.on{display:block}
 .hnota textarea{width:100%;background:#0b0f14;border:1px solid var(--line2);border-radius:8px;color:var(--tx);font-size:13px;padding:9px 11px;font-family:inherit;resize:vertical;min-height:62px;outline:none}
 .hnota textarea:focus{border-color:var(--nar)}
+.hbtn.elegido{background:var(--nar);border-color:var(--nar);color:#0b0e13;font-weight:700;cursor:default}
+.hbtn:disabled{opacity:.3;cursor:not-allowed}
+.hbtn.cambiar{border-color:var(--line2);color:var(--tx3)}
+.hquien{font-size:11.5px;color:var(--tx3,#6d7783);margin:8px 0 2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hquien b{color:var(--tx2);font-weight:600}
 .nnota{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px;display:flex;gap:11px;align-items:flex-start;cursor:pointer;transition:border-color .12s}
 .nnota:hover{border-color:var(--line2)}
 .nnota.sel{border-color:var(--nar);background:#171310}
@@ -819,6 +824,45 @@ function imprimirHallazgos(){
   window.print();
 }
 function filtrarHallazgos(k){ hFiltro=k; cargarHallazgos(); }
+/* Las tres decisiones que puede tomar una persona sobre un hallazgo.
+   Mientras nadie decidió, los tres botones están vivos. Cuando alguien decide,
+   el elegido queda marcado, los otros se bloquean y aparece "✎ Cambiar".
+   El motivo no es evitar clics: es que se vea QUÉ SE DECIDIÓ sin tener que
+   leer un badge perdido entre otros cinco. Lo pidió Marcelo el 04/09/2026
+   mirando una tarjeta que había trabajado Cielo y no poder saber qué hizo. */
+const DECISIONES=[
+  {k:'en_seguimiento', t:'Lo estoy trabajando'},
+  {k:'normal',         t:'Así es el negocio'},
+  {k:'resuelto',       t:'Resuelto'}
+];
+const DECIDIDOS=['en_seguimiento','normal','resuelto','descartado'];
+
+function fechaCorta(iso){
+  if(!iso) return '';
+  var d=new Date(iso); if(isNaN(d)) return '';
+  var p=function(n){return (n<10?'0':'')+n;};
+  return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+/* Quién decidió y quién anotó. Antes esto no se podía mostrar porque no se
+   guardaba: el cambio de estado escribía la palabra y nada más. */
+function quienDecidio(h){
+  var partes=[];
+  var qd=tratoDe({email:h.estado_email});
+  if(qd && h.estado_en){
+    var et=(DECISIONES.filter(function(d){return d.k===h.estado;})[0]||{}).t
+           || h.estado.replace(/_/g,' ');
+    partes.push('<span><b>'+esc(qd)+'</b> marcó «'+esc(et)+'» · '+fechaCorta(h.estado_en)+'</span>');
+  }
+  var qa=tratoDe({email:h.respondido_email});
+  if(qa && h.respondido_en) partes.push('<span><b>'+esc(qa)+'</b> anotó · '+fechaCorta(h.respondido_en)+'</span>');
+  return partes.length ? '<div class="hquien">'+partes.join('<span>·</span>')+'</div>' : '';
+}
+function desbloquear(id){
+  var c=document.getElementById('acc'+id); if(!c) return;
+  c.querySelectorAll('button[disabled]').forEach(function(b){ b.disabled=false; b.classList.remove('elegido'); });
+  var x=c.querySelector('.cambiar'); if(x) x.remove();
+}
+
 function pintarHallazgos(){
   const cont=document.getElementById('hLista');
   if(!HALLAZGOS.length){
@@ -832,6 +876,7 @@ function pintarHallazgos(){
       return '<span class="hcifra">'+esc(k.replace(/_/g,' '))+': <b>'+esc(String(v))+'</b></span>';
     }).join('');
     var puedePublicar = h.estado!=='descartado';
+    var decidido = DECIDIDOS.indexOf(h.estado) >= 0;
     return '<div class="hcard '+esc(h.severidad)+(h.estado==='resuelto'||h.estado==='descartado'?' resuelto':'')+'">'
       + '<div class="hhead"><div class="htit">'+esc(h.titulo)+'</div>'
       +   '<span class="hbadge '+(h.publicado?'pub':'priv')+'">'+(h.publicado?'✓ Publicado':'Privado')+'</span></div>'
@@ -845,15 +890,21 @@ function pintarHallazgos(){
       + '</div>'
       + (cifras?'<div class="hcifras">'+cifras+'</div>':'')
       + (h.respuesta?'<div class="hresp"><em>Lo que contestaron</em>'+esc(h.respuesta)+'</div>':'')
-      + '<div class="hacc">'
+      + quienDecidio(h)
+      + '<div class="hacc" id="acc'+h.id+'">'
       +   (puedePublicar
             ? (h.publicado
                 ? '<button class="hbtn despub" onclick="pubHallazgo('+h.id+',false)">Despublicar</button>'
                 : '<button class="hbtn pub" onclick="pubHallazgo('+h.id+',true)">Publicar para el equipo</button>')
             : '')
-      +   '<button class="hbtn" onclick="estadoHallazgo('+h.id+",'en_seguimiento'"+')">Lo estoy trabajando</button>'
-      +   '<button class="hbtn" onclick="estadoHallazgo('+h.id+",'normal'"+')">Así es el negocio</button>'
-      +   '<button class="hbtn" onclick="estadoHallazgo('+h.id+",'resuelto'"+')">Resuelto</button>'
+      +   DECISIONES.map(function(d){
+            var elegida = (h.estado===d.k);
+            return '<button class="hbtn'+(elegida?' elegido':'')+'"'
+                 + (decidido ? (elegida?' disabled':' disabled') : '')
+                 + ' onclick="estadoHallazgo('+h.id+",'"+d.k+"'"+')">'
+                 + (elegida?'✓ ':'') + d.t + '</button>';
+          }).join('')
+      +   (decidido ? '<button class="hbtn cambiar" onclick="desbloquear('+h.id+')">✎ Cambiar</button>' : '')
       +   '<button class="hbtn" onclick="toggleNota('+h.id+')">✎ Anotar</button>'
       + '</div>'
       + '<div class="hnota" id="nota'+h.id+'">'
@@ -872,7 +923,9 @@ async function pubHallazgo(id, publicar){
 }
 async function estadoHallazgo(id, estado){
   try{
-    await sbPatch('biz_hallazgo','id=eq.'+id,{estado:estado});
+    await sbPatch('biz_hallazgo','id=eq.'+id,{
+      estado: estado, estado_por: MYID, estado_en: new Date().toISOString()
+    });
     cargarHallazgos();
   }catch(e){ alert('No se pudo: '+e.message); }
 }

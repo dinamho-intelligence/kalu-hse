@@ -98,6 +98,22 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .hnota.on{display:block}
 .hnota textarea{width:100%;background:#0b0f14;border:1px solid var(--line2);border-radius:8px;color:var(--tx);font-size:13px;padding:9px 11px;font-family:inherit;resize:vertical;min-height:62px;outline:none}
 .hnota textarea:focus{border-color:var(--nar)}
+.nnota{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px;display:flex;gap:11px;align-items:flex-start;cursor:pointer;transition:border-color .12s}
+.nnota:hover{border-color:var(--line2)}
+.nnota.sel{border-color:var(--nar);background:#171310}
+.nnota input[type=checkbox]{margin-top:3px;accent-color:var(--nar);width:16px;height:16px;flex:none;cursor:pointer}
+.nnota .ntit{font-weight:600;font-size:13.5px;color:var(--tx);line-height:1.35}
+.nnota .ntxt{font-size:12.5px;color:var(--tx2);margin-top:5px;line-height:1.5;white-space:pre-wrap}
+.nnota .nmeta{font-size:11px;color:var(--tx3,#6d7783);margin-top:7px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.netiq{background:#0f141b;border:1px solid var(--line);border-radius:9px;padding:1px 7px;font-size:10.5px;color:var(--tx2)}
+.nbar{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(11,14,19,.5),var(--bg) 30%);padding:12px 0 4px;margin-top:6px;display:none;gap:9px;align-items:center;flex-wrap:wrap}
+.nbar.on{display:flex}
+.nbar input[type=text]{flex:1;min-width:230px;background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:10px 13px;font-size:13px;font-family:inherit}
+.nbar input[type=text]:focus{outline:none;border-color:var(--nar)}
+.cnota{align-self:flex-start;margin-top:5px;margin-left:6px;background:transparent;border:1px solid var(--line2);
+  color:var(--tx2);border-radius:14px;padding:3px 10px;font-size:11px;cursor:pointer}
+.cnota:hover{border-color:var(--nar);color:var(--nar)}
+.cbub.kalu .cacc{display:flex;gap:0;align-items:center}
 .hprint{margin-left:auto;background:#0f141b;border:1px solid var(--cy);color:#7fe6ff;border-radius:16px;padding:6px 13px;font-size:12.5px;cursor:pointer;font-weight:600}
 #hPrintHead{display:none}
 /* ---------- impresión / PDF ----------
@@ -161,6 +177,7 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   <div class="tabs">
     <button class="tab on" id="tabPanel" onclick="verVista('panel')">📊 Panel</button>
     <button class="tab" id="tabHallazgos" onclick="verVista('hallazgos')">🔎 Hallazgos <span id="hBadge" style="display:none;background:#e23b3b;color:#fff;border-radius:9px;padding:1px 6px;font-size:10px;margin-left:3px"></span></button>
+    <button class="tab" id="tabLibreta" onclick="verVista('libreta')">📓 Libreta <span id="nBadge" style="display:none;background:#2b3542;color:var(--tx2);border-radius:9px;padding:1px 6px;font-size:10px;margin-left:3px"></span></button>
     <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
   </div>
   <div id="viewPanel">
@@ -220,6 +237,17 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     <div id="hPrintHead"></div>
     <div id="hLista"></div>
   </div>
+  <div id="viewLibreta" class="hide">
+    <div class="muted" style="margin-bottom:10px">Lo que fuiste guardando de las charlas con KALU. Elegí las que quieras y pedile que las mire juntas.</div>
+    <div class="hfiltros" id="nFiltros"></div>
+    <div id="nLista"></div>
+    <div class="nbar" id="nBar">
+      <span id="nCuenta" style="font-size:12.5px;color:var(--nar);font-weight:700;white-space:nowrap"></span>
+      <input type="text" id="nOrient" placeholder="¿Con qué orientación querés que las mire? (opcional)" onkeydown="if(event.key==='Enter')analizarNotas()">
+      <button class="btn pri" onclick="analizarNotas()">Analizar con KALU</button>
+      <button class="btn" onclick="nSel.clear();pintarLibreta()">Quitar selección</button>
+    </div>
+  </div>
   <div id="viewChat" class="hide">
     <div id="chatMsgs" class="chatmsgs"></div>
     <div class="chatin">
@@ -231,7 +259,7 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 </div>
 <script>
 function verVista(v){
-  ['panel','hallazgos','chat'].forEach(function(k){
+  ['panel','hallazgos','libreta','chat'].forEach(function(k){
     var t=document.getElementById('tab'+k.charAt(0).toUpperCase()+k.slice(1));
     var w=document.getElementById('view'+k.charAt(0).toUpperCase()+k.slice(1));
     if(t) t.classList.toggle('on', v===k);
@@ -239,6 +267,7 @@ function verVista(v){
   });
   if(v==='chat') initChat();
   if(v==='hallazgos') cargarHallazgos();
+  if(v==='libreta') cargarLibreta();
 }
 const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-biz-chat';
 let chatHist=[];
@@ -251,7 +280,14 @@ function chatBubble(who,txt){
   const m=document.getElementById('chatMsgs');
   const d=document.createElement('div'); d.className='cbub '+who;
   d.innerHTML='<div class="cwho">'+(who==='kalu'?'KALU':'Vos')+'</div><div class="ctxt">'+esc(txt).replace(/\n/g,'<br>')+'</div>'
-    + (who==='kalu' ? '<button class="cvoz hide" title="Escuchar">🔊 Escuchar</button>' : '');
+    + (who==='kalu' ? '<div class="cacc"><button class="cvoz hide" title="Escuchar">🔊 Escuchar</button>'
+                    + '<button class="cnota hide" title="Guardar en la libreta">📌 A la libreta</button></div>' : '');
+  if(who==='kalu'){
+    var bn=d.querySelector('.cnota');
+    /* El botón guarda ESTA burbuja, sin ambigüedad. Decirle "guardá eso" a KALU
+       también funciona, pero acá no hay forma de que se equivoque de párrafo. */
+    if(bn) bn.onclick=function(){ guardarBurbuja(d, bn); };
+  }
   m.appendChild(d); m.scrollTop=m.scrollHeight; return d;
 }
 /* ===== Voz de KALU (Web Speech API del navegador) =====
@@ -285,7 +321,7 @@ function hablar(texto, boton){
 }
 async function enviarChat(){
   const ta=document.getElementById('chatInput'); const q=(ta.value||'').trim(); if(!q) return;
-  chatBubble('vos',q); ta.value='';
+  chatBubble('vos',q); ta.value=''; ULTIMA_PREGUNTA=q;
   const btn=document.getElementById('chatSend'); btn.disabled=true;
   const bub=chatBubble('kalu',''); bub.querySelector('.ctxt').innerHTML='<span class="typ"><span></span><span></span><span></span></span>';
   try{
@@ -295,6 +331,7 @@ async function enviarChat(){
     const resp=(d&&(d.respuesta||d.mensaje||d.text))||'No pude responder eso ahora.';
     bub.querySelector('.ctxt').innerHTML=esc(resp).replace(/\n/g,'<br>');
     chatHist.push({pregunta:q,respuesta:resp});
+    var bnota=bub.querySelector('.cnota'); if(bnota) bnota.classList.remove('hide');
     /* Voz adentro, voz afuera: si la pregunta se dictó, la respuesta se lee sola.
        Si se escribió, queda el botón por si la querés escuchar. */
     const bv=bub.querySelector('.cvoz');
@@ -330,6 +367,97 @@ function toggleDictado(){
 }
 </script>
 <script>
+/* ═══ LA LIBRETA ═══════════════════════════════════════════════════════════
+   Fragmentos guardados en medio de una charla. Cada nota lleva su contexto:
+   la pregunta que la originó, el período de los datos y quién la guardó. Sin
+   eso, a los tres meses es un párrafo suelto con una cifra y nadie sabe de
+   cuándo era. */
+let NOTAS=[], nSel=new Set(), nEtiq=null, nBusca='';
+let ULTIMA_PREGUNTA='';
+
+async function cargarLibreta(){
+  const cont=document.getElementById('nLista'); if(!cont) return;
+  if(!NOTAS.length) cont.innerHTML='<div class="muted">Cargando…</div>';
+  try{
+    NOTAS = await sbRpc('biz_notas_ver',{p_empresa_id:EMPRESA_ID,p_etiqueta:null,p_buscar:null,p_limite:200}) || [];
+  }catch(e){ cont.innerHTML='<div class="err">No pude leer la libreta: '+esc(e.message)+'</div>'; return; }
+  pintarLibreta();
+  var b=document.getElementById('nBadge');
+  if(b){ b.textContent=NOTAS.length; b.style.display=NOTAS.length?'inline-block':'none'; }
+}
+
+function pintarLibreta(){
+  var todas=[]; NOTAS.forEach(function(n){ (n.etiquetas||[]).forEach(function(e){ if(todas.indexOf(e)<0) todas.push(e); }); });
+  document.getElementById('nFiltros').innerHTML =
+    '<button class="hchip'+(nEtiq===null?' on':'')+'" onclick="nEtiq=null;pintarLibreta()">Todas ('+NOTAS.length+')</button>'
+    + todas.sort().map(function(e){
+        var c=NOTAS.filter(function(n){return (n.etiquetas||[]).indexOf(e)>=0;}).length;
+        return '<button class="hchip'+(nEtiq===e?' on':'')+'" onclick="nEtiq='+JSON.stringify(e)+';pintarLibreta()">'+esc(e)+' ('+c+')</button>';
+      }).join('');
+
+  var vis=NOTAS.filter(function(n){
+    if(nEtiq && (n.etiquetas||[]).indexOf(nEtiq)<0) return false;
+    if(nBusca){ var t=((n.titulo||'')+' '+(n.texto||'')).toLowerCase(); if(t.indexOf(nBusca.toLowerCase())<0) return false; }
+    return true;
+  });
+
+  document.getElementById('nLista').innerHTML = vis.length ? vis.map(function(n){
+    var sel=nSel.has(n.id);
+    return '<div class="nnota'+(sel?' sel':'')+'" onclick="toggleNota('+n.id+',event)">'
+      + '<input type="checkbox" '+(sel?'checked':'')+' onclick="event.stopPropagation();toggleNota('+n.id+')">'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div class="ntit">'+esc(n.titulo||'')+'</div>'
+      +   ((n.texto||'')!==(n.titulo||'') ? '<div class="ntxt">'+esc(n.texto||'')+'</div>' : '')
+      +   '<div class="nmeta"><span>#'+n.id+'</span><span>'+esc(n.creada_en||'')+'</span>'
+      +     (n.creada_por_nombre?'<span>· '+esc(n.creada_por_nombre)+'</span>':'')
+      +     (n.periodo?'<span>· datos '+esc(n.periodo)+'</span>':'')
+      +     (n.pregunta?'<span style="font-style:italic">· salió de: “'+esc(n.pregunta)+'”</span>':'')
+      +     (n.etiquetas||[]).map(function(e){return '<span class="netiq">'+esc(e)+'</span>';}).join('')
+      +   '</div>'
+      + '</div></div>';
+  }).join('') : '<div class="muted" style="padding:18px 0">Todavía no hay notas acá. En el chat, cuando aparezca algo que valga, decile a KALU <b style="color:var(--tx2)">“guardá esto en la libreta”</b> o tocá 📌 debajo de su respuesta.</div>';
+
+  var bar=document.getElementById('nBar');
+  bar.classList.toggle('on', nSel.size>0);
+  document.getElementById('nCuenta').textContent = nSel.size+(nSel.size===1?' nota elegida':' notas elegidas');
+}
+
+function toggleNota(id, ev){
+  if(ev && ev.target && ev.target.tagName==='INPUT') return;
+  if(nSel.has(id)) nSel.delete(id); else nSel.add(id);
+  pintarLibreta();
+}
+
+/* Elegís notas acá y la pregunta se arma sola y se manda al chat. KALU las trae
+   con ver_notas, no se las pasamos pegadas: así lee la versión de la base y no
+   una copia vieja del navegador. */
+function analizarNotas(){
+  if(!nSel.size) return;
+  var ids=Array.from(nSel).sort(function(a,b){return a-b;});
+  var ori=(document.getElementById('nOrient').value||'').trim();
+  var q='Mirá las notas '+ids.map(function(i){return '#'+i;}).join(', ')+' de la libreta y analizalas juntas: qué las conecta, qué te dicen y qué haríamos.';
+  if(ori) q+=' Orientación: '+ori+'.';
+  verVista('chat');
+  var ta=document.getElementById('chatInput'); ta.value=q;
+  enviarChat();
+  document.getElementById('nOrient').value=''; nSel.clear(); pintarLibreta();
+}
+
+/* Guardar una respuesta de KALU tal cual, desde su burbuja. */
+async function guardarBurbuja(bub, boton){
+  var txt=(bub.querySelector('.ctxt').innerText||'').trim();
+  if(!txt) return;
+  var prev=boton.textContent; boton.disabled=true; boton.textContent='Guardando…';
+  try{
+    await sbRpc('biz_nota_guardar',{
+      p_empresa_id:EMPRESA_ID, p_texto:txt, p_titulo:null,
+      p_pregunta:ULTIMA_PREGUNTA||null, p_origen:'chat', p_periodo:null, p_etiquetas:[]
+    });
+    boton.textContent='✓ En la libreta'; boton.style.borderColor='var(--nar)'; boton.style.color='var(--nar)';
+    NOTAS=[]; cargarLibreta();
+  }catch(e){ boton.disabled=false; boton.textContent=prev; alert('No pude guardarla: '+e.message); }
+}
+
 const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const SB_REF='nignqeipzlemwfrwmpip';

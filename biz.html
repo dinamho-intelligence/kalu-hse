@@ -64,6 +64,40 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 .chatmic.on{background:var(--rojo);color:#fff;border-color:var(--rojo)}
 .chatsend{width:44px;border:none;border-radius:12px;background:var(--nar);color:#0A0C0F;font-size:18px;font-weight:800;cursor:pointer;flex:0 0 auto}
 .chatsend:disabled{opacity:.5}
+/* ---------- hallazgos ---------- */
+.hfiltros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.hchip{background:#0f141b;border:1px solid var(--line);color:var(--tx2);border-radius:16px;padding:6px 13px;font-size:12.5px;cursor:pointer;font-weight:600}
+.hchip.on{background:var(--nar);border-color:var(--nar);color:#0b0e13}
+.hvacio{color:var(--tx3);font-size:14px;padding:36px 8px;text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.hcard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:12px;padding:15px 17px;margin-bottom:11px}
+.hcard.alta{border-left-color:var(--rojo)}
+.hcard.media{border-left-color:var(--amber)}
+.hcard.baja{border-left-color:var(--line2)}
+.hcard.resuelto{opacity:.55}
+.hhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.htit{font-size:15px;font-weight:700;color:var(--tx);line-height:1.35;flex:1;min-width:220px}
+.hmeta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.hbadge{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:#141a22;border:1px solid var(--line);color:var(--tx2);white-space:nowrap}
+.hbadge.sev-alta{background:rgba(226,59,59,.14);border-color:var(--rojo);color:#ff8a82}
+.hbadge.sev-media{background:rgba(247,148,29,.14);border-color:var(--amber);color:#ffc07a}
+.hbadge.pub{background:rgba(37,194,110,.14);border-color:var(--verde);color:#7ee2a8}
+.hbadge.priv{background:#141a22;border-color:var(--line2);color:var(--tx3)}
+.hcifras{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:11px;padding-top:11px;border-top:1px solid rgba(255,255,255,.05)}
+.hcifra{font-size:12.5px;color:var(--tx3)}
+.hcifra b{color:var(--tx2);font-weight:600}
+.hresp{margin-top:11px;background:rgba(37,194,110,.07);border:1px solid rgba(37,194,110,.3);border-radius:8px;padding:9px 11px;font-size:13px;color:#a8e6c4}
+.hresp em{color:var(--tx3);font-style:normal;font-size:11px;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+.hacc{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.hbtn{background:#141a22;border:1px solid var(--line2);color:var(--tx2);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+.hbtn:hover{border-color:var(--nar);color:var(--tx)}
+.hbtn.pub{border-color:var(--verde);color:#7ee2a8}
+.hbtn.pub:hover{background:rgba(37,194,110,.12)}
+.hbtn.despub{border-color:var(--line2);color:var(--tx3)}
+.hbtn:disabled{opacity:.45;cursor:default}
+.hnota{margin-top:10px;display:none}
+.hnota.on{display:block}
+.hnota textarea{width:100%;background:#0b0f14;border:1px solid var(--line2);border-radius:8px;color:var(--tx);font-size:13px;padding:9px 11px;font-family:inherit;resize:vertical;min-height:62px;outline:none}
+.hnota textarea:focus{border-color:var(--nar)}
 .typ span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--nar);animation:blink 1.2s infinite both}
 .typ span:nth-child(2){animation-delay:.2s}.typ span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
@@ -93,6 +127,7 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <div class="tabs">
     <button class="tab on" id="tabPanel" onclick="verVista('panel')">📊 Panel</button>
+    <button class="tab" id="tabHallazgos" onclick="verVista('hallazgos')">🔎 Hallazgos <span id="hBadge" style="display:none;background:#e23b3b;color:#fff;border-radius:9px;padding:1px 6px;font-size:10px;margin-left:3px"></span></button>
     <button class="tab" id="tabChat" onclick="verVista('chat')">💬 Consultar KALU</button>
   </div>
   <div id="viewPanel">
@@ -146,6 +181,11 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     <div class="excard"><div class="excanv" style="height:280px"><canvas id="chCarteraCliente"></canvas></div></div>
   </div>
   </div>
+  <div id="viewHallazgos" class="hide">
+    <div class="muted" style="margin-bottom:10px">Lo que KALU encontró solo. <b style="color:var(--tx2)">Privados hasta que los publiques</b> — nadie más los ve.</div>
+    <div class="hfiltros" id="hFiltros"></div>
+    <div id="hLista"></div>
+  </div>
   <div id="viewChat" class="hide">
     <div id="chatMsgs" class="chatmsgs"></div>
     <div class="chatin">
@@ -157,11 +197,14 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
 </div>
 <script>
 function verVista(v){
-  document.getElementById('tabPanel').classList.toggle('on', v==='panel');
-  document.getElementById('tabChat').classList.toggle('on', v==='chat');
-  document.getElementById('viewPanel').classList.toggle('hide', v!=='panel');
-  document.getElementById('viewChat').classList.toggle('hide', v!=='chat');
+  ['panel','hallazgos','chat'].forEach(function(k){
+    var t=document.getElementById('tab'+k.charAt(0).toUpperCase()+k.slice(1));
+    var w=document.getElementById('view'+k.charAt(0).toUpperCase()+k.slice(1));
+    if(t) t.classList.toggle('on', v===k);
+    if(w) w.classList.toggle('hide', v!==k);
+  });
   if(v==='chat') initChat();
+  if(v==='hallazgos') cargarHallazgos();
 }
 const CHAT_WEBHOOK='https://dnmintell.app.n8n.cloud/webhook/kalu-biz-chat';
 let chatHist=[];
@@ -483,6 +526,122 @@ function pintarPendientes(){
   var pend = FACTURAS.filter(function(r){ return estadoLimpio(r.estado)==='Pdte de Pago' && r.valor_total_factura; });
   var porCliente = tally(pend, function(r){return r.cliente;}, function(r){return r.valor_total_factura;}, 10);
   drawBar('chCarteraCliente', porCliente, ROJO, true);
+}
+/* ===== HALLAZGOS =====
+   Lo que KALU encontró solo. Las acciones que tienen consecuencia viven acá y no
+   en el chat: cada una está pegada a una fila concreta, sin ambigüedad sobre cuál.
+   Escribir exige ser super — lo impone el RLS, no esta pantalla. */
+let HALLAZGOS=[], hFiltro=null;
+const H_ESTADOS=[
+  {k:null,          t:'Todos'},
+  {k:'nuevo',       t:'Nuevos'},
+  {k:'avisado',     t:'Avisados'},
+  {k:'en_seguimiento', t:'En seguimiento'},
+  {k:'normal',      t:'Así es el negocio'},
+  {k:'resuelto',    t:'Resueltos'},
+  {k:'descartado',  t:'Descartados'}
+];
+async function sbPatch(tabla, filtro, cambios){
+  const r=await fetch(SB_URL+'/rest/v1/'+tabla+'?'+filtro,{
+    method:'PATCH',
+    headers:{apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json',Prefer:'return=representation'},
+    body:JSON.stringify(cambios)
+  });
+  if(!r.ok) throw new Error('patch '+r.status);
+  const d=await r.json();
+  // RLS: si no sos super, el update no falla — no toca ninguna fila.
+  if(!d.length) throw new Error('sin permiso para modificar hallazgos');
+  return d;
+}
+async function cargarHallazgos(){
+  try{
+    HALLAZGOS = await sbRpc('biz_hallazgos_ver', {p_empresa_id:EMPRESA_ID, p_estado:hFiltro, p_limite:100});
+  }catch(e){
+    document.getElementById('hLista').innerHTML='<div class="hvacio">No se pudieron cargar los hallazgos: '+esc(e.message)+'</div>';
+    return;
+  }
+  pintarFiltros(); pintarHallazgos(); actualizarBadge();
+}
+async function actualizarBadge(){
+  try{
+    const nuevos = await sbRpc('biz_hallazgos_ver', {p_empresa_id:EMPRESA_ID, p_estado:'nuevo', p_limite:100});
+    const b=document.getElementById('hBadge');
+    if(b){ b.textContent=nuevos.length; b.style.display = nuevos.length ? 'inline-block' : 'none'; }
+  }catch(_){}
+}
+function pintarFiltros(){
+  document.getElementById('hFiltros').innerHTML = H_ESTADOS.map(function(f){
+    return '<button class="hchip'+(hFiltro===f.k?' on':'')+'" onclick="filtrarHallazgos('+(f.k?"'"+f.k+"'":'null')+')">'+f.t+'</button>';
+  }).join('');
+}
+function filtrarHallazgos(k){ hFiltro=k; cargarHallazgos(); }
+function pintarHallazgos(){
+  const cont=document.getElementById('hLista');
+  if(!HALLAZGOS.length){
+    cont.innerHTML='<div class="hvacio">No hay hallazgos acá.<br><span style="font-size:12.5px">Que no haya nada también es información: significa que no apareció nada que no supieras.</span></div>';
+    return;
+  }
+  cont.innerHTML = HALLAZGOS.map(function(h){
+    var cifras = Object.keys(h.cifras||{}).map(function(k){
+      var v=h.cifras[k];
+      if(typeof v==='number' && Math.abs(v)>=100000) v=fmtCOP(v);
+      return '<span class="hcifra">'+esc(k.replace(/_/g,' '))+': <b>'+esc(String(v))+'</b></span>';
+    }).join('');
+    var puedePublicar = h.estado!=='descartado';
+    return '<div class="hcard '+esc(h.severidad)+(h.estado==='resuelto'||h.estado==='descartado'?' resuelto':'')+'">'
+      + '<div class="hhead"><div class="htit">'+esc(h.titulo)+'</div>'
+      +   '<span class="hbadge '+(h.publicado?'pub':'priv')+'">'+(h.publicado?'✓ Publicado':'Privado')+'</span></div>'
+      + '<div class="hmeta">'
+      +   '<span class="hbadge sev-'+esc(h.severidad)+'">'+esc(h.severidad)+'</span>'
+      +   '<span class="hbadge">'+esc(h.tipo.replace(/_/g,' '))+'</span>'
+      +   '<span class="hbadge">'+esc(h.estado.replace(/_/g,' '))+'</span>'
+      +   '<span class="hbadge">'+esc(h.periodo)+'</span>'
+      +   (h.veces>1?'<span class="hbadge">van '+h.veces+' corridas</span>':'')
+      +   (h.dias_abierto>0?'<span class="hbadge">'+h.dias_abierto+' días abierto</span>':'')
+      + '</div>'
+      + (cifras?'<div class="hcifras">'+cifras+'</div>':'')
+      + (h.respuesta?'<div class="hresp"><em>Lo que contestaron</em>'+esc(h.respuesta)+'</div>':'')
+      + '<div class="hacc">'
+      +   (puedePublicar
+            ? (h.publicado
+                ? '<button class="hbtn despub" onclick="pubHallazgo('+h.id+',false)">Despublicar</button>'
+                : '<button class="hbtn pub" onclick="pubHallazgo('+h.id+',true)">Publicar para el equipo</button>')
+            : '')
+      +   '<button class="hbtn" onclick="estadoHallazgo('+h.id+",'en_seguimiento'"+')">Lo estoy trabajando</button>'
+      +   '<button class="hbtn" onclick="estadoHallazgo('+h.id+",'normal'"+')">Así es el negocio</button>'
+      +   '<button class="hbtn" onclick="estadoHallazgo('+h.id+",'resuelto'"+')">Resuelto</button>'
+      +   '<button class="hbtn" onclick="toggleNota('+h.id+')">✎ Anotar</button>'
+      + '</div>'
+      + '<div class="hnota" id="nota'+h.id+'">'
+      +   '<textarea id="txt'+h.id+'" placeholder="Ej: Puerto Triunfo es el único que llega a ese pozo. Lo que escribas acá calibra a KALU: deja de alarmar por esto.">'+esc(h.respuesta||'')+'</textarea>'
+      +   '<div class="hacc"><button class="hbtn pub" onclick="guardarNota('+h.id+')">Guardar</button></div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+function toggleNota(id){ var n=document.getElementById('nota'+id); if(n) n.classList.toggle('on'); }
+async function pubHallazgo(id, publicar){
+  try{
+    await sbPatch('biz_hallazgo','id=eq.'+id,{publicado:publicar, publicado_en: publicar?new Date().toISOString():null});
+    cargarHallazgos();
+  }catch(e){ alert('No se pudo: '+e.message); }
+}
+async function estadoHallazgo(id, estado){
+  try{
+    await sbPatch('biz_hallazgo','id=eq.'+id,{estado:estado});
+    cargarHallazgos();
+  }catch(e){ alert('No se pudo: '+e.message); }
+}
+async function guardarNota(id){
+  var t=document.getElementById('txt'+id); if(!t) return;
+  try{
+    await sbPatch('biz_hallazgo','id=eq.'+id,{
+      respuesta: t.value.trim() || null,
+      respondido_por: MYID,
+      respondido_en: new Date().toISOString()
+    });
+    cargarHallazgos();
+  }catch(e){ alert('No se pudo: '+e.message); }
 }
 document.getElementById('pass').addEventListener('keydown',function(e){ if(e.key==='Enter') entrar(); });
 restoreSession();

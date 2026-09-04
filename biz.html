@@ -305,13 +305,26 @@ async function enviarChat(){
   }
   try{
     const r=await fetch(CHAT_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pregunta:q,historial:chatHist.slice(-6),token:TOKEN,usuario:YO})});
-    if(!r.ok) throw new Error('http '+r.status);
+    /* Un error se muestra, no se esconde. Antes cualquier falla decía "falta
+       activar el flujo": una sola causa inventada para diez posibles, y no
+       había forma de diagnosticar nada desde la pantalla. */
+    if(!r.ok){
+      var det=''; try{ det=(await r.text()||'').slice(0,300); }catch(_){}
+      throw new Error('El flujo de n8n respondió '+r.status+
+        (r.status===404?' — el webhook kalu-biz-chat no existe o el flujo está apagado.':'')+
+        (r.status>=500?' — el nodo se cayó. Mirá la última ejecución en n8n: casi siempre es la ANTHROPIC_KEY.':'')+
+        (det?'\n'+det:''));
+    }
     const d=await r.json();
     const resp=(d&&(d.respuesta||d.mensaje||d.text))||'No pude responder eso ahora.';
     bub.querySelector('.ctxt').innerHTML=esc(resp).replace(/\n/g,'<br>');
     chatHist.push({pregunta:q,respuesta:resp});
     var bnota=bub.querySelector('.cnota'); if(bnota) bnota.classList.remove('hide');
-  }catch(e){ bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">No me pude conectar. Falta activar el flujo de n8n (kalu-biz-chat).</span>'; }
+  }catch(e){
+    var m = String((e&&e.message)||e);
+    if(m.indexOf('n8n respondió')<0) m = 'No llegué al servidor de KALU. Puede ser tu conexión, o el flujo kalu-biz-chat apagado.\n('+m+')';
+    bub.querySelector('.ctxt').innerHTML='<span style="color:var(--amber)">'+esc(m).replace(/\n/g,'<br>')+'</span>';
+  }
   finally{ btn.disabled=false; ta.focus(); const m=document.getElementById('chatMsgs'); if(m)m.scrollTop=m.scrollHeight; }
 }
 /* Dictado por voz (Web Speech API — nativo del navegador, sin webhook extra) */

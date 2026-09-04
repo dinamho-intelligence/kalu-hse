@@ -366,8 +366,8 @@ function pintarLibreta(){
 
   document.getElementById('nLista').innerHTML = vis.length ? vis.map(function(n){
     var sel=nSel.has(n.id);
-    return '<div class="nnota'+(sel?' sel':'')+'" onclick="toggleNota('+n.id+',event)">'
-      + '<input type="checkbox" '+(sel?'checked':'')+' onclick="event.stopPropagation();toggleNota('+n.id+')">'
+    return '<div class="nnota'+(sel?' sel':'')+'" onclick="elegirNota('+n.id+',event)">'
+      + '<input type="checkbox" '+(sel?'checked':'')+' onclick="event.stopPropagation();elegirNota('+n.id+')">'
       + '<div style="flex:1;min-width:0">'
       +   '<div class="ntit">'+esc(n.titulo||'')+'</div>'
       +   ((n.texto||'')!==(n.titulo||'') ? '<div class="ntxt">'+esc(n.texto||'')+'</div>' : '')
@@ -385,7 +385,11 @@ function pintarLibreta(){
   document.getElementById('nCuenta').textContent = nSel.size+(nSel.size===1?' nota elegida':' notas elegidas');
 }
 
-function toggleNota(id, ev){
+/* Se llama elegirNota y no toggleNota a proposito: ya existe una toggleNota()
+   para abrir el cuadro de anotacion de un hallazgo. Dos funciones con el mismo
+   nombre no dan error — la ultima definida pisa a la otra en silencio, y lo que
+   se rompe es la que cargo primero. Es el patron 1 del catalogo, en JavaScript. */
+function elegirNota(id, ev){
   if(ev && ev.target && ev.target.tagName==='INPUT') return;
   if(nSel.has(id)) nSel.delete(id); else nSel.add(id);
   pintarLibreta();

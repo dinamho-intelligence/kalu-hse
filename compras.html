@@ -106,6 +106,17 @@ h3{margin:0 0 12px;font-size:16px}
       <div><button class="btn" onclick="cargarPresu()" style="width:100%">Ver</button></div>
     </div>
     <div id="preLista"></div>
+
+    <div class="card hide" id="cardAsignar" style="margin-top:14px">
+      <h3>Asignar presupuesto</h3>
+      <div class="muted" style="margin-bottom:10px">Un monto por centro y por mes. Si ya tenía, lo reemplaza y queda registrado cuánto era antes.</div>
+      <div class="row r3">
+        <div><label>Centro de costo *</label><select id="aCC"></select></div>
+        <div><label>Mes *</label><input id="aMes" type="number" min="1" max="12"></div>
+        <div><label>Monto *</label><input id="aMonto" type="number" min="0" step="1000" placeholder="5000000"></div>
+      </div>
+      <button class="btn pri" id="bAsignar" onclick="asignarPresu()" style="margin-top:10px">Asignar</button>
+    </div>
   </div>
 
   <div id="vRec">
@@ -244,6 +255,9 @@ async function arrancar(){
     document.getElementById('pMes').value=new Date(Date.now()-5*3600*1000).getMonth()+1;
     document.getElementById('qCC').innerHTML=opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
     document.getElementById('qCC').onchange=avisoPresupuesto;
+    document.getElementById('aCC').innerHTML=document.getElementById('qCC').innerHTML;
+    document.getElementById('aMes').value=document.getElementById('pMes').value;
+    if(ROLES.includes('direccion')) document.getElementById('cardAsignar').classList.remove('hide');
     addQLinea();
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
@@ -252,6 +266,19 @@ async function arrancar(){
     if(!MYID) aviso('No pude identificar tu usuario. Salí y volvé a entrar antes de recibir nada.');
     pintarMaestros(); addLinea(); cargarPendientes();
   }catch(e){ aviso(e.message); }
+}
+/* Un precio que falta no es cero. Se suma lo que se sabe y se dice, aparte,
+   cuantas lineas no tienen precio: asi el que aprueba ve las dos cosas. */
+function suma(lineas){
+  let t=0, sin=0;
+  (lineas||[]).forEach(l=>{ const v=Number(l.valor_estimado);
+    if(l.valor_estimado===null||l.valor_estimado===undefined||isNaN(v)) sin++;
+    else t+=(Number(l.cantidad)||0)*v; });
+  return {total:t, sin:sin};
+}
+function montoTexto(lineas){
+  const x=suma(lineas);
+  return cop(x.total)+(x.sin?'  <span class="pill amber">+'+x.sin+' sin precio</span>':'');
 }
 function opts(arr,val,txt,vacio){
   return (vacio?'<option value="">'+vacio+'</option>':'')+arr.map(o=>'<option value="'+o[val]+'">'+esc(o[txt])+'</option>').join('');
@@ -387,22 +414,62 @@ async function guardarOrden(){
 }
 
 /* ---------- requisición ---------- */
+/* El que pide dice QUE necesita y CUANTO. El precio lo pone el catalogo: el
+   inspector que se quedo sin penetrante no sabe cuanto cuesta el penetrante,
+   y un numero inventado es peor que ningun numero. */
 function addQLinea(){
   const i=++nQ;
   const catOpts=MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
   const d=document.createElement('div'); d.className='lin'; d.id='q'+i;
   d.innerHTML='<div class="f2">'
-   +'<div><label>Categoría *</label><select class="qcat"><option value="">— elegir —</option>'+catOpts+'</select></div>'
-   +'<div><label>Qué necesito *</label><input class="qdesc" placeholder="Líquido penetrante"></div>'
+   +'<div><label>Categoría *</label><select class="qcat" onchange="qArts(this)"><option value="">— elegir —</option>'+catOpts+'</select></div>'
+   +'<div><label>Qué necesito *</label><select class="qart" onchange="qOtro(this)"><option value="">— elegí la categoría primero —</option></select></div>'
    +'<div><label>Cant. *</label><input class="qcant" type="number" step="0.01" value="1" oninput="qCalc()"></div>'
-   +'<div><label>Costo estimado c/u *</label><input class="qvu" type="number" step="1" oninput="qCalc()"></div>'
-   +'</div><div style="text-align:right;margin-top:6px"><button class="x" onclick="document.getElementById(\'q'+i+'\').remove();qCalc()">✕ quitar</button></div>';
+   +'<div><label>Unidad</label><input class="qund" disabled placeholder="—"></div>'
+   +'</div>'
+   +'<input class="qdesc hide" placeholder="Escribí qué necesitás" oninput="qCalc()" style="margin-top:8px">'
+   +'<div class="nota qnota"></div>'
+   +'<div style="text-align:right;margin-top:6px"><button class="x" onclick="document.getElementById(\'q'+i+'\').remove();qCalc()">✕ quitar</button></div>';
   document.getElementById('qLineas').appendChild(d); qCalc();
 }
+/* Los articulos de esa categoria, mas la salida de emergencia: si lo que hace
+   falta no esta en la lista, se escribe. Sin precio, y se dice que no lo tiene. */
+function qArts(sel){
+  const lin=sel.closest('.lin'), art=lin.querySelector('.qart');
+  const cat=Number(sel.value);
+  const lista=MAE.art.filter(a=>Number(a.categoria_id)===cat);
+  art.innerHTML='<option value="">— elegir —</option>'
+    +lista.map(a=>'<option value="'+a.id+'">'+esc(a.nombre)+(a.precio_ref?'':'  (sin precio)')+'</option>').join('')
+    +'<option value="otro">No está en la lista…</option>';
+  lin.querySelector('.qdesc').classList.add('hide');
+  lin.querySelector('.qdesc').value='';
+  qCalc();
+}
+function qOtro(sel){
+  const lin=sel.closest('.lin');
+  const otro = sel.value==='otro';
+  lin.querySelector('.qdesc').classList.toggle('hide', !otro);
+  const a=MAE.art.find(x=>String(x.id)===sel.value);
+  lin.querySelector('.qund').value = a? (a.unidad||'—') : '—';
+  qCalc();
+}
 function qCalc(){
-  let t=0; document.querySelectorAll('#qLineas .lin').forEach(l=>{
-    t+=(Number(l.querySelector('.qcant').value)||0)*(Number(l.querySelector('.qvu').value)||0); });
-  document.getElementById('qTotal').textContent=cop(t); avisoPresupuesto(t);
+  let t=0, sin=0;
+  document.querySelectorAll('#qLineas .lin').forEach(l=>{
+    const v=l.querySelector('.qart').value;
+    const a=MAE.art.find(x=>String(x.id)===v);
+    const n=l.querySelector('.qnota');
+    if(!v){ n.textContent=''; return; }
+    if(a && Number(a.precio_ref)>0){
+      t+=(Number(l.querySelector('.qcant').value)||0)*Number(a.precio_ref);
+      n.textContent='Referencia del catálogo: '+cop(a.precio_ref)+' c/u'
+        +(a.precio_ref_al?' (al '+a.precio_ref_al+')':'');
+    }else{
+      sin++; n.textContent='Sin precio de referencia. Va a la aprobación con el monto en blanco.';
+    }
+  });
+  document.getElementById('qTotal').textContent = cop(t)+(sin?'  + '+sin+' sin precio':'');
+  avisoPresupuesto();
 }
 /* Que el solicitante vea el presupuesto ANTES de pedir. No para frenarlo — para
    que sepa que esta pidiendo algo que va a hacer ruido, y lo justifique bien. */
@@ -420,12 +487,14 @@ async function avisoPresupuesto(){
 }
 async function guardarRQ(){
   const b=document.getElementById('btnQ');
-  const lins=[...document.querySelectorAll('#qLineas .lin')].map((l,i)=>({
-    numero_linea:i+1, categoria_id:l.querySelector('.qcat').value,
-    descripcion:l.querySelector('.qdesc').value.trim(),
-    cantidad:Number(l.querySelector('.qcant').value)||0,
-    valor_estimado:Number(l.querySelector('.qvu').value)||0
-  }));
+  const lins=[...document.querySelectorAll('#qLineas .lin')].map((l,i)=>{
+    const v=l.querySelector('.qart').value;
+    const a=MAE.art.find(x=>String(x.id)===v);
+    return { numero_linea:i+1, categoria_id:l.querySelector('.qcat').value,
+      articulo_id: a? Number(a.id) : null,
+      descripcion: a? a.nombre : l.querySelector('.qdesc').value.trim(),
+      cantidad:Number(l.querySelector('.qcant').value)||0 };
+  });
   const cc=document.getElementById('qCC').value, just=document.getElementById('qJust').value.trim();
   const falta=[];
   if(!cc) falta.push('centro de costo'); if(!just) falta.push('justificación');
@@ -441,8 +510,9 @@ async function guardarRQ(){
       necesita_para:document.getElementById('qPara').value||null })});
     await api('co_requisicion_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
       requisicion_id:q[0].id, numero_linea:l.numero_linea, centro_costo_id:Number(cc),
-      categoria_id:Number(l.categoria_id), descripcion:l.descripcion, cantidad:l.cantidad,
-      valor_estimado:l.valor_estimado, mes_imputacion:mesActual() })))});
+      categoria_id:Number(l.categoria_id), articulo_id:l.articulo_id,
+      descripcion:l.descripcion, cantidad:l.cantidad,
+      mes_imputacion:mesActual() })))});
     aviso('Requisición '+q[0].numero+' enviada.',true);
     document.getElementById('qLineas').innerHTML=''; document.getElementById('qJust').value=''; addQLinea(); cargarMisRQ();
   }catch(e){ aviso(e.message); } finally{ b.disabled=false; b.textContent='Enviar requisición'; }
@@ -452,9 +522,9 @@ async function cargarMisRQ(){
   try{
     const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,co_requisicion_linea(cantidad,valor_estimado)&order=fecha.desc&limit=40');
     c.innerHTML=q.length?('<div class="card"><table><thead><tr><th>N°</th><th>Fecha</th><th>Justificación</th><th>Estado</th><th class="num">Estimado</th></tr></thead><tbody>'
-      +q.map(r=>{const t=(r.co_requisicion_linea||[]).reduce((a,l)=>a+l.cantidad*l.valor_estimado,0);
+      +q.map(r=>{const t=montoTexto(r.co_requisicion_linea);
         return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha)+'</td><td>'+esc(r.justificacion||'')+'</td>'
-        +'<td><span class="pill">'+esc(r.estado)+'</span></td><td class="num">'+cop(t)+'</td></tr>';}).join('')
+        +'<td><span class="pill">'+esc(r.estado)+'</span></td><td class="num">'+t+'</td></tr>';}).join('')
       +'</tbody></table></div>'):'<div class="card muted">Todavía no pediste nada.</div>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
@@ -473,9 +543,9 @@ async function cargarAprobar(){
     });
     document.getElementById('nApr').textContent=pend.length;
     c.innerHTML=pend.length?pend.map(r=>{
-      const t=(r.co_requisicion_linea||[]).reduce((a,l)=>a+l.cantidad*l.valor_estimado,0);
+      const t=montoTexto(r.co_requisicion_linea);
       return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
-      +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+cop(t)+'</div>'
+      +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+t+'</div>'
       +'<div class="muted" style="margin-top:3px">'+esc((r.co_centro_costo||{}).codigo||'')+' · '+esc((r.co_centro_costo||{}).nombre||'')+'</div>'
       +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
       +'<div class="muted" style="margin-top:6px">'+(r.co_requisicion_linea||[]).map(l=>esc(l.descripcion)+' ×'+l.cantidad).join(' · ')+'</div>'
@@ -492,14 +562,16 @@ function kpiAprobado(q,nivel){
   const porMes={};
   q.forEach(r=>{ const ap=(r.co_aprobacion||[]).find(a=>a.nivel===nivel&&a.decision==='aprobada');
     if(!ap) return; const m=(r.fecha||'').slice(0,7);
-    const t=(r.co_requisicion_linea||[]).reduce((a,l)=>a+l.cantidad*l.valor_estimado,0);
-    porMes[m]=(porMes[m]||0)+t; });
+    const x=suma(r.co_requisicion_linea);
+    porMes[m]=porMes[m]||{total:0,sin:0};
+    porMes[m].total+=x.total; porMes[m].sin+=x.sin; });
   const ms=Object.keys(porMes).sort();
   document.getElementById('aprKpi').innerHTML=ms.length?
     ('<div class="card"><table><thead><tr><th>Mes</th><th class="num">Aprobado por vos</th><th class="num">vs mes anterior</th></tr></thead><tbody>'
-    +ms.map((m,i)=>{const p=i?porMes[ms[i-1]]:null;
-      const d=p?Math.round((porMes[m]-p)/p*100):null;
-      return '<tr><td>'+m+'</td><td class="num">'+cop(porMes[m])+'</td><td class="num">'
+    +ms.map((m,i)=>{const p=i?porMes[ms[i-1]].total:null;
+      const d=p?Math.round((porMes[m].total-p)/p*100):null;
+      return '<tr><td>'+m+(porMes[m].sin?' <span class="pill amber">'+porMes[m].sin+' sin precio</span>':'')
+      +'</td><td class="num">'+cop(porMes[m].total)+'</td><td class="num">'
         +(d===null?'—':'<span class="pill '+(d>20?'rojo':(d>0?'amber':''))+'">'+(d>0?'+':'')+d+'%</span>')+'</td></tr>';}).join('')
     +'</tbody></table></div>'):'<div class="card muted">Todavía no aprobaste nada.</div>';
 }
@@ -523,18 +595,57 @@ async function cargarPresu(){
       p_mes:Number(document.getElementById('pMes').value), p_centro_costo_id:null});
     c.innerHTML=e.length?('<div class="card"><table><thead><tr><th>Centro</th><th class="num">Asignado</th>'
       +'<th class="num">Ampliado</th><th class="num">Comprometido</th><th class="num">Ejecutado</th>'
-      +'<th class="num">Disponible</th><th class="num">Usado</th></tr></thead><tbody>'
+      +'<th class="num">Disponible</th><th class="num">Usado</th><th></th></tr></thead><tbody>'
       +e.map(r=>{const u=Number(r.usado_pct||0);
         return '<tr><td><b>'+esc(r.centro)+'</b><div class="muted">'+esc(r.centro_nombre)+'</div></td>'
         +'<td class="num">'+cop(r.asignado)+'</td><td class="num">'+(Number(r.ampliado)?cop(r.ampliado):'—')+'</td>'
         +'<td class="num">'+cop(r.comprometido)+'</td><td class="num">'+cop(r.ejecutado)+'</td>'
         +'<td class="num"><b>'+cop(r.disponible)+'</b></td>'
-        +'<td class="num"><span class="pill '+(u>=100?'rojo':(u>=80?'amber':''))+'">'+u+'%</span></td></tr>';}).join('')
+        +'<td class="num"><span class="pill '+(u>=100?'rojo':(u>=80?'amber':''))+'">'+u+'%</span></td>'
+        +'<td>'+(ROLES.includes('direccion')
+            ? '<button class="btn" onclick="ampliarPresu('+r.centro_costo_id+',\''+esc(r.centro).replace(/'/g,"")+'\')">Ampliar</button>'
+            : '')+'</td></tr>';}).join('')
       +'</tbody></table></div>'):'<div class="card muted">No hay presupuesto cargado para ese mes.</div>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 
 /* ---------- pendientes de recibir ---------- */
+/* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
+   boton es comodidad de pantalla, no seguridad. */
+async function asignarPresu(){
+  const cc=document.getElementById('aCC').value;
+  const mes=Number(document.getElementById('aMes').value);
+  const monto=Number(document.getElementById('aMonto').value);
+  if(!cc) return aviso('Elegí el centro de costo.');
+  if(!(mes>=1&&mes<=12)) return aviso('El mes va de 1 a 12.');
+  if(!(monto>=0)) return aviso('Poné el monto.');
+  const b=document.getElementById('bAsignar'); b.disabled=true; b.textContent='Guardando…';
+  try{
+    const r=await rpc('co_presupuesto_asignar',{p_empresa_id:EMPRESA_ID,
+      p_centro_costo_id:Number(cc), p_anio:Number(document.getElementById('pAnio').value),
+      p_mes:mes, p_monto:monto});
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.');
+    document.getElementById('pMes').value=mes;
+    document.getElementById('aMonto').value='';
+    cargarPresu();
+  }catch(e){ aviso(e.message); }
+  finally{ b.disabled=false; b.textContent='Asignar'; }
+}
+async function ampliarPresu(ccId, codigo){
+  const pct=prompt('¿Qué porcentaje más para '+codigo+'?\n\nEjemplo: 20 para un 20% más.');
+  if(pct===null) return;
+  if(!(Number(pct)>0)) return aviso('El porcentaje tiene que ser mayor que cero.');
+  const motivo=prompt('¿Por qué? Queda escrito con tu nombre y la fecha.');
+  if(motivo===null) return;
+  try{
+    const r=await rpc('co_presupuesto_ampliar',{p_empresa_id:EMPRESA_ID,
+      p_centro_costo_id:ccId, p_anio:Number(document.getElementById('pAnio').value),
+      p_mes:Number(document.getElementById('pMes').value),
+      p_porcentaje:Number(pct), p_motivo:motivo});
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.');
+    cargarPresu();
+  }catch(e){ aviso(e.message); }
+}
 async function cargarPendientes(){
   const c=document.getElementById('recLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{

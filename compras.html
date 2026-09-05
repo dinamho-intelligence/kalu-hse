@@ -92,7 +92,15 @@ h3{margin:0 0 12px;font-size:16px}
   </div>
 
   <div id="vApr" class="hide">
-    <div class="muted" style="margin-bottom:10px">Lo que espera tu decisión. El monto es lo estimado por quien pidió.</div>
+    <div class="muted" style="margin-bottom:10px">Lo que espera tu decisión. El monto es lo que dice el catálogo, no el que pidió.</div>
+    <div class="card hide" id="cardNivel">
+      <label>Estás aprobando como</label>
+      <select id="aprNivel" onchange="cargarAprobar()">
+        <option value="coordinador">Coordinador — primera revisión</option>
+        <option value="gerente">Gerente de operaciones — aprueba el gasto</option>
+      </select>
+      <div class="muted" style="margin-top:8px">Tenés los dos roles. Una requisición no le llega al gerente hasta que el coordinador la aprueba.</div>
+    </div>
     <div id="aprLista"></div>
     <h3 style="margin-top:22px">Lo que aprobaste</h3>
     <div id="aprKpi"></div>
@@ -258,6 +266,8 @@ async function arrancar(){
     document.getElementById('aCC').innerHTML=document.getElementById('qCC').innerHTML;
     document.getElementById('aMes').value=document.getElementById('pMes').value;
     if(ROLES.includes('direccion')) document.getElementById('cardAsignar').classList.remove('hide');
+    if(ROLES.includes('gerente') && ROLES.includes('coordinador'))
+      document.getElementById('cardNivel').classList.remove('hide');
     addQLinea();
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
@@ -534,7 +544,12 @@ async function cargarMisRQ(){
 /* ---------- aprobar ---------- */
 async function cargarAprobar(){
   const c=document.getElementById('aprLista');
-  const nivel = ROLES.includes('gerente') ? 'gerente' : 'coordinador';
+  /* Marcelo tiene los dos roles. Si elegimos gerente por el, nunca puede hacer
+     la primera aprobacion y no le llega nada: la cola del gerente arranca
+     donde termina la del coordinador. Por eso lo elige el, no yo. */
+  const dos = ROLES.includes('gerente') && ROLES.includes('coordinador');
+  const nivel = dos ? document.getElementById('aprNivel').value
+                    : (ROLES.includes('gerente') ? 'gerente' : 'coordinador');
   try{
     const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,necesita_para,co_centro_costo(codigo,nombre),co_requisicion_linea(descripcion,cantidad,valor_estimado),co_aprobacion(nivel,decision)&order=fecha&limit=80');
     const pend=q.filter(r=>{

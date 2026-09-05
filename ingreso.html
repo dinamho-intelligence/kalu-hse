@@ -135,6 +135,7 @@ const PORTAL=[
   {mod:"hse",  href:"app.html",              ic:"🛡️", cls:"g", nombre:"KALU HSE",                desc:"Validación, ATS e investigación de accidentes bajo norma."},
   {mod:"hse",  href:"hse.html",              ic:"📊", cls:"c", nombre:"Consola HSE",              desc:"Tablero, expedientes, tarjetas y auditoría."},
   {mod:"capacitador", href:"capacitador.html", ic:"🎓", cls:"g", nombre:"Capacitador", desc:"Pasaporte de capacitaciones, cronograma y certificados."},
+  {mod:"patrones", href:"patrones.html", ic:"🧠", cls:"c", nombre:"Patrones · IA", desc:"KALU cruza eventos, tarjetas y ATS, detecta patrones y arma memos de hallazgo."},
   {mod:"ra",   href:"captura-ra.html",       ic:"🥽", cls:"c", nombre:"RA · Captura",            desc:"Lente o celular del operador en terreno."},
   {mod:"ra",   href:"consola-ra.html",       ic:"🎧", cls:"c", nombre:"RA · Consola",            desc:"El coordinador monitorea y asiste en vivo."},
   {mod:"qaqc", href:"captura-qaqc.html",     ic:"📐", cls:"g", nombre:"QA/QC · Captura",         desc:"Inspección con tablet o teléfono en terreno."},
@@ -218,7 +219,7 @@ function mostrarPortal(){
   $("#p_who").innerHTML = "Ingresaste como <b>"+esc(SB_EMAIL||"")+"</b>"+(SB_EMPRESA_NOMBRE?' · <b>'+esc(SB_EMPRESA_NOMBRE)+'</b>':'');
   aplicarBrandingPortal();
   /* solo los módulos contratados por la empresa */
-  const contratados = PORTAL.filter(function(c){ return SB_MODULOS.indexOf(c.mod)>=0; });
+  const contratados = PORTAL.filter(function(c){ return SB_SUPER || SB_MODULOS.indexOf(c.mod)>=0; });
   let cards=contratados.map(function(c){
     const st=c.soon?'<span class="st st-soon">Próximo</span>':'<span class="st st-live">● En operación</span>';
     const href=c.soon?'#':c.href;

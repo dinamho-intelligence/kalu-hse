@@ -60,7 +60,7 @@ h3{margin:0 0 12px;font-size:16px}
 <div id="vApp" class="wrap hide">
   <div class="top">
     <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span></div>
-    <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><button class="btn" onclick="salir()">Salir</button></div>
+    <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted" id="rolesDe" style="font-size:12px;align-self:center"></span><button class="btn" onclick="salir()">Salir</button></div>
   </div>
   <div class="tabs" id="tabs">
     <button class="tab on" id="tPed" onclick="ver('ped')">📝 Pedir</button>
@@ -227,7 +227,11 @@ async function arrancar(){
       rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
       rpc('co_mis_roles',{})
     ]);
+    /* Los maestros primero: todo lo de abajo los usa. Armarlos despues de
+       usarlos fue el bug de "Cannot read properties of undefined". */
+    MAE={prov,cond,base,cc,usr,cat,art};
     ROLES=(rol&&rol[0]&&rol[0].roles)||['solicitante'];
+    document.getElementById('rolesDe').textContent=ROLES.join(' · ');
     /* Cada uno ve solo lo suyo. Un solicitante no tiene por que ver la pantalla
        de presupuesto, y mostrarsela vacia es peor que no mostrarla. */
     const puede={ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
@@ -241,7 +245,6 @@ async function arrancar(){
     document.getElementById('qCC').innerHTML=opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
     document.getElementById('qCC').onchange=avisoPresupuesto;
     addQLinea();
-    MAE={prov,cond,base,cc,usr,cat,art};
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
     document.getElementById('quien').textContent=y?y.nombre:'';

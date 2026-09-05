@@ -493,6 +493,22 @@ function qCalc(){
   document.getElementById('qTotal').textContent = cop(t)+(sin?'  + '+sin+' sin precio':'');
   avisoPresupuesto();
 }
+/* El aviso de cuanta plata queda en ese centro, debajo del total. Que lo vea
+   ANTES de mandar: enterarse en la aprobacion de que no habia plata es tarde
+   para todos. */
+async function avisoPresupuesto(){
+  const cc=document.getElementById('qCC').value, n=document.getElementById('qPresu');
+  if(!cc){ n.textContent=''; return; }
+  try{
+    const hoy=new Date(Date.now()-5*3600*1000);
+    const e=await rpc('co_presupuesto_estado',{p_empresa_id:EMPRESA_ID,p_anio:hoy.getFullYear(),
+      p_mes:hoy.getMonth()+1,p_centro_costo_id:Number(cc)});
+    if(!e||!e.length){ n.textContent='Ese centro no tiene presupuesto asignado para este mes.'; return; }
+    const x=e[0];
+    n.textContent='Presupuesto del mes: '+cop(x.disponible_total)+' · queda '+cop(x.disponible)
+      +' ('+(x.usado_pct||0)+'% usado)';
+  }catch(_){ n.textContent=''; }
+}
 async function guardarRQ(){
   const b=document.getElementById('btnQ');
   const lins=[...document.querySelectorAll('#qLineas .lin')].map((l,i)=>{

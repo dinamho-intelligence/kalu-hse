@@ -57,6 +57,8 @@ h3{margin:0 0 12px;font-size:16px}
   <div style="text-align:center;margin-top:14px"><a href="index.html" style="color:var(--tx2);text-decoration:none;font-size:13px">← Volver al inicio</a></div>
 </div>
 
+<datalist id="dlArt"></datalist>
+
 <div id="vApp" class="wrap hide">
   <div class="top">
     <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span></div>
@@ -136,6 +138,12 @@ h3{margin:0 0 12px;font-size:16px}
 
   <div id="vNue" class="hide">
     <div class="card">
+      <h3>Traer de las requisiciones aprobadas</h3>
+      <div class="muted" style="margin-bottom:10px">Lo que el gerente ya aprobó y todavía no se compró. Elegí las líneas que entran en <b>esta</b> orden: pueden ser de varias requisiciones, y una requisición puede partirse entre dos proveedores.</div>
+      <div id="traerLista"></div>
+    </div>
+
+    <div class="card">
       <h3>Datos de la orden</h3>
       <div class="row r3">
         <div><label>Número de orden *</label><input id="oNum" placeholder="PO-3421"></div>
@@ -167,7 +175,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const SB_REF='nignqeipzlemwfrwmpip';
 const SESS_KEY='sb-'+SB_REF+'-auth-token';
 const EMPRESA_ID='1e77b05c-a142-4314-aab6-f8d4637b5586';
-let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[];
+let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[], POR_COMPRAR=[];
 
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const cop=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CO');
@@ -264,6 +272,8 @@ async function arrancar(){
     document.getElementById('qCC').innerHTML=opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
     document.getElementById('qCC').onchange=avisoPresupuesto;
     document.getElementById('aCC').innerHTML=document.getElementById('qCC').innerHTML;
+    document.getElementById('dlArt').innerHTML=MAE.art
+      .map(x=>'<option value="'+esc(x.nombre)+'">').join('');
     document.getElementById('aMes').value=document.getElementById('pMes').value;
     if(ROLES.includes('direccion')) document.getElementById('cardAsignar').classList.remove('hide');
     if(ROLES.includes('gerente') && ROLES.includes('coordinador'))
@@ -315,6 +325,7 @@ function ver(v){
   if(v==='ped') cargarMisRQ();
   if(v==='apr') cargarAprobar();
   if(v==='pre') cargarPresu();
+  if(v==='nue') cargarPorComprar();
 }
 
 /* ---------- líneas ---------- */
@@ -380,6 +391,7 @@ async function guardarOrden(){
   const g=id=>document.getElementById(id).value;
   const lins=[...document.querySelectorAll('#lineas .lin')].map((l,i)=>({
     numero_linea:i+1,
+    requisicion_linea_id: l.dataset.rql? Number(l.dataset.rql) : null,
     centro_costo_id:l.querySelector('.lcc').value,
     categoria_id:l.querySelector('.lcat').value,
     articulo_id:l.querySelector('.lart').value||null,
@@ -408,13 +420,16 @@ async function guardarOrden(){
     const oid=o[0].id;
     await api('co_orden_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
       orden_id:oid, numero_linea:l.numero_linea, centro_costo_id:Number(l.centro_costo_id),
-      categoria_id:Number(l.categoria_id), articulo_id:l.articulo_id?Number(l.articulo_id):null,
+      categoria_id: l.categoria_id? Number(l.categoria_id) : null,
+      articulo_id: l.articulo_id? Number(l.articulo_id) : null,
+      requisicion_linea_id: l.requisicion_linea_id,
       descripcion:l.descripcion, cantidad:l.cantidad, valor_unitario:l.valor_unitario,
       valor_neto:+(l.cantidad*l.valor_unitario).toFixed(2), mes_imputacion:l.mes_imputacion
     })))});
     aviso('Orden '+g('oNum')+' guardada con '+lins.length+' línea'+(lins.length>1?'s':'')+'.',true);
     document.getElementById('lineas').innerHTML=''; document.getElementById('oDesc').value=''; addLinea();
     try{ const px=await rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}); if(px) document.getElementById('oNum').value=px; }catch(_){}
+    cargarPorComprar();
     ver('ord');
   }catch(e){
     let m=e.message;
@@ -426,92 +441,74 @@ async function guardarOrden(){
 }
 
 /* ---------- requisición ---------- */
-/* El que pide dice QUE necesita y CUANTO. El precio lo pone el catalogo: el
-   inspector que se quedo sin penetrante no sabe cuanto cuesta el penetrante,
-   y un numero inventado es peor que ningun numero. */
+/* El que pide dice QUE necesita y CUANTO. Escribe libre y el catalogo le
+   sugiere: si escribe "tinta" le ofrece "Tinta penetrante rojo 400 ml" y al
+   elegirla viene el precio y la categoria solas. Si lo que hace falta no esta
+   en la lista, lo escribe igual y sigue. El catalogo ayuda, no encierra. */
 function addQLinea(){
   const i=++nQ;
   const catOpts=MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
   const d=document.createElement('div'); d.className='lin'; d.id='q'+i;
   d.innerHTML='<div class="f2">'
-   +'<div><label>Categoría *</label><select class="qcat" onchange="qArts(this)"><option value="">— elegir —</option>'+catOpts+'</select></div>'
-   +'<div><label>Qué necesito *</label><select class="qart" onchange="qOtro(this)"><option value="">— elegí la categoría primero —</option></select></div>'
+   +'<div><label>Qué necesito *</label><input class="qart" list="dlArt" autocomplete="off"'
+   +' placeholder="Escribí y elegí de la lista si aparece" oninput="qElegir(this)"></div>'
    +'<div><label>Cant. *</label><input class="qcant" type="number" step="0.01" value="1" oninput="qCalc()"></div>'
    +'<div><label>Unidad</label><input class="qund" disabled placeholder="—"></div>'
+   +'<div><label>Categoría</label><select class="qcat"><option value="">— si sabés —</option>'+catOpts+'</select></div>'
    +'</div>'
-   +'<input class="qdesc hide" placeholder="Escribí qué necesitás" oninput="qCalc()" style="margin-top:8px">'
    +'<div class="nota qnota"></div>'
    +'<div style="text-align:right;margin-top:6px"><button class="x" onclick="document.getElementById(\'q'+i+'\').remove();qCalc()">✕ quitar</button></div>';
   document.getElementById('qLineas').appendChild(d); qCalc();
 }
-/* Los articulos de esa categoria, mas la salida de emergencia: si lo que hace
-   falta no esta en la lista, se escribe. Sin precio, y se dice que no lo tiene. */
-function qArts(sel){
-  const lin=sel.closest('.lin'), art=lin.querySelector('.qart');
-  const cat=Number(sel.value);
-  const lista=MAE.art.filter(a=>Number(a.categoria_id)===cat);
-  art.innerHTML='<option value="">— elegir —</option>'
-    +lista.map(a=>'<option value="'+a.id+'">'+esc(a.nombre)+(a.precio_ref?'':'  (sin precio)')+'</option>').join('')
-    +'<option value="otro">No está en la lista…</option>';
-  lin.querySelector('.qdesc').classList.add('hide');
-  lin.querySelector('.qdesc').value='';
-  qCalc();
+/* Busca el articulo por nombre exacto: es lo que devuelve el datalist cuando
+   la persona elige una sugerencia. Si escribio otra cosa, no hay articulo y
+   punto: no adivinamos por parecido, que seria pedirle el precio equivocado. */
+function articuloDe(txt){
+  const t=(txt||'').trim().toLowerCase();
+  if(!t) return null;
+  return MAE.art.find(a=>(a.nombre||'').trim().toLowerCase()===t)||null;
 }
-function qOtro(sel){
-  const lin=sel.closest('.lin');
-  const otro = sel.value==='otro';
-  lin.querySelector('.qdesc').classList.toggle('hide', !otro);
-  const a=MAE.art.find(x=>String(x.id)===sel.value);
+function qElegir(inp){
+  const lin=inp.closest('.lin'), a=articuloDe(inp.value);
   lin.querySelector('.qund').value = a? (a.unidad||'—') : '—';
+  if(a && a.categoria_id) lin.querySelector('.qcat').value=a.categoria_id;
   qCalc();
 }
 function qCalc(){
   let t=0, sin=0;
   document.querySelectorAll('#qLineas .lin').forEach(l=>{
-    const v=l.querySelector('.qart').value;
-    const a=MAE.art.find(x=>String(x.id)===v);
-    const n=l.querySelector('.qnota');
-    if(!v){ n.textContent=''; return; }
+    const inp=l.querySelector('.qart'), n=l.querySelector('.qnota');
+    const a=articuloDe(inp.value);
+    if(!inp.value.trim()){ n.textContent=''; return; }
     if(a && Number(a.precio_ref)>0){
       t+=(Number(l.querySelector('.qcant').value)||0)*Number(a.precio_ref);
       n.textContent='Referencia del catálogo: '+cop(a.precio_ref)+' c/u'
         +(a.precio_ref_al?' (al '+a.precio_ref_al+')':'');
     }else{
-      sin++; n.textContent='Sin precio de referencia. Va a la aprobación con el monto en blanco.';
+      sin++;
+      n.textContent = a ? 'Está en el catálogo pero todavía no tiene precio de referencia.'
+                        : 'No está en el catálogo. Va a la aprobación con el monto en blanco.';
     }
   });
   document.getElementById('qTotal').textContent = cop(t)+(sin?'  + '+sin+' sin precio':'');
   avisoPresupuesto();
 }
-/* Que el solicitante vea el presupuesto ANTES de pedir. No para frenarlo — para
-   que sepa que esta pidiendo algo que va a hacer ruido, y lo justifique bien. */
-async function avisoPresupuesto(){
-  const cc=document.getElementById('qCC').value, n=document.getElementById('qPresu');
-  if(!cc){ n.textContent=''; return; }
-  try{
-    const hoy=new Date(Date.now()-5*3600*1000);
-    const e=await rpc('co_presupuesto_estado',{p_empresa_id:EMPRESA_ID,p_anio:hoy.getFullYear(),
-      p_mes:hoy.getMonth()+1,p_centro_costo_id:Number(cc)});
-    if(!e||!e.length){ n.textContent='Ese centro no tiene presupuesto asignado para este mes.'; return; }
-    const x=e[0];
-    n.textContent='Presupuesto del mes: '+cop(x.disponible_total)+' · queda '+cop(x.disponible)+' ('+(x.usado_pct||0)+'% usado)';
-  }catch(_){ n.textContent=''; }
-}
 async function guardarRQ(){
   const b=document.getElementById('btnQ');
   const lins=[...document.querySelectorAll('#qLineas .lin')].map((l,i)=>{
-    const v=l.querySelector('.qart').value;
-    const a=MAE.art.find(x=>String(x.id)===v);
-    return { numero_linea:i+1, categoria_id:l.querySelector('.qcat').value,
+    const txt=l.querySelector('.qart').value.trim();
+    const a=articuloDe(txt);
+    return { numero_linea:i+1,
+      categoria_id: l.querySelector('.qcat').value || (a? a.categoria_id : null),
       articulo_id: a? Number(a.id) : null,
-      descripcion: a? a.nombre : l.querySelector('.qdesc').value.trim(),
+      descripcion: a? a.nombre : txt,
       cantidad:Number(l.querySelector('.qcant').value)||0 };
   });
   const cc=document.getElementById('qCC').value, just=document.getElementById('qJust').value.trim();
   const falta=[];
   if(!cc) falta.push('centro de costo'); if(!just) falta.push('justificación');
   if(!lins.length) falta.push('al menos un ítem');
-  lins.forEach((l,i)=>{ if(!l.categoria_id||!l.descripcion||l.cantidad<=0) falta.push('ítem '+(i+1)+' incompleto'); });
+  lins.forEach((l,i)=>{ if(!l.descripcion||l.cantidad<=0) falta.push('ítem '+(i+1)+': falta qué necesitás o la cantidad'); });
   if(falta.length){ aviso('Falta: '+falta.join(', ')); return; }
   b.disabled=true; b.textContent='Enviando…';
   try{
@@ -522,7 +519,7 @@ async function guardarRQ(){
       necesita_para:document.getElementById('qPara').value||null })});
     await api('co_requisicion_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
       requisicion_id:q[0].id, numero_linea:l.numero_linea, centro_costo_id:Number(cc),
-      categoria_id:Number(l.categoria_id), articulo_id:l.articulo_id,
+      categoria_id: l.categoria_id? Number(l.categoria_id) : null, articulo_id:l.articulo_id,
       descripcion:l.descripcion, cantidad:l.cantidad,
       mes_imputacion:mesActual() })))});
     aviso('Requisición '+q[0].numero+' enviada.',true);
@@ -695,6 +692,51 @@ async function recibir(lineaId){
 }
 
 /* ---------- órdenes ---------- */
+/* La bandeja de quien arma la PO. Se eligen LINEAS, no requisiciones: una PO
+   puede juntar pedidos de varias RQ para el mismo proveedor, y una RQ puede
+   necesitar dos proveedores. La linea es la unidad. */
+async function cargarPorComprar(){
+  const c=document.getElementById('traerLista');
+  try{
+    const p=await api('co_por_comprar?select=*&order=fecha,requisicion,numero_linea&limit=200');
+    if(!p.length){ c.innerHTML='<div class="muted">No hay nada aprobado esperando orden.</div>'; return; }
+    POR_COMPRAR=p;
+    c.innerHTML='<table><thead><tr><th></th><th>Requisición</th><th>Qué</th><th>Centro</th>'
+      +'<th class="num">Falta</th><th class="num">Ref.</th><th>Para</th></tr></thead><tbody>'
+      +p.map(r=>'<tr><td><input type="checkbox" class="tr" style="width:auto" value="'+r.requisicion_linea_id+'"></td>'
+        +'<td><b>'+esc(r.requisicion)+'</b><div class="muted">'+esc(r.justificacion||'')+'</div></td>'
+        +'<td>'+esc(r.descripcion)+'</td>'
+        +'<td>'+esc(r.centro)+'</td>'
+        +'<td class="num">'+r.falta+'</td>'
+        +'<td class="num">'+(r.valor_estimado?cop(r.valor_estimado):'<span class="pill amber">sin precio</span>')+'</td>'
+        +'<td>'+esc(r.necesita_para||'—')+'</td></tr>').join('')
+      +'</tbody></table>'
+      +'<button class="btn pri" onclick="traerLineas()" style="margin-top:11px">Traer las marcadas a la orden</button>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+function traerLineas(){
+  const ids=[...document.querySelectorAll('#traerLista .tr:checked')].map(x=>Number(x.value));
+  if(!ids.length) return aviso('Marcá al menos una línea.');
+  ids.forEach(id=>{
+    const r=POR_COMPRAR.find(x=>Number(x.requisicion_linea_id)===id);
+    if(!r) return;
+    addLinea();
+    const l=document.getElementById('lineas').lastElementChild;
+    l.dataset.rql=r.requisicion_linea_id;
+    if(r.categoria_id) l.querySelector('.lcat').value=r.categoria_id;
+    l.querySelector('.lcc').value=r.centro_costo_id;
+    l.querySelector('.ldesc').value=r.descripcion;
+    l.querySelector('.lcant').value=r.falta;
+    if(r.valor_estimado) l.querySelector('.lvu').value=r.valor_estimado;
+    if(r.mes_imputacion) l.querySelector('.lmes').value=String(r.mes_imputacion).slice(0,7);
+    l.querySelector('.nota').textContent='Viene de '+r.requisicion+' · línea '+r.numero_linea
+      +(r.valor_estimado?'. El valor es la referencia del catálogo: cambialo por el que te cotizó el proveedor.'
+                        :'. Sin precio de referencia: poné el que te cotizó el proveedor.');
+    [...document.querySelectorAll('#traerLista .tr')].forEach(x=>{ if(Number(x.value)===id) x.checked=false; });
+  });
+  calc();
+  aviso(ids.length+(ids.length===1?' línea traída.':' líneas traídas.'),true);
+}
 async function cargarOrdenes(){
   const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{

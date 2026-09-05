@@ -143,7 +143,9 @@ async function afterAuth(uid, emailFallback){
   if(!ok){ throw new Error('Acceso solo para Coordinador HSE, Dirección o Admin.'); }
   MYEMP=p0.empresa_id||null; MYNAME=p0.nombre||emailFallback||p0.email||'';
   PUEDEIA=(p0.es_super===true || p0.rol==='admin' || direccion);
-  try{ var eb=await sbGet('empresas?select=razon_social,branding&id=eq.'+MYEMP); var e0=(eb&&eb[0])||{}; window.BRAND=Object.assign({razon_social:e0.razon_social||''}, (e0.branding||{})); }catch(_){ window.BRAND=null; }
+  var _mods=[];
+  try{ var eb=await sbGet('empresas?select=razon_social,branding,modulos&id=eq.'+MYEMP); var e0=(eb&&eb[0])||{}; _mods=Array.isArray(e0.modulos)?e0.modulos:[]; window.BRAND=Object.assign({razon_social:e0.razon_social||''}, (e0.branding||{})); }catch(_){ window.BRAND=null; }
+  if(p0.es_super!==true && _mods.indexOf('patrones')<0){ throw new Error('El módulo Patrones no está habilitado para tu empresa. Es un módulo premium — escribí a Dinamho para activarlo.'); }
   $('who').textContent=MYNAME;
   $('scLogin').classList.add('hide'); $('scApp').classList.remove('hide'); $('lo').classList.remove('hide');
   MYID=uid;

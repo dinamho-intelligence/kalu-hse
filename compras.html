@@ -62,12 +62,51 @@ h3{margin:0 0 12px;font-size:16px}
     <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><button class="btn" onclick="salir()">Salir</button></div>
   </div>
-  <div class="tabs">
-    <button class="tab on" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
+  <div class="tabs" id="tabs">
+    <button class="tab on" id="tPed" onclick="ver('ped')">📝 Pedir</button>
+    <button class="tab" id="tApr" onclick="ver('apr')">✅ Aprobar <span class="n" id="nApr">0</span></button>
+    <button class="tab" id="tPre" onclick="ver('pre')">💰 Presupuesto</button>
+    <button class="tab" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
     <button class="tab" id="tOrd" onclick="ver('ord')">📄 Órdenes</button>
     <button class="tab" id="tNue" onclick="ver('nue')">＋ Nueva orden</button>
   </div>
   <div id="msg"></div>
+
+  <div id="vPed">
+    <div class="card">
+      <h3>Nueva requisición</h3>
+      <div class="muted" style="margin-bottom:11px">Lo que necesitás para trabajar. Pasa por el coordinador y después por el gerente.</div>
+      <div class="row r3">
+        <div><label>Centro de costo *</label><select id="qCC"></select></div>
+        <div><label>Lo necesito para *</label><input id="qPara" type="date"></div>
+        <div><label>Justificación *</label><input id="qJust" placeholder="Se acabó el penetrante en el pozo"></div>
+      </div>
+      <div id="qLineas"></div>
+      <button class="btn" onclick="addQLinea()">＋ Agregar ítem</button>
+      <div class="tot"><span>Estimado</span><span id="qTotal">$0</span></div>
+      <div id="qPresu" class="nota" style="margin-bottom:10px"></div>
+      <button class="btn pri" id="btnQ" onclick="guardarRQ()" style="width:100%;padding:13px">Enviar requisición</button>
+    </div>
+    <h3 style="margin-top:20px">Mis requisiciones</h3>
+    <div id="qMias"></div>
+  </div>
+
+  <div id="vApr" class="hide">
+    <div class="muted" style="margin-bottom:10px">Lo que espera tu decisión. El monto es lo estimado por quien pidió.</div>
+    <div id="aprLista"></div>
+    <h3 style="margin-top:22px">Lo que aprobaste</h3>
+    <div id="aprKpi"></div>
+  </div>
+
+  <div id="vPre" class="hide">
+    <div class="muted" style="margin-bottom:10px">Presupuesto por centro de costo y mes. Ordenado por lo que queda: primero lo que está más al límite.</div>
+    <div class="row r3" style="align-items:end">
+      <div><label>Año</label><input id="pAnio" type="number" value="2026"></div>
+      <div><label>Mes</label><input id="pMes" type="number" min="1" max="12"></div>
+      <div><button class="btn" onclick="cargarPresu()" style="width:100%">Ver</button></div>
+    </div>
+    <div id="preLista"></div>
+  </div>
 
   <div id="vRec">
     <div class="muted" style="margin-bottom:10px">Lo que está pedido y todavía no llegó. Se calcula solo.</div>
@@ -109,7 +148,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const SB_REF='nignqeipzlemwfrwmpip';
 const SESS_KEY='sb-'+SB_REF+'-auth-token';
 const EMPRESA_ID='1e77b05c-a142-4314-aab6-f8d4637b5586';
-let TOKEN=null, MYID=null, MAE={}, nLin=0;
+let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[];
 
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const cop=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CO');
@@ -176,7 +215,7 @@ async function arrancar(){
   document.getElementById('vLogin').classList.add('hide');
   document.getElementById('vApp').classList.remove('hide');
   try{
-    const [prov,cond,base,cc,usr,yo,cat,art,prox]=await Promise.all([
+    const [prov,cond,base,cc,usr,yo,cat,art,prox,rol]=await Promise.all([
       api('co_proveedor?select=id,nombre,condicion_pago_id&order=nombre&limit=2000'),
       api('co_condicion_pago?select=id,nombre,dias_pactados,dias_reales&order=nombre'),
       api('co_base?select=id,nombre&order=nombre'),
@@ -185,8 +224,23 @@ async function arrancar(){
       rpc('biz_quien_soy',{}),
       api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id&activo=eq.true&order=nombre'),
       api('co_articulo?select=id,nombre,categoria_id,unidad,precio_ref,precio_ref_al&activo=eq.true&order=nombre&limit=3000'),
-      rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID})
+      rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
+      rpc('co_mis_roles',{})
     ]);
+    ROLES=(rol&&rol[0]&&rol[0].roles)||['solicitante'];
+    /* Cada uno ve solo lo suyo. Un solicitante no tiene por que ver la pantalla
+       de presupuesto, y mostrarsela vacia es peor que no mostrarla. */
+    const puede={ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
+                  rec:true, ord:['compras'], nue:['compras']};
+    Object.keys(puede).forEach(k=>{
+      const ok = puede[k]===true || puede[k].some(r=>ROLES.includes(r));
+      const b=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
+      if(b && !ok) b.classList.add('hide');
+    });
+    document.getElementById('pMes').value=new Date(Date.now()-5*3600*1000).getMonth()+1;
+    document.getElementById('qCC').innerHTML=opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
+    document.getElementById('qCC').onchange=avisoPresupuesto;
+    addQLinea();
     MAE={prov,cond,base,cc,usr,cat,art};
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
@@ -212,12 +266,15 @@ function pintarMaestros(){
   };
 }
 function ver(v){
-  ['rec','ord','nue'].forEach(k=>{
+  ['ped','apr','pre','rec','ord','nue'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
     document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('hide',k!==v);
   });
   if(v==='rec') cargarPendientes();
   if(v==='ord') cargarOrdenes();
+  if(v==='ped') cargarMisRQ();
+  if(v==='apr') cargarAprobar();
+  if(v==='pre') cargarPresu();
 }
 
 /* ---------- líneas ---------- */
@@ -324,6 +381,154 @@ async function guardarOrden(){
     aviso(m);
   }
   finally{ b.disabled=false; b.textContent='Guardar orden'; }
+}
+
+/* ---------- requisición ---------- */
+function addQLinea(){
+  const i=++nQ;
+  const catOpts=MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  const d=document.createElement('div'); d.className='lin'; d.id='q'+i;
+  d.innerHTML='<div class="f2">'
+   +'<div><label>Categoría *</label><select class="qcat"><option value="">— elegir —</option>'+catOpts+'</select></div>'
+   +'<div><label>Qué necesito *</label><input class="qdesc" placeholder="Líquido penetrante"></div>'
+   +'<div><label>Cant. *</label><input class="qcant" type="number" step="0.01" value="1" oninput="qCalc()"></div>'
+   +'<div><label>Costo estimado c/u *</label><input class="qvu" type="number" step="1" oninput="qCalc()"></div>'
+   +'</div><div style="text-align:right;margin-top:6px"><button class="x" onclick="document.getElementById(\'q'+i+'\').remove();qCalc()">✕ quitar</button></div>';
+  document.getElementById('qLineas').appendChild(d); qCalc();
+}
+function qCalc(){
+  let t=0; document.querySelectorAll('#qLineas .lin').forEach(l=>{
+    t+=(Number(l.querySelector('.qcant').value)||0)*(Number(l.querySelector('.qvu').value)||0); });
+  document.getElementById('qTotal').textContent=cop(t); avisoPresupuesto(t);
+}
+/* Que el solicitante vea el presupuesto ANTES de pedir. No para frenarlo — para
+   que sepa que esta pidiendo algo que va a hacer ruido, y lo justifique bien. */
+async function avisoPresupuesto(){
+  const cc=document.getElementById('qCC').value, n=document.getElementById('qPresu');
+  if(!cc){ n.textContent=''; return; }
+  try{
+    const hoy=new Date(Date.now()-5*3600*1000);
+    const e=await rpc('co_presupuesto_estado',{p_empresa_id:EMPRESA_ID,p_anio:hoy.getFullYear(),
+      p_mes:hoy.getMonth()+1,p_centro_costo_id:Number(cc)});
+    if(!e||!e.length){ n.textContent='Ese centro no tiene presupuesto asignado para este mes.'; return; }
+    const x=e[0];
+    n.textContent='Presupuesto del mes: '+cop(x.disponible_total)+' · queda '+cop(x.disponible)+' ('+(x.usado_pct||0)+'% usado)';
+  }catch(_){ n.textContent=''; }
+}
+async function guardarRQ(){
+  const b=document.getElementById('btnQ');
+  const lins=[...document.querySelectorAll('#qLineas .lin')].map((l,i)=>({
+    numero_linea:i+1, categoria_id:l.querySelector('.qcat').value,
+    descripcion:l.querySelector('.qdesc').value.trim(),
+    cantidad:Number(l.querySelector('.qcant').value)||0,
+    valor_estimado:Number(l.querySelector('.qvu').value)||0
+  }));
+  const cc=document.getElementById('qCC').value, just=document.getElementById('qJust').value.trim();
+  const falta=[];
+  if(!cc) falta.push('centro de costo'); if(!just) falta.push('justificación');
+  if(!lins.length) falta.push('al menos un ítem');
+  lins.forEach((l,i)=>{ if(!l.categoria_id||!l.descripcion||l.cantidad<=0) falta.push('ítem '+(i+1)+' incompleto'); });
+  if(falta.length){ aviso('Falta: '+falta.join(', ')); return; }
+  b.disabled=true; b.textContent='Enviando…';
+  try{
+    const hoy=hoyLocal();
+    const q=await api('co_requisicion',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({
+      empresa_id:EMPRESA_ID, numero:'RQ-'+Date.now().toString().slice(-8), fecha:hoy,
+      solicitante_id:MYID, centro_costo_id:Number(cc), justificacion:just,
+      necesita_para:document.getElementById('qPara').value||null })});
+    await api('co_requisicion_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
+      requisicion_id:q[0].id, numero_linea:l.numero_linea, centro_costo_id:Number(cc),
+      categoria_id:Number(l.categoria_id), descripcion:l.descripcion, cantidad:l.cantidad,
+      valor_estimado:l.valor_estimado, mes_imputacion:mesActual() })))});
+    aviso('Requisición '+q[0].numero+' enviada.',true);
+    document.getElementById('qLineas').innerHTML=''; document.getElementById('qJust').value=''; addQLinea(); cargarMisRQ();
+  }catch(e){ aviso(e.message); } finally{ b.disabled=false; b.textContent='Enviar requisición'; }
+}
+async function cargarMisRQ(){
+  const c=document.getElementById('qMias');
+  try{
+    const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,co_requisicion_linea(cantidad,valor_estimado)&order=fecha.desc&limit=40');
+    c.innerHTML=q.length?('<div class="card"><table><thead><tr><th>N°</th><th>Fecha</th><th>Justificación</th><th>Estado</th><th class="num">Estimado</th></tr></thead><tbody>'
+      +q.map(r=>{const t=(r.co_requisicion_linea||[]).reduce((a,l)=>a+l.cantidad*l.valor_estimado,0);
+        return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha)+'</td><td>'+esc(r.justificacion||'')+'</td>'
+        +'<td><span class="pill">'+esc(r.estado)+'</span></td><td class="num">'+cop(t)+'</td></tr>';}).join('')
+      +'</tbody></table></div>'):'<div class="card muted">Todavía no pediste nada.</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+/* ---------- aprobar ---------- */
+async function cargarAprobar(){
+  const c=document.getElementById('aprLista');
+  const nivel = ROLES.includes('gerente') ? 'gerente' : 'coordinador';
+  try{
+    const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,necesita_para,co_centro_costo(codigo,nombre),co_requisicion_linea(descripcion,cantidad,valor_estimado),co_aprobacion(nivel,decision)&order=fecha&limit=80');
+    const pend=q.filter(r=>{
+      const ap=(r.co_aprobacion||[]);
+      const coord=ap.find(a=>a.nivel==='coordinador'&&a.decision==='aprobada');
+      const ger=ap.find(a=>a.nivel==='gerente');
+      return nivel==='coordinador' ? !ap.find(a=>a.nivel==='coordinador') : (coord && !ger);
+    });
+    document.getElementById('nApr').textContent=pend.length;
+    c.innerHTML=pend.length?pend.map(r=>{
+      const t=(r.co_requisicion_linea||[]).reduce((a,l)=>a+l.cantidad*l.valor_estimado,0);
+      return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+cop(t)+'</div>'
+      +'<div class="muted" style="margin-top:3px">'+esc((r.co_centro_costo||{}).codigo||'')+' · '+esc((r.co_centro_costo||{}).nombre||'')+'</div>'
+      +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
+      +'<div class="muted" style="margin-top:6px">'+(r.co_requisicion_linea||[]).map(l=>esc(l.descripcion)+' ×'+l.cantidad).join(' · ')+'</div>'
+      +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '+esc(r.necesita_para)+'</span></div>':'')+'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:7px;min-width:160px">'
+      +'<button class="btn ok" onclick="decidir('+r.id+',\''+nivel+'\',\'aprobada\')">Aprobar</button>'
+      +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
+      +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
+      +'</div></div>';}).join(''):'<div class="card muted">No hay nada esperando tu decisión.</div>';
+    kpiAprobado(q,nivel);
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+function kpiAprobado(q,nivel){
+  const porMes={};
+  q.forEach(r=>{ const ap=(r.co_aprobacion||[]).find(a=>a.nivel===nivel&&a.decision==='aprobada');
+    if(!ap) return; const m=(r.fecha||'').slice(0,7);
+    const t=(r.co_requisicion_linea||[]).reduce((a,l)=>a+l.cantidad*l.valor_estimado,0);
+    porMes[m]=(porMes[m]||0)+t; });
+  const ms=Object.keys(porMes).sort();
+  document.getElementById('aprKpi').innerHTML=ms.length?
+    ('<div class="card"><table><thead><tr><th>Mes</th><th class="num">Aprobado por vos</th><th class="num">vs mes anterior</th></tr></thead><tbody>'
+    +ms.map((m,i)=>{const p=i?porMes[ms[i-1]]:null;
+      const d=p?Math.round((porMes[m]-p)/p*100):null;
+      return '<tr><td>'+m+'</td><td class="num">'+cop(porMes[m])+'</td><td class="num">'
+        +(d===null?'—':'<span class="pill '+(d>20?'rojo':(d>0?'amber':''))+'">'+(d>0?'+':'')+d+'%</span>')+'</td></tr>';}).join('')
+    +'</tbody></table></div>'):'<div class="card muted">Todavía no aprobaste nada.</div>';
+}
+async function decidir(id,nivel,decision){
+  let motivo=null;
+  if(decision!=='aprobada'){ motivo=prompt('¿Por qué la '+(decision==='devuelta'?'devolvés':'rechazás')+'?'); if(!motivo) return; }
+  try{
+    const r=await rpc('co_aprobar',{p_requisicion_id:id,p_nivel:nivel,p_decision:decision,p_motivo:motivo});
+    const res=(r&&r[0])||{};
+    aviso(res.mensaje||'Listo.', res.ok!==false);
+    cargarAprobar();
+  }catch(e){ aviso(e.message); }
+}
+
+/* ---------- presupuesto ---------- */
+async function cargarPresu(){
+  const c=document.getElementById('preLista');
+  try{
+    const e=await rpc('co_presupuesto_estado',{p_empresa_id:EMPRESA_ID,
+      p_anio:Number(document.getElementById('pAnio').value),
+      p_mes:Number(document.getElementById('pMes').value), p_centro_costo_id:null});
+    c.innerHTML=e.length?('<div class="card"><table><thead><tr><th>Centro</th><th class="num">Asignado</th>'
+      +'<th class="num">Ampliado</th><th class="num">Comprometido</th><th class="num">Ejecutado</th>'
+      +'<th class="num">Disponible</th><th class="num">Usado</th></tr></thead><tbody>'
+      +e.map(r=>{const u=Number(r.usado_pct||0);
+        return '<tr><td><b>'+esc(r.centro)+'</b><div class="muted">'+esc(r.centro_nombre)+'</div></td>'
+        +'<td class="num">'+cop(r.asignado)+'</td><td class="num">'+(Number(r.ampliado)?cop(r.ampliado):'—')+'</td>'
+        +'<td class="num">'+cop(r.comprometido)+'</td><td class="num">'+cop(r.ejecutado)+'</td>'
+        +'<td class="num"><b>'+cop(r.disponible)+'</b></td>'
+        +'<td class="num"><span class="pill '+(u>=100?'rojo':(u>=80?'amber':''))+'">'+u+'%</span></td></tr>';}).join('')
+      +'</tbody></table></div>'):'<div class="card muted">No hay presupuesto cargado para ese mes.</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 
 /* ---------- pendientes de recibir ---------- */

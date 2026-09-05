@@ -358,7 +358,9 @@ function artCambio(sel){
 }
 function calc(){
   let t=0;
-  document.querySelectorAll('.lin').forEach(l=>{
+  /* Acotado a #lineas: la requisicion usa la misma clase .lin y no tiene
+     campo de precio. Sin el acote, esto recorria las dos y explotaba. */
+  document.querySelectorAll('#lineas .lin').forEach(l=>{
     t+=(Number(l.querySelector('.lcant').value)||0)*(Number(l.querySelector('.lvu').value)||0);
   });
   document.getElementById('oTotal').textContent=cop(t);
@@ -366,7 +368,7 @@ function calc(){
 async function guardarOrden(){
   const b=document.getElementById('btnGuardar');
   const g=id=>document.getElementById(id).value;
-  const lins=[...document.querySelectorAll('.lin')].map((l,i)=>({
+  const lins=[...document.querySelectorAll('#lineas .lin')].map((l,i)=>({
     numero_linea:i+1,
     centro_costo_id:l.querySelector('.lcc').value,
     categoria_id:l.querySelector('.lcat').value,

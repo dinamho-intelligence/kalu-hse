@@ -104,7 +104,7 @@ h3{margin:0 0 12px;font-size:16px}
       <div class="muted" style="margin-top:8px">Tenés los dos roles. Una requisición no le llega al gerente hasta que el coordinador la aprueba.</div>
     </div>
     <div id="aprLista"></div>
-    <h3 style="margin-top:22px">Lo que aprobaste</h3>
+    <h3 style="margin-top:22px" id="aprKpiTit">Lo que aprobaste</h3>
     <div id="aprKpi"></div>
   </div>
 
@@ -584,7 +584,13 @@ async function cargarAprobar(){
       +'<button class="btn ok" onclick="decidir('+r.id+',\''+nivel+'\',\'aprobada\')">Aprobar</button>'
       +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
       +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
-      +'</div></div>';}).join(''):'<div class="card muted">No hay nada esperando tu decisión.</div>';
+      +'</div></div>';}).join(''):('<div class="card muted">No hay nada esperando tu decisión como '
+        +(nivel==='gerente'?'gerente':'coordinador')+'.'
+        +(nivel==='coordinador'
+          ? ' Lo que ya aprobaste está esperando al gerente: cambiá el selector de arriba para verlo.'
+          : '')+'</div>');
+    document.getElementById('aprKpiTit').textContent =
+      'Lo que aprobaste como ' + (nivel==='gerente' ? 'gerente' : 'coordinador');
     kpiAprobado(q,nivel);
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }

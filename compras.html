@@ -70,7 +70,7 @@ h3{margin:0 0 12px;font-size:16px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v19</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v21</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -121,6 +121,17 @@ h3{margin:0 0 12px;font-size:16px}
       <div><button class="btn" onclick="cargarPresu()" style="width:100%">Ver</button></div>
     </div>
     <div id="preLista"></div>
+
+    <div class="card hide" id="cardFormato" style="margin-top:14px">
+      <h3>Formato del documento</h3>
+      <div class="muted" style="margin-bottom:10px">El código y la versión con que sale impresa cada orden de compra. Es la misma fila del registro de formatos que usa Control documental en Administración — no una copia. El logo, la razón social y el NIT salen de <b>Mi empresa</b>.</div>
+      <div class="row r3">
+        <div><label>Código del formato</label><input id="fCod" placeholder="C.FR001"></div>
+        <div><label>Versión</label><input id="fVer" type="number" min="1" step="1" placeholder="1"></div>
+        <div><label>Fecha de la versión</label><input id="fFec" type="date"></div>
+      </div>
+      <button class="btn pri" id="bFormato" onclick="guardarFormato()">Guardar formato</button>
+    </div>
 
     <div class="card hide" id="cardAsignar" style="margin-top:14px">
       <h3>Asignar presupuesto</h3>
@@ -180,7 +191,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const SB_REF='nignqeipzlemwfrwmpip';
 const SESS_KEY='sb-'+SB_REF+'-auth-token';
 const EMPRESA_ID='1e77b05c-a142-4314-aab6-f8d4637b5586';
-let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[], POR_COMPRAR=[];
+let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[], POR_COMPRAR=[], FORMATO={};
 
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const cop=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CO');
@@ -247,7 +258,7 @@ async function arrancar(){
   document.getElementById('vLogin').classList.add('hide');
   document.getElementById('vApp').classList.remove('hide');
   try{
-    const [prov,cond,base,cc,usr,yo,cat,art,prox,rol]=await Promise.all([
+    const [prov,cond,base,cc,usr,yo,cat,art,prox,rol,fmt]=await Promise.all([
       api('co_proveedor?select=id,nombre,condicion_pago_id&order=nombre&limit=2000'),
       api('co_condicion_pago?select=id,nombre,dias_pactados,dias_reales&order=nombre'),
       api('co_base?select=id,nombre&order=nombre'),
@@ -257,11 +268,13 @@ async function arrancar(){
       api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id&activo=eq.true&order=nombre'),
       api('co_articulo?select=id,nombre,categoria_id,unidad,precio_ref,precio_ref_al&activo=eq.true&order=nombre&limit=3000'),
       rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
-      rpc('co_mis_roles',{})
+      rpc('co_mis_roles',{}),
+      rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID})
     ]);
     /* Los maestros primero: todo lo de abajo los usa. Armarlos despues de
        usarlos fue el bug de "Cannot read properties of undefined". */
     MAE={prov,cond,base,cc,usr,cat,art};
+    FORMATO=(fmt&&fmt[0])||{};
     ROLES=(rol&&rol[0]&&rol[0].roles)||['solicitante'];
     /* Los roles no son adorno: el que tiene varios necesita decir con cual esta
        actuando, porque la cola del coordinador y la del gerente son distintas.
@@ -291,7 +304,13 @@ async function arrancar(){
     document.getElementById('dlArt').innerHTML=MAE.art
       .map(x=>'<option value="'+esc(x.nombre)+'">').join('');
     document.getElementById('aMes').value=document.getElementById('pMes').value;
-    if(ROLES.includes('direccion')) document.getElementById('cardAsignar').classList.remove('hide');
+    if(ROLES.includes('direccion')){
+      document.getElementById('cardAsignar').classList.remove('hide');
+      document.getElementById('cardFormato').classList.remove('hide');
+      document.getElementById('fCod').value=FORMATO.codigo||'';
+      document.getElementById('fVer').value=FORMATO.version||'';
+      document.getElementById('fFec').value=FORMATO.fecha_version||'';
+    }
     addQLinea();
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
@@ -701,6 +720,19 @@ async function cargarPresu(){
 /* ---------- pendientes de recibir ---------- */
 /* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
    boton es comodidad de pantalla, no seguridad. */
+async function guardarFormato(){
+  const b=document.getElementById('bFormato'); b.disabled=true; b.textContent='Guardando…';
+  try{
+    const r=await rpc('co_formato_guardar',{p_empresa_id:EMPRESA_ID,
+      p_codigo:document.getElementById('fCod').value,
+      p_version:Number(document.getElementById('fVer').value)||1,
+      p_fecha_version:document.getElementById('fFec').value||null});
+    const f=await rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID});
+    FORMATO=(f&&f[0])||{};
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.', true);
+  }catch(e){ aviso(e.message); }
+  finally{ b.disabled=false; b.textContent='Guardar formato'; }
+}
 async function asignarPresu(){
   const cc=document.getElementById('aCC').value;
   const mes=Number(document.getElementById('aMes').value);
@@ -913,14 +945,26 @@ async function verOrden(id){
                  :'<span class="pill amber" style="align-self:center">'+esc(pv.nombre||'')+' no tiene correo cargado</span>')
       +'</div>'
       +'<div class="card" id="poDoc">'
-      +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px">'
-      +'<div><div style="font-size:20px;font-weight:800">Orden de compra '+esc(o.numero)+'</div>'
-      +'<div class="muted">Total QC S.A.S. · NIT 900.300.543-1</div>'
-      +'<div class="muted">Emitida el '+esc(o.fecha_emision)+'</div></div>'
-      +'<div style="text-align:right"><div style="font-weight:700">'+esc(pv.nombre||'')+'</div>'
+      +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:flex-start;'
+        +'border-bottom:1px solid var(--line2);padding-bottom:12px;margin-bottom:12px">'
+      +'<div style="display:flex;gap:12px;align-items:center">'
+        +(FORMATO.logo_url?'<img src="'+esc(FORMATO.logo_url)+'" alt="" style="max-height:56px">':'')
+        +'<div><div style="font-size:20px;font-weight:800">Orden de compra '+esc(o.numero)+'</div>'
+        +'<div class="muted">'+esc(FORMATO.razon_social||'')
+          +(FORMATO.nit?' · NIT '+esc(FORMATO.nit):'')+'</div>'
+        +'<div class="muted">Emitida el '+esc(o.fecha_emision)+'</div></div></div>'
+      +'<div style="font-size:11.5px;text-align:right;line-height:1.7">'
+        +(FORMATO.codigo
+          ? '<div><b>'+esc(FORMATO.codigo)+'</b></div>'
+            +'<div class="muted">Versión '+esc(FORMATO.version||'—')+'</div>'
+            +'<div class="muted">'+esc(FORMATO.fecha_version||'—')+'</div>'
+          : '<span class="pill amber noimp">falta cargar el código de formato</span>')
+        +'</div>'
+      +'</div>'
+      +'<div style="text-align:right;margin-bottom:8px"><div style="font-weight:700">'+esc(pv.nombre||'')+'</div>'
       +'<div class="muted">'+esc(pv.nit||'')+'</div>'
       +'<div class="muted">'+esc(pv.correo||'')+'</div>'
-      +'<div class="muted">'+esc(pv.telefono||'')+'</div></div></div>'
+      +'<div class="muted">'+esc(pv.telefono||'')+'</div></div>'
       +'<div class="row r3" style="margin-top:14px">'
       +'<div><label>Condición de pago</label><div>'+esc(cp.nombre||'—')
         +(cp.dias_reales?' <span class="pill amber">en la práctica '+cp.dias_reales+' días</span>':'')+'</div></div>'

@@ -46,6 +46,23 @@ tr:last-child td{border-bottom:none}
 .tot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line2);padding-top:11px;margin-top:6px;font-size:16px;font-weight:700}
 .login{max-width:380px;margin:12vh auto;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:24px}
 h3{margin:0 0 12px;font-size:16px}
+/* Las bandejas: grilla que se acomoda sola. En un monitor ancho entran cinco por
+   fila y en un telefono una. Nadie deberia hacer scroll horizontal para ver
+   cuantas ordenes estan atrasadas. */
+.bandejas{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));margin-bottom:14px}
+.bandeja{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;
+ cursor:pointer;text-align:left;font-family:inherit;color:var(--tx);transition:border-color .12s}
+.bandeja:hover{border-color:var(--line2)}
+.bandeja.on{border-color:var(--nar);box-shadow:0 0 0 2px rgba(224,135,0,.18)}
+.bandeja .n{font-size:29px;font-weight:800;line-height:1.05;letter-spacing:-.5px}
+.bandeja .t{font-weight:700;font-size:13px;margin-top:4px}
+.bandeja .e{color:var(--tx2);font-size:11.5px;margin-top:3px;line-height:1.35}
+.bandeja .m{color:var(--tx2);font-size:12px;margin-top:6px;font-variant-numeric:tabular-nums}
+.bandeja.vacia{opacity:.45}
+.bandeja.alerta .n{color:#ff8f8f}
+.bandeja.ojo .n{color:var(--amber)}
+/* Consultas se mira ancho: es una tabla de trabajo, no un formulario. */
+body.ancho .wrap{max-width:1600px}
 @media print{
   body{background:#fff;color:#000}
   .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue{display:none!important}
@@ -70,7 +87,7 @@ h3{margin:0 0 12px;font-size:16px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v21</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v22</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -78,7 +95,8 @@ h3{margin:0 0 12px;font-size:16px}
       </span><button class="btn" onclick="salir()">Salir</button></div>
   </div>
   <div class="tabs" id="tabs">
-    <button class="tab on" id="tPed" onclick="ver('ped')">📝 Pedir</button>
+    <button class="tab" id="tCon" onclick="ver('con')">🔎 Consultas <span class="n" id="nCon">0</span></button>
+    <button class="tab" id="tPed" onclick="ver('ped')">📝 Pedir</button>
     <button class="tab" id="tApr" onclick="ver('apr')">✅ Aprobar <span class="n" id="nApr">0</span></button>
     <button class="tab" id="tPre" onclick="ver('pre')">💰 Presupuesto</button>
     <button class="tab" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
@@ -87,7 +105,24 @@ h3{margin:0 0 12px;font-size:16px}
   </div>
   <div id="msg"></div>
 
-  <div id="vPed">
+  <div id="vCon" class="hide">
+    <div class="card">
+      <input id="q" placeholder="🔎  Buscar requisición, orden, factura, proveedor, artículo o centro de costo…"
+             autocomplete="off" style="font-size:15px;padding:12px 14px">
+    </div>
+    <div id="bandejas" class="bandejas"></div>
+    <div class="card" style="padding:0">
+      <div style="padding:13px 15px;border-bottom:1px solid var(--line2);display:flex;
+                  justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <div><b id="conTit">Elegí una bandeja</b>
+          <div class="muted" id="conSub" style="margin-top:2px"></div></div>
+        <div id="conAcc"></div>
+      </div>
+      <div id="conCuerpo"><div class="muted" style="padding:30px 15px;text-align:center">Tocá una tarjeta de arriba, o escribí en el buscador.</div></div>
+    </div>
+  </div>
+
+  <div id="vPed" class="hide">
     <div class="card">
       <h3>Nueva requisición</h3>
       <div class="muted" style="margin-bottom:11px">Lo que necesitás para trabajar. Pasa por el coordinador y después por el gerente.</div>
@@ -317,7 +352,13 @@ async function arrancar(){
     document.getElementById('quien').textContent=y?y.nombre:'';
     if(!MYID) MYID=idDelToken();
     if(!MYID) aviso('No pude identificar tu usuario. Salí y volvé a entrar antes de recibir nada.');
+    document.getElementById('q').addEventListener('input',function(){
+      clearTimeout(tBusca); const v=this.value.trim();
+      if(v.length<2){ if(BANDEJA_ACTIVA) verBandeja(BANDEJA_ACTIVA); return; }
+      tBusca=setTimeout(()=>buscar(v),300);
+    });
     pintarMaestros(); addLinea(); cargarPendientes(); cargarMisRQ();
+    if(PUEDE.con.some(r=>ROLES.includes(r))) cargarBandejas();
   }catch(e){ aviso(e.message); }
 }
 /* Un precio que falta no es cero. Se suma lo que se sabe y se dice, aparte,
@@ -350,7 +391,11 @@ function pintarMaestros(){
 }
 /* Que ve cada silla. 'ped' y 'rec' los ve cualquiera: todo el mundo puede
    necesitar algo y todo el mundo puede recibir un paquete. */
-const PUEDE={ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
+/* El orden importa: la PRIMERA que la silla puede ver es la que se abre al
+   entrar. Quien compra no entra a llenar un formulario, entra a ver que se
+   trabo; quien pide entra a pedir. */
+const PUEDE={con:['compras','coordinador','gerente','direccion'],
+             ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
              rec:true, ord:['compras'], nue:['compras']};
 function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
 function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
@@ -365,14 +410,14 @@ function aplicarRol(){
   });
   /* Si la pestaña abierta no la ve esta silla, hay que moverse: dejarla
      mirando una pantalla que su rol no tiene es peor que no cambiar nada. */
-  const abierta=['ped','apr','pre','rec','ord','nue'].find(k=>
+  const abierta=['con','ped','apr','pre','rec','ord','nue'].find(k=>
     !document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.contains('hide'));
   const okAbierta = abierta && (PUEDE[abierta]===true || PUEDE[abierta].some(r=>vistos.includes(r)));
   ver(okAbierta ? abierta : (primera||'ped'));
 }
 function cambioNivel(){ aplicarRol(); }
 function ver(v){
-  ['ped','apr','pre','rec','ord','nue'].forEach(k=>{
+  ['con','ped','apr','pre','rec','ord','nue'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
     document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('hide',k!==v);
   });
@@ -382,6 +427,10 @@ function ver(v){
   if(v==='apr') cargarAprobar();
   if(v==='pre') cargarPresu();
   if(v==='nue') cargarPorComprar();
+  if(v==='con') cargarBandejas();
+  /* Consultas usa todo el ancho; el resto sigue angosto, que para formularios
+     leer renglones de 1600px es peor. */
+  document.body.classList.toggle('ancho', v==='con');
 }
 
 /* ---------- líneas ---------- */
@@ -598,6 +647,108 @@ async function guardarRQ(){
     document.getElementById('qLineas').innerHTML=''; document.getElementById('qJust').value=''; addQLinea(); cargarMisRQ();
   }catch(e){ aviso(e.message); } finally{ b.disabled=false; b.textContent='Enviar requisición'; }
 }
+/* ---------- Consultas: lo que ve quien compra al entrar ---------- */
+/* El color no es adorno. Rojo es lo que YA salio mal: nos cobraron algo que
+   nadie recibio, o se pago mas de lo estimado. Ambar es lo que se esta poniendo
+   feo. Apagado es cero, que tambien es una respuesta. */
+const GRAVE={fact_sin_recib:1, precio:1};
+const OJO={vieja:1, parcial:1, recib_sin_fact:1, sin_enviar:1};
+let BANDEJAS=[], BANDEJA_ACTIVA=null, tBusca=null;
+
+async function cargarBandejas(){
+  const c=document.getElementById('bandejas');
+  try{
+    BANDEJAS=await rpc('co_bandejas',{p_empresa_id:EMPRESA_ID})||[];
+    /* El contador de la pestaña muestra lo que hay que perseguir HOY, no la
+       suma de todo: un numero que siempre es grande deja de mirarse. */
+    const urg=BANDEJAS.filter(b=>GRAVE[b.clave]||b.clave==='vieja')
+                      .reduce((a,b)=>a+Number(b.cuantos||0),0);
+    document.getElementById('nCon').textContent=urg;
+    c.innerHTML=BANDEJAS.map(b=>{
+      const n=Number(b.cuantos)||0;
+      const cls=n===0?'vacia':(GRAVE[b.clave]?'alerta':(OJO[b.clave]?'ojo':''));
+      return '<button class="bandeja '+cls+(BANDEJA_ACTIVA===b.clave?' on':'')
+        +'" onclick="verBandeja(\''+b.clave+'\')">'
+        +'<div class="n">'+n+'</div><div class="t">'+esc(b.titulo)+'</div>'
+        +'<div class="e">'+esc(b.explica)+'</div>'
+        +(Number(b.monto)?'<div class="m">'+cop(b.monto)+'</div>':'')+'</button>';
+    }).join('');
+    if(BANDEJA_ACTIVA) verBandeja(BANDEJA_ACTIVA);
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+async function verBandeja(clave){
+  BANDEJA_ACTIVA=clave;
+  document.querySelectorAll('.bandeja').forEach((el,i)=>
+    el.classList.toggle('on', !!(BANDEJAS[i] && BANDEJAS[i].clave===clave)));
+  const b=BANDEJAS.find(x=>x.clave===clave)||{};
+  document.getElementById('conTit').textContent=b.titulo||'';
+  document.getElementById('conSub').textContent=b.explica||'';
+  /* De la bandeja al trabajo en un clic: mirar sin poder hacer nada es lo que
+     tiene hoy en el Excel. */
+  document.getElementById('conAcc').innerHTML =
+      clave==='sin_po'     ? '<button class="btn pri" onclick="ver(\'nue\')">Armar la orden →</button>'
+    : clave==='sin_enviar' ? '<button class="btn pri" onclick="ver(\'ord\')">Ir a órdenes →</button>'
+    : (clave==='por_recibir'||clave==='vieja'||clave==='parcial')
+                           ? '<button class="btn pri" onclick="ver(\'rec\')">Registrar recepción →</button>'
+    : (clave==='rq_coord'||clave==='rq_ger')
+                           ? '<button class="btn pri" onclick="ver(\'apr\')">Ir a aprobar →</button>'
+    : '';
+  const c=document.getElementById('conCuerpo');
+  c.innerHTML='<div class="muted" style="padding:24px 15px;text-align:center">Cargando…</div>';
+  try{
+    const d=await rpc('co_bandeja_detalle',{p_empresa_id:EMPRESA_ID,p_clave:clave})||[];
+    if(!d.length){ c.innerHTML='<div class="muted" style="padding:30px 15px;text-align:center">'
+      +'Nada acá. Que no haya nada también es información.</div>'; return; }
+    c.innerHTML='<div style="overflow-x:auto"><table><thead><tr>'
+      +'<th>Referencia</th><th>Fecha</th><th class="num">Días</th><th>Proveedor</th><th>Centro</th>'
+      +'<th>Detalle</th><th class="num">Cant.</th><th class="num">Monto</th><th>Quién</th>'
+      +'</tr></thead><tbody>'
+      +d.map(r=>'<tr><td><b>'+esc(r.ref)+'</b></td>'
+        +'<td class="muted">'+esc(r.fecha||'—')+'</td>'
+        +'<td class="num">'+dias(r.dias)+'</td>'
+        +'<td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.centro||'—')+'</td>'
+        +'<td>'+esc(r.detalle||'')+'</td>'
+        +'<td class="num">'+(r.cantidad==null?'—':Number(r.cantidad))+'</td>'
+        +'<td class="num">'+(r.monto==null?'—':cop(r.monto))+'</td>'
+        +'<td class="muted">'+esc(r.quien||'—')+'</td></tr>').join('')
+      +'</tbody></table></div>';
+  }catch(e){ c.innerHTML='<div class="err" style="margin:14px">'+esc(e.message)+'</div>'; }
+}
+/* Los dias deciden a quien se llama primero. A los 30 una orden sin recibir
+   dejo de ser normal; a los 60 hay que llamar al proveedor, no esperar. */
+function dias(d){
+  if(d==null) return '—';
+  const n=Number(d);
+  return '<span class="pill '+(n>60?'rojo':(n>30?'amber':''))+'">'+n+'</span>';
+}
+
+async function buscar(txt){
+  BANDEJA_ACTIVA=null;
+  document.querySelectorAll('.bandeja').forEach(el=>el.classList.remove('on'));
+  document.getElementById('conTit').textContent='Resultados de “'+txt+'”';
+  document.getElementById('conSub').textContent='requisiciones, órdenes y facturas';
+  document.getElementById('conAcc').innerHTML='';
+  const c=document.getElementById('conCuerpo');
+  c.innerHTML='<div class="muted" style="padding:24px 15px;text-align:center">Buscando…</div>';
+  try{
+    const d=await rpc('co_buscar',{p_empresa_id:EMPRESA_ID,p_texto:txt})||[];
+    if(!d.length){ c.innerHTML='<div class="muted" style="padding:30px 15px;text-align:center">'
+      +'No encontré nada con “'+esc(txt)+'”.</div>'; return; }
+    c.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Qué es</th><th>Referencia</th>'
+      +'<th>Fecha</th><th>Estado</th><th>Proveedor</th><th>Centro</th><th>Detalle</th>'
+      +'<th class="num">Monto</th></tr></thead><tbody>'
+      +d.map(r=>'<tr><td><span class="pill">'+esc(r.tipo)+'</span></td>'
+        +'<td><b>'+esc(r.ref)+'</b></td><td class="muted">'+esc(r.fecha||'—')+'</td>'
+        +'<td><span class="pill '+(/vencida|espera/.test(String(r.estado||'').toLowerCase())?'amber':'')
+          +'">'+esc(r.estado||'—')+'</span></td>'
+        +'<td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.centro||'—')+'</td>'
+        +'<td>'+esc(r.detalle||'')+'</td>'
+        +'<td class="num">'+(r.monto==null?'—':cop(r.monto))+'</td></tr>').join('')
+      +'</tbody></table></div>';
+  }catch(e){ c.innerHTML='<div class="err" style="margin:14px">'+esc(e.message)+'</div>'; }
+}
+
 async function cargarMisRQ(){
   const c=document.getElementById('qMias');
   try{

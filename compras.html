@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v26</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v27</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -226,7 +226,11 @@ const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
 const SB_REF='nignqeipzlemwfrwmpip';
 const SESS_KEY='sb-'+SB_REF+'-auth-token';
-const EMPRESA_ID='1e77b05c-a142-4314-aab6-f8d4637b5586';
+/* La empresa NO se escribe acá. Sale del perfil de quien entra: un correo, una
+   empresa. Marcelo tiene cuenta en Total QC y en Dinamho, y con cuál entra
+   define qué ve — sin selector, para que nadie cargue una requisición en la
+   empresa equivocada por tener un desplegable mal puesto. */
+let EMPRESA_ID=null;
 let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[], POR_COMPRAR=[], FORMATO={};
 
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -294,7 +298,15 @@ async function arrancar(){
   document.getElementById('vLogin').classList.add('hide');
   document.getElementById('vApp').classList.remove('hide');
   try{
-    const [prov,cond,base,cc,usr,yo,cat,art,prox,rol,fmt]=await Promise.all([
+    /* Primero quién sos y de qué empresa. Todo lo demás se pide con ese dato,
+       así que esta llamada va sola y antes que el resto. */
+    const rol=await rpc('co_mis_roles',{});
+    EMPRESA_ID=(rol&&rol[0]&&rol[0].empresa_id)||null;
+    if(!EMPRESA_ID){
+      aviso('Tu usuario no tiene una empresa asignada. Avisale a dirección: sin eso no puedo mostrarte nada, y mostrarte los datos de otra empresa sería peor.');
+      return;
+    }
+    const [prov,cond,base,cc,usr,yo,cat,art,prox,fmt]=await Promise.all([
       api('co_proveedor?select=id,nombre,condicion_pago_id&order=nombre&limit=2000'),
       api('co_condicion_pago?select=id,nombre,dias_pactados,dias_reales&order=nombre'),
       api('co_base?select=id,nombre&order=nombre'),
@@ -304,7 +316,6 @@ async function arrancar(){
       api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id&activo=eq.true&order=nombre'),
       api('co_articulo?select=id,nombre,categoria_id,unidad,precio_ref,precio_ref_al&activo=eq.true&order=nombre&limit=3000'),
       rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
-      rpc('co_mis_roles',{}),
       rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID})
     ]);
     /* Los maestros primero: todo lo de abajo los usa. Armarlos despues de

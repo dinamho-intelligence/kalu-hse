@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v24</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v26</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -126,7 +126,7 @@ body.ancho .wrap{max-width:1600px}
   <div id="vPed" class="hide">
     <div class="card">
       <h3>Nueva requisición</h3>
-      <div class="muted" style="margin-bottom:11px">Lo que necesitás para trabajar. Pasa por el coordinador y después por el gerente.</div>
+      <div class="muted" style="margin-bottom:11px">Lo que necesitás para trabajar. Primero se aprueba el pedido y después el dinero.</div>
       <div class="row r3">
         <div><label>Centro de costo *</label><select id="qCC"></select></div>
         <div><label>Lo necesito para *</label><input id="qPara" type="date"></div>
@@ -157,20 +157,6 @@ body.ancho .wrap{max-width:1600px}
       <div><button class="btn" onclick="cargarPresu()" style="width:100%">Ver</button></div>
     </div>
     <div id="preLista"></div>
-
-    <div class="card hide" id="cardAprob" style="margin-top:14px">
-      <h3>Quién aprueba cada centro de costo</h3>
-      <div class="muted" style="margin-bottom:10px">El rol dice qué <b>puede</b> hacer una persona; esto dice <b>qué le llega</b>. Un centro sin nadie asignado lo firma quien tenga el rol global, como hasta hoy — así se puede cargar de a poco sin frenar a nadie. Puede haber varias personas en el mismo nivel: firma cualquiera.</div>
-      <div class="row r3" style="align-items:end">
-        <div><label>Centro de costo</label><select id="apCC"></select></div>
-        <div><label>Nivel</label><select id="apNiv">
-          <option value="coordinador">Coordinador — primera firma</option>
-          <option value="gerente">Gerente — aprueba el gasto</option></select></div>
-        <div><label>Persona</label><select id="apUsr"></select></div>
-      </div>
-      <button class="btn pri" id="bAprob" onclick="asignarAprobador()">Asignar</button>
-      <div id="apLista" style="margin-top:14px"></div>
-    </div>
 
     <div class="card hide" id="cardFormato" style="margin-top:14px">
       <h3>Formato del documento</h3>
@@ -205,7 +191,7 @@ body.ancho .wrap{max-width:1600px}
   <div id="vNue" class="hide">
     <div class="card">
       <h3>Traer de las requisiciones aprobadas</h3>
-      <div class="muted" style="margin-bottom:10px">Lo que el gerente ya aprobó y todavía no se compró. Elegí las líneas que entran en <b>esta</b> orden: pueden ser de varias requisiciones, y una requisición puede partirse entre dos proveedores.</div>
+      <div class="muted" style="margin-bottom:10px">Lo que ya tiene el dinero aprobado y todavía no se compró. Elegí las líneas que entran en <b>esta</b> orden: pueden ser de varias requisiciones, y una requisición puede partirse entre dos proveedores.</div>
       <div id="traerLista"></div>
     </div>
 
@@ -327,18 +313,20 @@ async function arrancar(){
     FORMATO=(fmt&&fmt[0])||{};
     ROLES=(rol&&rol[0]&&rol[0].roles)||['solicitante'];
     /* Los roles no son adorno: el que tiene varios necesita decir con cual esta
-       actuando, porque la cola del coordinador y la del gerente son distintas.
+       actuando: la cola del que aprueba el pedido y la del que aprueba el dinero
+       son distintas.
        Va arriba, al lado del nombre, que es donde uno lo busca. */
     /* El selector no elige un nivel de aprobacion: elige DESDE QUE SILLA se
        mira el sistema. Marcelo tiene los cinco roles y necesita ver la pantalla
        de cada uno tal como la va a ver esa persona — es la unica forma de saber
        si a Julian le falta algo antes de que Julian se de cuenta. */
-    const titulo={solicitante:'Solicitante — pide',
-                  coordinador:'Coordinador — primera aprobación',
-                  gerente:'Gerente de operaciones — aprueba el gasto',
+    const titulo={solicitante:'Solicitante — pide lo que necesita',
+                  aprueba_pedido:'Aprobador 1 — aprueba el pedido',
+                  aprueba_dinero:'Aprobador 2 — aprueba el dinero',
                   compras:'Compras — arma las órdenes',
-                  direccion:'Dirección — asigna presupuesto'};
-    const mios=['solicitante','coordinador','gerente','compras','direccion'].filter(r=>ROLES.includes(r));
+                  direccion:'Dirección — presupuesto y formato'};
+    const mios=['solicitante','aprueba_pedido','aprueba_dinero','compras','direccion']
+                 .filter(r=>ROLES.includes(r));
     document.getElementById('aprNivel').innerHTML=
       (mios.length>1?'<option value="todos">Todos mis roles</option>':'')
       +mios.map(r=>'<option value="'+r+'">'+titulo[r]+'</option>').join('');
@@ -357,10 +345,6 @@ async function arrancar(){
     if(ROLES.includes('direccion')){
       document.getElementById('cardAsignar').classList.remove('hide');
       document.getElementById('cardFormato').classList.remove('hide');
-      document.getElementById('cardAprob').classList.remove('hide');
-      document.getElementById('apCC').innerHTML=document.getElementById('qCC').innerHTML;
-      document.getElementById('apUsr').innerHTML=opts(MAE.usr,'id','nombre','— elegir —');
-      cargarAprobadores();
       document.getElementById('fCod').value=FORMATO.codigo||'';
       document.getElementById('fVer').value=FORMATO.version||'';
       document.getElementById('fFec').value=FORMATO.fecha_version||'';
@@ -413,9 +397,13 @@ function pintarMaestros(){
 /* El orden importa: la PRIMERA que la silla puede ver es la que se abre al
    entrar. Quien compra no entra a llenar un formulario, entra a ver que se
    trabo; quien pide entra a pedir. */
-const PUEDE={con:['compras','coordinador','gerente','direccion'],
-             ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
+const PUEDE={con:['compras','aprueba_pedido','aprueba_dinero','direccion'],
+             ped:['solicitante'], apr:['aprueba_pedido','aprueba_dinero'],
+             pre:['direccion','aprueba_dinero'],
              rec:true, ord:['compras'], nue:['compras']};
+/* El permiso dice que PUEDE hacer una persona; el nivel es el momento del
+   circuito donde firma. Uno solo mapea al otro y el mapeo vive aca. */
+const NIVEL_DE={aprueba_pedido:'pedido', aprueba_dinero:'dinero'};
 function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
 function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
 function aplicarRol(){
@@ -710,7 +698,7 @@ async function verBandeja(clave){
     : clave==='sin_enviar' ? '<button class="btn pri" onclick="ver(\'ord\')">Ir a órdenes →</button>'
     : (clave==='por_recibir'||clave==='vieja'||clave==='parcial')
                            ? '<button class="btn pri" onclick="ver(\'rec\')">Registrar recepción →</button>'
-    : (clave==='rq_coord'||clave==='rq_ger')
+    : (clave==='rq_ped'||clave==='rq_din')
                            ? '<button class="btn pri" onclick="ver(\'apr\')">Ir a aprobar →</button>'
     : '';
   const c=document.getElementById('conCuerpo');
@@ -787,21 +775,22 @@ async function cargarAprobar(){
      sabe qué centros de costo le tocan a cada uno. Filtrar en el navegador
      habría significado traerle a Deiber las requisiciones de HSE para después
      esconderlas — y traérselas ya es mostrárselas a quien sepa mirar. */
-  const niveles=['coordinador','gerente'].filter(n=>sillas().includes(n));
+  const niveles=['aprueba_pedido','aprueba_dinero']
+                  .filter(r=>sillas().includes(r)).map(r=>NIVEL_DE[r]);
   if(!niveles.length){ c.innerHTML=''; document.getElementById('aprKpi').innerHTML=''; return; }
-  const rotulo={coordinador:'coordinador', gerente:'gerente de operaciones'};
+  const rotulo={pedido:'el pedido', dinero:'el dinero'};
   try{
     let html='', total=0;
     for(const nivel of niveles){
       const pend=await rpc('co_por_aprobar',{p_empresa_id:EMPRESA_ID,p_nivel:nivel})||[];
       total+=pend.length;
       if(niveles.length>1)
-        html+='<h3 style="margin:18px 0 8px">Esperando tu firma como '+esc(rotulo[nivel])
+        html+='<h3 style="margin:18px 0 8px">Esperando que apruebes '+esc(rotulo[nivel])
              +' <span class="pill">'+pend.length+'</span></h3>';
       html += pend.length ? pend.map(r=>tarjetaRQ(r,nivel)).join('')
-        : '<div class="card muted">Nada esperando tu firma como '+esc(rotulo[nivel])+'.'
-          +(nivel==='coordinador'&&niveles.length===1
-            ? ' Lo que ya aprobaste espera al gerente.' : '')+'</div>';
+        : '<div class="card muted">Nada esperando que apruebes '+esc(rotulo[nivel])+'.'
+          +(nivel==='pedido'&&niveles.length===1
+            ? ' Lo que ya aprobaste espera la aprobación del dinero.' : '')+'</div>';
     }
     document.getElementById('nApr').textContent=total;
     c.innerHTML=html;
@@ -818,16 +807,17 @@ function tarjetaRQ(r,nivel){
       +' · pidió '+esc(nom(r.solicitante_nombre))+' el '+esc(r.fecha||'')
       +(r.por_asignacion?'':'  <span class="pill amber">ese centro no tiene aprobador asignado</span>')
       +'</div>'
-    +(r.coordinador_nombre
-      ? '<div class="muted" style="margin-top:4px"><span class="pill ok">coordinador: aprobada</span> '
-        +esc(nom(r.coordinador_nombre))
-        +(r.coordinador_en?' · '+esc(String(r.coordinador_en).slice(0,10)):'')+'</div>'
+    +(r.pedido_nombre
+      ? '<div class="muted" style="margin-top:4px"><span class="pill ok">pedido aprobado</span> por '
+        +esc(nom(r.pedido_nombre))
+        +(r.pedido_en?' · '+esc(String(r.pedido_en).slice(0,10)):'')+'</div>'
       : '')
     +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
     +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '
       +esc(r.necesita_para)+'</span></div>':'')+'</div>'
     +'<div style="display:flex;flex-direction:column;gap:7px;min-width:170px">'
-    +'<button class="btn ok" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'aprobada\')">Aprobar como '+esc(nivel)+'</button>'
+    +'<button class="btn ok" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'aprobada\')">Aprobar '
+      +(nivel==='pedido'?'el pedido':'el dinero')+'</button>'
     +'<button class="btn" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
     +'<button class="btn" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
     +'</div></div>';
@@ -892,56 +882,6 @@ async function cargarPresu(){
 /* ---------- pendientes de recibir ---------- */
 /* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
    boton es comodidad de pantalla, no seguridad. */
-/* La tabla de quien firma que. Solo se muestran los centros que YA tienen
-   alguien: listar los 31 con casillas vacias convierte una decision en una
-   planilla, y nadie la completa. */
-async function cargarAprobadores(){
-  const c=document.getElementById('apLista');
-  try{
-    const d=await rpc('co_aprobadores_ver',{p_empresa_id:EMPRESA_ID})||[];
-    const conGente=d.filter(r=>(r.coordinadores||[]).length||(r.gerentes||[]).length);
-    const sinGente=d.length-conGente.length;
-    c.innerHTML=(conGente.length
-      ? '<div style="overflow-x:auto"><table><thead><tr><th>Centro</th>'
-        +'<th>Coordinador</th><th>Gerente</th></tr></thead><tbody>'
-        +conGente.map(r=>'<tr><td><b>'+esc(r.centro)+'</b><div class="muted">'
-            +esc(r.centro_nombre)+'</div></td>'
-          +'<td>'+gente(r.centro_costo_id,'coordinador',r.coordinadores)+'</td>'
-          +'<td>'+gente(r.centro_costo_id,'gerente',r.gerentes)+'</td></tr>').join('')
-        +'</tbody></table></div>'
-      : '<div class="muted">Todavía no asignaste a nadie. Mientras tanto, todo lo firma quien tenga el rol global.</div>')
-      +(sinGente?'<div class="nota" style="margin-top:8px">'+sinGente
-        +' centro(s) sin aprobador asignado: los firma quien tenga el rol global.</div>':'');
-  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
-}
-function gente(ccId, nivel, lista){
-  if(!lista||!lista.length) return '<span class="muted">rol global</span>';
-  return lista.map(x=>'<span class="pill" style="margin:0 4px 4px 0">'+esc(nom(x.nombre))
-    +' <a href="#" onclick="quitarAprobador('+ccId+',\''+nivel+'\',\''+x.id+'\');return false" '
-    +'style="color:#ff9a9a;text-decoration:none;font-weight:700">✕</a></span>').join('');
-}
-async function asignarAprobador(){
-  const cc=document.getElementById('apCC').value, u=document.getElementById('apUsr').value;
-  if(!cc) return aviso('Elegí el centro de costo.');
-  if(!u)  return aviso('Elegí la persona.');
-  const b=document.getElementById('bAprob'); b.disabled=true; b.textContent='Guardando…';
-  try{
-    const r=await rpc('co_aprobador_asignar',{p_empresa_id:EMPRESA_ID,
-      p_centro_costo_id:Number(cc), p_nivel:document.getElementById('apNiv').value, p_usuario_id:u});
-    aviso((r&&r[0]&&r[0].mensaje)||'Listo.', true);
-    cargarAprobadores();
-  }catch(e){ aviso(e.message); }
-  finally{ b.disabled=false; b.textContent='Asignar'; }
-}
-async function quitarAprobador(ccId, nivel, usuarioId){
-  try{
-    const r=await rpc('co_aprobador_quitar',{p_empresa_id:EMPRESA_ID,
-      p_centro_costo_id:ccId, p_nivel:nivel, p_usuario_id:usuarioId});
-    aviso((r&&r[0]&&r[0].mensaje)||'Listo.', true);
-    cargarAprobadores();
-  }catch(e){ aviso(e.message); }
-}
-
 async function guardarFormato(){
   const b=document.getElementById('bFormato'); b.disabled=true; b.textContent='Guardando…';
   try{
@@ -1039,8 +979,8 @@ async function cargarPorComprar(){
         +'<td>'+esc(r.descripcion)+(r.categoria?'<div class="muted">'+esc(r.categoria)+'</div>':'')+'</td>'
         +'<td><b>'+esc(r.centro)+'</b><div class="muted">'+esc(r.centro_nombre||'')+'</div></td>'
         +'<td>'+esc(nom(r.solicitante_nombre))+'</td>'
-        +'<td class="muted">'+esc(nom(r.coordinador_nombre))+' <span class="pill">coord</span>'
-          +'<div>'+esc(nom(r.gerente_nombre))+' <span class="pill">gte</span></div></td>'
+        +'<td class="muted">'+esc(nom(r.pedido_nombre))+' <span class="pill">pedido</span>'
+          +'<div>'+esc(nom(r.dinero_nombre))+' <span class="pill">dinero</span></div></td>'
         +'<td class="num">'+r.falta+'</td>'
         +'<td class="num">'+(r.valor_estimado?cop(r.valor_estimado):'<span class="pill amber">sin precio</span>')+'</td>'
         +'<td>'+esc(r.necesita_para||'—')+'</td></tr>').join('')
@@ -1065,11 +1005,11 @@ async function vacioPorComprar(c){
     if(!e.length){ c.innerHTML='<div class="muted">Todavía no hay requisiciones.</div>'; return; }
     c.innerHTML='<div class="muted" style="margin-bottom:10px">No hay nada listo para ordenar. Dónde está parada cada requisición:</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th>Requisición</th><th>Centro</th><th>Pidió</th>'
-      +'<th>Coordinador</th><th>Gerente</th><th>Estado</th></tr></thead><tbody>'
+      +'<th>Pedido</th><th>Dinero</th><th>Estado</th></tr></thead><tbody>'
       +e.map(r=>'<tr><td><b>'+esc(r.numero)+'</b><div class="muted">'+esc(r.justificacion||'')+'</div></td>'
         +'<td>'+esc(r.centro)+'</td><td>'+esc(nom(r.solicitante_nombre))+'</td>'
-        +'<td>'+esc(r.coordinador)+(r.coordinador_nombre?'<div class="muted">'+esc(nom(r.coordinador_nombre))+'</div>':'')+'</td>'
-        +'<td>'+esc(r.gerente)+(r.gerente_nombre?'<div class="muted">'+esc(nom(r.gerente_nombre))+'</div>':'')+'</td>'
+        +'<td>'+esc(r.pedido)+(r.pedido_nombre?'<div class="muted">'+esc(nom(r.pedido_nombre))+'</div>':'')+'</td>'
+        +'<td>'+esc(r.dinero)+(r.dinero_nombre?'<div class="muted">'+esc(nom(r.dinero_nombre))+'</div>':'')+'</td>'
         +'<td><span class="pill '+(r.donde_esta==='lista para armar la orden'?'':'amber')+'">'+esc(r.donde_esta)+'</span></td></tr>').join('')
       +'</tbody></table></div>';
   }catch(err){ c.innerHTML='<div class="muted">No hay nada aprobado esperando orden.</div>'; }

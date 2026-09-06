@@ -182,6 +182,14 @@ const MODULOS=[
      asegurador:["captura","editor_informes"],
      coordinador:["consola"]
   }},
+  {key:"compras", nombre:"Compras", ic:"🛒",
+   perms:["pedir","aprueba_pedido","aprueba_dinero","ordenes","presupuesto"],
+   roles:{
+     solicitante:["pedir"],
+     aprobador:["pedir","aprueba_pedido"],
+     comprador:["pedir","ordenes"],
+     direccion:["pedir","presupuesto","ordenes"]
+  }},
   {key:"ndt", nombre:"NDT", ic:"🔬", perms:[], roles:{}},
   {key:"patrones", nombre:"Patrones · IA", ic:"🧠", perms:["consola"],
    roles:{
@@ -191,24 +199,33 @@ const MODULOS=[
 // Documentos (formatos PDF) que genera cada módulo → control documental automático por empresa.
 const DOCS_POR_MODULO={
   hse:[["tarjeta","Tarjeta"],["ats","ATS"],["informe","Investigación · Informe"],["transcripcion","Investigación · Transcripción"],["alerta","Investigación · Alerta"],["leccion","Investigación · Lección aprendida"]],
-  qaqc:[["qaqc","QA/QC · Informe"]]
+  qaqc:[["qaqc","QA/QC · Informe"]],
+  compras:[["orden_compra","Compras · Orden de compra"]]
 };
 const PERM_LABEL={
   validacion:"Validación", ats:"ATS", tarjetas:"Tarjetas",
   investigaciones:"Investigaciones", expedientes:"Expedientes",
   aprobar_ats:"Aprobar ATS", aprobar_tarjetas:"Aprobar tarjetas",
   captura:"Captura", consola:"Consola", asiste:"Asistencia en vivo",
-  editor_informes:"Editor de informes"
+  editor_informes:"Editor de informes",
+  pedir:"Pedir", aprueba_pedido:"Aprueba el pedido", aprueba_dinero:"Aprueba el dinero",
+  ordenes:"Armar órdenes", presupuesto:"Presupuesto"
 };
 function modDef(k){ return MODULOS.find(function(m){return m.key===k;}); }
 /* Roles de KALU (del software): nombre visible + descripción por módulo */
-const ROL_LABEL={ hse:{ supervisor:"Supervisor HSE", coordinador:"Coordinador HSE" }, ra:{ coordinador:"Coordinador RA" }, qaqc:{ coordinador:"Coordinador QA/QC" } };
+const ROL_LABEL={ hse:{ supervisor:"Supervisor HSE", coordinador:"Coordinador HSE" }, ra:{ coordinador:"Coordinador RA" }, qaqc:{ coordinador:"Coordinador QA/QC" },
+  compras:{ solicitante:"Pedidor", aprobador:"Aprobador", comprador:"Compras", direccion:"Dirección" } };
 const ROL_DESC={ hse:{
   trabajador:"Trabajador de a pie. Solo carga Tarjetas.",
   operador:"Operador del sistema (personal instruido; ej. un supervisor de operaciones). Tarjetas, ATS e Investigaciones; se le puede habilitar Aprobar ATS.",
   investigador:"Participa en investigaciones (ej. un pasante, para evaluarlo). Solo Investigaciones.",
   supervisor:"Supervisor de HSE (no de operaciones). Aprueba ATS y Tarjetas.",
   coordinador:"Coordinador de HSE (puede ser también el admin del sistema). Acceso total: Expedientes, Consola, todo."
+}, compras:{
+  solicitante:"Pide lo que necesita para trabajar (inspector, supervisor). No ve precios ni aprueba nada.",
+  aprobador:"Firma requisiciones. Destildá cuál de los dos pasos: aprobar el pedido (que se compre) o aprobar el dinero (cuánto se gasta). Puede tener los dos.",
+  comprador:"Arma las órdenes de compra, las envía al proveedor y usa el tablero de consultas.",
+  direccion:"Asigna y amplía presupuesto, y define quién aprueba cada centro de costo."
 }};
 /* Permisos que solo puede tener cierto rol (no aparecen como opción para los demás) */
 const PERM_SOLO_ROL={ hse:{ expedientes:"coordinador" } };
@@ -830,8 +847,8 @@ async function guardarEditar(){
   finally{ b.disabled=false; b.textContent="Guardar"; }
 }
 /* ---------- CSV ---------- */
-const PLANTILLA_COLS=["nombre","cedula","correo","celular","cargo","hse_rol","ra_rol","qaqc_rol"];
-const PLANTILLA_EJ=["Juan Perez","12345678","juan@empresa.com","3001234567","Inspector","operador","","asegurador"];
+const PLANTILLA_COLS=["nombre","cedula","correo","celular","cargo","hse_rol","ra_rol","qaqc_rol","compras_rol"];
+const PLANTILLA_EJ=["Juan Perez","12345678","juan@empresa.com","3001234567","Inspector","operador","","asegurador","solicitante"];
 /* alias de encabezados: para que reconozca la columna aunque la renombren */
 const COL_ALIAS={
   "nombre":"nombre","nombres":"nombre","nombre completo":"nombre","nombre y apellido":"nombre",
@@ -841,7 +858,8 @@ const COL_ALIAS={
   "cargo":"cargo","puesto":"cargo","rol":"cargo",
   "hse_rol":"hse_rol","hse":"hse_rol","rol_hse":"hse_rol",
   "ra_rol":"ra_rol","ra":"ra_rol","rol_ra":"ra_rol",
-  "qaqc_rol":"qaqc_rol","qaqc":"qaqc_rol","qa/qc":"qaqc_rol","rol_qaqc":"qaqc_rol"
+  "qaqc_rol":"qaqc_rol","qaqc":"qaqc_rol","qa/qc":"qaqc_rol","rol_qaqc":"qaqc_rol",
+  "compras_rol":"compras_rol","compras":"compras_rol","rol_compras":"compras_rol"
 };
 function canon(h){ h=String(h==null?"":h).trim().toLowerCase(); return COL_ALIAS[h]||h; }
 function descargarPlantilla(){
@@ -863,7 +881,7 @@ function parseCSV(txt){
 }
 function previstosDesde(row){
   const out=[];
-  [["hse","hse_rol"],["ra","ra_rol"],["qaqc","qaqc_rol"]].forEach(function(m){
+  [["hse","hse_rol"],["ra","ra_rol"],["qaqc","qaqc_rol"],["compras","compras_rol"]].forEach(function(m){
     const rol=(row[m[1]]||"").trim(); if(!rol) return;
     const d=modDef(m[0]); const perms=(d&&d.roles[rol])?d.roles[rol].slice():[];
     out.push({modulo:m[0],rol:rol,nivel:"editar",permisos:perms});

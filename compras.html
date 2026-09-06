@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v27</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v28</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -158,16 +158,7 @@ body.ancho .wrap{max-width:1600px}
     </div>
     <div id="preLista"></div>
 
-    <div class="card hide" id="cardFormato" style="margin-top:14px">
-      <h3>Formato del documento</h3>
-      <div class="muted" style="margin-bottom:10px">El código y la versión con que sale impresa cada orden de compra. Es la misma fila del registro de formatos que usa Control documental en Administración — no una copia. El logo, la razón social y el NIT salen de <b>Mi empresa</b>.</div>
-      <div class="row r3">
-        <div><label>Código del formato</label><input id="fCod" placeholder="C.FR001"></div>
-        <div><label>Versión</label><input id="fVer" type="number" min="1" step="1" placeholder="1"></div>
-        <div><label>Fecha de la versión</label><input id="fFec" type="date"></div>
-      </div>
-      <button class="btn pri" id="bFormato" onclick="guardarFormato()">Guardar formato</button>
-    </div>
+
 
     <div class="card hide" id="cardAsignar" style="margin-top:14px">
       <h3>Asignar presupuesto</h3>
@@ -322,7 +313,14 @@ async function arrancar(){
        usarlos fue el bug de "Cannot read properties of undefined". */
     MAE={prov,cond,base,cc,usr,cat,art};
     FORMATO=(fmt&&fmt[0])||{};
-    ROLES=(rol&&rol[0]&&rol[0].roles)||['solicitante'];
+    /* Sin permisos no hay pestañas: quien no tiene acceso a compras no debería
+       ver ni la de pedir. Antes le dábamos 'solicitante' de regalo. */
+    ROLES=(rol&&rol[0]&&rol[0].roles)||[];
+    if(!ROLES.length){
+      aviso('No tenés accesos al módulo de compras. Pedíselos a dirección — se dan desde Administración, en Usuarios y accesos.');
+      document.getElementById('tabs').classList.add('hide');
+      return;
+    }
     /* Los roles no son adorno: el que tiene varios necesita decir con cual esta
        actuando: la cola del que aprueba el pedido y la del que aprueba el dinero
        son distintas.
@@ -331,12 +329,12 @@ async function arrancar(){
        mira el sistema. Marcelo tiene los cinco roles y necesita ver la pantalla
        de cada uno tal como la va a ver esa persona — es la unica forma de saber
        si a Julian le falta algo antes de que Julian se de cuenta. */
-    const titulo={solicitante:'Solicitante — pide lo que necesita',
+    const titulo={pedir:'Pedir — lo que necesito para trabajar',
                   aprueba_pedido:'Aprobador 1 — aprueba el pedido',
                   aprueba_dinero:'Aprobador 2 — aprueba el dinero',
-                  compras:'Compras — arma las órdenes',
-                  direccion:'Dirección — presupuesto y formato'};
-    const mios=['solicitante','aprueba_pedido','aprueba_dinero','compras','direccion']
+                  ordenes:'Compras — armo las órdenes',
+                  presupuesto:'Dirección — presupuesto'};
+    const mios=['pedir','aprueba_pedido','aprueba_dinero','ordenes','presupuesto']
                  .filter(r=>ROLES.includes(r));
     document.getElementById('aprNivel').innerHTML=
       (mios.length>1?'<option value="todos">Todos mis roles</option>':'')
@@ -353,13 +351,7 @@ async function arrancar(){
     document.getElementById('dlArt').innerHTML=MAE.art
       .map(x=>'<option value="'+esc(x.nombre)+'">').join('');
     document.getElementById('aMes').value=document.getElementById('pMes').value;
-    if(ROLES.includes('direccion')){
-      document.getElementById('cardAsignar').classList.remove('hide');
-      document.getElementById('cardFormato').classList.remove('hide');
-      document.getElementById('fCod').value=FORMATO.codigo||'';
-      document.getElementById('fVer').value=FORMATO.version||'';
-      document.getElementById('fFec').value=FORMATO.fecha_version||'';
-    }
+    if(ROLES.includes('presupuesto')) document.getElementById('cardAsignar').classList.remove('hide');
     addQLinea();
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
@@ -408,12 +400,13 @@ function pintarMaestros(){
 /* El orden importa: la PRIMERA que la silla puede ver es la que se abre al
    entrar. Quien compra no entra a llenar un formulario, entra a ver que se
    trabo; quien pide entra a pedir. */
-const PUEDE={con:['compras','aprueba_pedido','aprueba_dinero','direccion'],
-             ped:['solicitante'], apr:['aprueba_pedido','aprueba_dinero'],
-             pre:['direccion','aprueba_dinero'],
-             rec:true, ord:['compras'], nue:['compras']};
-/* El permiso dice que PUEDE hacer una persona; el nivel es el momento del
-   circuito donde firma. Uno solo mapea al otro y el mapeo vive aca. */
+/* Lo que se pregunta es el PERMISO, igual que en el resto de KALU. Los roles
+   (solicitante, aprobador, comprador, direccion) son plantillas que pre-tildan
+   permisos en Administracion; acá no se miran. */
+const PUEDE={con:['ordenes','aprueba_pedido','aprueba_dinero','presupuesto'],
+             ped:['pedir'], apr:['aprueba_pedido','aprueba_dinero'],
+             pre:['presupuesto'],
+             rec:true, ord:['ordenes'], nue:['ordenes']};
 const NIVEL_DE={aprueba_pedido:'pedido', aprueba_dinero:'dinero'};
 function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
 function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
@@ -893,19 +886,6 @@ async function cargarPresu(){
 /* ---------- pendientes de recibir ---------- */
 /* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
    boton es comodidad de pantalla, no seguridad. */
-async function guardarFormato(){
-  const b=document.getElementById('bFormato'); b.disabled=true; b.textContent='Guardando…';
-  try{
-    const r=await rpc('co_formato_guardar',{p_empresa_id:EMPRESA_ID,
-      p_codigo:document.getElementById('fCod').value,
-      p_version:Number(document.getElementById('fVer').value)||1,
-      p_fecha_version:document.getElementById('fFec').value||null});
-    const f=await rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID});
-    FORMATO=(f&&f[0])||{};
-    aviso((r&&r[0]&&r[0].mensaje)||'Listo.', true);
-  }catch(e){ aviso(e.message); }
-  finally{ b.disabled=false; b.textContent='Guardar formato'; }
-}
 async function asignarPresu(){
   const cc=document.getElementById('aCC').value;
   const mes=Number(document.getElementById('aMes').value);

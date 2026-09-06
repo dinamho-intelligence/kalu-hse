@@ -61,8 +61,12 @@ h3{margin:0 0 12px;font-size:16px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span></div>
-    <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted" id="rolesDe" style="font-size:12px;align-self:center"></span><button class="btn" onclick="salir()">Salir</button></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v17</span></div>
+    <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
+      <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
+        <span class="muted" style="font-size:12px">Actuando como</span>
+        <select id="aprNivel" onchange="cambioNivel()" style="width:auto;padding:6px 9px;font-size:13px"></select>
+      </span><button class="btn" onclick="salir()">Salir</button></div>
   </div>
   <div class="tabs" id="tabs">
     <button class="tab on" id="tPed" onclick="ver('ped')">📝 Pedir</button>
@@ -95,14 +99,6 @@ h3{margin:0 0 12px;font-size:16px}
 
   <div id="vApr" class="hide">
     <div class="muted" style="margin-bottom:10px">Lo que espera tu decisión. El monto es lo que dice el catálogo, no el que pidió.</div>
-    <div class="card hide" id="cardNivel">
-      <label>Estás aprobando como</label>
-      <select id="aprNivel" onchange="cargarAprobar()">
-        <option value="coordinador">Coordinador — primera revisión</option>
-        <option value="gerente">Gerente de operaciones — aprueba el gasto</option>
-      </select>
-      <div class="muted" style="margin-top:8px">Tenés los dos roles. Una requisición no le llega al gerente hasta que el coordinador la aprueba.</div>
-    </div>
     <div id="aprLista"></div>
     <h3 style="margin-top:22px" id="aprKpiTit">Lo que aprobaste</h3>
     <div id="aprKpi"></div>
@@ -129,7 +125,7 @@ h3{margin:0 0 12px;font-size:16px}
     </div>
   </div>
 
-  <div id="vRec">
+  <div id="vRec" class="hide">
     <div class="muted" style="margin-bottom:10px">Lo que está pedido y todavía no llegó. Se calcula solo.</div>
     <div id="recLista"></div>
   </div>
@@ -258,7 +254,17 @@ async function arrancar(){
        usarlos fue el bug de "Cannot read properties of undefined". */
     MAE={prov,cond,base,cc,usr,cat,art};
     ROLES=(rol&&rol[0]&&rol[0].roles)||['solicitante'];
+    /* Los roles no son adorno: el que tiene varios necesita decir con cual esta
+       actuando, porque la cola del coordinador y la del gerente son distintas.
+       Va arriba, al lado del nombre, que es donde uno lo busca. */
+    const conCola=[['coordinador','Coordinador'],['gerente','Gerente de operaciones']]
+      .filter(([r])=>ROLES.includes(r));
+    document.getElementById('aprNivel').innerHTML=
+      conCola.map(([r,t])=>'<option value="'+r+'">'+t+'</option>').join('')
+      || '<option value="coordinador">Coordinador</option>';
+    if(conCola.length) document.getElementById('cajaActuar').classList.remove('hide');
     document.getElementById('rolesDe').textContent=ROLES.join(' · ');
+    document.getElementById('rolesDe').classList.remove('hide');
     /* Cada uno ve solo lo suyo. Un solicitante no tiene por que ver la pantalla
        de presupuesto, y mostrarsela vacia es peor que no mostrarla. */
     const puede={ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
@@ -276,15 +282,13 @@ async function arrancar(){
       .map(x=>'<option value="'+esc(x.nombre)+'">').join('');
     document.getElementById('aMes').value=document.getElementById('pMes').value;
     if(ROLES.includes('direccion')) document.getElementById('cardAsignar').classList.remove('hide');
-    if(ROLES.includes('gerente') && ROLES.includes('coordinador'))
-      document.getElementById('cardNivel').classList.remove('hide');
     addQLinea();
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
     document.getElementById('quien').textContent=y?y.nombre:'';
     if(!MYID) MYID=idDelToken();
     if(!MYID) aviso('No pude identificar tu usuario. Salí y volvé a entrar antes de recibir nada.');
-    pintarMaestros(); addLinea(); cargarPendientes();
+    pintarMaestros(); addLinea(); cargarPendientes(); cargarMisRQ();
   }catch(e){ aviso(e.message); }
 }
 /* Un precio que falta no es cero. Se suma lo que se sabe y se dice, aparte,
@@ -315,6 +319,7 @@ function pintarMaestros(){
     if(p&&p.condicion_pago_id) document.getElementById('oCond').value=p.condicion_pago_id;
   };
 }
+function cambioNivel(){ ver('apr'); }
 function ver(v){
   ['ped','apr','pre','rec','ord','nue'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
@@ -564,7 +569,7 @@ async function cargarAprobar(){
   const nivel = dos ? document.getElementById('aprNivel').value
                     : (ROLES.includes('gerente') ? 'gerente' : 'coordinador');
   try{
-    const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,necesita_para,co_centro_costo(codigo,nombre),co_requisicion_linea(descripcion,cantidad,valor_estimado),co_aprobacion(nivel,decision)&order=fecha&limit=80');
+    const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,necesita_para,solicitante_id,co_centro_costo(codigo,nombre),co_requisicion_linea(descripcion,cantidad,valor_estimado),co_aprobacion(nivel,decision,por,en)&order=fecha&limit=80');
     const pend=q.filter(r=>{
       const ap=(r.co_aprobacion||[]);
       const coord=ap.find(a=>a.nivel==='coordinador'&&a.decision==='aprobada');
@@ -576,7 +581,10 @@ async function cargarAprobar(){
       const t=montoTexto(r.co_requisicion_linea);
       return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
       +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+t+'</div>'
-      +'<div class="muted" style="margin-top:3px">'+esc((r.co_centro_costo||{}).codigo||'')+' · '+esc((r.co_centro_costo||{}).nombre||'')+'</div>'
+      +'<div class="muted" style="margin-top:3px">'
+        +'<b>'+esc((r.co_centro_costo||{}).codigo||'')+'</b> · '+esc((r.co_centro_costo||{}).nombre||'')
+        +' · pidió '+esc(quienEs(r.solicitante_id))+' el '+esc(r.fecha||'')+'</div>'
+      +firmas(r.co_aprobacion)
       +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
       +'<div class="muted" style="margin-top:6px">'+(r.co_requisicion_linea||[]).map(l=>esc(l.descripcion)+' ×'+l.cantidad).join(' · ')+'</div>'
       +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '+esc(r.necesita_para)+'</span></div>':'')+'</div>'
@@ -721,20 +729,60 @@ async function cargarPorComprar(){
   const c=document.getElementById('traerLista');
   try{
     const p=await api('co_por_comprar?select=*&order=fecha,requisicion,numero_linea&limit=200');
-    if(!p.length){ c.innerHTML='<div class="muted">No hay nada aprobado esperando orden.</div>'; return; }
     POR_COMPRAR=p;
-    c.innerHTML='<table><thead><tr><th></th><th>Requisición</th><th>Qué</th><th>Centro</th>'
+    if(!p.length){ return vacioPorComprar(c); }
+    c.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th></th><th>Requisición</th><th>Qué</th>'
+      +'<th>Centro de costo</th><th>Pidió</th><th>Firmaron</th>'
       +'<th class="num">Falta</th><th class="num">Ref.</th><th>Para</th></tr></thead><tbody>'
       +p.map(r=>'<tr><td><input type="checkbox" class="tr" style="width:auto" value="'+r.requisicion_linea_id+'"></td>'
-        +'<td><b>'+esc(r.requisicion)+'</b><div class="muted">'+esc(r.justificacion||'')+'</div></td>'
-        +'<td>'+esc(r.descripcion)+'</td>'
-        +'<td>'+esc(r.centro)+'</td>'
+        +'<td><b>'+esc(r.requisicion)+'</b><div class="muted">'+esc(r.fecha||'')+'</div>'
+          +'<div class="muted">'+esc(r.justificacion||'')+'</div></td>'
+        +'<td>'+esc(r.descripcion)+(r.categoria?'<div class="muted">'+esc(r.categoria)+'</div>':'')+'</td>'
+        +'<td><b>'+esc(r.centro)+'</b><div class="muted">'+esc(r.centro_nombre||'')+'</div></td>'
+        +'<td>'+esc(nom(r.solicitante_nombre))+'</td>'
+        +'<td class="muted">'+esc(nom(r.coordinador_nombre))+' <span class="pill">coord</span>'
+          +'<div>'+esc(nom(r.gerente_nombre))+' <span class="pill">gte</span></div></td>'
         +'<td class="num">'+r.falta+'</td>'
         +'<td class="num">'+(r.valor_estimado?cop(r.valor_estimado):'<span class="pill amber">sin precio</span>')+'</td>'
         +'<td>'+esc(r.necesita_para||'—')+'</td></tr>').join('')
-      +'</tbody></table>'
+      +'</tbody></table></div>'
       +'<button class="btn pri" onclick="traerLineas()" style="margin-top:11px">Traer las marcadas a la orden</button>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+/* Nombre corto: perfiles guarda "APELLIDO Nombre" y en una tabla no entra. */
+/* El id de un usuario no le dice nada a nadie. MAE.usr ya trae id y nombre de
+   toda la empresa, asi que traducimos aca y no pedimos nada de mas a la base. */
+function quienEs(id){
+  if(!id) return '—';
+  const u=(MAE.usr||[]).find(x=>String(x.id)===String(id));
+  return u? nom(u.nombre) : 'alguien que ya no está en la lista';
+}
+/* Las firmas que ya tiene. Con quince aprobadores, "aprobada" sin nombre no
+   sirve: hay que poder preguntarle a la persona. */
+function firmas(aps){
+  const f=(aps||[]).filter(a=>a.decision);
+  if(!f.length) return '<div class="muted" style="margin-top:4px">Sin firmas todavía.</div>';
+  return '<div class="muted" style="margin-top:4px">'+f.map(a=>
+    '<span class="pill'+(a.decision==='aprobada'?'':' amber')+'">'+esc(a.nivel)+': '+esc(a.decision)+'</span> '
+    +esc(quienEs(a.por))+(a.en?' · '+esc(String(a.en).slice(0,10)):'')).join(' &nbsp;·&nbsp; ')+'</div>';
+}
+function nom(x){ if(!x) return '—'; const p=String(x).trim().split(/\s+/); return p.length>2?p.slice(-2).join(' '):x; }
+/* Una lista vacia sin explicacion hace perder mas tiempo que un error: si no
+   hay nada para armar, decimos donde quedo parada cada requisicion. */
+async function vacioPorComprar(c){
+  try{
+    const e=await api('co_rq_estado?select=*&order=fecha.desc&limit=30');
+    if(!e.length){ c.innerHTML='<div class="muted">Todavía no hay requisiciones.</div>'; return; }
+    c.innerHTML='<div class="muted" style="margin-bottom:10px">No hay nada listo para ordenar. Dónde está parada cada requisición:</div>'
+      +'<div style="overflow-x:auto"><table><thead><tr><th>Requisición</th><th>Centro</th><th>Pidió</th>'
+      +'<th>Coordinador</th><th>Gerente</th><th>Estado</th></tr></thead><tbody>'
+      +e.map(r=>'<tr><td><b>'+esc(r.numero)+'</b><div class="muted">'+esc(r.justificacion||'')+'</div></td>'
+        +'<td>'+esc(r.centro)+'</td><td>'+esc(nom(r.solicitante_nombre))+'</td>'
+        +'<td>'+esc(r.coordinador)+(r.coordinador_nombre?'<div class="muted">'+esc(nom(r.coordinador_nombre))+'</div>':'')+'</td>'
+        +'<td>'+esc(r.gerente)+(r.gerente_nombre?'<div class="muted">'+esc(nom(r.gerente_nombre))+'</div>':'')+'</td>'
+        +'<td><span class="pill '+(r.donde_esta==='lista para armar la orden'?'':'amber')+'">'+esc(r.donde_esta)+'</span></td></tr>').join('')
+      +'</tbody></table></div>';
+  }catch(err){ c.innerHTML='<div class="muted">No hay nada aprobado esperando orden.</div>'; }
 }
 function traerLineas(){
   const ids=[...document.querySelectorAll('#traerLista .tr:checked')].map(x=>Number(x.value));

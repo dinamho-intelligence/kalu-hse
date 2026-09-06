@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v23</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v24</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -157,6 +157,20 @@ body.ancho .wrap{max-width:1600px}
       <div><button class="btn" onclick="cargarPresu()" style="width:100%">Ver</button></div>
     </div>
     <div id="preLista"></div>
+
+    <div class="card hide" id="cardAprob" style="margin-top:14px">
+      <h3>Quién aprueba cada centro de costo</h3>
+      <div class="muted" style="margin-bottom:10px">El rol dice qué <b>puede</b> hacer una persona; esto dice <b>qué le llega</b>. Un centro sin nadie asignado lo firma quien tenga el rol global, como hasta hoy — así se puede cargar de a poco sin frenar a nadie. Puede haber varias personas en el mismo nivel: firma cualquiera.</div>
+      <div class="row r3" style="align-items:end">
+        <div><label>Centro de costo</label><select id="apCC"></select></div>
+        <div><label>Nivel</label><select id="apNiv">
+          <option value="coordinador">Coordinador — primera firma</option>
+          <option value="gerente">Gerente — aprueba el gasto</option></select></div>
+        <div><label>Persona</label><select id="apUsr"></select></div>
+      </div>
+      <button class="btn pri" id="bAprob" onclick="asignarAprobador()">Asignar</button>
+      <div id="apLista" style="margin-top:14px"></div>
+    </div>
 
     <div class="card hide" id="cardFormato" style="margin-top:14px">
       <h3>Formato del documento</h3>
@@ -343,6 +357,10 @@ async function arrancar(){
     if(ROLES.includes('direccion')){
       document.getElementById('cardAsignar').classList.remove('hide');
       document.getElementById('cardFormato').classList.remove('hide');
+      document.getElementById('cardAprob').classList.remove('hide');
+      document.getElementById('apCC').innerHTML=document.getElementById('qCC').innerHTML;
+      document.getElementById('apUsr').innerHTML=opts(MAE.usr,'id','nombre','— elegir —');
+      cargarAprobadores();
       document.getElementById('fCod').value=FORMATO.codigo||'';
       document.getElementById('fVer').value=FORMATO.version||'';
       document.getElementById('fFec').value=FORMATO.fecha_version||'';
@@ -765,75 +783,77 @@ async function cargarMisRQ(){
 /* ---------- aprobar ---------- */
 async function cargarAprobar(){
   const c=document.getElementById('aprLista');
-  /* Una cola por nivel que la silla actual pueda firmar. Con "Todos mis roles"
-     se ven las dos, una debajo de la otra y rotuladas: la del gerente arranca
-     donde termina la del coordinador, y verlas juntas es lo que hace visible
-     ese encadenamiento. */
+  /* La bandeja ya no se filtra acá: la arma la base con co_por_aprobar, que
+     sabe qué centros de costo le tocan a cada uno. Filtrar en el navegador
+     habría significado traerle a Deiber las requisiciones de HSE para después
+     esconderlas — y traérselas ya es mostrárselas a quien sepa mirar. */
   const niveles=['coordinador','gerente'].filter(n=>sillas().includes(n));
   if(!niveles.length){ c.innerHTML=''; document.getElementById('aprKpi').innerHTML=''; return; }
-  const rotulo={coordinador:'Coordinador', gerente:'Gerente de operaciones'};
+  const rotulo={coordinador:'coordinador', gerente:'gerente de operaciones'};
   try{
-    const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,necesita_para,solicitante_id,co_centro_costo(codigo,nombre),co_requisicion_linea(descripcion,cantidad,valor_estimado),co_aprobacion(nivel,decision,por,en)&order=fecha&limit=80');
     let html='', total=0;
-    niveles.forEach(nivel=>{
-      const pend=q.filter(r=>{
-        const ap=(r.co_aprobacion||[]);
-        const coord=ap.find(a=>a.nivel==='coordinador'&&a.decision==='aprobada');
-        const ger=ap.find(a=>a.nivel==='gerente');
-        return nivel==='coordinador' ? !ap.find(a=>a.nivel==='coordinador') : (coord && !ger);
-      });
+    for(const nivel of niveles){
+      const pend=await rpc('co_por_aprobar',{p_empresa_id:EMPRESA_ID,p_nivel:nivel})||[];
       total+=pend.length;
       if(niveles.length>1)
-        html+='<h3 style="margin:18px 0 8px">Esperando al '+esc(rotulo[nivel].toLowerCase())
+        html+='<h3 style="margin:18px 0 8px">Esperando tu firma como '+esc(rotulo[nivel])
              +' <span class="pill">'+pend.length+'</span></h3>';
       html += pend.length ? pend.map(r=>tarjetaRQ(r,nivel)).join('')
-        : '<div class="card muted">No hay nada esperando la decisión del '
-          +esc(rotulo[nivel].toLowerCase())+'.'
+        : '<div class="card muted">Nada esperando tu firma como '+esc(rotulo[nivel])+'.'
           +(nivel==='coordinador'&&niveles.length===1
-            ? ' Lo que ya aprobaste espera al gerente: cambiá de rol arriba para verlo.' : '')+'</div>';
-    });
+            ? ' Lo que ya aprobaste espera al gerente.' : '')+'</div>';
+    }
     document.getElementById('nApr').textContent=total;
     c.innerHTML=html;
-    document.getElementById('aprKpiTit').textContent = niveles.length>1
-      ? 'Lo que aprobaste' : 'Lo que aprobaste como '+rotulo[niveles[0]].toLowerCase();
-    kpiAprobado(q,niveles);
+    document.getElementById('aprKpiTit').textContent='Lo que aprobaste';
+    kpiAprobado();
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 function tarjetaRQ(r,nivel){
-  const t=montoTexto(r.co_requisicion_linea);
+  const monto=Number(r.monto)||0, sin=Number(r.lineas_sin_precio)||0;
+  const t=cop(monto)+(sin?'  <span class="pill amber">+'+sin+' sin precio</span>':'');
   return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
     +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+t+'</div>'
-    +'<div class="muted" style="margin-top:3px">'
-      +'<b>'+esc((r.co_centro_costo||{}).codigo||'')+'</b> · '+esc((r.co_centro_costo||{}).nombre||'')
-      +' · pidió '+esc(quienEs(r.solicitante_id))+' el '+esc(r.fecha||'')+'</div>'
-    +firmas(r.co_aprobacion)
+    +'<div class="muted" style="margin-top:3px"><b>'+esc(r.centro||'')+'</b> · '+esc(r.centro_nombre||'')
+      +' · pidió '+esc(nom(r.solicitante_nombre))+' el '+esc(r.fecha||'')
+      +(r.por_asignacion?'':'  <span class="pill amber">ese centro no tiene aprobador asignado</span>')
+      +'</div>'
+    +(r.coordinador_nombre
+      ? '<div class="muted" style="margin-top:4px"><span class="pill ok">coordinador: aprobada</span> '
+        +esc(nom(r.coordinador_nombre))
+        +(r.coordinador_en?' · '+esc(String(r.coordinador_en).slice(0,10)):'')+'</div>'
+      : '')
     +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
-    +'<div class="muted" style="margin-top:6px">'
-      +(r.co_requisicion_linea||[]).map(l=>esc(l.descripcion)+' ×'+l.cantidad).join(' · ')+'</div>'
     +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '
       +esc(r.necesita_para)+'</span></div>':'')+'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:7px;min-width:160px">'
-    +'<button class="btn ok" onclick="decidir('+r.id+',\''+nivel+'\',\'aprobada\')">Aprobar como '+esc(nivel)+'</button>'
-    +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
-    +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
+    +'<div style="display:flex;flex-direction:column;gap:7px;min-width:170px">'
+    +'<button class="btn ok" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'aprobada\')">Aprobar como '+esc(nivel)+'</button>'
+    +'<button class="btn" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
+    +'<button class="btn" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
     +'</div></div>';
 }
-function kpiAprobado(q,niveles){
-  const porMes={};
-  q.forEach(r=>{ const ap=(r.co_aprobacion||[]).find(a=>niveles.includes(a.nivel)&&a.decision==='aprobada');
-    if(!ap) return; const m=(r.fecha||'').slice(0,7);
-    const x=suma(r.co_requisicion_linea);
-    porMes[m]=porMes[m]||{total:0,sin:0};
-    porMes[m].total+=x.total; porMes[m].sin+=x.sin; });
-  const ms=Object.keys(porMes).sort();
-  document.getElementById('aprKpi').innerHTML=ms.length?
-    ('<div class="card"><table><thead><tr><th>Mes</th><th class="num">Aprobado por vos</th><th class="num">vs mes anterior</th></tr></thead><tbody>'
-    +ms.map((m,i)=>{const p=i?porMes[ms[i-1]].total:null;
-      const d=p?Math.round((porMes[m].total-p)/p*100):null;
-      return '<tr><td>'+m+(porMes[m].sin?' <span class="pill amber">'+porMes[m].sin+' sin precio</span>':'')
-      +'</td><td class="num">'+cop(porMes[m].total)+'</td><td class="num">'
-        +(d===null?'—':'<span class="pill '+(d>20?'rojo':(d>0?'amber':''))+'">'+(d>0?'+':'')+d+'%</span>')+'</td></tr>';}).join('')
-    +'</tbody></table></div>'):'<div class="card muted">Todavía no aprobaste nada.</div>';
+/* Lo que firmó ESTA persona, mes a mes. Sale de co_aprobacion y no de las
+   requisiciones: lo que importa es lo que uno firmó, no lo que pasó cerca. */
+async function kpiAprobado(){
+  const c=document.getElementById('aprKpi');
+  try{
+    const a=await api('co_aprobacion?select=nivel,decision,en,monto_al_momento&por=eq.'
+      +MYID+'&decision=eq.aprobada&order=en&limit=500');
+    const porMes={};
+    (a||[]).forEach(x=>{ const m=String(x.en||'').slice(0,7); if(!m) return;
+      porMes[m]=(porMes[m]||0)+Number(x.monto_al_momento||0); });
+    const ms=Object.keys(porMes).sort();
+    c.innerHTML=ms.length
+      ? '<div class="card"><table><thead><tr><th>Mes</th><th class="num">Aprobado por vos</th>'
+        +'<th class="num">vs mes anterior</th></tr></thead><tbody>'
+        +ms.map((m,i)=>{const p=i?porMes[ms[i-1]]:null;
+          const d=p?Math.round((porMes[m]-p)/p*100):null;
+          return '<tr><td>'+m+'</td><td class="num">'+cop(porMes[m])+'</td><td class="num">'
+            +(d===null?'—':'<span class="pill '+(d>20?'rojo':(d>0?'amber':''))+'">'
+              +(d>0?'+':'')+d+'%</span>')+'</td></tr>';}).join('')
+        +'</tbody></table></div>'
+      : '<div class="card muted">Todavía no aprobaste nada.</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 async function decidir(id,nivel,decision){
   let motivo=null;
@@ -872,6 +892,56 @@ async function cargarPresu(){
 /* ---------- pendientes de recibir ---------- */
 /* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
    boton es comodidad de pantalla, no seguridad. */
+/* La tabla de quien firma que. Solo se muestran los centros que YA tienen
+   alguien: listar los 31 con casillas vacias convierte una decision en una
+   planilla, y nadie la completa. */
+async function cargarAprobadores(){
+  const c=document.getElementById('apLista');
+  try{
+    const d=await rpc('co_aprobadores_ver',{p_empresa_id:EMPRESA_ID})||[];
+    const conGente=d.filter(r=>(r.coordinadores||[]).length||(r.gerentes||[]).length);
+    const sinGente=d.length-conGente.length;
+    c.innerHTML=(conGente.length
+      ? '<div style="overflow-x:auto"><table><thead><tr><th>Centro</th>'
+        +'<th>Coordinador</th><th>Gerente</th></tr></thead><tbody>'
+        +conGente.map(r=>'<tr><td><b>'+esc(r.centro)+'</b><div class="muted">'
+            +esc(r.centro_nombre)+'</div></td>'
+          +'<td>'+gente(r.centro_costo_id,'coordinador',r.coordinadores)+'</td>'
+          +'<td>'+gente(r.centro_costo_id,'gerente',r.gerentes)+'</td></tr>').join('')
+        +'</tbody></table></div>'
+      : '<div class="muted">Todavía no asignaste a nadie. Mientras tanto, todo lo firma quien tenga el rol global.</div>')
+      +(sinGente?'<div class="nota" style="margin-top:8px">'+sinGente
+        +' centro(s) sin aprobador asignado: los firma quien tenga el rol global.</div>':'');
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+function gente(ccId, nivel, lista){
+  if(!lista||!lista.length) return '<span class="muted">rol global</span>';
+  return lista.map(x=>'<span class="pill" style="margin:0 4px 4px 0">'+esc(nom(x.nombre))
+    +' <a href="#" onclick="quitarAprobador('+ccId+',\''+nivel+'\',\''+x.id+'\');return false" '
+    +'style="color:#ff9a9a;text-decoration:none;font-weight:700">✕</a></span>').join('');
+}
+async function asignarAprobador(){
+  const cc=document.getElementById('apCC').value, u=document.getElementById('apUsr').value;
+  if(!cc) return aviso('Elegí el centro de costo.');
+  if(!u)  return aviso('Elegí la persona.');
+  const b=document.getElementById('bAprob'); b.disabled=true; b.textContent='Guardando…';
+  try{
+    const r=await rpc('co_aprobador_asignar',{p_empresa_id:EMPRESA_ID,
+      p_centro_costo_id:Number(cc), p_nivel:document.getElementById('apNiv').value, p_usuario_id:u});
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.', true);
+    cargarAprobadores();
+  }catch(e){ aviso(e.message); }
+  finally{ b.disabled=false; b.textContent='Asignar'; }
+}
+async function quitarAprobador(ccId, nivel, usuarioId){
+  try{
+    const r=await rpc('co_aprobador_quitar',{p_empresa_id:EMPRESA_ID,
+      p_centro_costo_id:ccId, p_nivel:nivel, p_usuario_id:usuarioId});
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.', true);
+    cargarAprobadores();
+  }catch(e){ aviso(e.message); }
+}
+
 async function guardarFormato(){
   const b=document.getElementById('bFormato'); b.disabled=true; b.textContent='Guardando…';
   try{
@@ -985,15 +1055,6 @@ function quienEs(id){
   if(!id) return '—';
   const u=(MAE.usr||[]).find(x=>String(x.id)===String(id));
   return u? nom(u.nombre) : 'alguien que ya no está en la lista';
-}
-/* Las firmas que ya tiene. Con quince aprobadores, "aprobada" sin nombre no
-   sirve: hay que poder preguntarle a la persona. */
-function firmas(aps){
-  const f=(aps||[]).filter(a=>a.decision);
-  if(!f.length) return '<div class="muted" style="margin-top:4px">Sin firmas todavía.</div>';
-  return '<div class="muted" style="margin-top:4px">'+f.map(a=>
-    '<span class="pill'+(a.decision==='aprobada'?'':' amber')+'">'+esc(a.nivel)+': '+esc(a.decision)+'</span> '
-    +esc(quienEs(a.por))+(a.en?' · '+esc(String(a.en).slice(0,10)):'')).join(' &nbsp;·&nbsp; ')+'</div>';
 }
 function nom(x){ if(!x) return '—'; const p=String(x).trim().split(/\s+/); return p.length>2?p.slice(-2).join(' '):x; }
 /* Una lista vacia sin explicacion hace perder mas tiempo que un error: si no

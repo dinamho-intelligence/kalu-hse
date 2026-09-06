@@ -33,6 +33,7 @@ tr:last-child td{border-bottom:none}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;background:#0f141b;border:1px solid var(--line);border-radius:9px;padding:2px 8px;font-size:11px;color:var(--tx2)}
 .pill.rojo{border-color:var(--rojo);color:#ff9a9a}.pill.amber{border-color:var(--amber);color:#ffd479}
+.pill.ok{border-color:var(--ok);color:#8fe3b8}
 .muted{color:var(--tx2);font-size:13px}
 .err{background:#2a1414;border:1px solid #5a2323;color:#ffb4b4;border-radius:10px;padding:11px;margin-bottom:11px;font-size:13.5px}
 .ok{background:#12241a;border:1px solid #24503a;color:#a9e9c6;border-radius:10px;padding:11px;margin-bottom:11px;font-size:13.5px}
@@ -87,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v22</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v23</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -1038,17 +1039,39 @@ function traerLineas(){
 async function cargarOrdenes(){
   const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{
-    const o=await api('co_orden?select=id,numero,fecha_emision,descripcion,estado,co_proveedor(nombre),co_orden_linea(valor_neto)&order=fecha_emision.desc&limit=200');
+    const o=await api('co_orden?select=id,numero,fecha_emision,descripcion,estado,co_proveedor(nombre,correo),co_orden_linea(valor_neto)&order=fecha_emision.desc&limit=200');
     if(!o.length){ c.innerHTML='<div class="card muted">Todavía no hay órdenes cargadas.</div>'; return; }
     c.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Proveedor</th>'
-      +'<th>Descripción</th><th class="num">Total</th><th></th></tr></thead><tbody>'
+      +'<th>Descripción</th><th>Estado</th><th class="num">Total</th><th></th></tr></thead><tbody>'
       +o.map(r=>{const t=(r.co_orden_linea||[]).reduce((a,l)=>a+Number(l.valor_neto||0),0);
+        const pv=r.co_proveedor||{}, enviada=r.estado==='enviada';
         return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha_emision)+'</td>'
-        +'<td>'+esc((r.co_proveedor||{}).nombre||'')+'</td>'
-        +'<td>'+esc(r.descripcion)+'</td><td class="num">'+cop(t)+'</td>'
-        +'<td><button class="btn" onclick="verOrden('+r.id+')">Ver</button></td></tr>';}).join('')
+        +'<td>'+esc(pv.nombre||'')+(pv.correo?'':'<div class="muted">sin correo cargado</div>')+'</td>'
+        +'<td>'+esc(r.descripcion)+'</td>'
+        +'<td><span class="pill '+(enviada?'':'amber')+'">'+esc(r.estado||'')+'</span></td>'
+        +'<td class="num">'+cop(t)+'</td>'
+        +'<td style="white-space:nowrap"><button class="btn" onclick="verOrden('+r.id+')">Ver</button> '
+        +(enviada ? ''
+          : (pv.correo
+             ? '<button class="btn pri" onclick="enviarOrden('+r.id+')">Enviar</button>'
+             : '<button class="btn" onclick="marcarEnviada('+r.id+')">Marcar enviada</button>'))
+        +'</td></tr>';}).join('')
       +'</tbody></table></div></div>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+/* Cuando el proveedor no tiene correo en el sistema, o la orden se mando por
+   WhatsApp o se entrego en mano, igual hay que poder dejar constancia. Si no,
+   la bandeja "sin enviar" se llena de ordenes que SI se enviaron y deja de
+   servir para lo unico que sirve: saber que falta. */
+async function marcarEnviada(id){
+  const a=prompt('¿A dónde se envió? Podés poner un correo, "WhatsApp" o "entregada en mano".\n\nQueda anotado con tu nombre y la fecha.');
+  if(a===null) return;
+  try{
+    const r=await rpc('co_orden_enviada',{p_orden_id:id, p_a:a.trim()||null});
+    aviso((r&&r[0]&&r[0].mensaje)||'Anotado.', true);
+    cargarOrdenes(); if(BANDEJA_ACTIVA) cargarBandejas();
+  }catch(e){ aviso(e.message); }
 }
 
 /* Enviar, hoy: se abre el correo de la persona con todo escrito y la orden
@@ -1073,6 +1096,7 @@ async function enviarOrden(id){
   try{
     const r=await rpc('co_orden_enviada',{p_orden_id:id, p_a:pv.correo});
     aviso((r&&r[0]&&r[0].mensaje)||'Anotado.', true);
+    cargarOrdenes(); if(BANDEJA_ACTIVA) cargarBandejas();
   }catch(e){ aviso('Se abrió el correo, pero no pude dejar constancia: '+e.message); }
 }
 
@@ -1092,8 +1116,13 @@ async function verOrden(id){
     c.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px" class="noimp">'
       +'<button class="btn" onclick="cargarOrdenes()">← Volver a la lista</button>'
       +'<button class="btn" onclick="window.print()">Imprimir / guardar PDF</button>'
-      +(pv.correo?'<button class="btn pri" onclick="enviarOrden('+id+')">Enviar al proveedor</button>'
-                 :'<span class="pill amber" style="align-self:center">'+esc(pv.nombre||'')+' no tiene correo cargado</span>')
+      +(o.estado==='enviada'
+         ? '<span class="pill ok" style="align-self:center">ya enviada</span>'
+         : (pv.correo
+            ? '<button class="btn pri" onclick="enviarOrden('+id+')">Enviar al proveedor</button>'
+            : '<button class="btn pri" onclick="marcarEnviada('+id+')">Marcar como enviada</button>'
+              +'<span class="pill amber" style="align-self:center">'+esc(pv.nombre||'')
+              +' no tiene correo cargado</span>'))
       +'</div>'
       +'<div class="card" id="poDoc">'
       +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:flex-start;'

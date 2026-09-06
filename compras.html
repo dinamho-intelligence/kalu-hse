@@ -70,7 +70,7 @@ h3{margin:0 0 12px;font-size:16px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v18</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v19</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -266,23 +266,24 @@ async function arrancar(){
     /* Los roles no son adorno: el que tiene varios necesita decir con cual esta
        actuando, porque la cola del coordinador y la del gerente son distintas.
        Va arriba, al lado del nombre, que es donde uno lo busca. */
-    const conCola=[['coordinador','Coordinador'],['gerente','Gerente de operaciones']]
-      .filter(([r])=>ROLES.includes(r));
+    /* El selector no elige un nivel de aprobacion: elige DESDE QUE SILLA se
+       mira el sistema. Marcelo tiene los cinco roles y necesita ver la pantalla
+       de cada uno tal como la va a ver esa persona — es la unica forma de saber
+       si a Julian le falta algo antes de que Julian se de cuenta. */
+    const titulo={solicitante:'Solicitante — pide',
+                  coordinador:'Coordinador — primera aprobación',
+                  gerente:'Gerente de operaciones — aprueba el gasto',
+                  compras:'Compras — arma las órdenes',
+                  direccion:'Dirección — asigna presupuesto'};
+    const mios=['solicitante','coordinador','gerente','compras','direccion'].filter(r=>ROLES.includes(r));
     document.getElementById('aprNivel').innerHTML=
-      conCola.map(([r,t])=>'<option value="'+r+'">'+t+'</option>').join('')
-      || '<option value="coordinador">Coordinador</option>';
-    if(conCola.length) document.getElementById('cajaActuar').classList.remove('hide');
-    document.getElementById('rolesDe').textContent=ROLES.join(' · ');
-    document.getElementById('rolesDe').classList.remove('hide');
+      (mios.length>1?'<option value="todos">Todos mis roles</option>':'')
+      +mios.map(r=>'<option value="'+r+'">'+titulo[r]+'</option>').join('');
+    document.getElementById('cajaActuar').classList.remove('hide');
+    document.getElementById('rolesDe').classList.add('hide');
     /* Cada uno ve solo lo suyo. Un solicitante no tiene por que ver la pantalla
        de presupuesto, y mostrarsela vacia es peor que no mostrarla. */
-    const puede={ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
-                  rec:true, ord:['compras'], nue:['compras']};
-    Object.keys(puede).forEach(k=>{
-      const ok = puede[k]===true || puede[k].some(r=>ROLES.includes(r));
-      const b=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
-      if(b && !ok) b.classList.add('hide');
-    });
+    aplicarRol();
     document.getElementById('pMes').value=new Date(Date.now()-5*3600*1000).getMonth()+1;
     document.getElementById('qCC').innerHTML=opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
     document.getElementById('qCC').onchange=avisoPresupuesto;
@@ -328,7 +329,29 @@ function pintarMaestros(){
     if(p&&p.condicion_pago_id) document.getElementById('oCond').value=p.condicion_pago_id;
   };
 }
-function cambioNivel(){ ver('apr'); }
+/* Que ve cada silla. 'ped' y 'rec' los ve cualquiera: todo el mundo puede
+   necesitar algo y todo el mundo puede recibir un paquete. */
+const PUEDE={ped:true, apr:['coordinador','gerente'], pre:['direccion','gerente'],
+             rec:true, ord:['compras'], nue:['compras']};
+function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
+function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
+function aplicarRol(){
+  const vistos=sillas();
+  let primera=null;
+  Object.keys(PUEDE).forEach(k=>{
+    const ok = PUEDE[k]===true || PUEDE[k].some(r=>vistos.includes(r));
+    const b=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
+    if(b) b.classList.toggle('hide', !ok);
+    if(ok && !primera) primera=k;
+  });
+  /* Si la pestaña abierta no la ve esta silla, hay que moverse: dejarla
+     mirando una pantalla que su rol no tiene es peor que no cambiar nada. */
+  const abierta=['ped','apr','pre','rec','ord','nue'].find(k=>
+    !document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.contains('hide'));
+  const okAbierta = abierta && (PUEDE[abierta]===true || PUEDE[abierta].some(r=>vistos.includes(r)));
+  ver(okAbierta ? abierta : (primera||'ped'));
+}
+function cambioNivel(){ aplicarRol(); }
 function ver(v){
   ['ped','apr','pre','rec','ord','nue'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
@@ -571,49 +594,62 @@ async function cargarMisRQ(){
 /* ---------- aprobar ---------- */
 async function cargarAprobar(){
   const c=document.getElementById('aprLista');
-  /* Marcelo tiene los dos roles. Si elegimos gerente por el, nunca puede hacer
-     la primera aprobacion y no le llega nada: la cola del gerente arranca
-     donde termina la del coordinador. Por eso lo elige el, no yo. */
-  const dos = ROLES.includes('gerente') && ROLES.includes('coordinador');
-  const nivel = dos ? document.getElementById('aprNivel').value
-                    : (ROLES.includes('gerente') ? 'gerente' : 'coordinador');
+  /* Una cola por nivel que la silla actual pueda firmar. Con "Todos mis roles"
+     se ven las dos, una debajo de la otra y rotuladas: la del gerente arranca
+     donde termina la del coordinador, y verlas juntas es lo que hace visible
+     ese encadenamiento. */
+  const niveles=['coordinador','gerente'].filter(n=>sillas().includes(n));
+  if(!niveles.length){ c.innerHTML=''; document.getElementById('aprKpi').innerHTML=''; return; }
+  const rotulo={coordinador:'Coordinador', gerente:'Gerente de operaciones'};
   try{
     const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,necesita_para,solicitante_id,co_centro_costo(codigo,nombre),co_requisicion_linea(descripcion,cantidad,valor_estimado),co_aprobacion(nivel,decision,por,en)&order=fecha&limit=80');
-    const pend=q.filter(r=>{
-      const ap=(r.co_aprobacion||[]);
-      const coord=ap.find(a=>a.nivel==='coordinador'&&a.decision==='aprobada');
-      const ger=ap.find(a=>a.nivel==='gerente');
-      return nivel==='coordinador' ? !ap.find(a=>a.nivel==='coordinador') : (coord && !ger);
+    let html='', total=0;
+    niveles.forEach(nivel=>{
+      const pend=q.filter(r=>{
+        const ap=(r.co_aprobacion||[]);
+        const coord=ap.find(a=>a.nivel==='coordinador'&&a.decision==='aprobada');
+        const ger=ap.find(a=>a.nivel==='gerente');
+        return nivel==='coordinador' ? !ap.find(a=>a.nivel==='coordinador') : (coord && !ger);
+      });
+      total+=pend.length;
+      if(niveles.length>1)
+        html+='<h3 style="margin:18px 0 8px">Esperando al '+esc(rotulo[nivel].toLowerCase())
+             +' <span class="pill">'+pend.length+'</span></h3>';
+      html += pend.length ? pend.map(r=>tarjetaRQ(r,nivel)).join('')
+        : '<div class="card muted">No hay nada esperando la decisión del '
+          +esc(rotulo[nivel].toLowerCase())+'.'
+          +(nivel==='coordinador'&&niveles.length===1
+            ? ' Lo que ya aprobaste espera al gerente: cambiá de rol arriba para verlo.' : '')+'</div>';
     });
-    document.getElementById('nApr').textContent=pend.length;
-    c.innerHTML=pend.length?pend.map(r=>{
-      const t=montoTexto(r.co_requisicion_linea);
-      return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
-      +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+t+'</div>'
-      +'<div class="muted" style="margin-top:3px">'
-        +'<b>'+esc((r.co_centro_costo||{}).codigo||'')+'</b> · '+esc((r.co_centro_costo||{}).nombre||'')
-        +' · pidió '+esc(quienEs(r.solicitante_id))+' el '+esc(r.fecha||'')+'</div>'
-      +firmas(r.co_aprobacion)
-      +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
-      +'<div class="muted" style="margin-top:6px">'+(r.co_requisicion_linea||[]).map(l=>esc(l.descripcion)+' ×'+l.cantidad).join(' · ')+'</div>'
-      +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '+esc(r.necesita_para)+'</span></div>':'')+'</div>'
-      +'<div style="display:flex;flex-direction:column;gap:7px;min-width:160px">'
-      +'<button class="btn ok" onclick="decidir('+r.id+',\''+nivel+'\',\'aprobada\')">Aprobar</button>'
-      +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
-      +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
-      +'</div></div>';}).join(''):('<div class="card muted">No hay nada esperando tu decisión como '
-        +(nivel==='gerente'?'gerente':'coordinador')+'.'
-        +(nivel==='coordinador'
-          ? ' Lo que ya aprobaste está esperando al gerente: cambiá el selector de arriba para verlo.'
-          : '')+'</div>');
-    document.getElementById('aprKpiTit').textContent =
-      'Lo que aprobaste como ' + (nivel==='gerente' ? 'gerente' : 'coordinador');
-    kpiAprobado(q,nivel);
+    document.getElementById('nApr').textContent=total;
+    c.innerHTML=html;
+    document.getElementById('aprKpiTit').textContent = niveles.length>1
+      ? 'Lo que aprobaste' : 'Lo que aprobaste como '+rotulo[niveles[0]].toLowerCase();
+    kpiAprobado(q,niveles);
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
-function kpiAprobado(q,nivel){
+function tarjetaRQ(r,nivel){
+  const t=montoTexto(r.co_requisicion_linea);
+  return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+t+'</div>'
+    +'<div class="muted" style="margin-top:3px">'
+      +'<b>'+esc((r.co_centro_costo||{}).codigo||'')+'</b> · '+esc((r.co_centro_costo||{}).nombre||'')
+      +' · pidió '+esc(quienEs(r.solicitante_id))+' el '+esc(r.fecha||'')+'</div>'
+    +firmas(r.co_aprobacion)
+    +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
+    +'<div class="muted" style="margin-top:6px">'
+      +(r.co_requisicion_linea||[]).map(l=>esc(l.descripcion)+' ×'+l.cantidad).join(' · ')+'</div>'
+    +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '
+      +esc(r.necesita_para)+'</span></div>':'')+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:7px;min-width:160px">'
+    +'<button class="btn ok" onclick="decidir('+r.id+',\''+nivel+'\',\'aprobada\')">Aprobar como '+esc(nivel)+'</button>'
+    +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
+    +'<button class="btn" onclick="decidir('+r.id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
+    +'</div></div>';
+}
+function kpiAprobado(q,niveles){
   const porMes={};
-  q.forEach(r=>{ const ap=(r.co_aprobacion||[]).find(a=>a.nivel===nivel&&a.decision==='aprobada');
+  q.forEach(r=>{ const ap=(r.co_aprobacion||[]).find(a=>niveles.includes(a.nivel)&&a.decision==='aprobada');
     if(!ap) return; const m=(r.fecha||'').slice(0,7);
     const x=suma(r.co_requisicion_linea);
     porMes[m]=porMes[m]||{total:0,sin:0};

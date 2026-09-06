@@ -46,6 +46,15 @@ tr:last-child td{border-bottom:none}
 .tot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line2);padding-top:11px;margin-top:6px;font-size:16px;font-weight:700}
 .login{max-width:380px;margin:12vh auto;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:24px}
 h3{margin:0 0 12px;font-size:16px}
+@media print{
+  body{background:#fff;color:#000}
+  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue{display:none!important}
+  .card{border:1px solid #ccc;background:#fff}
+  .muted,label{color:#555}
+  .pill{border-color:#bbb;color:#555}
+  th{color:#333;border-bottom:1px solid #999}
+  td{border-bottom:1px solid #ddd}
+}
 </style></head><body>
 
 <div id="vLogin" class="login">
@@ -61,7 +70,7 @@ h3{margin:0 0 12px;font-size:16px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v17</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v18</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -812,14 +821,89 @@ async function cargarOrdenes(){
   try{
     const o=await api('co_orden?select=id,numero,fecha_emision,descripcion,estado,co_proveedor(nombre),co_orden_linea(valor_neto)&order=fecha_emision.desc&limit=200');
     if(!o.length){ c.innerHTML='<div class="card muted">Todavía no hay órdenes cargadas.</div>'; return; }
-    c.innerHTML='<div class="card"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Proveedor</th><th>Descripción</th><th class="num">Total</th></tr></thead><tbody>'
+    c.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Proveedor</th>'
+      +'<th>Descripción</th><th class="num">Total</th><th></th></tr></thead><tbody>'
       +o.map(r=>{const t=(r.co_orden_linea||[]).reduce((a,l)=>a+Number(l.valor_neto||0),0);
-        return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha_emision)+'</td><td>'+esc((r.co_proveedor||{}).nombre||'')+'</td>'
-        +'<td>'+esc(r.descripcion)+'</td><td class="num">'+cop(t)+'</td></tr>';}).join('')
-      +'</tbody></table></div>';
+        return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha_emision)+'</td>'
+        +'<td>'+esc((r.co_proveedor||{}).nombre||'')+'</td>'
+        +'<td>'+esc(r.descripcion)+'</td><td class="num">'+cop(t)+'</td>'
+        +'<td><button class="btn" onclick="verOrden('+r.id+')">Ver</button></td></tr>';}).join('')
+      +'</tbody></table></div></div>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 
-document.getElementById('pass').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
-(async()=>{ const s=readSession(); if(s&&s.access_token && await asegurarToken()){ MYID=idDelToken(); arrancar(); } })();
+/* Enviar, hoy: se abre el correo de la persona con todo escrito y la orden
+   queda anotada como enviada, con quien y a que direccion. El PDF lo adjunta
+   ella desde "Imprimir / guardar PDF". Cuando lo automaticemos por n8n, el
+   que llame a co_orden_enviada va a ser el flujo y esta pantalla no cambia. */
+async function enviarOrden(id){
+  const o=(await api('co_orden?id=eq.'+id+'&select=numero,fecha_emision,descripcion,'
+    +'co_proveedor(nombre,correo),co_orden_linea(numero_linea,descripcion,cantidad,valor_unitario,valor_neto)'))[0];
+  if(!o) return aviso('No encontré esa orden.');
+  const pv=o.co_proveedor||{};
+  if(!pv.correo) return aviso('Ese proveedor no tiene correo cargado.');
+  const lin=(o.co_orden_linea||[]).sort((a,b)=>a.numero_linea-b.numero_linea);
+  const total=lin.reduce((a,l)=>a+Number(l.valor_neto||0),0);
+  const cuerpo='Buenos días,\n\nAdjuntamos la orden de compra '+o.numero+' de Total QC S.A.S.\n\n'
+    +lin.map(l=>'· '+l.descripcion+' — '+l.cantidad+' x '+cop(l.valor_unitario)+' = '+cop(l.valor_neto)).join('\n')
+    +'\n\nTotal sin IVA: '+cop(total)
+    +'\n\nPor favor confirmar recepción y fecha de entrega.\n\nTotal QC S.A.S. · NIT 900.300.543-1';
+  window.location.href='mailto:'+encodeURIComponent(pv.correo)
+    +'?subject='+encodeURIComponent('Orden de compra '+o.numero+' · Total QC S.A.S.')
+    +'&body='+encodeURIComponent(cuerpo);
+  try{
+    const r=await rpc('co_orden_enviada',{p_orden_id:id, p_a:pv.correo});
+    aviso((r&&r[0]&&r[0].mensaje)||'Anotado.', true);
+  }catch(e){ aviso('Se abrió el correo, pero no pude dejar constancia: '+e.message); }
+}
+
+/* La orden como documento: es lo que ve el proveedor y lo que se archiva.
+   Se arma en pantalla y de ahi sale impresa o en PDF con el propio navegador. */
+async function verOrden(id){
+  const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
+  try{
+    const o=(await api('co_orden?id=eq.'+id+'&select=*,co_proveedor(nombre,nit,correo,telefono,direccion),'
+      +'co_condicion_pago(nombre,dias_pactados,dias_reales),co_base(nombre),'
+      +'co_orden_linea(numero_linea,descripcion,cantidad,valor_unitario,valor_neto,mes_imputacion,'
+      +'requisicion_linea_id,co_centro_costo(codigo,nombre))'))[0];
+    if(!o){ c.innerHTML='<div class="err">No encontré esa orden.</div>'; return; }
+    const pv=o.co_proveedor||{}, cp=o.co_condicion_pago||{};
+    const lin=(o.co_orden_linea||[]).sort((a,b)=>a.numero_linea-b.numero_linea);
+    const total=lin.reduce((a,l)=>a+Number(l.valor_neto||0),0);
+    c.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px" class="noimp">'
+      +'<button class="btn" onclick="cargarOrdenes()">← Volver a la lista</button>'
+      +'<button class="btn" onclick="window.print()">Imprimir / guardar PDF</button>'
+      +(pv.correo?'<button class="btn pri" onclick="enviarOrden('+id+')">Enviar al proveedor</button>'
+                 :'<span class="pill amber" style="align-self:center">'+esc(pv.nombre||'')+' no tiene correo cargado</span>')
+      +'</div>'
+      +'<div class="card" id="poDoc">'
+      +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px">'
+      +'<div><div style="font-size:20px;font-weight:800">Orden de compra '+esc(o.numero)+'</div>'
+      +'<div class="muted">Total QC S.A.S. · NIT 900.300.543-1</div>'
+      +'<div class="muted">Emitida el '+esc(o.fecha_emision)+'</div></div>'
+      +'<div style="text-align:right"><div style="font-weight:700">'+esc(pv.nombre||'')+'</div>'
+      +'<div class="muted">'+esc(pv.nit||'')+'</div>'
+      +'<div class="muted">'+esc(pv.correo||'')+'</div>'
+      +'<div class="muted">'+esc(pv.telefono||'')+'</div></div></div>'
+      +'<div class="row r3" style="margin-top:14px">'
+      +'<div><label>Condición de pago</label><div>'+esc(cp.nombre||'—')
+        +(cp.dias_reales?' <span class="pill amber">en la práctica '+cp.dias_reales+' días</span>':'')+'</div></div>'
+      +'<div><label>Entregar en</label><div>'+esc((o.co_base||{}).nombre||'—')+'</div></div>'
+      +'<div><label>Recibe</label><div>'+esc(quienEs(o.destinatario_id))+'</div></div>'
+      +'</div>'
+      +'<div style="margin-bottom:12px"><label>Descripción</label><div>'+esc(o.descripcion||'')+'</div></div>'
+      +'<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Descripción</th><th>Centro de costo</th>'
+      +'<th class="num">Cant.</th><th class="num">Unitario</th><th class="num">Total</th></tr></thead><tbody>'
+      +lin.map(l=>'<tr><td>'+l.numero_linea+'</td>'
+        +'<td>'+esc(l.descripcion)
+          +(l.requisicion_linea_id?'<div class="muted">viene de una requisición aprobada</div>':'')+'</td>'
+        +'<td>'+esc((l.co_centro_costo||{}).codigo||'')+'<div class="muted">'
+          +esc((l.co_centro_costo||{}).nombre||'')+'</div></td>'
+        +'<td class="num">'+l.cantidad+'</td><td class="num">'+cop(l.valor_unitario)+'</td>'
+        +'<td class="num">'+cop(l.valor_neto)+'</td></tr>').join('')
+      +'</tbody></table></div>'
+      +'<div class="tot"><span>Total sin IVA</span><span>'+cop(total)+'</span></div>'
+      +'</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
 </script></body></html>

@@ -239,6 +239,9 @@ async function sbFetch(path, opts){
   if(!res.ok) throw new Error((d&&(d.message||d.error_description||d.msg))||("HTTP "+res.status));
   return d;
 }
+/* Un nombre con apostrofo — D'Angelo, O'Brien — parte el onclick='...' y el
+   boton deja de funcionar sin decir nada. Esto lo cierra. */
+function escJs(x){ return JSON.stringify(esc(x)).replace(/'/g,"&#39;"); }
 function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function fFecha(s){ try{ const d=new Date(s); return d.toLocaleDateString()+" "+d.toLocaleTimeString().slice(0,5); }catch(e){ return ""; } }
 let toastT=null;
@@ -683,8 +686,8 @@ function usuarioRow(u){
   const yo=(u.id===ME.id), activo=(u.estado==="activo");
   const mias=(_BYUSER[u.id]||[]);
   const chips=mias.length?mias.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(rolLabel(a.modulo,a.rol))+nivelChip(a)+'</span>';}).join(" "):'<span class="meta">sin accesos</span>';
-  let acts='<button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("user","'+u.id+'",'+JSON.stringify(esc(u.nombre||u.email))+')\'>🎛️ Accesos</button>';
-  acts+='<button class="btn btn-b btn-sm" onclick=\'verActividad("'+u.id+'",'+JSON.stringify(esc(u.nombre||u.email||""))+')\'>🕑 Actividad</button>';
+  let acts='<button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("user","'+u.id+'",'+escJs(u.nombre||u.email)+')\'>🎛️ Accesos</button>';
+  acts+='<button class="btn btn-b btn-sm" onclick=\'verActividad("'+u.id+'",'+escJs(u.nombre||u.email||"")+')\'>🕑 Actividad</button>';
   if(!yo){
     acts+='<button class="btn btn-b btn-sm" onclick="toggleConsola(\''+u.id+'\','+(u.acceso_consola?"false":"true")+')">'+(u.acceso_consola?"Quitar consola":"Dar consola")+'</button>';
     if(ME.es_super) acts+='<button class="btn btn-b btn-sm" onclick="toggleSuper(\''+u.id+'\','+(u.es_super?"false":"true")+')">'+(u.es_super?"Quitar super":"Hacer super")+'</button>';
@@ -788,7 +791,7 @@ function padronRow(p){
   const esUsuario=(p.cedula&&_PAD_UCED[String(p.cedula).trim()])||(p.correo&&_PAD_UMAIL[String(p.correo).trim().toLowerCase()]);
   const prev=Array.isArray(p.accesos_previstos)?p.accesos_previstos:[];
   const chips=prev.length?prev.map(function(a){var d=modDef(a.modulo);return '<span class="bdg m">'+((d&&d.ic)||"")+' '+esc(a.modulo)+"·"+esc(rolLabel(a.modulo,a.rol))+nivelChip(a)+'</span>';}).join(" "):'<span class="meta">sin accesos previstos</span>';
-  return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.correo?' · ✉ '+esc(p.correo):'')+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+(esUsuario?'<span class="bdg log" title="Ya es usuario · gestionalo en Usuarios y accesos">✅ ya es usuario</span> ':(vig&&p.correo?'<button class="btn btn-cy btn-sm" onclick=\'convertirUsuario("'+p.id+'",'+JSON.stringify(esc(p.nombre||p.cedula))+')\'>👤 Convertir en usuario</button>':''))+'<button class="btn btn-b btn-sm" onclick="abrirEditar(\''+p.id+'\')">✎ Editar</button>'+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
+  return '<div class="row '+(vig?"":"off")+'" style="flex-direction:column;align-items:stretch"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="nm">'+esc(p.nombre||"(sin nombre)")+'</span> '+(vig?'<span class="bdg a">vigente</span>':'<span class="bdg i">baja</span>')+'<div class="grow"></div></div><div class="meta" style="margin:2px 0 8px">C.C. '+esc(p.cedula||"—")+(p.correo?' · ✉ '+esc(p.correo):'')+(p.celular?' · 📱 '+esc(p.celular):'')+(p.cargo?' · '+esc(p.cargo):'')+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+(esUsuario?'<span class="bdg log" title="Ya es usuario · gestionalo en Usuarios y accesos">✅ ya es usuario</span> ':(vig&&p.correo?'<button class="btn btn-cy btn-sm" onclick=\'convertirUsuario("'+p.id+'",'+escJs(p.nombre||p.cedula)+')\'>👤 Convertir en usuario</button>':''))+'<button class="btn btn-amber btn-sm" onclick=\'abrirAccesos("padron","'+p.id+'",'+escJs(p.nombre||p.cedula)+')\'>🎛️ Accesos previstos</button>'+'<button class="btn btn-b btn-sm" onclick="abrirEditar(\''+p.id+'\')">✎ Editar</button>'+(vig?'<button class="btn btn-danger btn-sm" onclick="bajaPersona(\''+p.id+'\')">Dar de baja</button>':'<button class="btn btn-b btn-sm" onclick="altaPersona(\''+p.id+'\')">Reactivar</button>')+'</div></div>';
 }
 function renderPadLista(q){
   q=(q||'').trim().toLowerCase();

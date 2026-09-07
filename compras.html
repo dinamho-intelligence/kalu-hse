@@ -66,7 +66,7 @@ h3{margin:0 0 12px;font-size:16px}
 body.ancho .wrap{max-width:1600px}
 @media print{
   body{background:#fff;color:#000}
-  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat{display:none!important}
+  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat,#vFac{display:none!important}
   .card{border:1px solid #ccc;background:#fff}
   .muted,label{color:#555}
   .pill{border-color:#bbb;color:#555}
@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v30</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v31</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -103,6 +103,7 @@ body.ancho .wrap{max-width:1600px}
     <button class="tab" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
     <button class="tab" id="tOrd" onclick="ver('ord')">📄 Órdenes</button>
     <button class="tab" id="tNue" onclick="ver('nue')">＋ Nueva orden</button>
+    <button class="tab" id="tFac" onclick="ver('fac')">🧾 Facturas</button>
     <button class="tab" id="tCat" onclick="ver('cat')">📚 Catálogo</button>
   </div>
   <div id="msg"></div>
@@ -179,6 +180,69 @@ body.ancho .wrap{max-width:1600px}
   </div>
 
   <div id="vOrd" class="hide"><div id="ordLista"></div></div>
+
+  <div id="vFac" class="hide">
+    <div class="card">
+      <h3>Cargar una factura</h3>
+      <div class="muted" style="margin-bottom:12px">La factura es lo que cierra el circuito. Sin ella, «recibido sin facturar» y «facturado sin recibir» no pueden avisar nada.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn pri" id="fmOrden" onclick="modoFactura('orden')">De una orden de compra</button>
+        <button class="btn" id="fmSuelta" onclick="modoFactura('suelta')">Llegó sin orden</button>
+      </div>
+
+      <div id="facDeOrden">
+        <div class="row"><div><label>Orden de compra *</label>
+          <select id="fOrden" onchange="ordenElegida()"></select>
+          <div class="muted" id="fOrdenNota" style="font-size:12.5px;margin-top:5px"></div></div></div>
+      </div>
+
+      <div id="facSuelta" class="hide">
+        <div class="muted" style="margin-bottom:10px">Gastos que llegan y no se piden. Solo aparecen las categorías que Cielo marcó como tales; si la que buscás no está, es porque esa compra sí necesita orden.</div>
+        <div class="row r3">
+          <div><label>Proveedor *</label><select id="fProv"></select></div>
+          <div><label>Categoría *</label><select id="fCatg" onchange="catgFacturaCambio()"></select></div>
+          <div><label>Centro de costo *</label><select id="fCC"></select></div>
+        </div>
+        <div class="row r3">
+          <div><label>Mes al que se imputa *</label><input id="fMes" type="month"></div>
+          <div></div><div></div>
+        </div>
+      </div>
+
+      <div class="row r3" style="margin-top:4px">
+        <div><label>N° de factura *</label><input id="fNum" placeholder="FV-1234"></div>
+        <div><label>Fecha de recepción *</label><input id="fRec" type="date"></div>
+        <div><label>Fecha de vencimiento *</label><input id="fVen" type="date"></div>
+      </div>
+      <div class="row r3">
+        <div><label>Valor bruto *</label><input id="fBruto" type="number" min="0" step="1" oninput="calcFactura()"></div>
+        <div><label>IVA</label><input id="fIva" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+        <div><label>Retefuente</label><input id="fRf" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+      </div>
+      <div class="row r3">
+        <div><label>ReteICA</label><input id="fRi" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+        <div><label>Rete IVA</label><input id="fRiva" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+        <div><label>Total a pagar *</label><input id="fTotal" type="number" min="0" step="1" oninput="chequeoTotal()"></div>
+      </div>
+      <div class="muted" id="fCuenta" style="font-size:12.5px;margin-bottom:10px"></div>
+      <div class="row r2">
+        <div><label>Radicado</label><input id="fRad" placeholder="opcional"></div>
+        <div><label>Observaciones</label><input id="fObs" placeholder="opcional"></div>
+      </div>
+      <button class="btn pri" id="btnFactura" onclick="guardarFactura()" style="margin-top:8px">Cargar factura</button>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Órdenes esperando factura</h3>
+      <div class="muted" style="margin-bottom:10px">Lo emitido contra lo facturado. Las que ya están completas quedan al final: una orden sobrefacturada tiene que poder verse.</div>
+      <div id="facPendientes"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Facturas cargadas</h3>
+      <div id="facLista" style="margin-top:8px"></div>
+    </div>
+  </div>
 
   <div id="vCat" class="hide">
     <div class="card">
@@ -359,7 +423,7 @@ async function arrancar(){
       api('co_centro_costo?select=id,codigo,nombre,es_directo&activo=eq.true&order=codigo'),
       rpc('co_usuarios',{p_empresa_id:EMPRESA_ID}),
       rpc('biz_quien_soy',{}),
-      api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id&activo=eq.true&order=nombre'),
+      api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id,requiere_orden&activo=eq.true&order=nombre'),
       api('co_articulo?select=id,nombre,descripcion,categoria_id,unidad,precio_ref,precio_ref_al,proveedor_id,activo&order=nombre&limit=3000'),
       api('co_unidad?select=nombre&activo=eq.true&order=orden'),
       rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
@@ -463,7 +527,7 @@ function pintarMaestros(){
 const PUEDE={con:['ordenes','aprueba_pedido','aprueba_dinero','presupuesto'],
              ped:['pedir'], apr:['aprueba_pedido','aprueba_dinero'],
              pre:['presupuesto'],
-             rec:true, ord:['ordenes'], nue:['ordenes'], cat:['ordenes']};
+             rec:true, ord:['ordenes'], nue:['ordenes'], cat:['ordenes'], fac:['ordenes']};
 const NIVEL_DE={aprueba_pedido:'pedido', aprueba_dinero:'dinero'};
 function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
 function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
@@ -478,14 +542,14 @@ function aplicarRol(){
   });
   /* Si la pestaña abierta no la ve esta silla, hay que moverse: dejarla
      mirando una pantalla que su rol no tiene es peor que no cambiar nada. */
-  const abierta=['con','ped','apr','pre','rec','ord','nue','cat'].find(k=>
+  const abierta=['con','ped','apr','pre','rec','ord','nue','cat','fac'].find(k=>
     !document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.contains('hide'));
   const okAbierta = abierta && (PUEDE[abierta]===true || PUEDE[abierta].some(r=>vistos.includes(r)));
   ver(okAbierta ? abierta : (primera||'ped'));
 }
 function cambioNivel(){ aplicarRol(); }
 function ver(v){
-  ['con','ped','apr','pre','rec','ord','nue','cat'].forEach(k=>{
+  ['con','ped','apr','pre','rec','ord','nue','cat','fac'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
     document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('hide',k!==v);
   });
@@ -496,6 +560,7 @@ function ver(v){
   if(v==='pre') cargarPresu();
   if(v==='nue') cargarPorComprar();
   if(v==='cat') cargarCatalogo();
+  if(v==='fac') cargarFacturas();
   if(v==='con') cargarBandejas();
   /* Consultas usa todo el ancho; el resto sigue angosto, que para formularios
      leer renglones de 1600px es peor. */
@@ -1021,6 +1086,174 @@ async function recibir(lineaId){
    Un articulo NO se borra: se da de baja. Si se borrara, las requisiciones
    viejas que lo nombran se quedarian apuntando a la nada.
 --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   FACTURAS
+   Dos puertas. La ancha: la factura sale de una orden de compra, que a su vez
+   salio de una requisicion aprobada dos veces. La angosta: el gasto que llega
+   y no se pide — peaje, servicio publico, arriendo — que no tiene orden pero
+   SI tiene que decir a que centro y a que mes se imputa. Si no lo dijera, seria
+   plata que desaparece del presupuesto.
+   El total no se calcula solo y punto: se propone la cuenta y si el que carga
+   escribe otra cosa, se le avisa en vez de pisarsela. La factura real manda.
+--------------------------------------------------------------------------- */
+let MODO_FAC='orden', ORDENES_FAC=[];
+
+function modoFactura(m){
+  MODO_FAC=m;
+  document.getElementById('fmOrden').className = 'btn' + (m==='orden'?' pri':'');
+  document.getElementById('fmSuelta').className= 'btn' + (m==='suelta'?' pri':'');
+  document.getElementById('facDeOrden').classList.toggle('hide', m!=='orden');
+  document.getElementById('facSuelta').classList.toggle('hide', m!=='suelta');
+  document.getElementById('fOrdenNota').textContent='';
+}
+
+async function cargarFacturas(){
+  document.getElementById('fRec').value = document.getElementById('fRec').value || hoyLocal();
+  document.getElementById('fMes').value = document.getElementById('fMes').value || hoyLocal().slice(0,7);
+
+  document.getElementById('fProv').innerHTML = opts(MAE.prov,'id','nombre','— elegir —');
+  document.getElementById('fCC').innerHTML =
+    opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
+  /* Solo las categorias que Cielo marco como "el gasto llega". Si ofrecieramos
+     todas, cualquier compra podria entrar sin orden y el circuito seria un
+     adorno. */
+  const sinOrden = (MAE.cat||[]).filter(c=>c.requiere_orden===false);
+  document.getElementById('fCatg').innerHTML = sinOrden.length
+    ? opts(sinOrden,'id','nombre','— elegir —')
+    : '<option value="">— ninguna categoría está marcada —</option>';
+
+  try{
+    ORDENES_FAC = await rpc('co_ordenes_para_facturar',{p_empresa_id:EMPRESA_ID}) || [];
+  }catch(e){ ORDENES_FAC=[]; aviso('No pude traer las órdenes: '+e.message); }
+
+  const abiertas = ORDENES_FAC.filter(o=>Number(o.falta)>0);
+  document.getElementById('fOrden').innerHTML =
+    '<option value="">— elegir —</option>' + ORDENES_FAC.map(o=>
+      '<option value="'+o.orden_id+'">'+esc(o.numero+' · '+o.proveedor)
+      + (Number(o.falta)>0 ? '  (falta '+cop(o.falta)+')' : '  (ya facturada)')
+      + '</option>').join('');
+
+  document.getElementById('facPendientes').innerHTML = abiertas.length
+    ? '<table><thead><tr><th>Orden</th><th>Proveedor</th><th>Centro</th>'
+      + '<th style="text-align:right">Emitida</th><th style="text-align:right">Facturado</th>'
+      + '<th style="text-align:right">Falta</th></tr></thead><tbody>'
+      + abiertas.map(o=>'<tr><td><b>'+esc(o.numero)+'</b><div class="muted" style="font-size:12px">'
+          + esc(o.fecha_emision)+'</div></td>'
+          + '<td>'+esc(o.proveedor)+'</td><td>'+esc(o.centro||'')+'</td>'
+          + '<td style="text-align:right">'+cop(o.valor_neto)+'</td>'
+          + '<td style="text-align:right">'+cop(o.facturado)+'</td>'
+          + '<td style="text-align:right"><b>'+cop(o.falta)+'</b></td></tr>').join('')
+      + '</tbody></table>'
+    : '<div class="muted">Ninguna orden está esperando factura.</div>';
+
+  await listarFacturas();
+  calcFactura();
+}
+
+async function listarFacturas(){
+  let f=[];
+  try{ f = await rpc('co_facturas_ver',{p_empresa_id:EMPRESA_ID, p_ultimas:120}) || []; }
+  catch(e){ document.getElementById('facLista').innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+  document.getElementById('facLista').innerHTML = f.length
+    ? '<table><thead><tr><th>N°</th><th>De dónde</th><th>Proveedor</th><th>Imputa a</th>'
+      + '<th>Recibida</th><th>Vence</th><th style="text-align:right">Total</th></tr></thead><tbody>'
+      + f.map(x=>'<tr><td><b>'+esc(x.numero)+'</b></td>'
+        + '<td>'+esc(x.de_donde)+(x.orden?'<div class="muted" style="font-size:12px">'+esc(x.orden)+'</div>':'')+'</td>'
+        + '<td>'+esc(x.proveedor||'—')+'</td>'
+        + '<td>'+esc(x.centro||'—')+(x.categoria?'<div class="muted" style="font-size:12px">'+esc(x.categoria)+'</div>':'')+'</td>'
+        + '<td>'+esc(x.fecha_recepcion||'')+'</td><td>'+esc(x.fecha_vencimiento||'')+'</td>'
+        + '<td style="text-align:right"><b>'+cop(x.valor_total)+'</b></td></tr>').join('')
+      + '</tbody></table>'
+    : '<div class="muted">Todavía no hay facturas cargadas.</div>';
+}
+
+function ordenElegida(){
+  const o = ORDENES_FAC.find(x=>String(x.orden_id)===document.getElementById('fOrden').value);
+  const n = document.getElementById('fOrdenNota');
+  if(!o){ n.textContent=''; return; }
+  n.textContent = o.proveedor + ' · ' + (o.centro||'') + ' · emitida por ' + cop(o.valor_neto)
+    + ' · ya facturado ' + cop(o.facturado) + ' · falta ' + cop(o.falta);
+  const b=document.getElementById('fBruto');
+  if(!Number(b.value) && Number(o.falta)>0){ b.value=Math.round(Number(o.falta)); calcFactura(); }
+}
+
+function catgFacturaCambio(){
+  /* La categoria propone el centro, igual que al pedir. Se propone, no se impone:
+     el instructivo esta lleno de excepciones. */
+  const c=(MAE.cat||[]).find(x=>String(x.id)===document.getElementById('fCatg').value);
+  const cc=document.getElementById('fCC');
+  if(c && c.centro_sugerido_id && !cc.value) cc.value=c.centro_sugerido_id;
+}
+
+function cuentaFactura(){
+  const n=id=>Number(document.getElementById(id).value)||0;
+  return n('fBruto') + n('fIva') - n('fRf') - n('fRi') - n('fRiva');
+}
+function calcFactura(){
+  const t=document.getElementById('fTotal');
+  t.value = Math.round(cuentaFactura());
+  chequeoTotal();
+}
+function chequeoTotal(){
+  const c=Math.round(cuentaFactura()), t=Math.round(Number(document.getElementById('fTotal').value)||0);
+  const d=document.getElementById('fCuenta');
+  d.textContent = (c===t)
+    ? 'Bruto + IVA − retenciones = ' + cop(c)
+    : 'Ojo: la cuenta da ' + cop(c) + ' y escribiste ' + cop(t) + '. Se guarda lo que escribiste — manda la factura real.';
+}
+
+async function guardarFactura(){
+  const v=id=>document.getElementById(id).value;
+  const n=id=>Number(document.getElementById(id).value)||0;
+  if(!v('fNum').trim()){ aviso('Falta el número de factura.'); return; }
+  if(!v('fRec')){ aviso('Falta la fecha de recepción. Sin eso la factura no existe.'); return; }
+  if(!v('fVen')){ aviso('Falta la fecha de vencimiento: es la que dice cuándo hay que pagar.'); return; }
+  if(!n('fBruto')){ aviso('Falta el valor bruto.'); return; }
+
+  const c={ empresa_id:EMPRESA_ID, numero:v('fNum').trim(),
+    fecha_recepcion:v('fRec'), fecha_vencimiento:v('fVen'),
+    valor_bruto:n('fBruto'), iva:n('fIva'), retefuente:n('fRf'),
+    reteica:n('fRi'), rete_iva:n('fRiva'), valor_total:n('fTotal'),
+    radicado:v('fRad').trim()||null, observaciones:v('fObs').trim()||null };
+
+  if(MODO_FAC==='orden'){
+    if(!v('fOrden')){ aviso('Elegí de qué orden sale esta factura.'); return; }
+    c.orden_id=Number(v('fOrden'));
+  }else{
+    if(!v('fProv')){ aviso('Falta el proveedor.'); return; }
+    if(!v('fCatg')){ aviso('Falta la categoría. Solo se pueden cargar sin orden las que Cielo marcó como gasto que llega.'); return; }
+    if(!v('fCC')){   aviso('Falta el centro de costo: sin eso la plata no se imputa a nadie.'); return; }
+    if(!v('fMes')){  aviso('Falta el mes al que se imputa.'); return; }
+    c.proveedor_id=Number(v('fProv'));
+    c.categoria_id=Number(v('fCatg'));
+    c.centro_costo_id=Number(v('fCC'));
+    c.mes_imputacion=v('fMes')+'-01';
+  }
+
+  const b=document.getElementById('btnFactura');
+  b.disabled=true; b.textContent='Guardando…';
+  try{
+    await api('co_factura',{method:'POST',body:JSON.stringify(c)});
+    aviso('Factura cargada.',true);
+    ['fNum','fRad','fObs'].forEach(i=>document.getElementById(i).value='');
+    ['fBruto','fIva','fRf','fRi','fRiva'].forEach(i=>document.getElementById(i).value=i==='fBruto'?'':'0');
+    document.getElementById('fOrden').value=''; document.getElementById('fOrdenNota').textContent='';
+    calcFactura();
+    await cargarFacturas();
+  }catch(e){
+    const m=e.message||'';
+    aviso(/duplicate key|co_factura_directa_uk|_uk/i.test(m)
+        ? 'Esa factura ya está cargada para ese proveedor u orden.'
+      : /requiere orden de compra/i.test(m)
+        ? m.replace(/^.*?La categoría/,'La categoría').split('"}')[0]
+      : /co_factura_de_donde_sale/i.test(m)
+        ? 'Una factura sin orden tiene que decir proveedor, categoría, centro de costo y mes.'
+      : /permission|policy|denied|42501/i.test(m)
+        ? 'La base no te deja cargar facturas. Hace falta el permiso «ordenes» en Administración.'
+        : 'No pude guardar: '+m);
+  }finally{ b.disabled=false; b.textContent='Cargar factura'; }
+}
+
 async function cargarCatalogo(){
   const cat=document.getElementById('cCat');
   if(!cat.options.length){

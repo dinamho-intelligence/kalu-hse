@@ -66,7 +66,7 @@ h3{margin:0 0 12px;font-size:16px}
 body.ancho .wrap{max-width:1600px}
 @media print{
   body{background:#fff;color:#000}
-  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue{display:none!important}
+  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat{display:none!important}
   .card{border:1px solid #ccc;background:#fff}
   .muted,label{color:#555}
   .pill{border-color:#bbb;color:#555}
@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v28</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v29</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -103,6 +103,7 @@ body.ancho .wrap{max-width:1600px}
     <button class="tab" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
     <button class="tab" id="tOrd" onclick="ver('ord')">📄 Órdenes</button>
     <button class="tab" id="tNue" onclick="ver('nue')">＋ Nueva orden</button>
+    <button class="tab" id="tCat" onclick="ver('cat')">📚 Catálogo</button>
   </div>
   <div id="msg"></div>
 
@@ -178,6 +179,60 @@ body.ancho .wrap{max-width:1600px}
   </div>
 
   <div id="vOrd" class="hide"><div id="ordLista"></div></div>
+
+  <div id="vCat" class="hide">
+    <div class="card">
+      <h3>Catálogo de artículos</h3>
+      <div class="muted" style="margin-bottom:10px">Lo que la empresa compra seguido, con el último precio que se pagó. El que pide lo usa como sugerencia: <b>propone, no obliga</b>. Si alguien necesita algo que no está acá, lo escribe a mano igual — y eso mismo es la señal de que falta cargarlo.</div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:11px">
+        <div style="flex:2;min-width:220px"><label>Buscar</label>
+          <input id="cBusca" placeholder="guante, thinner, audiometría…" oninput="pintarCatalogo()"></div>
+        <div style="flex:1;min-width:200px"><label>Categoría</label>
+          <select id="cCat" onchange="pintarCatalogo()"></select></div>
+        <div style="min-width:150px"><label>Mostrar</label>
+          <select id="cEstado" onchange="pintarCatalogo()">
+            <option value="act">Solo los activos</option>
+            <option value="todos">Todos</option>
+            <option value="baja">Solo dados de baja</option>
+          </select></div>
+        <button class="btn pri" onclick="nuevoArticulo()">＋ Nuevo artículo</button>
+      </div>
+      <div id="cCuenta" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card hide" id="cardArt" style="margin-top:14px">
+      <h3 id="artTitulo">Nuevo artículo</h3>
+      <input type="hidden" id="artId">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:11px">
+        <div style="flex:2;min-width:260px"><label>Nombre *</label>
+          <input id="artNombre" maxlength="70" oninput="avisoNombreLargo()" placeholder="Corto: es lo que se ve en la lista al pedir">
+          <div class="muted" id="artLargo" style="font-size:12px"></div></div>
+        <div style="flex:1;min-width:180px"><label>Categoría *</label>
+          <select id="artCat"></select></div>
+        <div style="min-width:110px"><label>Unidad</label>
+          <input id="artUnidad" placeholder="Unidad, Par, Galon…"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;margin-bottom:11px">
+        <div style="flex:1;min-width:160px"><label>Precio de referencia</label>
+          <input id="artPrecio" type="number" min="0" step="1"></div>
+        <div style="min-width:160px"><label>Ese precio es de</label>
+          <input id="artFecha" type="date"></div>
+        <div style="flex:1;min-width:200px"><label>Proveedor</label>
+          <select id="artProv"></select></div>
+        <div style="min-width:140px"><label>Estado</label>
+          <select id="artActivo"><option value="1">Activo</option><option value="0">Dado de baja</option></select></div>
+      </div>
+      <div style="margin-top:8px"><label>Ficha técnica</label>
+        <textarea id="artDesc" rows="3" placeholder="Material, calibre, alcance, notas del proveedor. Se ve al elegirlo, no ocupa el nombre."></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn pri" id="btnGuardarArt" onclick="guardarArticulo()">Guardar</button>
+        <button class="btn" onclick="cerrarArticulo()">Cancelar</button>
+      </div>
+      <div class="muted" style="margin-top:10px;font-size:12px">El precio no se le impone a nadie: cuando Compras arma la orden puede escribir otro. Si el real se aleja mucho del de referencia, eso mismo es información.</div>
+    </div>
+
+    <div id="catLista" style="margin-top:14px"></div>
+  </div>
 
   <div id="vNue" class="hide">
     <div class="card">
@@ -305,7 +360,7 @@ async function arrancar(){
       rpc('co_usuarios',{p_empresa_id:EMPRESA_ID}),
       rpc('biz_quien_soy',{}),
       api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id&activo=eq.true&order=nombre'),
-      api('co_articulo?select=id,nombre,categoria_id,unidad,precio_ref,precio_ref_al&activo=eq.true&order=nombre&limit=3000'),
+      api('co_articulo?select=id,nombre,descripcion,categoria_id,unidad,precio_ref,precio_ref_al,proveedor_id,activo&order=nombre&limit=3000'),
       rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
       rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID})
     ]);
@@ -349,7 +404,8 @@ async function arrancar(){
     document.getElementById('qCC').onchange=avisoPresupuesto;
     document.getElementById('aCC').innerHTML=document.getElementById('qCC').innerHTML;
     document.getElementById('dlArt').innerHTML=MAE.art
-      .map(x=>'<option value="'+esc(x.nombre)+'">').join('');
+      .filter(x=>x.activo!==false)
+      .map(x=>'<option value="'+esc(x.nombre)+'">'+(x.descripcion?esc(x.descripcion.slice(0,90)):'')+'</option>').join('');
     document.getElementById('aMes').value=document.getElementById('pMes').value;
     if(ROLES.includes('presupuesto')) document.getElementById('cardAsignar').classList.remove('hide');
     addQLinea();
@@ -406,7 +462,7 @@ function pintarMaestros(){
 const PUEDE={con:['ordenes','aprueba_pedido','aprueba_dinero','presupuesto'],
              ped:['pedir'], apr:['aprueba_pedido','aprueba_dinero'],
              pre:['presupuesto'],
-             rec:true, ord:['ordenes'], nue:['ordenes']};
+             rec:true, ord:['ordenes'], nue:['ordenes'], cat:['ordenes']};
 const NIVEL_DE={aprueba_pedido:'pedido', aprueba_dinero:'dinero'};
 function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
 function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
@@ -421,14 +477,14 @@ function aplicarRol(){
   });
   /* Si la pestaña abierta no la ve esta silla, hay que moverse: dejarla
      mirando una pantalla que su rol no tiene es peor que no cambiar nada. */
-  const abierta=['con','ped','apr','pre','rec','ord','nue'].find(k=>
+  const abierta=['con','ped','apr','pre','rec','ord','nue','cat'].find(k=>
     !document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.contains('hide'));
   const okAbierta = abierta && (PUEDE[abierta]===true || PUEDE[abierta].some(r=>vistos.includes(r)));
   ver(okAbierta ? abierta : (primera||'ped'));
 }
 function cambioNivel(){ aplicarRol(); }
 function ver(v){
-  ['con','ped','apr','pre','rec','ord','nue'].forEach(k=>{
+  ['con','ped','apr','pre','rec','ord','nue','cat'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
     document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('hide',k!==v);
   });
@@ -438,6 +494,7 @@ function ver(v){
   if(v==='apr') cargarAprobar();
   if(v==='pre') cargarPresu();
   if(v==='nue') cargarPorComprar();
+  if(v==='cat') cargarCatalogo();
   if(v==='con') cargarBandejas();
   /* Consultas usa todo el ancho; el resto sigue angosto, que para formularios
      leer renglones de 1600px es peor. */
@@ -477,7 +534,7 @@ function catCambio(sel){
   const art=lin.querySelector('.lart');
   const cc=lin.querySelector('.lcc');
   art.innerHTML='<option value="">— escribir a mano —</option>'
-    + MAE.art.filter(a=>String(a.categoria_id)===sel.value)
+    + MAE.art.filter(a=>String(a.categoria_id)===sel.value && a.activo!==false)
              .map(a=>'<option value="'+a.id+'">'+esc(a.nombre)+'</option>').join('');
   if(!c){ nota.textContent=''; return; }
   if(c.centro_sugerido_id && !cc.value) cc.value=c.centro_sugerido_id;
@@ -955,6 +1012,172 @@ async function recibir(lineaId){
 /* La bandeja de quien arma la PO. Se eligen LINEAS, no requisiciones: una PO
    puede juntar pedidos de varias RQ para el mismo proveedor, y una RQ puede
    necesitar dos proveedores. La linea es la unidad. */
+/* ---------------------------------------------------------------------------
+   CATALOGO · lo mantiene Compras
+   El catalogo se cargo leyendo las ordenes de compra de 2026 archivadas en
+   Titan. Eso lo dejo vivo pero no lo deja al dia: los precios se mueven y
+   aparecen articulos nuevos. Esta pantalla es para eso.
+   Un articulo NO se borra: se da de baja. Si se borrara, las requisiciones
+   viejas que lo nombran se quedarian apuntando a la nada.
+--------------------------------------------------------------------------- */
+async function cargarCatalogo(){
+  const cat=document.getElementById('cCat');
+  if(!cat.options.length){
+    cat.innerHTML='<option value="">— todas —</option>'
+      + MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  }
+  /* Releo el catalogo cada vez que entro: si Compras acaba de agregar algo
+     desde otra maquina, MAE.art de hace media hora ya no sirve. */
+  try{
+    MAE.art = await api('co_articulo?select=id,nombre,descripcion,categoria_id,unidad,'
+                      + 'precio_ref,precio_ref_al,proveedor_id,activo&order=nombre&limit=3000');
+  }catch(e){ aviso('No pude releer el catálogo: '+e.message); }
+  pintarCatalogo();
+}
+
+function catFiltrado(){
+  const q=(document.getElementById('cBusca').value||'').trim().toLowerCase();
+  const c=document.getElementById('cCat').value;
+  const est=document.getElementById('cEstado').value;
+  return (MAE.art||[]).filter(a=>{
+    if(est==='act'  && a.activo===false) return false;
+    if(est==='baja' && a.activo!==false) return false;
+    if(c && String(a.categoria_id)!==c) return false;
+    if(!q) return true;
+    return ((a.nombre||'')+' '+(a.descripcion||'')).toLowerCase().includes(q);
+  });
+}
+
+function pintarCatalogo(){
+  const lista=catFiltrado();
+  const total=(MAE.art||[]).length;
+  document.getElementById('cCuenta').textContent =
+    lista.length===total ? total+' artículos'
+                         : lista.length+' de '+total+' artículos';
+  if(!lista.length){
+    document.getElementById('catLista').innerHTML =
+      '<div class="card"><div class="muted">Nada con ese filtro. '
+      + 'Si el artículo no existe todavía, «＋ Nuevo artículo» lo crea.</div></div>';
+    return;
+  }
+  const filas=lista.map(a=>{
+    const c=MAE.cat.find(x=>x.id===a.categoria_id);
+    const p=MAE.prov.find(x=>x.id===a.proveedor_id);
+    return '<tr'+(a.activo===false?' style="opacity:.5"':'')+'>'
+      + '<td><b>'+esc(a.nombre)+'</b>'
+        + (a.descripcion?'<div class="muted" style="font-size:12px">'+esc(a.descripcion.slice(0,120))+(a.descripcion.length>120?'…':'')+'</div>':'')
+        + (a.activo===false?'<div class="muted" style="font-size:12px">· dado de baja</div>':'')
+      + '</td>'
+      + '<td>'+esc(c?c.nombre:'—')+'</td>'
+      + '<td>'+esc(a.unidad||'')+'</td>'
+      + '<td style="text-align:right">'+(a.precio_ref!=null?cop(a.precio_ref):'<span class="muted">sin precio</span>')
+        + (a.precio_ref_al?'<div class="muted" style="font-size:12px">'+esc(a.precio_ref_al)+'</div>':'')
+      + '</td>'
+      + '<td>'+esc(p?p.nombre:'—')+'</td>'
+      + '<td><button class="btn" style="padding:5px 10px;font-size:12.5px" onclick="editarArticulo('+a.id+')">✏️ Editar</button></td>'
+      + '</tr>';
+  }).join('');
+  document.getElementById('catLista').innerHTML =
+    '<div class="card"><table><thead><tr><th>Artículo</th><th>Categoría</th><th>Unidad</th>'
+    + '<th style="text-align:right">Precio ref.</th><th>Último proveedor</th><th></th></tr></thead>'
+    + '<tbody>'+filas+'</tbody></table></div>';
+}
+
+function llenarSelectsArt(){
+  document.getElementById('artCat').innerHTML =
+    '<option value="">— elegir —</option>'+MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  document.getElementById('artProv').innerHTML =
+    '<option value="">— ninguno —</option>'+MAE.prov.map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
+}
+
+function nuevoArticulo(){
+  llenarSelectsArt();
+  document.getElementById('artTitulo').textContent='Nuevo artículo';
+  ['artId','artNombre','artUnidad','artPrecio','artFecha','artDesc'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('artCat').value='';
+  document.getElementById('artProv').value='';
+  document.getElementById('artActivo').value='1';
+  document.getElementById('artUnidad').value='Unidad';
+  document.getElementById('artLargo').textContent='';
+  document.getElementById('cardArt').classList.remove('hide');
+  document.getElementById('artNombre').focus();
+}
+
+function editarArticulo(id){
+  const a=(MAE.art||[]).find(x=>x.id===id); if(!a) return;
+  llenarSelectsArt();
+  document.getElementById('artTitulo').textContent='Editar artículo';
+  document.getElementById('artId').value=a.id;
+  document.getElementById('artNombre').value=a.nombre||'';
+  document.getElementById('artCat').value=a.categoria_id||'';
+  document.getElementById('artUnidad').value=a.unidad||'';
+  document.getElementById('artPrecio').value=a.precio_ref!=null?a.precio_ref:'';
+  document.getElementById('artFecha').value=a.precio_ref_al||'';
+  document.getElementById('artProv').value=a.proveedor_id||'';
+  document.getElementById('artActivo').value=(a.activo===false)?'0':'1';
+  document.getElementById('artDesc').value=a.descripcion||'';
+  avisoNombreLargo();
+  document.getElementById('cardArt').classList.remove('hide');
+  document.getElementById('cardArt').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cerrarArticulo(){ document.getElementById('cardArt').classList.add('hide'); }
+
+/* El nombre largo fue el problema real: los articulos cargados desde los PDF
+   traian hasta 196 caracteres y el desplegable de Pedir los cortaba. */
+function avisoNombreLargo(){
+  const n=(document.getElementById('artNombre').value||'').length;
+  document.getElementById('artLargo').textContent =
+    n>55 ? 'Va a salir cortado en la lista al pedir ('+n+' caracteres). Lo largo va en la ficha técnica.' : '';
+}
+
+async function guardarArticulo(){
+  const id=document.getElementById('artId').value;
+  const nombre=(document.getElementById('artNombre').value||'').trim();
+  const catId=document.getElementById('artCat').value;
+  if(!nombre){ aviso('Ponele un nombre al artículo.'); return; }
+  if(!catId){ aviso('Falta la categoría: es la que le propone el centro de costo a quien pide.'); return; }
+  const repe=(MAE.art||[]).find(a=>(a.nombre||'').trim().toLowerCase()===nombre.toLowerCase()
+                                 && String(a.id)!==String(id));
+  if(repe){ aviso('Ya existe un artículo con ese nombre'+(repe.activo===false?' (está dado de baja)':'')+'. Editá ese en vez de crear otro.'); return; }
+
+  const precio=document.getElementById('artPrecio').value;
+  const fecha=document.getElementById('artFecha').value;
+  const cuerpo={
+    nombre: nombre,
+    categoria_id: Number(catId),
+    unidad: (document.getElementById('artUnidad').value||'').trim() || 'unidad',
+    precio_ref: precio===''?null:Number(precio),
+    /* Un precio sin fecha no dice nada: si no la ponen, es de hoy. */
+    precio_ref_al: precio===''?null:(fecha||hoyLocal()),
+    proveedor_id: document.getElementById('artProv').value? Number(document.getElementById('artProv').value):null,
+    activo: document.getElementById('artActivo').value==='1',
+    descripcion: (document.getElementById('artDesc').value||'').trim()||null
+  };
+  const b=document.getElementById('btnGuardarArt');
+  b.disabled=true; b.textContent='Guardando…';
+  try{
+    if(id){
+      await api('co_articulo?id=eq.'+id,{method:'PATCH',body:JSON.stringify(cuerpo)});
+    }else{
+      cuerpo.empresa_id=EMPRESA_ID;
+      await api('co_articulo',{method:'POST',body:JSON.stringify(cuerpo)});
+    }
+    aviso(id?'Artículo actualizado.':'Artículo agregado al catálogo.',true);
+    cerrarArticulo();
+    await cargarCatalogo();
+    /* El sugeridor de Pedir vive de la misma lista: si no lo repinto, el que
+       pide sigue viendo el catalogo de antes hasta que recargue la pagina. */
+    const dl=document.getElementById('dlArt');
+    if(dl) dl.innerHTML=MAE.art.filter(x=>x.activo!==false)
+      .map(x=>'<option value="'+esc(x.nombre)+'">'+(x.descripcion?esc(x.descripcion.slice(0,90)):'')+'</option>').join('');
+  }catch(e){
+    aviso(/permission|policy|denied|42501/i.test(e.message)
+      ? 'La base no te deja tocar el catálogo. Hace falta el permiso «ordenes» (Compras) en Administración.'
+      : 'No pude guardar: '+e.message);
+  }finally{ b.disabled=false; b.textContent='Guardar'; }
+}
+
 async function cargarPorComprar(){
   const c=document.getElementById('traerLista');
   try{

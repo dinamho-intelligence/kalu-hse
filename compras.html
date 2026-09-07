@@ -113,7 +113,7 @@ h3{margin:0 0 12px;font-size:16px}
 body.ancho .wrap{max-width:1600px}
 @media print{
   body{background:#fff;color:#000}
-  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat,#vFac{display:none!important}
+  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat,#vFac,#vCot{display:none!important}
   .card{border:1px solid #ccc;background:#fff}
   .muted,label{color:#555}
   .pill{border-color:#bbb;color:#555}
@@ -135,7 +135,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v33</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v34</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -150,6 +150,7 @@ body.ancho .wrap{max-width:1600px}
     <button class="tab" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
     <button class="tab" id="tOrd" onclick="ver('ord')">📄 Órdenes</button>
     <button class="tab" id="tNue" onclick="ver('nue')">＋ Nueva orden</button>
+    <button class="tab" id="tCot" onclick="ver('cot')">💬 Cotizaciones <span class="n" id="nCot">0</span></button>
     <button class="tab" id="tFac" onclick="ver('fac')">🧾 Facturas</button>
     <button class="tab" id="tCat" onclick="ver('cat')">📚 Catálogo</button>
   </div>
@@ -227,6 +228,19 @@ body.ancho .wrap{max-width:1600px}
   </div>
 
   <div id="vOrd" class="hide"><div id="ordLista"></div></div>
+
+  <div id="vCot" class="hide">
+    <div class="card">
+      <h3>Esperando cotización</h3>
+      <div class="muted" style="margin-bottom:10px">Requisiciones con el <b>pedido</b> ya aprobado y el <b>dinero</b> todavía no. La cotización va justo en el medio: así el que firma la plata ve el precio real y no el del catálogo.</div>
+      <div id="cotEspera"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Rondas abiertas</h3>
+      <div class="muted" style="margin-bottom:10px">Cargá lo que ofreció cada proveedor. Las que pierden también quedan: son las que le dan sentido a la elegida.</div>
+      <div id="cotAbiertas"></div>
+    </div>
+  </div>
 
   <div id="vFac" class="hide">
     <div class="card">
@@ -574,7 +588,7 @@ function pintarMaestros(){
 const PUEDE={con:['ordenes','aprueba_pedido','aprueba_dinero','presupuesto'],
              ped:['pedir'], apr:['aprueba_pedido','aprueba_dinero'],
              pre:['presupuesto'],
-             rec:true, ord:['ordenes'], nue:['ordenes'], cat:['ordenes'], fac:['ordenes']};
+             rec:true, ord:['ordenes'], nue:['ordenes'], cat:['ordenes'], fac:['ordenes'], cot:['ordenes']};
 const NIVEL_DE={aprueba_pedido:'pedido', aprueba_dinero:'dinero'};
 function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
 function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
@@ -589,14 +603,14 @@ function aplicarRol(){
   });
   /* Si la pestaña abierta no la ve esta silla, hay que moverse: dejarla
      mirando una pantalla que su rol no tiene es peor que no cambiar nada. */
-  const abierta=['con','ped','apr','pre','rec','ord','nue','cat','fac'].find(k=>
+  const abierta=['con','ped','apr','pre','rec','ord','nue','cat','fac','cot'].find(k=>
     !document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.contains('hide'));
   const okAbierta = abierta && (PUEDE[abierta]===true || PUEDE[abierta].some(r=>vistos.includes(r)));
   ver(okAbierta ? abierta : (primera||'ped'));
 }
 function cambioNivel(){ aplicarRol(); }
 function ver(v){
-  ['con','ped','apr','pre','rec','ord','nue','cat','fac'].forEach(k=>{
+  ['con','ped','apr','pre','rec','ord','nue','cat','fac','cot'].forEach(k=>{
     document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
     document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('hide',k!==v);
   });
@@ -608,6 +622,7 @@ function ver(v){
   if(v==='nue') cargarPorComprar();
   if(v==='cat') cargarCatalogo();
   if(v==='fac') cargarFacturas();
+  if(v==='cot') cargarCotizaciones();
   if(v==='con') cargarBandejas();
   /* Consultas usa todo el ancho; el resto sigue angosto, que para formularios
      leer renglones de 1600px es peor. */
@@ -960,6 +975,15 @@ async function cargarAprobar(){
     for(const nivel of niveles){
       const pend=await rpc('co_por_aprobar',{p_empresa_id:EMPRESA_ID,p_nivel:nivel})||[];
       total+=pend.length;
+      /* El que firma la plata tiene que saber si el monto sale de una
+         cotizacion real o del catalogo. No es lo mismo y hasta ahora no podia
+         distinguirlo. */
+      if(nivel==='dinero'){
+        for(const r of pend){
+          try{ const c=await rpc('co_cotizacion_de_rq',{p_requisicion_id:r.requisicion_id});
+               r._cot = Array.isArray(c)?c[0]:c; }catch(_){ r._cot=null; }
+        }
+      }
       if(niveles.length>1)
         html+='<h3 style="margin:18px 0 8px">Esperando que apruebes '+esc(rotulo[nivel])
              +' <span class="pill">'+pend.length+'</span></h3>';
@@ -974,6 +998,30 @@ async function cargarAprobar(){
     kpiAprobado();
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
+/* Lo que ve el Aprobador 2 antes de liberar la plata: si el numero que esta
+   mirando es una cotizacion firme de un proveedor o una referencia del
+   catalogo. Un catalogo puede estar 2,5 veces lejos del precio real. */
+function avisoCotizacion(r){
+  const c = r._cot;
+  if(!c) return '';
+  if(c.hay && c.valor!=null){
+    return '<div style="margin-top:7px"><span class="pill ok">cotizado</span> '
+      + esc(c.cotizacion_numero) + ' · <b>' + cop(c.valor) + '</b> · ' + esc(c.proveedor||'')
+      + (c.dias_entrega!=null? ' · entrega en '+esc(c.dias_entrega)+' días':'')
+      + ' · ' + c.ofertas + ' oferta(s)'
+      + (c.mas_barata===false
+          ? '<div class="nota">No es la más barata: ' + esc(c.motivo_eleccion||'sin motivo') + '</div>'
+          : '')
+      + '</div>';
+  }
+  if(c.necesitaba){
+    return '<div style="margin-top:7px"><span class="pill amber">sin cotizar</span> '
+      + '<span class="muted">el monto es del catálogo, no de un proveedor</span>'
+      + '<div class="nota">' + esc(c.motivo_regla||'') + '</div></div>';
+  }
+  return '<div style="margin-top:7px" class="muted">Monto del catálogo · no hacía falta cotizar</div>';
+}
+
 function tarjetaRQ(r,nivel){
   const monto=Number(r.monto)||0, sin=Number(r.lineas_sin_precio)||0;
   const t=cop(monto)+(sin?'  <span class="pill amber">+'+sin+' sin precio</span>':'');
@@ -989,6 +1037,7 @@ function tarjetaRQ(r,nivel){
         +(r.pedido_en?' · '+esc(String(r.pedido_en).slice(0,10)):'')+'</div>'
       : '')
     +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
+    +avisoCotizacion(r)
     +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '
       +esc(r.necesita_para)+'</span></div>':'')+'</div>'
     +'<div style="display:flex;flex-direction:column;gap:7px;min-width:170px">'
@@ -1154,6 +1203,152 @@ function modoFactura(m){
   document.getElementById('facDeOrden').classList.toggle('hide', m!=='orden');
   document.getElementById('facSuelta').classList.toggle('hide', m!=='suelta');
   document.getElementById('fOrdenNota').textContent='';
+}
+
+/* ---------------------------------------------------------------------------
+   COTIZACIONES
+   Van entre las dos firmas: se aprueba QUE HACE FALTA, se cotiza, y recién con
+   el precio real se firma la plata. Antes de esto el Aprobador 2 firmaba
+   mirando el precio del catálogo — y en los datos de 2026 el mismo cartucho 3M
+   aparece entre $42.017 y $104.500. Firmar contra esa referencia es firmar a
+   ciegas.
+   La regla de cuándo se exige cotizar NO está acá: la calcula la base
+   (co_necesita_cotizar) leyendo montos que Cielo edita. La pantalla solo
+   muestra el veredicto y el motivo.
+--------------------------------------------------------------------------- */
+async function cargarCotizaciones(){
+  let esp=[], rondas=[];
+  try{
+    esp    = await rpc('co_para_cotizar',{p_empresa_id:EMPRESA_ID}) || [];
+    rondas = await rpc('co_cotizaciones_ver',{p_empresa_id:EMPRESA_ID,p_estado:'abierta'}) || [];
+  }catch(e){ document.getElementById('cotEspera').innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+
+  const pend = esp.filter(x=>x.necesita && !x.cotizacion_id).length;
+  const chip = document.getElementById('nCot'); if(chip) chip.textContent = pend + rondas.length;
+
+  document.getElementById('cotEspera').innerHTML = esp.length
+    ? esp.map(filaEspera).join('')
+    : '<div class="muted">Nada esperando. Que no haya nada también es información.</div>';
+
+  document.getElementById('cotAbiertas').innerHTML = rondas.length
+    ? rondas.map(tarjetaRonda).join('')
+    : '<div class="muted">No hay rondas abiertas.</div>';
+}
+
+function filaEspera(x){
+  const pill = x.necesita
+    ? '<span class="pill amber">hay que cotizar · mínimo '+x.minimo_ofertas+'</span>'
+    : '<span class="pill ok">no hace falta</span>';
+  const ronda = x.cotizacion_id
+    ? '<span class="pill">'+esc(x.cotizacion_numero)+' · '+esc(x.cotizacion_estado)
+      +' · '+x.ofertas+' oferta(s)</span>'
+    : '';
+  const boton = x.cotizacion_id
+    ? ''
+    : '<button class="btn'+(x.necesita?' pri':'')+'" onclick="abrirRonda('+x.requisicion_id+')">Pedir cotización</button>';
+  return '<div class="lin" style="margin-bottom:9px">'
+    + '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    + '<div style="flex:1;min-width:230px">'
+      + '<div style="font-weight:700">'+esc(x.numero)+' · '+cop(x.monto_estimado)
+        + (Number(x.lineas_sin_precio)>0?' <span class="pill amber">'+x.lineas_sin_precio+' sin precio</span>':'')+'</div>'
+      + '<div class="muted" style="margin-top:3px">'+esc(x.centro||'')
+        +' · pidió '+esc(nom(x.solicitante_nombre))+' · '+x.lineas+' línea(s)</div>'
+      + '<div style="margin-top:6px">'+esc(x.justificacion||'')+'</div>'
+      + '<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">'+pill+ronda+'</div>'
+      + '<div class="nota" style="margin-top:6px">'+esc(x.motivo||'')+'</div>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:7px;min-width:160px">'+boton+'</div>'
+    + '</div></div>';
+}
+
+function tarjetaRonda(c){
+  const ofertas = Array.isArray(c.ofertas) ? c.ofertas : [];
+  const barata = ofertas.length ? Math.min.apply(null, ofertas.map(o=>Number(o.valor))) : null;
+  const filas = ofertas.length
+    ? '<table><thead><tr><th>Proveedor</th><th class="num">Oferta</th><th>Entrega</th><th></th></tr></thead><tbody>'
+      + ofertas.map(o=>'<tr>'
+        + '<td><b>'+esc(o.proveedor)+'</b>'
+          + (Number(o.valor)===barata?' <span class="pill ok">la más barata</span>':'')
+          + (o.elegida?' <span class="pill ok">elegida</span>':'')
+          + (o.nota?'<div class="muted" style="font-size:12px">'+esc(o.nota)+'</div>':'')
+          + (o.motivo_eleccion?'<div class="muted" style="font-size:12px">'+esc(o.motivo_eleccion)+'</div>':'')
+        + '</td>'
+        + '<td class="num">'+cop(o.valor)+'</td>'
+        + '<td>'+(o.dias_entrega!=null?esc(o.dias_entrega)+' días':'—')+'</td>'
+        + '<td>'+(o.elegida?'':'<button class="btn" style="padding:5px 10px;font-size:12.5px" '
+            +'onclick="elegirOferta('+o.id+','+(Number(o.valor)>barata?'true':'false')+')">Elegir</button>')+'</td>'
+        + '</tr>').join('') + '</tbody></table>'
+    : '<div class="muted">Todavía no cargaste ninguna oferta.</div>';
+
+  const faltan = Math.max(0, Number(c.minimo_ofertas||0) - ofertas.length);
+  return '<div class="card" style="background:#0d1219;margin-bottom:11px">'
+    + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+      + '<div><b>'+esc(c.numero)+'</b> <span class="muted">· de '+esc(c.requisicion)+' · '
+        + esc(c.centro||'')+' · estimado '+cop(c.monto_estimado)+'</span></div>'
+      + (faltan? '<span class="pill amber">faltan '+faltan+' oferta(s) para poder elegir</span>'
+               : '<span class="pill ok">ya se puede elegir</span>')
+    + '</div>'
+    + '<div style="margin-top:6px" class="muted">'+esc(c.justificacion||'')+'</div>'
+    + '<div style="margin-top:10px">'+filas+'</div>'
+    + '<div class="row r3" style="margin-top:12px;align-items:end">'
+      + '<div><label>Proveedor</label><select class="oProv" data-c="'+c.cotizacion_id+'">'
+        + opts(MAE.prov,'id','nombre','— elegir —')+'</select></div>'
+      + '<div><label>Lo que ofrece</label><input class="oVal" data-c="'+c.cotizacion_id+'" type="number" min="0" step="1"></div>'
+      + '<div><label>Entrega (días)</label><input class="oDias" data-c="'+c.cotizacion_id+'" type="number" min="0" step="1"></div>'
+    + '</div>'
+    + '<div class="row r2" style="align-items:end">'
+      + '<div><label>Nota</label><input class="oNota" data-c="'+c.cotizacion_id+'" placeholder="opcional: marca, condición, qué incluye"></div>'
+      + '<div><button class="btn pri" onclick="agregarOferta('+c.cotizacion_id+')" style="width:100%">Agregar oferta</button></div>'
+    + '</div></div>';
+}
+
+async function abrirRonda(rqId){
+  try{
+    const r = await rpc('co_cotizacion_abrir',{p_requisicion_id:rqId});
+    const x = Array.isArray(r)?r[0]:r;
+    aviso(x&&x.mensaje?x.mensaje:'Listo.', !!(x&&x.ok));
+  }catch(e){ aviso('No pude abrir la cotización: '+e.message); }
+  cargarCotizaciones();
+}
+
+async function agregarOferta(cotId){
+  const q = s => document.querySelector('.'+s+'[data-c="'+cotId+'"]');
+  const prov = q('oProv').value, val = q('oVal').value;
+  if(!prov){ aviso('Elegí el proveedor.'); return; }
+  if(!Number(val)){ aviso('Poné lo que ofrece ese proveedor.'); return; }
+  try{
+    await api('co_cotizacion_oferta',{method:'POST',body:JSON.stringify({
+      cotizacion_id:cotId, proveedor_id:Number(prov), valor:Number(val),
+      dias_entrega: q('oDias').value? Number(q('oDias').value) : null,
+      nota: q('oNota').value.trim() || null })});
+    aviso('Oferta cargada.',true);
+  }catch(e){
+    aviso(/duplicate key/i.test(e.message)
+      ? 'Ese proveedor ya cotizó en esta ronda. Si cambió el precio, borrá la oferta anterior.'
+      : 'No pude cargar la oferta: '+e.message);
+  }
+  cargarCotizaciones();
+}
+
+async function elegirOferta(ofertaId, esMasCara){
+  let motivo = null;
+  if(esMasCara){
+    /* No es la mas barata: el motivo lo exige la base, pero es mejor pedirlo
+       aca que dejar que rebote con un error. */
+    motivo = prompt('No es la oferta más barata. ¿Por qué la elegís?\n(plazo de entrega, calidad, stock — queda en el expediente de la compra)');
+    if(motivo===null) return;
+    if(motivo.trim().length<10){ aviso('El motivo tiene que ser algo que se entienda dentro de seis meses.'); return; }
+  }
+  try{
+    const r = await rpc('co_oferta_elegir',{p_oferta_id:ofertaId, p_motivo:motivo});
+    const x = Array.isArray(r)?r[0]:r;
+    aviso(x&&x.mensaje?x.mensaje:'Listo.', !!(x&&x.ok));
+  }catch(e){
+    aviso(/no es la más barata/i.test(e.message)
+      ? 'Falta el motivo: elegiste una oferta que no es la más barata.'
+      : 'No pude elegir: '+e.message);
+  }
+  cargarCotizaciones();
 }
 
 async function cargarFacturas(){

@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v43</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v44</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -762,8 +762,24 @@ function uniOpts(){
 }
 
 function abiertaCambio(){
-  document.getElementById('oVigencia').classList.toggle('hide',
-    !document.getElementById('oAbierta').checked);
+  const ab=document.getElementById('oAbierta').checked;
+  document.getElementById('oVigencia').classList.toggle('hide', !ab);
+  /* El selector de qué limita la línea solo tiene sentido en una orden abierta:
+     en una normal siempre manda la cantidad. */
+  document.querySelectorAll('#lineas .soloAbierta').forEach(e=>e.classList.toggle('hide', !ab));
+  document.querySelectorAll('#lineas .lctrl').forEach(s=>{ if(!ab) s.value='cantidad'; ctrlCambio(s); });
+}
+
+/* Con techo en plata, la cantidad y el precio unitario dejan de ser datos: el
+   monto es uno solo. Se pide una sola casilla en vez de dos que hay que
+   multiplicar mentalmente para que dé el techo. */
+function ctrlCambio(sel){
+  const lin=sel.closest('.lin'), monto=sel.value==='monto';
+  const cant=lin.querySelector('.lcant'), vu=lin.querySelector('.lvu');
+  lin.querySelector('.lcant').closest('div').style.display = monto?'none':'';
+  vu.closest('div').querySelector('label').textContent = monto ? 'Techo en plata *' : 'Valor unitario *';
+  if(monto) cant.value=1;
+  calc();
 }
 
 function addLinea(){
@@ -789,8 +805,17 @@ function addLinea(){
    +  '<div><label>IVA %</label><select class="liva" onchange="calc()">'
    +    '<option value="19">19 %</option><option value="5">5 %</option>'
    +    '<option value="0">0 % — no responsable / excluido</option></select></div>'
-   +  '<div></div><div></div>'
+   +  '<div class="soloAbierta hide"><label>Qué limita esta línea</label>'
+   +    '<select class="lctrl" onchange="ctrlCambio(this)">'
+   +    '<option value="monto">el monto — techo en plata</option>'
+   +    '<option value="cantidad">la cantidad — precio unitario fijo</option>'
+   +    '</select></div>'
+   +  '<div></div>'
    +'</div>'
+   +'<div class="nota soloAbierta hide">Elegí <b>monto</b> cuando las unidades no valen todas'
+   +' lo mismo: los peajes de una ruta, los taxis del mes. Ahí lo único cierto es el techo, y'
+   +' poner «30 × $50.000» es inventar un precio que nadie pactó. Elegí <b>cantidad</b> cuando'
+   +' sí son todas iguales: 30 almuerzos a $18.000.</div>'
    +'<div class="nota"></div>';
   document.getElementById('lineas').appendChild(d); calc();
 }
@@ -852,7 +877,8 @@ async function guardarOrden(){
     valor_unitario:Number(l.querySelector('.lvu').value)||0,
     mes_imputacion:l.querySelector('.lmes').value+'-01',
     unidad:(l.querySelector('.luni')||{}).value||null,
-    iva_pct:Number((l.querySelector('.liva')||{}).value||19)
+    iva_pct:Number((l.querySelector('.liva')||{}).value||19),
+    control_por:(l.querySelector('.lctrl')||{}).value||'cantidad'
   }));
   const falta=[];
   if(!g('oNum').trim()) falta.push('número de orden');
@@ -885,7 +911,7 @@ async function guardarOrden(){
       requisicion_linea_id: l.requisicion_linea_id,
       descripcion:l.descripcion, cantidad:l.cantidad, valor_unitario:l.valor_unitario,
       valor_neto:+(l.cantidad*l.valor_unitario).toFixed(2), mes_imputacion:l.mes_imputacion,
-      unidad:l.unidad, iva_pct:l.iva_pct
+      unidad:l.unidad, iva_pct:l.iva_pct, control_por:l.control_por
     })))});
     aviso('Orden '+g('oNum')+' guardada con '+lins.length+' línea'+(lins.length>1?'s':'')+'.',true);
     document.getElementById('lineas').innerHTML='';
@@ -1552,6 +1578,7 @@ function pintarReparto(){
             + ' value="'+esc(val(id,l.orden_linea_id,'cantidad'))+'"></td>'
           + '<td class="num"><input type="number" step="1" min="0" style="max-width:120px"'
             + ' class="rval" data-l="'+l.orden_linea_id+'" data-iva="'+(l.iva_pct||0)+'"'
+            + ' data-ctrl="'+esc(l.control_por||'cantidad')+'"'
             + ' data-unit="'+(Number(l.cant_pedida)>0
                 ? (Number(l.valor_pedido)/Number(l.cant_pedida)) : 0)+'"'
             + ' oninput="calcReparto();totalFactura()"'
@@ -1584,7 +1611,10 @@ function calcReparto(){
        vacía deja el saldo en plata bien y el consumo en "0 de 30", que no le
        sirve a nadie. Se propone, no se impone: queda en el campo, a la vista, y
        quien carga la corrige antes de guardar. */
-    const u = Number(i.dataset.unit)||0;
+    /* En una línea por monto no se propone cantidad: dividir $120.000 por un
+       "precio unitario" que es el techo entero daría 0,08 peajes. Ahí la
+       cantidad la escribe quien sabe cuántos peajes vinieron. */
+    const u = i.dataset.ctrl==='monto' ? 0 : (Number(i.dataset.unit)||0);
     const c = document.querySelector('#fAplic .rcant[data-l="'+i.dataset.l+'"]');
     if(c && u > 0 && !c.dataset.mano){
       const n = v/u;
@@ -2346,7 +2376,9 @@ function consumoOrden(d, sal, fac, errSal, errFac){
     + '<h3>Cuánto se le descontó a esta orden</h3>'
     + '<div class="muted" style="margin-bottom:11px">'
       + (d.es_abierta
-         ? 'Es una orden abierta: la cantidad de cada línea es un techo y las facturas lo van consumiendo.'
+         ? (sal.some(l=>l.control_por==='monto')
+            ? 'Es una orden abierta con techo en plata: las facturas lo van consumiendo y la cantidad es informativa, porque las unidades no valen todas lo mismo.'
+            : 'Es una orden abierta: la cantidad de cada línea es un techo y las facturas lo van consumiendo.')
          : 'Lo emitido contra lo facturado, línea por línea.')
       + ' Esto no sale impreso — el papel es para el proveedor.</div>'
 
@@ -2374,7 +2406,9 @@ function consumoOrden(d, sal, fac, errSal, errFac){
         + '<td class="num">'+cop(l.valor_pedido)+'</td>'
         + '<td class="num">'+cop(l.valor_facturado)+'</td>'
         + '<td class="num">'+cop(l.saldo)+'</td>'
-        + '<td class="num">'+esc(l.cant_facturada)+' de '+esc(l.cant_pedida)+'</td>'
+        + '<td class="num">'+(l.cant_pedida==null
+            ? esc(l.cant_facturada)+' <span class="muted">(techo en plata)</span>'
+            : esc(l.cant_facturada)+' de '+esc(l.cant_pedida))+'</td>'
         + '<td><span class="pill'+(l.estado==='sobrefacturada'?' amber':(l.estado==='completa'?' ok':''))
           + '">'+esc(l.estado)+'</span></td>'
       + '</tr>').join('')
@@ -2508,8 +2542,10 @@ async function verOrden(id){
         +'<td>'+esc(l.concepto)+'</td>'
         +'<td>'+esc(l.centro)+'</td>'
         +'<td>'+esc(l.unidad)+'</td>'
-        +'<td class="num">'+esc(l.cantidad)+'</td>'
-        +'<td class="num">'+cop(l.valor_unitario)+'</td>'
+        /* Sin cantidad ni precio unitario cuando el techo es plata: decirle al
+           proveedor "30 × $50.000" es pactarle un precio que no se pactó. */
+        +'<td class="num">'+(l.cantidad==null?'<span class="muted">según uso</span>':esc(l.cantidad))+'</td>'
+        +'<td class="num">'+(l.valor_unitario==null?'<span class="muted">—</span>':cop(l.valor_unitario))+'</td>'
         +'<td class="num">'+cop(l.subtotal)+'</td>'
       +'</tr>').join('')
       +'</tbody></table></div>'

@@ -135,7 +135,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v34</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v35</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -447,8 +447,17 @@ async function api(path,opt){
   try{ return JSON.parse(cuerpo); }catch(_){ return null; }
 }
 const rpc=(fn,body)=>api('rpc/'+fn,{method:'POST',body:JSON.stringify(body||{})});
-function aviso(t,ok){document.getElementById('msg').innerHTML='<div class="'+(ok?'ok':'err')+'">'+esc(t)+'</div>';
-  if(ok) setTimeout(()=>{document.getElementById('msg').innerHTML='';},4000);}
+/* El mensaje vive arriba de todo. Si el boton que lo disparo esta abajo, la
+   persona aprieta, no ve nada y concluye que el sistema no anda — pasó en la
+   capacitacion: "por ahi muevase, porque los mensajes de error aparecen en el
+   principio". Ahora la pantalla va sola hasta el mensaje. */
+function aviso(t,ok){
+  const m=document.getElementById('msg');
+  m.innerHTML='<div class="'+(ok?'ok':'err')+'">'+esc(t)+'</div>';
+  try{ m.scrollIntoView({behavior:'smooth',block:'center'}); }
+  catch(_){ window.scrollTo(0,0); }
+  if(ok) setTimeout(()=>{ m.innerHTML=''; },4000);
+}
 
 async function entrar(){
   const e=document.getElementById('loginErr'), b=document.getElementById('btnEntrar');
@@ -984,6 +993,13 @@ async function cargarAprobar(){
                r._cot = Array.isArray(c)?c[0]:c; }catch(_){ r._cot=null; }
         }
       }
+      /* Y las lineas, en los DOS niveles: hasta ahora la tarjeta mostraba el
+         monto y la justificacion pero no QUE se pedia. Firmar sin ver que se
+         pide no es aprobar. */
+      for(const r of pend){
+        try{ r._lin = await rpc('co_requisicion_lineas',{p_requisicion_id:r.requisicion_id}) || []; }
+        catch(_){ r._lin = null; }
+      }
       if(niveles.length>1)
         html+='<h3 style="margin:18px 0 8px">Esperando que apruebes '+esc(rotulo[nivel])
              +' <span class="pill">'+pend.length+'</span></h3>';
@@ -1001,6 +1017,35 @@ async function cargarAprobar(){
 /* Lo que ve el Aprobador 2 antes de liberar la plata: si el numero que esta
    mirando es una cotizacion firme de un proveedor o una referencia del
    catalogo. Un catalogo puede estar 2,5 veces lejos del precio real. */
+/* Lo que se está pidiendo, renglón por renglón. Marca cuáles se escribieron a
+   mano: esas son las que hay que mirar con más cuidado, porque nadie sabe
+   todavía cuánto cuestan. */
+function lineasRQ(r){
+  const L = r._lin;
+  if(L === null) return '<div class="nota" style="margin-top:8px">No pude traer el detalle de esta requisición.</div>';
+  if(!L || !L.length) return '';
+  return '<div style="margin-top:9px;border:1px solid var(--line);border-radius:9px;overflow:hidden">'
+    + '<table style="font-size:13px"><thead><tr>'
+      + '<th>Qué se pide</th><th class="num">Cant.</th><th>Unidad</th><th class="num">Estimado</th>'
+    + '</tr></thead><tbody>'
+    + L.map(l => '<tr>'
+        + '<td><b>' + esc(l.articulo || l.descripcion || '—') + '</b>'
+          + (l.articulo && l.descripcion && l.descripcion !== l.articulo
+              ? '<div class="muted" style="font-size:12px">' + esc(l.descripcion) + '</div>' : '')
+          + (l.en_catalogo ? '' : ' <span class="pill amber">escrito a mano</span>')
+          + (l.unico_motivo ? '<div class="nota">proveedor único: ' + esc(l.unico_motivo)
+              + (l.unico_por ? ' — ' + esc(l.unico_por) : '') + '</div>' : '')
+          + '<div class="muted" style="font-size:12px">' + esc(l.centro || '')
+          + (l.categoria ? ' · ' + esc(l.categoria) : '') + '</div>'
+        + '</td>'
+        + '<td class="num">' + esc(l.cantidad) + '</td>'
+        + '<td>' + esc(l.unidad || '—') + '</td>'
+        + '<td class="num">' + (l.subtotal != null ? cop(l.subtotal)
+            : '<span class="muted">sin precio</span>') + '</td>'
+      + '</tr>').join('')
+    + '</tbody></table></div>';
+}
+
 function avisoCotizacion(r){
   const c = r._cot;
   if(!c) return '';
@@ -1037,6 +1082,7 @@ function tarjetaRQ(r,nivel){
         +(r.pedido_en?' · '+esc(String(r.pedido_en).slice(0,10)):'')+'</div>'
       : '')
     +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
+    +lineasRQ(r)
     +avisoCotizacion(r)
     +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '
       +esc(r.necesita_para)+'</span></div>':'')+'</div>'

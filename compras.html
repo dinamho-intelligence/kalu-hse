@@ -38,6 +38,53 @@ tr:last-child td{border-bottom:none}
 .err{background:#2a1414;border:1px solid #5a2323;color:#ffb4b4;border-radius:10px;padding:11px;margin-bottom:11px;font-size:13.5px}
 .ok{background:#12241a;border:1px solid #24503a;color:#a9e9c6;border-radius:10px;padding:11px;margin-bottom:11px;font-size:13.5px}
 .hide{display:none!important}
+/* ---------------------------------------------------------------------------
+   TELEFONO Y TABLET
+   El que pide esta en el pozo o en la bodega, no frente a un monitor. Y el que
+   aprueba el pedido firma desde donde este. Estas dos pantallas tienen que
+   funcionar con un pulgar.
+--------------------------------------------------------------------------- */
+@media(max-width:720px){
+  .wrap{padding:10px}
+  /* Ocho pestañas envueltas ocupaban cuatro renglones y empujaban el contenido
+     fuera de la pantalla. Ahora es una tira que se arrastra con el dedo. */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+        scrollbar-width:none;margin:0 -10px 14px;padding:0 10px 4px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:11px 14px}
+  /* 16px es el minimo: por debajo de eso iOS hace zoom solo al enfocar un campo
+     y despues deja la pagina corrida. */
+  input,select,textarea{font-size:16px;padding:12px 11px}
+  .btn,.x{padding:12px 16px;min-height:46px}
+  .card{padding:12px}
+  h3{font-size:15px}
+  /* El encabezado se apilaba mal: el nombre completo se partia en cuatro
+     renglones y empujaba todo hacia abajo. En el telefono el nombre va en una
+     linea sola y recortado; lo que importa arriba es en que silla estas. */
+  .top{gap:8px;flex-direction:column;align-items:stretch}
+  .topder{flex-wrap:wrap;width:100%;align-items:center}
+  #quien{flex:1 1 100%;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  #cajaActuar{flex:1 1 auto;min-width:0;display:flex!important;gap:6px;align-items:center}
+  #cajaActuar.hide{display:none!important}
+  #cajaActuar>.muted{display:none}
+  #cajaActuar select{width:100%;font-size:14px;padding:11px 9px}
+  .topder>.btn{flex:0 0 auto}
+  /* Una tabla de seis columnas en un telefono no se lee: se arrastra. */
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Menos "Mis requisiciones", que se rompe en fichas: es lo que el que pide
+     mira todo el tiempo para ver si ya le aprobaron. */
+  #qMias table,#qMias tbody,#qMias tr,#qMias td{display:block;white-space:normal}
+  #qMias thead{display:none}
+  #qMias tr{border:1px solid var(--line);border-radius:11px;padding:11px;
+            margin-bottom:9px;background:#0d1219}
+  #qMias td{border:none;padding:3px 0}
+  #qMias td.num{text-align:left}
+  #qMias td[data-t]::before{content:attr(data-t) " · ";color:var(--tx2);
+    font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  /* La botonera de aprobar, ancha y separada: se firma con el pulgar. */
+  #aprLista .card>div>div:last-child{min-width:100%!important}
+  #aprLista .btn{width:100%}
+}
 .lin{border:1px solid var(--line);border-radius:11px;padding:11px;margin-bottom:9px;background:#0d1219}
 .lin .f1{display:grid;grid-template-columns:1.4fr 1.4fr 2fr auto;gap:7px;align-items:end;margin-bottom:8px}
 .lin .f2{display:grid;grid-template-columns:1.8fr .7fr 1fr 1.1fr;gap:7px;align-items:end}
@@ -88,8 +135,8 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v31</span></div>
-    <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v33</span></div>
+    <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
         <select id="aprNivel" onchange="cambioNivel()" style="width:auto;padding:6px 9px;font-size:13px"></select>
@@ -889,8 +936,10 @@ async function cargarMisRQ(){
     const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,co_requisicion_linea(cantidad,valor_estimado)&order=fecha.desc&limit=40');
     c.innerHTML=q.length?('<div class="card"><table><thead><tr><th>N°</th><th>Fecha</th><th>Justificación</th><th>Estado</th><th class="num">Estimado</th></tr></thead><tbody>'
       +q.map(r=>{const t=montoTexto(r.co_requisicion_linea);
-        return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha)+'</td><td>'+esc(r.justificacion||'')+'</td>'
-        +'<td><span class="pill">'+esc(r.estado)+'</span></td><td class="num">'+t+'</td></tr>';}).join('')
+        return '<tr><td><b>'+esc(r.numero)+'</b></td><td data-t="fecha">'+esc(r.fecha)+'</td>'
+        +'<td data-t="justificación">'+esc(r.justificacion||'')+'</td>'
+        +'<td data-t="estado"><span class="pill">'+esc(r.estado)+'</span></td>'
+        +'<td class="num" data-t="estimado">'+t+'</td></tr>';}).join('')
       +'</tbody></table></div>'):'<div class="card muted">Todavía no pediste nada.</div>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }

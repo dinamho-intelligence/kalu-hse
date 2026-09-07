@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Primer ingreso — KALU | Dinamho Intelligence</title>
+<meta name="description" content="Primer ingreso a la plataforma KALU: verificá tu correo y activá tu cuenta." />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.30)}
+  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{width:100%;max-width:420px;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:34px 28px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .brand{font-size:12px;letter-spacing:3px;color:var(--orange);font-weight:600;text-align:center}
+  h1{font-size:23px;margin:8px 0 4px;text-align:center;font-weight:600}
+  .sub{color:var(--muted);font-size:13.5px;text-align:center;margin-bottom:20px}
+  label{display:block;font-size:12px;color:var(--muted);margin:16px 0 5px;font-weight:500}
+  input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;font-family:inherit}
+  input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--glow-o)}
+  .code{letter-spacing:10px;text-align:center;font-size:22px}
+  .btn{width:100%;margin-top:22px;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn:disabled{opacity:.6;cursor:default}
+  .msg{margin-top:14px;font-size:13px;min-height:1px}
+  .msg.err{color:#ff6b6b}
+  .msg.ok{color:#34d399}
+  .link{display:block;text-align:center;margin-top:16px;color:var(--cyan);font-size:13px;cursor:pointer}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">PLATAFORMA KALU</div>
+  <h1>Primer ingreso</h1>
+
+  <div id="paso1">
+    <div class="sub">Ingresá con tu correo y tu cédula. Te enviamos un código al correo para verificar que sos vos.</div>
+    <label>Correo</label>
+    <input id="correo" type="email" autocomplete="email" placeholder="tucorreo@empresa.com" />
+    <label>Cédula / Documento</label>
+    <input id="cedula" inputmode="numeric" placeholder="12345678" onkeydown="if(event.key==='Enter')enviarCodigo()" />
+    <button class="btn" id="btn1" onclick="enviarCodigo()">Enviarme el código →</button>
+    <div class="msg" id="msg1"></div>
+  </div>
+
+  <div id="paso2" class="hide">
+    <div class="sub" id="sub2">Te enviamos un código a tu correo. Escribilo acá.</div>
+    <label>Código de 6 dígitos</label>
+    <input id="codigo" class="code" inputmode="numeric" maxlength="6" placeholder="••••••" onkeydown="if(event.key==='Enter')verificar()" />
+    <button class="btn" id="btn2" onclick="verificar()">Ingresar →</button>
+    <div class="msg" id="msg2"></div>
+    <span class="link" onclick="reenviar()">Reenviar código</span>
+  </div>
+
+  <span class="link" onclick="location.href='ingreso.html'">← Volver al ingreso normal</span>
+</div>
+
+<script>
+const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
+const SB_REF  = "nignqeipzlemwfrwmpip";
+const SESS_KEY = "sb-" + SB_REF + "-auth-token";
+let SB_TOKEN = null, EMAIL = "";
+const $ = function(id){ return document.getElementById(id); };
+function setMsg(id, txt, cls){ var m=$(id); m.textContent=txt||""; m.className="msg "+(cls||""); }
+
+async function sbFetch(path, opts){
+  opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
+  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
+  const res=await fetch(SB_URL+path, opts);
+  const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
+  if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
+  return data;
+}
+
+async function enviarCodigo(){
+  EMAIL=($("correo").value||"").trim().toLowerCase();
+  const ced=($("cedula").value||"").trim();
+  if(!EMAIL||!ced){ setMsg("msg1","Completá correo y cédula.","err"); return; }
+  const b=$("btn1"); b.disabled=true; b.textContent="Verificando…"; setMsg("msg1","","");
+  try{
+    const ok=await sbFetch("/rest/v1/rpc/padron_puede_ingresar",{method:"POST",body:JSON.stringify({p_correo:EMAIL,p_cedula:ced})});
+    if(ok!==true){
+      setMsg("msg1","No encontramos ese correo y esa cédula juntos en el padrón. Verificá los datos o avisá a tu supervisor.","err");
+      b.disabled=false; b.textContent="Enviarme el código →"; return;
+    }
+    await sbFetch("/auth/v1/otp",{method:"POST",body:JSON.stringify({email:EMAIL,create_user:true})});
+    $("paso1").classList.add("hide"); $("paso2").classList.remove("hide");
+    $("sub2").textContent="Te enviamos un código a "+EMAIL+". Escribilo acá (revisá spam si no lo ves).";
+    $("codigo").focus();
+  }catch(e){ setMsg("msg1",(e&&e.message)||"No se pudo enviar el código.","err"); b.disabled=false; b.textContent="Enviarme el código →"; }
+}
+
+async function verificar(){
+  const code=($("codigo").value||"").trim();
+  if(!code){ setMsg("msg2","Escribí el código.","err"); return; }
+  const b=$("btn2"); b.disabled=true; b.textContent="Ingresando…"; setMsg("msg2","","");
+  try{
+    const sess=await sbFetch("/auth/v1/verify",{method:"POST",body:JSON.stringify({type:"email",email:EMAIL,token:code})});
+    if(!sess||!sess.access_token) throw new Error("Código inválido o vencido.");
+    try{ localStorage.setItem(SESS_KEY, JSON.stringify(sess)); }catch(_){}
+    SB_TOKEN=sess.access_token;
+    try{ await sbFetch("/rest/v1/rpc/activar_mi_cuenta",{method:"POST",body:"{}"}); }catch(_){}
+    setMsg("msg2","¡Listo! Entrando…","ok");
+    setTimeout(function(){ location.href="ingreso.html"; }, 500);
+  }catch(e){ setMsg("msg2",(e&&e.message)||"Código inválido o vencido.","err"); b.disabled=false; b.textContent="Ingresar →"; }
+}
+
+async function reenviar(){
+  if(!EMAIL) return;
+  try{ await sbFetch("/auth/v1/otp",{method:"POST",body:JSON.stringify({email:EMAIL,create_user:true})}); setMsg("msg2","Código reenviado. Revisá tu correo (y spam).","ok"); }
+  catch(e){ setMsg("msg2",(e&&e.message)||"No se pudo reenviar.","err"); }
+}
+</script>
+</body>
+</html>

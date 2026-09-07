@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v38</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v40</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -270,13 +270,29 @@ body.ancho .wrap{max-width:1600px}
 
     <div class="card hide" id="cardAsignar" style="margin-top:14px">
       <h3>Asignar presupuesto</h3>
-      <div class="muted" style="margin-bottom:10px">Un monto por centro y por mes. Si ya tenía, lo reemplaza y queda registrado cuánto era antes.</div>
-      <div class="row r3">
-        <div><label>Centro de costo *</label><select id="aCC"></select></div>
-        <div><label>Mes *</label><input id="aMes" type="number" min="1" max="12"></div>
-        <div><label>Monto *</label><input id="aMonto" type="number" min="0" step="1000" placeholder="5000000"></div>
+      <div class="muted" style="margin-bottom:10px">El presupuesto es por centro y por mes. Podés cargar
+        un mes solo o varios de una vez con el mismo monto, y después corregir el que haga falta.
+        Queda registrado cuánto era antes.</div>
+      <div class="row r2">
+        <div><label>Centro de costo *</label><select id="aCC" onchange="verAnioCentro()"></select></div>
+        <div><label>Monto por mes *</label><input id="aMonto" type="number" min="0" step="1000" placeholder="5000000" oninput="mesesCambio()"></div>
       </div>
+      <div class="row r3" style="align-items:end">
+        <div><label>Desde el mes *</label><select id="aMes" onchange="mesesCambio()"></select></div>
+        <div><label>Hasta el mes *</label><select id="aHasta" onchange="mesesCambio()"></select></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn" onclick="mesesRapido('resto')" style="flex:1">De acá a diciembre</button>
+          <button class="btn" onclick="mesesRapido('anio')" style="flex:1">Todo el año</button>
+        </div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:9px 0">
+        <input type="checkbox" id="aPisar" style="width:auto;margin:0">
+        <span>Reemplazar los meses que ya tengan presupuesto</span>
+      </label>
+      <div class="nota" id="aNota"></div>
       <button class="btn pri" id="bAsignar" onclick="asignarPresu()" style="margin-top:10px">Asignar</button>
+
+      <div id="aAnio" style="margin-top:14px"></div>
     </div>
   </div>
 
@@ -633,8 +649,16 @@ async function arrancar(){
     document.getElementById('dlArt').innerHTML=MAE.art
       .filter(x=>x.activo!==false)
       .map(x=>'<option value="'+esc(x.nombre)+'">'+(x.descripcion?esc(x.descripcion.slice(0,90)):'')+'</option>').join('');
-    document.getElementById('aMes').value=document.getElementById('pMes').value;
-    if(ROLES.includes('presupuesto')) document.getElementById('cardAsignar').classList.remove('hide');
+    /* Arranca proponiendo del mes en curso hasta diciembre: es lo que uno
+       quiere hacer la primera vez que entra a esta pantalla. */
+    const mHoy = Number(document.getElementById('pMes').value)||1;
+    opcionesMes(document.getElementById('aMes'),   mHoy);
+    opcionesMes(document.getElementById('aHasta'), 12);
+    mesesCambio();
+    if(ROLES.includes('presupuesto')){
+      document.getElementById('cardAsignar').classList.remove('hide');
+      verAnioCentro();
+    }
     addQLinea();
     if(prox) document.getElementById('oNum').value=prox;
     const y=(yo&&yo[0])||null;
@@ -1282,22 +1306,89 @@ async function cargarPresu(){
 /* ---------- pendientes de recibir ---------- */
 /* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
    boton es comodidad de pantalla, no seguridad. */
+const MESES_N=['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+               'septiembre','octubre','noviembre','diciembre'];
+
+/* El presupuesto sigue siendo por mes —así se controla y así lo entiende el
+   resto del módulo— pero cargarlo de a un mes son doce formularios por centro,
+   y con 30 y pico de centros eso no lo hace nadie. Lo que pasa en la práctica
+   es que se carga el mes en curso, se olvida el siguiente, y el control deja de
+   existir justo cuando hacía falta. Por eso: un rango, un monto. */
+function opcionesMes(sel, valor){
+  sel.innerHTML = MESES_N.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('');
+  sel.value = valor;
+}
+
+function mesesCambio(){
+  const d=Number(document.getElementById('aMes').value)||1;
+  const h=Number(document.getElementById('aHasta').value)||1;
+  const n=document.getElementById('aNota');
+  if(h<d){ n.textContent='El mes final no puede ser anterior al inicial.'; return; }
+  const cant=h-d+1;
+  const monto=Number(document.getElementById('aMonto').value)||0;
+  n.textContent = cant===1
+    ? 'Se asigna solo ' + MESES_N[d-1] + '.'
+    : 'Se asignan ' + cant + ' meses, de ' + MESES_N[d-1] + ' a ' + MESES_N[h-1]
+      + (monto ? ' · ' + cop(monto) + ' cada uno, ' + cop(monto*cant) + ' en total.' : '.');
+}
+
+function mesesRapido(que){
+  const hoy = new Date();
+  const desde = (que==='resto' && Number(document.getElementById('pAnio').value)===hoy.getFullYear())
+                ? hoy.getMonth()+1 : 1;
+  document.getElementById('aMes').value = que==='anio' ? 1 : desde;
+  document.getElementById('aHasta').value = 12;
+  mesesCambio();
+}
+
+/* Qué meses tiene cargados cada centro. Es la lista de lo que falta hacer, y
+   sin ella nadie sabe que noviembre quedó en cero hasta que llega noviembre. */
+async function verAnioCentro(){
+  const c=document.getElementById('aAnio');
+  try{
+    const d=await rpc('co_presupuesto_anio',{p_empresa_id:EMPRESA_ID,
+      p_anio:Number(document.getElementById('pAnio').value)}) || [];
+    if(!d.length){ c.innerHTML=''; return; }
+    const faltan=d.filter(x=>x.meses_cargados<12).length;
+    c.innerHTML='<div class="muted" style="margin-bottom:7px">Cómo viene el año. '
+      + (faltan ? '<b>'+faltan+'</b> centro(s) con meses sin cargar.' : 'Todos los centros completos.')
+      + '</div><div style="overflow-x:auto"><table style="font-size:13px"><thead><tr>'
+      + '<th>Centro</th><th class="num">Meses</th><th>Le faltan</th><th class="num">Total del año</th>'
+      + '</tr></thead><tbody>'
+      + d.map(x=>'<tr><td>'+esc(x.centro)+'</td>'
+        + '<td class="num">'+x.meses_cargados+' / 12</td>'
+        + '<td class="'+(x.meses_cargados<12?'':'muted')+'">'+esc(x.meses_vacios)+'</td>'
+        + '<td class="num">'+cop(x.total_anio)+'</td></tr>').join('')
+      + '</tbody></table></div>';
+  }catch(e){ c.innerHTML='<div class="nota">No pude traer el resumen del año: '+esc(e.message)+'</div>'; }
+}
+
 async function asignarPresu(){
   const cc=document.getElementById('aCC').value;
-  const mes=Number(document.getElementById('aMes').value);
+  const desde=Number(document.getElementById('aMes').value);
+  const hasta=Number(document.getElementById('aHasta').value);
   const monto=Number(document.getElementById('aMonto').value);
   if(!cc) return aviso('Elegí el centro de costo.');
-  if(!(mes>=1&&mes<=12)) return aviso('El mes va de 1 a 12.');
+  if(!(desde>=1&&desde<=12)||!(hasta>=1&&hasta<=12)) return aviso('Los meses van de 1 a 12.');
+  if(hasta<desde) return aviso('El mes final no puede ser anterior al inicial.');
   if(!(monto>=0)) return aviso('Poné el monto.');
   const b=document.getElementById('bAsignar'); b.disabled=true; b.textContent='Guardando…';
   try{
-    const r=await rpc('co_presupuesto_asignar',{p_empresa_id:EMPRESA_ID,
+    const r=await rpc('co_presupuesto_asignar_rango',{p_empresa_id:EMPRESA_ID,
       p_centro_costo_id:Number(cc), p_anio:Number(document.getElementById('pAnio').value),
-      p_mes:mes, p_monto:monto});
-    aviso((r&&r[0]&&r[0].mensaje)||'Listo.');
-    document.getElementById('pMes').value=mes;
+      p_mes_desde:desde, p_mes_hasta:hasta, p_monto:monto,
+      p_pisar_existentes:document.getElementById('aPisar').checked});
+    const m=(Array.isArray(r)?r[0]:r)||{};
+    /* Verde solo si de verdad cambió algo. Si respetó todos los meses porque ya
+       tenían presupuesto, no cambió nada y decirle "listo" en verde haría creer
+       lo contrario. */
+    aviso(m.mensaje||'Listo.', Number(m.asignados)>0);
+    document.getElementById('pMes').value=desde;
     document.getElementById('aMonto').value='';
+    document.getElementById('aPisar').checked=false;
+    mesesCambio();
     cargarPresu();
+    verAnioCentro();
   }catch(e){ aviso(e.message); }
   finally{ b.disabled=false; b.textContent='Asignar'; }
 }
@@ -2194,14 +2285,95 @@ function campoPO(rot,val,falta,ancho){
         : '<span class="poX">'+(falta||'falta')+'</span>')+'</span></div>';
 }
 
+/* Cuánto se le fue descontando a la orden y cuánto queda.
+
+   Va FUERA del documento y con clase noimp: no se imprime. El papel es para el
+   proveedor, y cuánto llevamos consumido de un marco es cosa nuestra. Si algún
+   día hace falta imprimirlo para control interno, se saca el noimp y listo.
+
+   Es el dato para el que existe una orden abierta: una orden normal se mira una
+   vez y se archiva, una abierta se mira todos los meses. Si no está acá, hay que
+   ir a Facturas y sumar a mano — o sea, volver al Excel. */
+function consumoOrden(d, sal, fac){
+  if(!sal || !sal.length) return '';
+  const pedido    = sal.reduce((a,l)=>a+Number(l.valor_pedido||0),0);
+  const facturado = sal.reduce((a,l)=>a+Number(l.valor_facturado||0),0);
+  const queda     = pedido - facturado;
+  const pct       = pedido>0 ? Math.round(100*facturado/pedido) : 0;
+  /* Sin facturas no vale la pena el bloque en una orden normal; en una abierta
+     sí, porque decir "todavía no se descontó nada" también es información. */
+  if(!d.es_abierta && !fac.length) return '';
+
+  return '<div class="card noimp" style="margin-top:14px">'
+    + '<h3>Cuánto se le descontó a esta orden</h3>'
+    + '<div class="muted" style="margin-bottom:11px">'
+      + (d.es_abierta
+         ? 'Es una orden abierta: la cantidad de cada línea es un techo y las facturas lo van consumiendo.'
+         : 'Lo emitido contra lo facturado, línea por línea.')
+      + ' Esto no sale impreso — el papel es para el proveedor.</div>'
+
+    + '<div class="row r3" style="margin-bottom:10px">'
+      + '<div><label>Emitida por</label><div style="font-size:17px;font-weight:700">'+cop(pedido)+'</div></div>'
+      + '<div><label>Ya facturado</label><div style="font-size:17px;font-weight:700">'+cop(facturado)+'</div></div>'
+      + '<div><label>Queda</label><div style="font-size:17px;font-weight:800;'
+        + (queda<0?'color:var(--warn,#b45309)':'')+'">'+cop(queda)
+        + '<span class="muted" style="font-weight:400;font-size:13px"> · '+pct+'% usado</span></div></div>'
+    + '</div>'
+
+    /* Una barra, porque "queda el 28%" se entiende de un vistazo y "$1.080.000
+       de $1.500.000" hay que dividirlo mentalmente. */
+    + '<div style="height:9px;border-radius:5px;background:var(--line);overflow:hidden;margin-bottom:13px">'
+      + '<div style="height:100%;width:'+Math.min(100,pct)+'%;background:'
+      + (pct>100?'var(--warn,#b45309)':'var(--acc,#E08A00)')+'"></div></div>'
+
+    + '<div style="overflow-x:auto"><table style="font-size:13px"><thead><tr>'
+      + '<th>Línea</th><th class="num">Pedido</th><th class="num">Facturado</th>'
+      + '<th class="num">Queda</th><th class="num">Cant. facturada</th><th>Estado</th>'
+    + '</tr></thead><tbody>'
+    + sal.map(l=>'<tr>'
+        + '<td>'+esc(l.descripcion)+'<div class="muted" style="font-size:12px">'
+          + esc(l.centro||'')+' · '+esc(l.unidad||'')+'</div></td>'
+        + '<td class="num">'+cop(l.valor_pedido)+'</td>'
+        + '<td class="num">'+cop(l.valor_facturado)+'</td>'
+        + '<td class="num">'+cop(l.saldo)+'</td>'
+        + '<td class="num">'+esc(l.cant_facturada)+' de '+esc(l.cant_pedida)+'</td>'
+        + '<td><span class="pill'+(l.estado==='sobrefacturada'?' amber':(l.estado==='completa'?' ok':''))
+          + '">'+esc(l.estado)+'</span></td>'
+      + '</tr>').join('')
+    + '</tbody></table></div>'
+
+    + (fac.length
+       ? '<div style="margin-top:14px"><label>Las facturas, una por una</label>'
+         + '<div style="overflow-x:auto"><table style="font-size:13px"><thead><tr>'
+           + '<th>Factura</th><th>Recibida</th><th>Contra</th>'
+           + '<th class="num">Cant.</th><th class="num">Descontado</th>'
+         + '</tr></thead><tbody>'
+         + fac.map(f=>'<tr>'
+             + '<td><b>'+esc(f.numero)+'</b>'
+               + (f.otras_ordenes>0
+                  ? '<div class="nota">esta factura también cubre '+f.otras_ordenes
+                    +' orden'+(f.otras_ordenes>1?'es':'')+' más · bruto '+cop(f.valor_bruto_factura)+'</div>'
+                  : '')+'</td>'
+             + '<td class="muted">'+esc(f.fecha_recepcion||'')+'</td>'
+             + '<td>'+esc(f.linea||'')+'</td>'
+             + '<td class="num">'+(f.cantidad==null?'—':esc(f.cantidad))+'</td>'
+             + '<td class="num">'+cop(f.valor)+'</td>'
+           + '</tr>').join('')
+         + '</tbody></table></div></div>'
+       : '<div class="nota" style="margin-top:12px">Todavía no se le aplicó ninguna factura.</div>')
+    + '</div>';
+}
+
 async function verOrden(id){
   const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{
-    const [dd,ll]=await Promise.all([
+    const [dd,ll,ss,ff]=await Promise.all([
       rpc('co_orden_documento',{p_orden_id:id}),
-      rpc('co_orden_documento_lineas',{p_orden_id:id})
+      rpc('co_orden_documento_lineas',{p_orden_id:id}),
+      rpc('co_orden_saldo',{p_orden_id:id}).catch(()=>[]),
+      rpc('co_orden_facturas',{p_orden_id:id}).catch(()=>[])
     ]);
-    const d=Array.isArray(dd)?dd[0]:dd, lin=ll||[];
+    const d=Array.isArray(dd)?dd[0]:dd, lin=ll||[], sal=ss||[], fac=ff||[];
     if(!d){ c.innerHTML='<div class="err">No encontré esa orden.</div>'; return; }
 
     /* Lo que le falta para salir completa. Es la misma lista que devuelve la
@@ -2335,7 +2507,9 @@ async function verOrden(id){
               : '<span class="poX">nadie firmó el dinero de esta orden</span>')+'</div></div>'
       +'</div></div>'
 
-      +'</div>';
+      +'</div>'
+
+      + consumoOrden(d, sal, fac);
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 </script></body></html>

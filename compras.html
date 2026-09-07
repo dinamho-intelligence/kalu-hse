@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v41</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v43</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -1548,9 +1548,12 @@ function pintarReparto(){
           + '<td class="num">'+cop(l.saldo)+'</td>'
           + '<td class="num"><input type="number" step="0.01" min="0" style="max-width:90px"'
             + ' class="rcant" data-l="'+l.orden_linea_id+'"'
+            + ' oninput="this.dataset.mano=1"'
             + ' value="'+esc(val(id,l.orden_linea_id,'cantidad'))+'"></td>'
           + '<td class="num"><input type="number" step="1" min="0" style="max-width:120px"'
             + ' class="rval" data-l="'+l.orden_linea_id+'" data-iva="'+(l.iva_pct||0)+'"'
+            + ' data-unit="'+(Number(l.cant_pedida)>0
+                ? (Number(l.valor_pedido)/Number(l.cant_pedida)) : 0)+'"'
             + ' oninput="calcReparto();totalFactura()"'
             + ' value="'+esc(val(id,l.orden_linea_id,'valor'))+'"></td>'
         + '</tr>').join('')
@@ -1576,6 +1579,17 @@ function calcReparto(){
     const v = Number(i.value)||0; if(!v) return;
     t += v;
     iva += v * (Number(i.dataset.iva)||0) / 100;
+    /* La cantidad se propone desde el precio unitario de la línea. En una orden
+       abierta esa columna ES el control —30 peajes, no $1.500.000— y dejarla
+       vacía deja el saldo en plata bien y el consumo en "0 de 30", que no le
+       sirve a nadie. Se propone, no se impone: queda en el campo, a la vista, y
+       quien carga la corrige antes de guardar. */
+    const u = Number(i.dataset.unit)||0;
+    const c = document.querySelector('#fAplic .rcant[data-l="'+i.dataset.l+'"]');
+    if(c && u > 0 && !c.dataset.mano){
+      const n = v/u;
+      c.value = Math.abs(n-Math.round(n)) < 0.001 ? Math.round(n) : +n.toFixed(2);
+    }
   });
 
   /* El bruto sigue al reparto mientras nadie lo haya escrito a mano. Llenarlo
@@ -1592,8 +1606,10 @@ function calcReparto(){
   /* Que no cuadre no siempre es un error: puede faltar aplicar una parte. Pero
      se dice, que es distinto de dejarlo pasar. */
   d.innerHTML = '<span>Repartido</span><span>' + cop(t)
-    + (bruto && Math.abs(t-bruto) >= 1
-        ? ' <span class="pill amber">el bruto es '+cop(bruto)+'</span>' : '')
+    + (bruto && t-bruto >= 1
+        ? ' <span class="pill amber">te pasaste: la factura dice '+cop(bruto)+'</span>'
+      : bruto && bruto-t >= 1
+        ? ' <span class="pill">faltan '+cop(bruto-t)+' por aplicar</span>' : '')
     + (t > 0 && !IVA_A_MANO
         ? '<div class="muted" style="font-weight:400;font-size:12.5px">IVA calculado desde las líneas de la orden: '
           + cop(Math.round(iva)) + '</div>' : '')
@@ -1885,6 +1901,16 @@ async function guardarFactura(){
   if(MODO_FAC==='orden'){
     const ap=aplicacionesDelReparto();
     if(!ap.length){ aviso('Agregá al menos una orden y decí cuánto de cada línea cubre esta factura.'); return; }
+    /* Repartir MENOS que el bruto es válido: queda pendiente de aplicar.
+       Repartir MÁS es imposible — una factura no puede cubrir más de lo que
+       vale. Antes esto avisaba en ámbar y dejaba guardar, y así entró una
+       factura de $58.000 descontándole $1.500.000 a una orden. */
+    const rep=ap.reduce((a,x)=>a+x.valor,0), bruto=n('fBruto');
+    if(rep>bruto){
+      aviso('Estás repartiendo '+cop(rep)+' pero la factura dice '+cop(bruto)
+           +'. Una factura no puede descontar más de lo que vale — corregí los montos de cada línea.');
+      return;
+    }
     const b2=document.getElementById('btnFactura');
     b2.disabled=true; b2.textContent='Guardando…';
     try{

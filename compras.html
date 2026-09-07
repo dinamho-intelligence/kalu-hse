@@ -88,7 +88,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v29</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v30</span></div>
     <div style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -209,8 +209,8 @@ body.ancho .wrap{max-width:1600px}
           <div class="muted" id="artLargo" style="font-size:12px"></div></div>
         <div style="flex:1;min-width:180px"><label>Categoría *</label>
           <select id="artCat"></select></div>
-        <div style="min-width:110px"><label>Unidad</label>
-          <input id="artUnidad" placeholder="Unidad, Par, Galon…"></div>
+        <div style="min-width:130px"><label>Unidad</label>
+          <select id="artUnidad"></select></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;margin-bottom:11px">
         <div style="flex:1;min-width:160px"><label>Precio de referencia</label>
@@ -352,7 +352,7 @@ async function arrancar(){
       aviso('Tu usuario no tiene una empresa asignada. Avisale a dirección: sin eso no puedo mostrarte nada, y mostrarte los datos de otra empresa sería peor.');
       return;
     }
-    const [prov,cond,base,cc,usr,yo,cat,art,prox,fmt]=await Promise.all([
+    const [prov,cond,base,cc,usr,yo,cat,art,uni,prox,fmt]=await Promise.all([
       api('co_proveedor?select=id,nombre,condicion_pago_id&order=nombre&limit=2000'),
       api('co_condicion_pago?select=id,nombre,dias_pactados,dias_reales&order=nombre'),
       api('co_base?select=id,nombre&order=nombre'),
@@ -361,12 +361,13 @@ async function arrancar(){
       rpc('biz_quien_soy',{}),
       api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id&activo=eq.true&order=nombre'),
       api('co_articulo?select=id,nombre,descripcion,categoria_id,unidad,precio_ref,precio_ref_al,proveedor_id,activo&order=nombre&limit=3000'),
+      api('co_unidad?select=nombre&activo=eq.true&order=orden'),
       rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
       rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID})
     ]);
     /* Los maestros primero: todo lo de abajo los usa. Armarlos despues de
        usarlos fue el bug de "Cannot read properties of undefined". */
-    MAE={prov,cond,base,cc,usr,cat,art};
+    MAE={prov,cond,base,cc,usr,cat,art,uni};
     FORMATO=(fmt&&fmt[0])||{};
     /* Sin permisos no hay pestañas: quien no tiene acceso a compras no debería
        ver ni la de pedir. Antes le dábamos 'solicitante' de regalo. */
@@ -1083,7 +1084,13 @@ function pintarCatalogo(){
     + '<tbody>'+filas+'</tbody></table></div>';
 }
 
-function llenarSelectsArt(){
+function llenarSelectsArt(actual){
+  /* Si un articulo viejo trae una unidad que no esta en la lista, se la agrego
+     igual: cambiarsela sin avisar seria peor que mostrar una unidad rara. */
+  const lista=(MAE.uni||[]).map(u=>u.nombre);
+  if(actual && !lista.includes(actual)) lista.push(actual);
+  document.getElementById('artUnidad').innerHTML =
+    lista.map(u=>'<option value="'+esc(u)+'">'+esc(u)+'</option>').join('');
   document.getElementById('artCat').innerHTML =
     '<option value="">— elegir —</option>'+MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
   document.getElementById('artProv').innerHTML =
@@ -1093,7 +1100,7 @@ function llenarSelectsArt(){
 function nuevoArticulo(){
   llenarSelectsArt();
   document.getElementById('artTitulo').textContent='Nuevo artículo';
-  ['artId','artNombre','artUnidad','artPrecio','artFecha','artDesc'].forEach(i=>document.getElementById(i).value='');
+  ['artId','artNombre','artPrecio','artFecha','artDesc'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('artCat').value='';
   document.getElementById('artProv').value='';
   document.getElementById('artActivo').value='1';
@@ -1105,7 +1112,7 @@ function nuevoArticulo(){
 
 function editarArticulo(id){
   const a=(MAE.art||[]).find(x=>x.id===id); if(!a) return;
-  llenarSelectsArt();
+  llenarSelectsArt(a.unidad);
   document.getElementById('artTitulo').textContent='Editar artículo';
   document.getElementById('artId').value=a.id;
   document.getElementById('artNombre').value=a.nombre||'';
@@ -1146,7 +1153,7 @@ async function guardarArticulo(){
   const cuerpo={
     nombre: nombre,
     categoria_id: Number(catId),
-    unidad: (document.getElementById('artUnidad').value||'').trim() || 'unidad',
+    unidad: document.getElementById('artUnidad').value || 'Unidad',
     precio_ref: precio===''?null:Number(precio),
     /* Un precio sin fecha no dice nada: si no la ponen, es de hoy. */
     precio_ref_al: precio===''?null:(fecha||hoyLocal()),

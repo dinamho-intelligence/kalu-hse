@@ -1,115 +1,2341 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Primer ingreso — KALU | Dinamho Intelligence</title>
-<meta name="description" content="Primer ingreso a la plataforma KALU: verificá tu correo y activá tu cuenta." />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KALU · Compras · Total QC</title>
 <style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.30)}
-  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .card{width:100%;max-width:420px;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:34px 28px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
-  .brand{font-size:12px;letter-spacing:3px;color:var(--orange);font-weight:600;text-align:center}
-  h1{font-size:23px;margin:8px 0 4px;text-align:center;font-weight:600}
-  .sub{color:var(--muted);font-size:13.5px;text-align:center;margin-bottom:20px}
-  label{display:block;font-size:12px;color:var(--muted);margin:16px 0 5px;font-weight:500}
-  input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;font-family:inherit}
-  input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--glow-o)}
-  .code{letter-spacing:10px;text-align:center;font-size:22px}
-  .btn{width:100%;margin-top:22px;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
-  .btn:disabled{opacity:.6;cursor:default}
-  .msg{margin-top:14px;font-size:13px;min-height:1px}
-  .msg.err{color:#ff6b6b}
-  .msg.ok{color:#34d399}
-  .link{display:block;text-align:center;margin-top:16px;color:var(--cyan);font-size:13px;cursor:pointer}
-  .hide{display:none}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="brand">PLATAFORMA KALU</div>
-  <h1>Primer ingreso</h1>
+:root{--bg:#0B0E13;--card:#111721;--line:#1E2632;--line2:#2B3542;--tx:#E6EAF0;--tx2:#9AA4B2;--tx3:#6D7783;
+ --nar:#E08700;--ok:#2FA36B;--rojo:#E23B3B;--amber:#E0A800}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.brand .wm{font-weight:800;letter-spacing:.5px;color:var(--nar)}
+.brand .bt{color:var(--tx2);font-size:13px;margin-left:8px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{background:var(--card);border:1px solid var(--line);color:var(--tx2);border-radius:11px;padding:9px 15px;font-size:14px;cursor:pointer;font-weight:600}
+.tab.on{background:var(--nar);border-color:var(--nar);color:#0B0E13}
+.tab .n{background:#0006;border-radius:8px;padding:0 6px;margin-left:5px;font-size:11px}
+.btn{background:var(--card);border:1px solid var(--line2);color:var(--tx);border-radius:10px;padding:9px 15px;font-size:14px;cursor:pointer;font-weight:600}
+.btn.pri{background:var(--nar);border-color:var(--nar);color:#0B0E13}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:11px}
+label{display:block;font-size:12px;color:var(--tx2);margin:0 0 4px;font-weight:600}
+input,select,textarea{width:100%;background:#0d1219;border:1px solid var(--line2);color:var(--tx);border-radius:9px;
+ padding:10px 11px;font-size:15px;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nar)}
+.row{display:grid;gap:10px;margin-bottom:11px}
+.r2{grid-template-columns:1fr 1fr}.r3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:640px){.r2,.r3{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--tx2);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;padding:7px 8px;border-bottom:1px solid var(--line2)}
+td{padding:9px 8px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:none}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;background:#0f141b;border:1px solid var(--line);border-radius:9px;padding:2px 8px;font-size:11px;color:var(--tx2)}
+.pill.rojo{border-color:var(--rojo);color:#ff9a9a}.pill.amber{border-color:var(--amber);color:#ffd479}
+.pill.ok{border-color:var(--ok);color:#8fe3b8}
+.muted{color:var(--tx2);font-size:13px}
+.err{background:#2a1414;border:1px solid #5a2323;color:#ffb4b4;border-radius:10px;padding:11px;margin-bottom:11px;font-size:13.5px}
+.ok{background:#12241a;border:1px solid #24503a;color:#a9e9c6;border-radius:10px;padding:11px;margin-bottom:11px;font-size:13.5px}
+.hide{display:none!important}
+/* ---------------------------------------------------------------------------
+   TELEFONO Y TABLET
+   El que pide esta en el pozo o en la bodega, no frente a un monitor. Y el que
+   aprueba el pedido firma desde donde este. Estas dos pantallas tienen que
+   funcionar con un pulgar.
+--------------------------------------------------------------------------- */
+@media(max-width:720px){
+  .wrap{padding:10px}
+  /* Ocho pestañas envueltas ocupaban cuatro renglones y empujaban el contenido
+     fuera de la pantalla. Ahora es una tira que se arrastra con el dedo. */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+        scrollbar-width:none;margin:0 -10px 14px;padding:0 10px 4px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;padding:11px 14px}
+  /* 16px es el minimo: por debajo de eso iOS hace zoom solo al enfocar un campo
+     y despues deja la pagina corrida. */
+  input,select,textarea{font-size:16px;padding:12px 11px}
+  .btn,.x{padding:12px 16px;min-height:46px}
+  .card{padding:12px}
+  h3{font-size:15px}
+  /* El encabezado se apilaba mal: el nombre completo se partia en cuatro
+     renglones y empujaba todo hacia abajo. En el telefono el nombre va en una
+     linea sola y recortado; lo que importa arriba es en que silla estas. */
+  .top{gap:8px;flex-direction:column;align-items:stretch}
+  .topder{flex-wrap:wrap;width:100%;align-items:center}
+  #quien{flex:1 1 100%;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  #cajaActuar{flex:1 1 auto;min-width:0;display:flex!important;gap:6px;align-items:center}
+  #cajaActuar.hide{display:none!important}
+  #cajaActuar>.muted{display:none}
+  #cajaActuar select{width:100%;font-size:14px;padding:11px 9px}
+  .topder>.btn{flex:0 0 auto}
+  /* Una tabla de seis columnas en un telefono no se lee: se arrastra. */
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Menos "Mis requisiciones", que se rompe en fichas: es lo que el que pide
+     mira todo el tiempo para ver si ya le aprobaron. */
+  #qMias table,#qMias tbody,#qMias tr,#qMias td{display:block;white-space:normal}
+  #qMias thead{display:none}
+  #qMias tr{border:1px solid var(--line);border-radius:11px;padding:11px;
+            margin-bottom:9px;background:#0d1219}
+  #qMias td{border:none;padding:3px 0}
+  #qMias td.num{text-align:left}
+  #qMias td[data-t]::before{content:attr(data-t) " · ";color:var(--tx2);
+    font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  /* La botonera de aprobar, ancha y separada: se firma con el pulgar. */
+  #aprLista .card>div>div:last-child{min-width:100%!important}
+  #aprLista .btn{width:100%}
+}
+.lin{border:1px solid var(--line);border-radius:11px;padding:11px;margin-bottom:9px;background:#0d1219}
+.lin .f1{display:grid;grid-template-columns:1.4fr 1.4fr 2fr auto;gap:7px;align-items:end;margin-bottom:8px}
+.lin .f2{display:grid;grid-template-columns:1.8fr .7fr 1fr 1.1fr;gap:7px;align-items:end}
+@media(max-width:820px){.lin .f1,.lin .f2{grid-template-columns:1fr}}
+.nota{font-size:11.5px;color:var(--amber);margin-top:6px;line-height:1.4}
+.x{background:transparent;border:1px solid var(--line2);color:var(--tx3);border-radius:8px;padding:9px 11px;cursor:pointer}
+.tot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line2);padding-top:11px;margin-top:6px;font-size:16px;font-weight:700}
+.login{max-width:380px;margin:12vh auto;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:24px}
+h3{margin:0 0 12px;font-size:16px}
+/* Las bandejas: grilla que se acomoda sola. En un monitor ancho entran cinco por
+   fila y en un telefono una. Nadie deberia hacer scroll horizontal para ver
+   cuantas ordenes estan atrasadas. */
+.bandejas{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));margin-bottom:14px}
+.bandeja{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;
+ cursor:pointer;text-align:left;font-family:inherit;color:var(--tx);transition:border-color .12s}
+.bandeja:hover{border-color:var(--line2)}
+.bandeja.on{border-color:var(--nar);box-shadow:0 0 0 2px rgba(224,135,0,.18)}
+.bandeja .n{font-size:29px;font-weight:800;line-height:1.05;letter-spacing:-.5px}
+.bandeja .t{font-weight:700;font-size:13px;margin-top:4px}
+.bandeja .e{color:var(--tx2);font-size:11.5px;margin-top:3px;line-height:1.35}
+.bandeja .m{color:var(--tx2);font-size:12px;margin-top:6px;font-variant-numeric:tabular-nums}
+.bandeja.vacia{opacity:.45}
+.bandeja.alerta .n{color:#ff8f8f}
+.bandeja.ojo .n{color:var(--amber)}
 
-  <div id="paso1">
-    <div class="sub">Ingresá con tu correo y tu cédula. Te enviamos un código al correo para verificar que sos vos.</div>
-    <label>Correo</label>
-    <input id="correo" type="email" autocomplete="email" placeholder="tucorreo@empresa.com" />
-    <label>Cédula / Documento</label>
-    <input id="cedula" inputmode="numeric" placeholder="12345678" onkeydown="if(event.key==='Enter')enviarCodigo()" />
-    <button class="btn" id="btn1" onclick="enviarCodigo()">Enviarme el código →</button>
-    <div class="msg" id="msg1"></div>
+/* ---- la orden impresa, segun FT-COM-003 v005 ---------------------------- */
+.po{font-size:12.5px}
+.pohead{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:start;
+ border:1px solid var(--line2);border-radius:7px;padding:10px 12px;line-height:1.5}
+.pot{margin:14px 0 7px;padding:5px 9px;border-radius:5px;background:var(--line);color:var(--tx);
+ font-weight:800;font-size:11.5px;letter-spacing:.6px}
+.pog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+.poc{display:flex;gap:8px;padding:4px 0;border-bottom:1px dotted var(--line)}
+.poc2{grid-column:1/-1}
+.pol{color:var(--tx2);font-size:11px;min-width:130px;text-transform:uppercase;letter-spacing:.3px}
+.pov{flex:1}
+.poX{color:var(--warn,#b45309);font-style:italic}
+table.poitems{margin-top:12px;font-size:12px}
+table.poitems th{white-space:nowrap}
+.ponota{margin-top:10px;padding:7px 10px;border-left:3px solid var(--line2)}
+.polegal{margin-top:9px;font-size:11px;color:var(--tx2);line-height:1.5}
+.pototales{margin-top:12px;margin-left:auto;width:min(320px,100%);
+ display:grid;grid-template-columns:1fr auto;gap:4px 16px}
+.pototales>div{display:contents}
+.pototales span:nth-child(2){text-align:right;font-variant-numeric:tabular-nums}
+.pofin span{font-weight:800;font-size:15px;border-top:1px solid var(--line2);padding-top:5px}
+.bloque4{margin-top:0}
+.pofirmas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px;margin-top:26px}
+.pofl{height:44px;border-bottom:1px solid var(--tx2)}
+@media(max-width:720px){.pohead,.pog,.pofirmas{grid-template-columns:1fr}}
+
+/* Consultas se mira ancho: es una tabla de trabajo, no un formulario. */
+body.ancho .wrap{max-width:1600px}
+@media print{
+  body{background:#fff;color:#000}
+  .top,.tabs,.noimp,#msg,#vLogin,#vCon,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat,#vFac,#vCot{display:none!important}
+  .card{border:1px solid #ccc;background:#fff}
+  .muted,label{color:#555}
+  .pill{border-color:#bbb;color:#555}
+  th{color:#333;border-bottom:1px solid #999}
+  td{border-bottom:1px solid #ddd}
+  /* El documento manda: sin sombra, sin bordes redondeados y sin cortar una
+     linea de items entre dos hojas. */
+  .po .card,#poDoc{border:none;box-shadow:none;padding:0}
+  /* Un titulo de seccion nunca queda solo al pie de una hoja. */
+  .pot{background:#eee;color:#000}
+  .bloque4{break-inside:avoid}
+  .pofirmas{margin-top:16px;gap:20px}
+  .pofl{height:34px}
+  .polegal{margin-top:7px}
+  .pohead{border-color:#999}
+  .poX{color:#000}
+  table.poitems tr{break-inside:avoid}
+  .pofirmas{break-inside:avoid}
+  .po>*:last-child{margin-bottom:0}
+  /* En pantalla la tabla de items se arrastra de costado; en papel no hay
+     costado. Sin esto se imprimen las primeras columnas y se pierden el precio
+     y el subtotal, que es justo lo que el proveedor mira. */
+  #poDoc div[style*="overflow-x"]{overflow:visible!important}
+  table.poitems{font-size:10px;table-layout:auto;width:100%}
+  table.poitems th,table.poitems td{padding:4px 5px;white-space:normal!important}
+  .pol{font-size:9.5px;min-width:105px}
+  .po{font-size:11px}
+  /* Apretar el documento en papel: una orden de pocas líneas tiene que caber
+     en una hoja, que es como se archiva y como se manda. */
+  .pohead{padding:7px 10px;line-height:1.35}
+  .pot{margin:9px 0 4px;padding:3px 8px}
+  .poc{padding:2px 0}
+  .pototales{margin-top:8px}
+  .pofirmas{margin-top:12px;gap:18px}
+  .pofl{height:30px}
+  @page{margin:12mm}
+}
+</style></head><body>
+
+<div id="vLogin" class="login">
+  <div class="brand" style="margin-bottom:16px"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span></div>
+  <div class="row"><div><label>Correo</label><input id="email" type="email" autocomplete="username"></div></div>
+  <div class="row"><div><label>Contraseña</label><input id="pass" type="password" autocomplete="current-password"></div></div>
+  <button class="btn pri" id="btnEntrar" onclick="entrar()" style="width:100%">Ingresar</button>
+  <div class="err hide" id="loginErr" style="margin-top:12px"></div>
+  <div style="text-align:center;margin-top:14px"><a href="index.html" style="color:var(--tx2);text-decoration:none;font-size:13px">← Volver al inicio</a></div>
+</div>
+
+<datalist id="dlArt"></datalist>
+
+<div id="vApp" class="wrap hide">
+  <div class="top">
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v38</span></div>
+    <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
+      <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
+        <span class="muted" style="font-size:12px">Actuando como</span>
+        <select id="aprNivel" onchange="cambioNivel()" style="width:auto;padding:6px 9px;font-size:13px"></select>
+      </span><button class="btn" onclick="salir()">Salir</button></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab" id="tCon" onclick="ver('con')">🔎 Consultas <span class="n" id="nCon">0</span></button>
+    <button class="tab" id="tPed" onclick="ver('ped')">📝 Pedir</button>
+    <button class="tab" id="tApr" onclick="ver('apr')">✅ Aprobar <span class="n" id="nApr">0</span></button>
+    <button class="tab" id="tPre" onclick="ver('pre')">💰 Presupuesto</button>
+    <button class="tab" id="tRec" onclick="ver('rec')">📦 Por recibir <span class="n" id="nRec">0</span></button>
+    <button class="tab" id="tOrd" onclick="ver('ord')">📄 Órdenes</button>
+    <button class="tab" id="tNue" onclick="ver('nue')">＋ Nueva orden</button>
+    <button class="tab" id="tCot" onclick="ver('cot')">💬 Cotizaciones <span class="n" id="nCot">0</span></button>
+    <button class="tab" id="tFac" onclick="ver('fac')">🧾 Facturas</button>
+    <button class="tab" id="tCat" onclick="ver('cat')">📚 Catálogo</button>
+  </div>
+  <div id="msg"></div>
+
+  <div id="vCon" class="hide">
+    <div class="card">
+      <input id="q" placeholder="🔎  Buscar requisición, orden, factura, proveedor, artículo o centro de costo…"
+             autocomplete="off" style="font-size:15px;padding:12px 14px">
+    </div>
+    <div id="bandejas" class="bandejas"></div>
+    <div class="card" style="padding:0">
+      <div style="padding:13px 15px;border-bottom:1px solid var(--line2);display:flex;
+                  justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <div><b id="conTit">Elegí una bandeja</b>
+          <div class="muted" id="conSub" style="margin-top:2px"></div></div>
+        <div id="conAcc"></div>
+      </div>
+      <div id="conCuerpo"><div class="muted" style="padding:30px 15px;text-align:center">Tocá una tarjeta de arriba, o escribí en el buscador.</div></div>
+    </div>
   </div>
 
-  <div id="paso2" class="hide">
-    <div class="sub" id="sub2">Te enviamos un código a tu correo. Escribilo acá.</div>
-    <label>Código de 6 dígitos</label>
-    <input id="codigo" class="code" inputmode="numeric" maxlength="6" placeholder="••••••" onkeydown="if(event.key==='Enter')verificar()" />
-    <button class="btn" id="btn2" onclick="verificar()">Ingresar →</button>
-    <div class="msg" id="msg2"></div>
-    <span class="link" onclick="reenviar()">Reenviar código</span>
+  <div id="vPed" class="hide">
+    <div class="card">
+      <h3>Nueva requisición</h3>
+      <div class="muted" style="margin-bottom:11px">Lo que necesitás para trabajar. Primero se aprueba el pedido y después el dinero.</div>
+      <div class="row r3">
+        <div><label>Centro de costo *</label><select id="qCC"></select></div>
+        <div><label>Lo necesito para *</label><input id="qPara" type="date"></div>
+        <div><label>Justificación *</label><input id="qJust" placeholder="Se acabó el penetrante en el pozo"></div>
+      </div>
+      <div id="qLineas"></div>
+      <button class="btn" onclick="addQLinea()">＋ Agregar ítem</button>
+      <div class="tot"><span>Estimado</span><span id="qTotal">$0</span></div>
+      <div id="qPresu" class="nota" style="margin-bottom:10px"></div>
+      <button class="btn pri" id="btnQ" onclick="guardarRQ()" style="width:100%;padding:13px">Enviar requisición</button>
+    </div>
+    <h3 style="margin-top:20px">Mis requisiciones</h3>
+    <div id="qMias"></div>
   </div>
 
-  <span class="link" onclick="location.href='ingreso.html'">← Volver al ingreso normal</span>
+  <div id="vApr" class="hide">
+    <div class="muted" style="margin-bottom:10px">Lo que espera tu decisión. El monto es lo que dice el catálogo, no el que pidió.</div>
+    <div id="aprLista"></div>
+    <h3 style="margin-top:22px" id="aprKpiTit">Lo que aprobaste</h3>
+    <div id="aprKpi"></div>
+  </div>
+
+  <div id="vPre" class="hide">
+    <div class="muted" style="margin-bottom:10px">Presupuesto por centro de costo y mes. Ordenado por lo que queda: primero lo que está más al límite.</div>
+    <div class="row r3" style="align-items:end">
+      <div><label>Año</label><input id="pAnio" type="number" value="2026"></div>
+      <div><label>Mes</label><input id="pMes" type="number" min="1" max="12"></div>
+      <div><button class="btn" onclick="cargarPresu()" style="width:100%">Ver</button></div>
+    </div>
+    <div id="preLista"></div>
+
+
+
+    <div class="card hide" id="cardAsignar" style="margin-top:14px">
+      <h3>Asignar presupuesto</h3>
+      <div class="muted" style="margin-bottom:10px">Un monto por centro y por mes. Si ya tenía, lo reemplaza y queda registrado cuánto era antes.</div>
+      <div class="row r3">
+        <div><label>Centro de costo *</label><select id="aCC"></select></div>
+        <div><label>Mes *</label><input id="aMes" type="number" min="1" max="12"></div>
+        <div><label>Monto *</label><input id="aMonto" type="number" min="0" step="1000" placeholder="5000000"></div>
+      </div>
+      <button class="btn pri" id="bAsignar" onclick="asignarPresu()" style="margin-top:10px">Asignar</button>
+    </div>
+  </div>
+
+  <div id="vRec" class="hide">
+    <div class="muted" style="margin-bottom:10px">Lo que está pedido y todavía no llegó. Se calcula solo.</div>
+    <div id="recLista"></div>
+  </div>
+
+  <div id="vOrd" class="hide"><div id="ordLista"></div></div>
+
+  <div id="vCot" class="hide">
+    <div class="card">
+      <h3>Esperando cotización</h3>
+      <div class="muted" style="margin-bottom:10px">Requisiciones con el <b>pedido</b> ya aprobado y el <b>dinero</b> todavía no. La cotización va justo en el medio: así el que firma la plata ve el precio real y no el del catálogo.</div>
+      <div id="cotEspera"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Rondas abiertas</h3>
+      <div class="muted" style="margin-bottom:10px">Cargá lo que ofreció cada proveedor. Las que pierden también quedan: son las que le dan sentido a la elegida.</div>
+      <div id="cotAbiertas"></div>
+    </div>
+  </div>
+
+  <div id="vFac" class="hide">
+    <div class="card">
+      <h3>Cargar una factura</h3>
+      <div class="muted" style="margin-bottom:12px">La factura es lo que cierra el circuito. Sin ella, «recibido sin facturar» y «facturado sin recibir» no pueden avisar nada.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn pri" id="fmOrden" onclick="modoFactura('orden')">De una orden de compra</button>
+        <button class="btn" id="fmSuelta" onclick="modoFactura('suelta')">Llegó sin orden</button>
+      </div>
+
+      <div id="facDeOrden">
+        <div class="muted" style="margin-bottom:9px">Una factura puede cubrir <b>varias órdenes</b>,
+          y de cada orden podés facturar <b>solo algunas líneas o parte de ellas</b>. Agregá las
+          órdenes que cubre esta factura y repartí el valor.</div>
+        <div class="row r2">
+          <div><label>Agregar una orden</label><select id="fOrden"></select></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" onclick="agregarOrdenFactura()" style="width:100%">＋ Agregar al reparto</button>
+          </div>
+        </div>
+        <div id="fAplic" style="margin-top:12px"></div>
+        <div class="tot" id="fRepartoTot"><span>Repartido</span><span>$0</span></div>
+      </div>
+
+      <div id="facSuelta" class="hide">
+        <div class="muted" style="margin-bottom:10px">Gastos que llegan y no se piden. Solo aparecen las categorías que Cielo marcó como tales; si la que buscás no está, es porque esa compra sí necesita orden.</div>
+        <div class="row r3">
+          <div><label>Proveedor *</label><select id="fProv"></select></div>
+          <div><label>Categoría *</label><select id="fCatg" onchange="catgFacturaCambio()"></select></div>
+          <div><label>Centro de costo *</label><select id="fCC"></select></div>
+        </div>
+        <div class="row r3">
+          <div><label>Mes al que se imputa *</label><input id="fMes" type="month"></div>
+          <div></div><div></div>
+        </div>
+      </div>
+
+      <div class="row r3" style="margin-top:4px">
+        <div><label>N° de factura *</label><input id="fNum" placeholder="FV-1234"></div>
+        <div><label>Fecha de recepción *</label><input id="fRec" type="date"></div>
+        <div><label>Fecha de vencimiento *</label><input id="fVen" type="date"></div>
+      </div>
+      <div class="row r3">
+        <div><label>Valor bruto *</label><input id="fBruto" type="number" min="0" step="1" oninput="BRUTO_A_MANO=true;calcFactura()"></div>
+        <div><label>IVA</label><input id="fIva" type="number" min="0" step="1" value="0"
+          oninput="IVA_A_MANO=true;calcFactura()"><div class="muted" id="fIvaNota" style="font-size:12px"></div></div>
+        <div><label>Retefuente</label><input id="fRf" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+      </div>
+      <div class="row r3">
+        <div><label>ReteICA</label><input id="fRi" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+        <div><label>Rete IVA</label><input id="fRiva" type="number" min="0" step="1" value="0" oninput="calcFactura()"></div>
+        <div><label>Total a pagar *</label><input id="fTotal" type="number" min="0" step="1" oninput="chequeoTotal()"></div>
+      </div>
+      <div class="muted" id="fCuenta" style="font-size:12.5px;margin-bottom:10px"></div>
+      <div class="row r2">
+        <div><label>Radicado</label><input id="fRad" placeholder="opcional"></div>
+        <div><label>Observaciones</label><input id="fObs" placeholder="opcional"></div>
+      </div>
+      <button class="btn pri" id="btnFactura" onclick="guardarFactura()" style="margin-top:8px">Cargar factura</button>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Órdenes esperando factura</h3>
+      <div class="muted" style="margin-bottom:10px">Lo emitido contra lo facturado. Las que ya están completas quedan al final: una orden sobrefacturada tiene que poder verse.</div>
+      <div id="facPendientes"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Facturas cargadas</h3>
+      <div id="facLista" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div id="vCat" class="hide">
+    <div class="card">
+      <h3>Catálogo de artículos</h3>
+      <div class="muted" style="margin-bottom:10px">Lo que la empresa compra seguido, con el último precio que se pagó. El que pide lo usa como sugerencia: <b>propone, no obliga</b>. Si alguien necesita algo que no está acá, lo escribe a mano igual — y eso mismo es la señal de que falta cargarlo.</div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:11px">
+        <div style="flex:2;min-width:220px"><label>Buscar</label>
+          <input id="cBusca" placeholder="guante, thinner, audiometría…" oninput="pintarCatalogo()"></div>
+        <div style="flex:1;min-width:200px"><label>Categoría</label>
+          <select id="cCat" onchange="pintarCatalogo()"></select></div>
+        <div style="min-width:150px"><label>Mostrar</label>
+          <select id="cEstado" onchange="pintarCatalogo()">
+            <option value="act">Solo los activos</option>
+            <option value="todos">Todos</option>
+            <option value="baja">Solo dados de baja</option>
+          </select></div>
+        <button class="btn pri" onclick="nuevoArticulo()">＋ Nuevo artículo</button>
+      </div>
+      <div id="cCuenta" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card hide" id="cardArt" style="margin-top:14px">
+      <h3 id="artTitulo">Nuevo artículo</h3>
+      <input type="hidden" id="artId">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:11px">
+        <div style="flex:2;min-width:260px"><label>Nombre *</label>
+          <input id="artNombre" maxlength="70" oninput="avisoNombreLargo()" placeholder="Corto: es lo que se ve en la lista al pedir">
+          <div class="muted" id="artLargo" style="font-size:12px"></div></div>
+        <div style="flex:1;min-width:180px"><label>Categoría *</label>
+          <select id="artCat"></select></div>
+        <div style="min-width:130px"><label>Unidad</label>
+          <select id="artUnidad"></select></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;margin-bottom:11px">
+        <div style="flex:1;min-width:160px"><label>Precio de referencia</label>
+          <input id="artPrecio" type="number" min="0" step="1"></div>
+        <div style="min-width:160px"><label>Ese precio es de</label>
+          <input id="artFecha" type="date"></div>
+        <div style="flex:1;min-width:200px"><label>Proveedor</label>
+          <select id="artProv"></select></div>
+        <div style="min-width:140px"><label>Estado</label>
+          <select id="artActivo"><option value="1">Activo</option><option value="0">Dado de baja</option></select></div>
+      </div>
+      <div style="margin-top:8px"><label>Ficha técnica</label>
+        <textarea id="artDesc" rows="3" placeholder="Material, calibre, alcance, notas del proveedor. Se ve al elegirlo, no ocupa el nombre."></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn pri" id="btnGuardarArt" onclick="guardarArticulo()">Guardar</button>
+        <button class="btn" onclick="cerrarArticulo()">Cancelar</button>
+      </div>
+      <div class="muted" style="margin-top:10px;font-size:12px">El precio no se le impone a nadie: cuando Compras arma la orden puede escribir otro. Si el real se aleja mucho del de referencia, eso mismo es información.</div>
+    </div>
+
+    <div id="catLista" style="margin-top:14px"></div>
+  </div>
+
+  <div id="vNue" class="hide">
+    <div class="card">
+      <h3>Traer de las requisiciones aprobadas</h3>
+      <div class="muted" style="margin-bottom:10px">Lo que ya tiene el dinero aprobado y todavía no se compró. Elegí las líneas que entran en <b>esta</b> orden: pueden ser de varias requisiciones, y una requisición puede partirse entre dos proveedores.</div>
+      <div id="traerLista"></div>
+    </div>
+
+    <div class="card">
+      <h3>Datos de la orden</h3>
+      <div class="row r3">
+        <div><label>Número de orden *</label><input id="oNum" placeholder="PO-3421"></div>
+        <div><label>Fecha de emisión *</label><input id="oFecha" type="date"></div>
+        <div><label>Proveedor *</label><select id="oProv"></select></div>
+      </div>
+      <div class="row r3">
+        <div><label>Condición de pago *</label><select id="oCond"></select></div>
+        <div><label>Entregar en base</label><select id="oBase"></select></div>
+        <div><label>Destinatario — quién recibe *</label><select id="oDest"></select></div>
+      </div>
+      <div class="row r3">
+        <div><label>Plazo de entrega</label><input id="oPlazo" placeholder="8 días hábiles"></div>
+        <div><label>Teléfono de quien recibe</label><input id="oTelRec" placeholder="311 826 5642"></div>
+        <div><label>Descripción general *</label><input id="oDesc" placeholder="Insumos operativos base Villavicencio"></div>
+      </div>
+      <div class="row"><div><label>Nota para el proveedor</label><input id="oNota" placeholder="Entregar en horario de 7 a 4. Facturar a nombre de Total QC S.A.S."></div></div>
+      <div class="row"><div>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="oAbierta" onchange="abiertaCambio()" style="width:auto;margin:0">
+          <span>Orden abierta — contra esta van llegando varias facturas durante un período</span>
+        </label>
+      </div></div>
+      <div id="oVigencia" class="hide">
+        <div class="row r3">
+          <div><label>Vigente desde</label><input id="oDesde" type="date"></div>
+          <div><label>Vigente hasta</label><input id="oHasta" type="date"></div>
+          <div></div>
+        </div>
+        <div class="nota">Peajes, transportes, IPS, papelería: se emite una orden por el mes y
+          contra ella se van aplicando las facturas que llegan. La cantidad de cada línea es un
+          <b>techo</b>, no un pedido. Y ejecuta presupuesto <b>al facturar</b>, no al recibir —
+          nadie recibe un peaje, y si esperáramos la recepción el mes cerraría mostrando plata
+          disponible que ya se gastó.</div>
+      </div>
+      <div class="nota">Plazo, teléfono y nota salen impresos en la orden que ve el proveedor.
+        Sin dirección de entrega ni teléfono, el transportador no sabe a dónde ir ni a quién llamar.</div>
+    </div>
+
+    <div class="card">
+      <h3>Líneas</h3>
+      <div class="muted" style="margin-bottom:10px">Una línea por centro de costo. El mes es al que corresponde el gasto, no el de la orden.</div>
+      <div id="lineas"></div>
+      <button class="btn" onclick="addLinea()">＋ Agregar línea</button>
+      <div class="tot"><span>Total</span><span id="oTotal">$0</span></div>
+    </div>
+    <button class="btn pri" id="btnGuardar" onclick="guardarOrden()" style="width:100%;padding:13px">Guardar orden</button>
+  </div>
 </div>
 
 <script>
-const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
-const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
-const SB_REF  = "nignqeipzlemwfrwmpip";
-const SESS_KEY = "sb-" + SB_REF + "-auth-token";
-let SB_TOKEN = null, EMAIL = "";
-const $ = function(id){ return document.getElementById(id); };
-function setMsg(id, txt, cls){ var m=$(id); m.textContent=txt||""; m.className="msg "+(cls||""); }
+const SB_URL='https://nignqeipzlemwfrwmpip.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs';
+const SB_REF='nignqeipzlemwfrwmpip';
+const SESS_KEY='sb-'+SB_REF+'-auth-token';
+/* La empresa NO se escribe acá. Sale del perfil de quien entra: un correo, una
+   empresa. Marcelo tiene cuenta en Total QC y en Dinamho, y con cuál entra
+   define qué ve — sin selector, para que nadie cargue una requisición en la
+   empresa equivocada por tener un desplegable mal puesto. */
+let EMPRESA_ID=null;
+let TOKEN=null, MYID=null, MAE={}, nLin=0, nQ=0, ROLES=[], POR_COMPRAR=[], FORMATO={};
 
-async function sbFetch(path, opts){
-  opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
-  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
-  const res=await fetch(SB_URL+path, opts);
-  const txt=await res.text(); let data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
-  if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
-  return data;
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const cop=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CO');
+/* Colombia es UTC-5. toISOString() da UTC y despues de las 19:00 devuelve mañana. */
+function hoyLocal(){const d=new Date(Date.now()-5*3600*1000);return d.toISOString().slice(0,10);}
+function mesActual(){return hoyLocal().slice(0,7)+'-01';}
+
+/* El id del usuario sale del propio token (claim "sub"), no de la sesion guardada.
+   Es el unico lugar donde siempre esta: una sesion restaurada puede no traer el
+   objeto user, y entonces recibido_por queda vacio y la recepcion falla. */
+function idDelToken(){
+  try{
+    const p=TOKEN.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(decodeURIComponent(escape(atob(p+'==='.slice((p.length+3)%4))))).sub||null;
+  }catch(_){ return null; }
+}
+function saveSession(d){try{localStorage.setItem(SESS_KEY,JSON.stringify(d));}catch(_){}}
+function readSession(){try{return JSON.parse(localStorage.getItem(SESS_KEY)||'null');}catch(_){return null;}}
+function clearSession(){try{localStorage.removeItem(SESS_KEY);}catch(_){}}
+async function refrescarToken(rt){if(!rt)return false;try{const r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',
+ {method:'POST',headers:{'Content-Type':'application/json',apikey:SB_ANON},body:JSON.stringify({refresh_token:rt})});
+ const d=await r.json();if(!r.ok||!d.access_token)return false;TOKEN=d.access_token;saveSession(d);return true;}catch(_){return false;}}
+/* Se revisa ANTES de cada consulta, no solo al entrar: los tokens duran una hora
+   y alcanza con dejar la pestaña abierta una mañana para que todo empiece a fallar. */
+async function asegurarToken(){
+  const s=readSession(); if(!s||!s.access_token) return false;
+  const now=Math.floor(Date.now()/1000);
+  if(s.expires_at && s.expires_at < now+120){ if(!await refrescarToken(s.refresh_token)) return false; return !!TOKEN; }
+  TOKEN=s.access_token; return true;
+}
+async function api(path,opt){
+  if(!await asegurarToken()){ clearSession(); location.reload(); throw new Error('sesión vencida'); }
+  const o=opt||{}; o.headers=Object.assign({apikey:SB_ANON,Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},o.headers||{});
+  const r=await fetch(SB_URL+'/rest/v1/'+path,o);
+  const cuerpo = await r.text();
+  if(!r.ok) throw new Error('La base respondió '+r.status+(cuerpo?' — '+cuerpo.slice(0,300):''));
+  /* PostgREST devuelve 201 con el CUERPO VACIO cuando insertas sin pedir el
+     registro de vuelta. Hacerle .json() a eso revienta con "Unexpected end of
+     JSON input" — un error de lectura DESPUES de haber escrito bien, que es de
+     los peores: parece que fallo y en realidad guardo. */
+  if(!cuerpo) return null;
+  try{ return JSON.parse(cuerpo); }catch(_){ return null; }
+}
+const rpc=(fn,body)=>api('rpc/'+fn,{method:'POST',body:JSON.stringify(body||{})});
+/* El mensaje vive arriba de todo. Si el boton que lo disparo esta abajo, la
+   persona aprieta, no ve nada y concluye que el sistema no anda — pasó en la
+   capacitacion: "por ahi muevase, porque los mensajes de error aparecen en el
+   principio". Ahora la pantalla va sola hasta el mensaje. */
+function aviso(t,ok){
+  const m=document.getElementById('msg');
+  m.innerHTML='<div class="'+(ok?'ok':'err')+'">'+esc(t)+'</div>';
+  try{ m.scrollIntoView({behavior:'smooth',block:'center'}); }
+  catch(_){ window.scrollTo(0,0); }
+  if(ok) setTimeout(()=>{ m.innerHTML=''; },4000);
 }
 
-async function enviarCodigo(){
-  EMAIL=($("correo").value||"").trim().toLowerCase();
-  const ced=($("cedula").value||"").trim();
-  if(!EMAIL||!ced){ setMsg("msg1","Completá correo y cédula.","err"); return; }
-  const b=$("btn1"); b.disabled=true; b.textContent="Verificando…"; setMsg("msg1","","");
+async function entrar(){
+  const e=document.getElementById('loginErr'), b=document.getElementById('btnEntrar');
+  e.classList.add('hide'); b.disabled=true; b.textContent='Entrando…';
   try{
-    const ok=await sbFetch("/rest/v1/rpc/padron_puede_ingresar",{method:"POST",body:JSON.stringify({p_correo:EMAIL,p_cedula:ced})});
-    if(ok!==true){
-      setMsg("msg1","No encontramos ese correo y esa cédula juntos en el padrón. Verificá los datos o avisá a tu supervisor.","err");
-      b.disabled=false; b.textContent="Enviarme el código →"; return;
+    const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',
+      headers:{'Content-Type':'application/json',apikey:SB_ANON},
+      body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('pass').value})});
+    const d=await r.json();
+    if(!r.ok||!d.access_token) throw new Error(d.error_description||d.msg||'Correo o contraseña incorrectos');
+    TOKEN=d.access_token; saveSession(d); MYID=idDelToken(); await arrancar();
+  }catch(err){ e.textContent=err.message; e.classList.remove('hide'); }
+  finally{ b.disabled=false; b.textContent='Ingresar'; }
+}
+function salir(){ TOKEN=null; clearSession(); location.reload(); }
+
+async function arrancar(){
+  document.getElementById('vLogin').classList.add('hide');
+  document.getElementById('vApp').classList.remove('hide');
+  try{
+    /* Primero quién sos y de qué empresa. Todo lo demás se pide con ese dato,
+       así que esta llamada va sola y antes que el resto. */
+    const rol=await rpc('co_mis_roles',{});
+    EMPRESA_ID=(rol&&rol[0]&&rol[0].empresa_id)||null;
+    if(!EMPRESA_ID){
+      aviso('Tu usuario no tiene una empresa asignada. Avisale a dirección: sin eso no puedo mostrarte nada, y mostrarte los datos de otra empresa sería peor.');
+      return;
     }
-    await sbFetch("/auth/v1/otp",{method:"POST",body:JSON.stringify({email:EMAIL,create_user:true})});
-    $("paso1").classList.add("hide"); $("paso2").classList.remove("hide");
-    $("sub2").textContent="Te enviamos un código a "+EMAIL+". Escribilo acá (revisá spam si no lo ves).";
-    $("codigo").focus();
-  }catch(e){ setMsg("msg1",(e&&e.message)||"No se pudo enviar el código.","err"); b.disabled=false; b.textContent="Enviarme el código →"; }
+    const [prov,cond,base,cc,usr,yo,cat,art,uni,prox,fmt]=await Promise.all([
+      api('co_proveedor?select=id,nombre,condicion_pago_id&order=nombre&limit=2000'),
+      api('co_condicion_pago?select=id,nombre,dias_pactados,dias_reales&order=nombre'),
+      api('co_base?select=id,nombre&order=nombre'),
+      api('co_centro_costo?select=id,codigo,nombre,es_directo&activo=eq.true&order=codigo'),
+      rpc('co_usuarios',{p_empresa_id:EMPRESA_ID}),
+      rpc('biz_quien_soy',{}),
+      api('co_categoria?select=id,nombre,tipo_costo,nota,centro_sugerido_id,requiere_orden&activo=eq.true&order=nombre'),
+      api('co_articulo?select=id,nombre,descripcion,categoria_id,unidad,precio_ref,precio_ref_al,proveedor_id,activo&order=nombre&limit=3000'),
+      api('co_unidad?select=nombre&activo=eq.true&order=orden'),
+      rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}),
+      rpc('co_formato_ver',{p_empresa_id:EMPRESA_ID})
+    ]);
+    /* Los maestros primero: todo lo de abajo los usa. Armarlos despues de
+       usarlos fue el bug de "Cannot read properties of undefined". */
+    MAE={prov,cond,base,cc,usr,cat,art,uni};
+    FORMATO=(fmt&&fmt[0])||{};
+    /* Sin permisos no hay pestañas: quien no tiene acceso a compras no debería
+       ver ni la de pedir. Antes le dábamos 'solicitante' de regalo. */
+    ROLES=(rol&&rol[0]&&rol[0].roles)||[];
+    if(!ROLES.length){
+      aviso('No tenés accesos al módulo de compras. Pedíselos a dirección — se dan desde Administración, en Usuarios y accesos.');
+      document.getElementById('tabs').classList.add('hide');
+      return;
+    }
+    /* Los roles no son adorno: el que tiene varios necesita decir con cual esta
+       actuando: la cola del que aprueba el pedido y la del que aprueba el dinero
+       son distintas.
+       Va arriba, al lado del nombre, que es donde uno lo busca. */
+    /* El selector no elige un nivel de aprobacion: elige DESDE QUE SILLA se
+       mira el sistema. Marcelo tiene los cinco roles y necesita ver la pantalla
+       de cada uno tal como la va a ver esa persona — es la unica forma de saber
+       si a Julian le falta algo antes de que Julian se de cuenta. */
+    const titulo={pedir:'Pedir — lo que necesito para trabajar',
+                  aprueba_pedido:'Aprobador 1 — aprueba el pedido',
+                  aprueba_dinero:'Aprobador 2 — aprueba el dinero',
+                  ordenes:'Compras — armo las órdenes',
+                  presupuesto:'Dirección — presupuesto'};
+    const mios=['pedir','aprueba_pedido','aprueba_dinero','ordenes','presupuesto']
+                 .filter(r=>ROLES.includes(r));
+    document.getElementById('aprNivel').innerHTML=
+      (mios.length>1?'<option value="todos">Todos mis roles</option>':'')
+      +mios.map(r=>'<option value="'+r+'">'+titulo[r]+'</option>').join('');
+    document.getElementById('cajaActuar').classList.remove('hide');
+    document.getElementById('rolesDe').classList.add('hide');
+    /* Cada uno ve solo lo suyo. Un solicitante no tiene por que ver la pantalla
+       de presupuesto, y mostrarsela vacia es peor que no mostrarla. */
+    aplicarRol();
+    document.getElementById('pMes').value=new Date(Date.now()-5*3600*1000).getMonth()+1;
+    document.getElementById('qCC').innerHTML=opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
+    document.getElementById('qCC').onchange=avisoPresupuesto;
+    document.getElementById('aCC').innerHTML=document.getElementById('qCC').innerHTML;
+    document.getElementById('dlArt').innerHTML=MAE.art
+      .filter(x=>x.activo!==false)
+      .map(x=>'<option value="'+esc(x.nombre)+'">'+(x.descripcion?esc(x.descripcion.slice(0,90)):'')+'</option>').join('');
+    document.getElementById('aMes').value=document.getElementById('pMes').value;
+    if(ROLES.includes('presupuesto')) document.getElementById('cardAsignar').classList.remove('hide');
+    addQLinea();
+    if(prox) document.getElementById('oNum').value=prox;
+    const y=(yo&&yo[0])||null;
+    document.getElementById('quien').textContent=y?y.nombre:'';
+    if(!MYID) MYID=idDelToken();
+    if(!MYID) aviso('No pude identificar tu usuario. Salí y volvé a entrar antes de recibir nada.');
+    document.getElementById('q').addEventListener('input',function(){
+      clearTimeout(tBusca); const v=this.value.trim();
+      if(v.length<2){ if(BANDEJA_ACTIVA) verBandeja(BANDEJA_ACTIVA); return; }
+      tBusca=setTimeout(()=>buscar(v),300);
+    });
+    pintarMaestros(); addLinea(); cargarPendientes(); cargarMisRQ();
+    if(PUEDE.con.some(r=>ROLES.includes(r))) cargarBandejas();
+  }catch(e){ aviso(e.message); }
+}
+/* Un precio que falta no es cero. Se suma lo que se sabe y se dice, aparte,
+   cuantas lineas no tienen precio: asi el que aprueba ve las dos cosas. */
+function suma(lineas){
+  let t=0, sin=0;
+  (lineas||[]).forEach(l=>{ const v=Number(l.valor_estimado);
+    if(l.valor_estimado===null||l.valor_estimado===undefined||isNaN(v)) sin++;
+    else t+=(Number(l.cantidad)||0)*v; });
+  return {total:t, sin:sin};
+}
+function montoTexto(lineas){
+  const x=suma(lineas);
+  return cop(x.total)+(x.sin?'  <span class="pill amber">+'+x.sin+' sin precio</span>':'');
+}
+function opts(arr,val,txt,vacio){
+  return (vacio?'<option value="">'+vacio+'</option>':'')+arr.map(o=>'<option value="'+o[val]+'">'+esc(o[txt])+'</option>').join('');
+}
+function pintarMaestros(){
+  document.getElementById('oProv').innerHTML=opts(MAE.prov,'id','nombre','— elegir —');
+  document.getElementById('oCond').innerHTML=opts(MAE.cond.map(c=>({id:c.id,nombre:c.nombre+(c.dias_reales?'  (real: '+c.dias_reales+' d)':'')})),'id','nombre','— elegir —');
+  document.getElementById('oBase').innerHTML=opts(MAE.base,'id','nombre','— ninguna —');
+  document.getElementById('oDest').innerHTML=opts(MAE.usr,'id','nombre','— elegir —');
+  document.getElementById('oFecha').value=hoyLocal();
+  /* La condición de pago la trae el proveedor: es un dato suyo, no de cada orden. */
+  document.getElementById('oProv').onchange=function(){
+    const p=MAE.prov.find(x=>String(x.id)===this.value);
+    if(p&&p.condicion_pago_id) document.getElementById('oCond').value=p.condicion_pago_id;
+  };
+}
+/* Que ve cada silla. 'ped' y 'rec' los ve cualquiera: todo el mundo puede
+   necesitar algo y todo el mundo puede recibir un paquete. */
+/* El orden importa: la PRIMERA que la silla puede ver es la que se abre al
+   entrar. Quien compra no entra a llenar un formulario, entra a ver que se
+   trabo; quien pide entra a pedir. */
+/* Lo que se pregunta es el PERMISO, igual que en el resto de KALU. Los roles
+   (solicitante, aprobador, comprador, direccion) son plantillas que pre-tildan
+   permisos en Administracion; acá no se miran. */
+const PUEDE={con:['ordenes','aprueba_pedido','aprueba_dinero','presupuesto'],
+             ped:['pedir'], apr:['aprueba_pedido','aprueba_dinero'],
+             pre:['presupuesto'],
+             rec:true, ord:['ordenes'], nue:['ordenes'], cat:['ordenes'], fac:['ordenes'], cot:['ordenes']};
+const NIVEL_DE={aprueba_pedido:'pedido', aprueba_dinero:'dinero'};
+function rolActual(){ const e=document.getElementById('aprNivel'); return e? e.value : 'todos'; }
+function sillas(){ const r=rolActual(); return r==='todos' ? ROLES : [r]; }
+function aplicarRol(){
+  const vistos=sillas();
+  let primera=null;
+  Object.keys(PUEDE).forEach(k=>{
+    const ok = PUEDE[k]===true || PUEDE[k].some(r=>vistos.includes(r));
+    const b=document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1));
+    if(b) b.classList.toggle('hide', !ok);
+    if(ok && !primera) primera=k;
+  });
+  /* Si la pestaña abierta no la ve esta silla, hay que moverse: dejarla
+     mirando una pantalla que su rol no tiene es peor que no cambiar nada. */
+  const abierta=['con','ped','apr','pre','rec','ord','nue','cat','fac','cot'].find(k=>
+    !document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.contains('hide'));
+  const okAbierta = abierta && (PUEDE[abierta]===true || PUEDE[abierta].some(r=>vistos.includes(r)));
+  ver(okAbierta ? abierta : (primera||'ped'));
+}
+function cambioNivel(){ aplicarRol(); }
+function ver(v){
+  ['con','ped','apr','pre','rec','ord','nue','cat','fac','cot'].forEach(k=>{
+    document.getElementById('t'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('on',k===v);
+    document.getElementById('v'+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle('hide',k!==v);
+  });
+  if(v==='rec') cargarPendientes();
+  if(v==='ord') cargarOrdenes();
+  if(v==='ped') cargarMisRQ();
+  if(v==='apr') cargarAprobar();
+  if(v==='pre') cargarPresu();
+  if(v==='nue') cargarPorComprar();
+  if(v==='cat') cargarCatalogo();
+  if(v==='fac') cargarFacturas();
+  if(v==='cot') cargarCotizaciones();
+  if(v==='con') cargarBandejas();
+  /* Consultas usa todo el ancho; el resto sigue angosto, que para formularios
+     leer renglones de 1600px es peor. */
+  document.body.classList.toggle('ancho', v==='con');
 }
 
-async function verificar(){
-  const code=($("codigo").value||"").trim();
-  if(!code){ setMsg("msg2","Escribí el código.","err"); return; }
-  const b=$("btn2"); b.disabled=true; b.textContent="Ingresando…"; setMsg("msg2","","");
+/* ---------- líneas ---------- */
+/* La lista de unidades es la misma que la del catalogo: si cada pantalla arma
+   la suya, en dos semanas hay "Und" en un lado y "Unidad" en el otro. */
+function uniOpts(){
+  return (MAE.uni||[]).map(u=>'<option value="'+esc(u.nombre)+'">'+esc(u.nombre)+'</option>').join('');
+}
+
+function abiertaCambio(){
+  document.getElementById('oVigencia').classList.toggle('hide',
+    !document.getElementById('oAbierta').checked);
+}
+
+function addLinea(){
+  const i=++nLin;
+  const ccOpts=MAE.cc.map(c=>'<option value="'+c.id+'">'+esc(c.codigo+' · '+c.nombre)+(c.es_directo?'':'  (apoyo)')+'</option>').join('');
+  const catOpts=MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  const d=document.createElement('div'); d.className='lin'; d.id='lin'+i;
+  d.innerHTML=
+    '<div class="f1">'
+   +  '<div><label>Categoría *</label><select class="lcat" onchange="catCambio(this)"><option value="">— elegir —</option>'+catOpts+'</select></div>'
+   +  '<div><label>Artículo del catálogo</label><select class="lart" onchange="artCambio(this)"><option value="">— escribir a mano —</option></select></div>'
+   +  '<div><label>Centro de costo *</label><select class="lcc"><option value="">— elegir —</option>'+ccOpts+'</select></div>'
+   +  '<div><button class="x" onclick="document.getElementById(\'lin'+i+'\').remove();calc()">✕</button></div>'
+   +'</div>'
+   +'<div class="f2">'
+   +  '<div><label>Descripción *</label><input class="ldesc" placeholder="2 canecas desengrasante"></div>'
+   +  '<div><label>Cant. *</label><input class="lcant" type="number" step="0.01" value="1" oninput="calc()"></div>'
+   +  '<div><label>Valor unitario *</label><input class="lvu" type="number" step="1" placeholder="0" oninput="calc()"></div>'
+   +  '<div><label>Mes del gasto *</label><input class="lmes" type="month" value="'+mesActual().slice(0,7)+'"></div>'
+   +'</div>'
+   +'<div class="f2">'
+   +  '<div><label>Unidad</label><select class="luni">'+uniOpts()+'</select></div>'
+   +  '<div><label>IVA %</label><select class="liva" onchange="calc()">'
+   +    '<option value="19">19 %</option><option value="5">5 %</option>'
+   +    '<option value="0">0 % — no responsable / excluido</option></select></div>'
+   +  '<div></div><div></div>'
+   +'</div>'
+   +'<div class="nota"></div>';
+  document.getElementById('lineas').appendChild(d); calc();
+}
+/* La categoria manda: propone el centro segun el instructivo y muestra su nota.
+   Se PROPONE, no se impone — las notas del instructivo estan llenas de
+   excepciones ("la reposicion va al centro productivo donde labora el personal")
+   y quien carga tiene que poder decidir. Pero que las vea. */
+function catCambio(sel){
+  const lin=sel.closest('.lin');
+  const c=MAE.cat.find(x=>String(x.id)===sel.value);
+  const nota=lin.querySelector('.nota');
+  const art=lin.querySelector('.lart');
+  const cc=lin.querySelector('.lcc');
+  art.innerHTML='<option value="">— escribir a mano —</option>'
+    + MAE.art.filter(a=>String(a.categoria_id)===sel.value && a.activo!==false)
+             .map(a=>'<option value="'+a.id+'">'+esc(a.nombre)+'</option>').join('');
+  if(!c){ nota.textContent=''; return; }
+  if(c.centro_sugerido_id && !cc.value) cc.value=c.centro_sugerido_id;
+  let t='Según el instructivo es costo '+c.tipo_costo+'.';
+  if(c.tipo_costo==='activo fijo') t+=' NO lleva centro de costo: se distribuye por depreciación.';
+  if(c.nota) t+=' '+c.nota;
+  nota.textContent=t;
+}
+function artCambio(sel){
+  const a=MAE.art.find(x=>String(x.id)===sel.value); if(!a) return;
+  const lin=sel.closest('.lin');
+  if(!lin.querySelector('.ldesc').value) lin.querySelector('.ldesc').value=a.nombre;
+  if(a.precio_ref && !Number(lin.querySelector('.lvu').value)) lin.querySelector('.lvu').value=a.precio_ref;
+  /* La unidad la manda el catalogo: es el dato que evita que la misma bota se
+     pida por par en una orden y por unidad en la siguiente. */
+  const u=lin.querySelector('.luni');
+  if(u && a.unidad && [...u.options].some(o=>o.value===a.unidad)) u.value=a.unidad;
+  calc();
+}
+function calc(){
+  let sub=0, iva=0;
+  /* Acotado a #lineas: la requisicion usa la misma clase .lin y no tiene
+     campo de precio. Sin el acote, esto recorria las dos y explotaba. */
+  document.querySelectorAll('#lineas .lin').forEach(l=>{
+    const n=(Number(l.querySelector('.lcant').value)||0)*(Number(l.querySelector('.lvu').value)||0);
+    const p=Number((l.querySelector('.liva')||{}).value||0);
+    sub+=n; iva+=n*p/100;
+  });
+  document.getElementById('oTotal').innerHTML=
+    '<span style="font-weight:400;font-size:13px" class="muted">'
+    +cop(sub)+' + IVA '+cop(Math.round(iva))+' = </span>'+cop(Math.round(sub+iva));
+}
+async function guardarOrden(){
+  const b=document.getElementById('btnGuardar');
+  const g=id=>document.getElementById(id).value;
+  const lins=[...document.querySelectorAll('#lineas .lin')].map((l,i)=>({
+    numero_linea:i+1,
+    requisicion_linea_id: l.dataset.rql? Number(l.dataset.rql) : null,
+    centro_costo_id:l.querySelector('.lcc').value,
+    categoria_id:l.querySelector('.lcat').value,
+    articulo_id:l.querySelector('.lart').value||null,
+    descripcion:l.querySelector('.ldesc').value.trim(),
+    cantidad:Number(l.querySelector('.lcant').value)||0,
+    valor_unitario:Number(l.querySelector('.lvu').value)||0,
+    mes_imputacion:l.querySelector('.lmes').value+'-01',
+    unidad:(l.querySelector('.luni')||{}).value||null,
+    iva_pct:Number((l.querySelector('.liva')||{}).value||19)
+  }));
+  const falta=[];
+  if(!g('oNum').trim()) falta.push('número de orden');
+  if(!g('oProv')) falta.push('proveedor');
+  if(!g('oCond')) falta.push('condición de pago');
+  if(!g('oDest')) falta.push('destinatario');
+  if(!g('oDesc').trim()) falta.push('descripción');
+  if(!lins.length) falta.push('al menos una línea');
+  lins.forEach((l,i)=>{ if(!l.categoria_id||!l.centro_costo_id||!l.descripcion||l.cantidad<=0||l.valor_unitario<0) falta.push('línea '+(i+1)+' incompleta'); });
+  if(falta.length){ aviso('Falta: '+falta.join(', ')); window.scrollTo(0,0); return; }
+  b.disabled=true; b.textContent='Guardando…';
   try{
-    const sess=await sbFetch("/auth/v1/verify",{method:"POST",body:JSON.stringify({type:"email",email:EMAIL,token:code})});
-    if(!sess||!sess.access_token) throw new Error("Código inválido o vencido.");
-    try{ localStorage.setItem(SESS_KEY, JSON.stringify(sess)); }catch(_){}
-    SB_TOKEN=sess.access_token;
-    try{ await sbFetch("/rest/v1/rpc/activar_mi_cuenta",{method:"POST",body:"{}"}); }catch(_){}
-    setMsg("msg2","¡Listo! Entrando…","ok");
-    setTimeout(function(){ location.href="ingreso.html"; }, 500);
-  }catch(e){ setMsg("msg2",(e&&e.message)||"Código inválido o vencido.","err"); b.disabled=false; b.textContent="Ingresar →"; }
+    const o=await api('co_orden',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({
+      empresa_id:EMPRESA_ID, numero:g('oNum').trim(), fecha_emision:g('oFecha'),
+      proveedor_id:Number(g('oProv')), condicion_pago_id:Number(g('oCond')),
+      descripcion:g('oDesc').trim(), destinatario_id:g('oDest'),
+      entregar_en_base_id:g('oBase')?Number(g('oBase')):null,
+      plazo_entrega:g('oPlazo').trim()||null,
+      recibe_telefono:g('oTelRec').trim()||null,
+      nota:g('oNota').trim()||null,
+      es_abierta:document.getElementById('oAbierta').checked,
+      vigente_desde:g('oDesde')||null,
+      vigente_hasta:g('oHasta')||null
+    })});
+    const oid=o[0].id;
+    await api('co_orden_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
+      orden_id:oid, numero_linea:l.numero_linea, centro_costo_id:Number(l.centro_costo_id),
+      categoria_id: l.categoria_id? Number(l.categoria_id) : null,
+      articulo_id: l.articulo_id? Number(l.articulo_id) : null,
+      requisicion_linea_id: l.requisicion_linea_id,
+      descripcion:l.descripcion, cantidad:l.cantidad, valor_unitario:l.valor_unitario,
+      valor_neto:+(l.cantidad*l.valor_unitario).toFixed(2), mes_imputacion:l.mes_imputacion,
+      unidad:l.unidad, iva_pct:l.iva_pct
+    })))});
+    aviso('Orden '+g('oNum')+' guardada con '+lins.length+' línea'+(lins.length>1?'s':'')+'.',true);
+    document.getElementById('lineas').innerHTML='';
+    ['oDesc','oPlazo','oTelRec','oNota'].forEach(i=>document.getElementById(i).value='');
+    addLinea();
+    try{ const px=await rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}); if(px) document.getElementById('oNum').value=px; }catch(_){}
+    cargarPorComprar();
+    ver('ord');
+  }catch(e){
+    let m=e.message;
+    if(/duplicate key|co_orden_empresa_id_numero_key|23505/i.test(m))
+      m='Ya existe una orden con el número '+g('oNum')+'. Poné otro, o borrá la anterior si fue una prueba.';
+    aviso(m);
+  }
+  finally{ b.disabled=false; b.textContent='Guardar orden'; }
 }
 
-async function reenviar(){
-  if(!EMAIL) return;
-  try{ await sbFetch("/auth/v1/otp",{method:"POST",body:JSON.stringify({email:EMAIL,create_user:true})}); setMsg("msg2","Código reenviado. Revisá tu correo (y spam).","ok"); }
-  catch(e){ setMsg("msg2",(e&&e.message)||"No se pudo reenviar.","err"); }
+/* ---------- requisición ---------- */
+/* El que pide dice QUE necesita y CUANTO. Escribe libre y el catalogo le
+   sugiere: si escribe "tinta" le ofrece "Tinta penetrante rojo 400 ml" y al
+   elegirla viene el precio y la categoria solas. Si lo que hace falta no esta
+   en la lista, lo escribe igual y sigue. El catalogo ayuda, no encierra. */
+function addQLinea(){
+  const i=++nQ;
+  const catOpts=MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  const d=document.createElement('div'); d.className='lin'; d.id='q'+i;
+  d.innerHTML='<div class="f2">'
+   +'<div><label>Qué necesito *</label><input class="qart" list="dlArt" autocomplete="off"'
+   +' placeholder="Escribí y elegí de la lista si aparece" oninput="qElegir(this)"></div>'
+   +'<div><label>Cant. *</label><input class="qcant" type="number" step="0.01" value="1" oninput="qCalc()"></div>'
+   +'<div><label>Unidad</label><input class="qund" disabled placeholder="—"></div>'
+   +'<div><label>Categoría</label><select class="qcat"><option value="">— si sabés —</option>'+catOpts+'</select></div>'
+   +'</div>'
+   +'<div class="nota qnota"></div>'
+   +'<div style="text-align:right;margin-top:6px"><button class="x" onclick="document.getElementById(\'q'+i+'\').remove();qCalc()">✕ quitar</button></div>';
+  document.getElementById('qLineas').appendChild(d); qCalc();
 }
-</script>
-</body>
-</html>
+/* Busca el articulo por nombre exacto: es lo que devuelve el datalist cuando
+   la persona elige una sugerencia. Si escribio otra cosa, no hay articulo y
+   punto: no adivinamos por parecido, que seria pedirle el precio equivocado. */
+function articuloDe(txt){
+  const t=(txt||'').trim().toLowerCase();
+  if(!t) return null;
+  return MAE.art.find(a=>(a.nombre||'').trim().toLowerCase()===t)||null;
+}
+function qElegir(inp){
+  const lin=inp.closest('.lin'), a=articuloDe(inp.value);
+  lin.querySelector('.qund').value = a? (a.unidad||'—') : '—';
+  if(a && a.categoria_id) lin.querySelector('.qcat').value=a.categoria_id;
+  qCalc();
+}
+function qCalc(){
+  let t=0, sin=0;
+  document.querySelectorAll('#qLineas .lin').forEach(l=>{
+    const inp=l.querySelector('.qart'), n=l.querySelector('.qnota');
+    const a=articuloDe(inp.value);
+    if(!inp.value.trim()){ n.textContent=''; return; }
+    if(a && Number(a.precio_ref)>0){
+      t+=(Number(l.querySelector('.qcant').value)||0)*Number(a.precio_ref);
+      n.textContent='Referencia del catálogo: '+cop(a.precio_ref)+' c/u'
+        +(a.precio_ref_al?' (al '+a.precio_ref_al+')':'');
+    }else{
+      sin++;
+      n.textContent = a ? 'Está en el catálogo pero todavía no tiene precio de referencia.'
+                        : 'No está en el catálogo. Va a la aprobación con el monto en blanco.';
+    }
+  });
+  document.getElementById('qTotal').textContent = cop(t)+(sin?'  + '+sin+' sin precio':'');
+  avisoPresupuesto();
+}
+/* El aviso de cuanta plata queda en ese centro, debajo del total. Que lo vea
+   ANTES de mandar: enterarse en la aprobacion de que no habia plata es tarde
+   para todos. */
+async function avisoPresupuesto(){
+  const cc=document.getElementById('qCC').value, n=document.getElementById('qPresu');
+  if(!cc){ n.textContent=''; return; }
+  try{
+    const hoy=new Date(Date.now()-5*3600*1000);
+    const e=await rpc('co_presupuesto_estado',{p_empresa_id:EMPRESA_ID,p_anio:hoy.getFullYear(),
+      p_mes:hoy.getMonth()+1,p_centro_costo_id:Number(cc)});
+    if(!e||!e.length){ n.textContent='Ese centro no tiene presupuesto asignado para este mes.'; return; }
+    const x=e[0];
+    n.textContent='Presupuesto del mes: '+cop(x.disponible_total)+' · queda '+cop(x.disponible)
+      +' ('+(x.usado_pct||0)+'% usado)';
+  }catch(_){ n.textContent=''; }
+}
+async function guardarRQ(){
+  const b=document.getElementById('btnQ');
+  const lins=[...document.querySelectorAll('#qLineas .lin')].map((l,i)=>{
+    const txt=l.querySelector('.qart').value.trim();
+    const a=articuloDe(txt);
+    return { numero_linea:i+1,
+      categoria_id: l.querySelector('.qcat').value || (a? a.categoria_id : null),
+      articulo_id: a? Number(a.id) : null,
+      descripcion: a? a.nombre : txt,
+      cantidad:Number(l.querySelector('.qcant').value)||0 };
+  });
+  const cc=document.getElementById('qCC').value, just=document.getElementById('qJust').value.trim();
+  const falta=[];
+  if(!cc) falta.push('centro de costo'); if(!just) falta.push('justificación');
+  if(!lins.length) falta.push('al menos un ítem');
+  lins.forEach((l,i)=>{ if(!l.descripcion||l.cantidad<=0) falta.push('ítem '+(i+1)+': falta qué necesitás o la cantidad'); });
+  if(falta.length){ aviso('Falta: '+falta.join(', ')); return; }
+  b.disabled=true; b.textContent='Enviando…';
+  try{
+    const hoy=hoyLocal();
+    const q=await api('co_requisicion',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({
+      empresa_id:EMPRESA_ID, numero:'RQ-'+Date.now().toString().slice(-8), fecha:hoy,
+      solicitante_id:MYID, centro_costo_id:Number(cc), justificacion:just,
+      necesita_para:document.getElementById('qPara').value||null })});
+    await api('co_requisicion_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
+      requisicion_id:q[0].id, numero_linea:l.numero_linea, centro_costo_id:Number(cc),
+      categoria_id: l.categoria_id? Number(l.categoria_id) : null, articulo_id:l.articulo_id,
+      descripcion:l.descripcion, cantidad:l.cantidad,
+      mes_imputacion:mesActual() })))});
+    aviso('Requisición '+q[0].numero+' enviada.',true);
+    document.getElementById('qLineas').innerHTML=''; document.getElementById('qJust').value=''; addQLinea(); cargarMisRQ();
+  }catch(e){ aviso(e.message); } finally{ b.disabled=false; b.textContent='Enviar requisición'; }
+}
+/* ---------- Consultas: lo que ve quien compra al entrar ---------- */
+/* El color no es adorno. Rojo es lo que YA salio mal: nos cobraron algo que
+   nadie recibio, o se pago mas de lo estimado. Ambar es lo que se esta poniendo
+   feo. Apagado es cero, que tambien es una respuesta. */
+const GRAVE={fact_sin_recib:1, precio:1};
+const OJO={vieja:1, parcial:1, recib_sin_fact:1, sin_enviar:1};
+let BANDEJAS=[], BANDEJA_ACTIVA=null, tBusca=null;
+
+async function cargarBandejas(){
+  const c=document.getElementById('bandejas');
+  try{
+    BANDEJAS=await rpc('co_bandejas',{p_empresa_id:EMPRESA_ID})||[];
+    /* El contador de la pestaña muestra lo que hay que perseguir HOY, no la
+       suma de todo: un numero que siempre es grande deja de mirarse. */
+    const urg=BANDEJAS.filter(b=>GRAVE[b.clave]||b.clave==='vieja')
+                      .reduce((a,b)=>a+Number(b.cuantos||0),0);
+    document.getElementById('nCon').textContent=urg;
+    c.innerHTML=BANDEJAS.map(b=>{
+      const n=Number(b.cuantos)||0;
+      const cls=n===0?'vacia':(GRAVE[b.clave]?'alerta':(OJO[b.clave]?'ojo':''));
+      return '<button class="bandeja '+cls+(BANDEJA_ACTIVA===b.clave?' on':'')
+        +'" onclick="verBandeja(\''+b.clave+'\')">'
+        +'<div class="n">'+n+'</div><div class="t">'+esc(b.titulo)+'</div>'
+        +'<div class="e">'+esc(b.explica)+'</div>'
+        +(Number(b.monto)?'<div class="m">'+cop(b.monto)+'</div>':'')+'</button>';
+    }).join('');
+    if(BANDEJA_ACTIVA) verBandeja(BANDEJA_ACTIVA);
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+async function verBandeja(clave){
+  BANDEJA_ACTIVA=clave;
+  document.querySelectorAll('.bandeja').forEach((el,i)=>
+    el.classList.toggle('on', !!(BANDEJAS[i] && BANDEJAS[i].clave===clave)));
+  const b=BANDEJAS.find(x=>x.clave===clave)||{};
+  document.getElementById('conTit').textContent=b.titulo||'';
+  document.getElementById('conSub').textContent=b.explica||'';
+  /* De la bandeja al trabajo en un clic: mirar sin poder hacer nada es lo que
+     tiene hoy en el Excel. */
+  document.getElementById('conAcc').innerHTML =
+      clave==='sin_po'     ? '<button class="btn pri" onclick="ver(\'nue\')">Armar la orden →</button>'
+    : clave==='sin_enviar' ? '<button class="btn pri" onclick="ver(\'ord\')">Ir a órdenes →</button>'
+    : (clave==='por_recibir'||clave==='vieja'||clave==='parcial')
+                           ? '<button class="btn pri" onclick="ver(\'rec\')">Registrar recepción →</button>'
+    : (clave==='rq_ped'||clave==='rq_din')
+                           ? '<button class="btn pri" onclick="ver(\'apr\')">Ir a aprobar →</button>'
+    : '';
+  const c=document.getElementById('conCuerpo');
+  c.innerHTML='<div class="muted" style="padding:24px 15px;text-align:center">Cargando…</div>';
+  try{
+    const d=await rpc('co_bandeja_detalle',{p_empresa_id:EMPRESA_ID,p_clave:clave})||[];
+    if(!d.length){ c.innerHTML='<div class="muted" style="padding:30px 15px;text-align:center">'
+      +'Nada acá. Que no haya nada también es información.</div>'; return; }
+    c.innerHTML='<div style="overflow-x:auto"><table><thead><tr>'
+      +'<th>Referencia</th><th>Fecha</th><th class="num">Días</th><th>Proveedor</th><th>Centro</th>'
+      +'<th>Detalle</th><th class="num">Cant.</th><th class="num">Monto</th><th>Quién</th>'
+      +'</tr></thead><tbody>'
+      +d.map(r=>'<tr><td><b>'+esc(r.ref)+'</b></td>'
+        +'<td class="muted">'+esc(r.fecha||'—')+'</td>'
+        +'<td class="num">'+dias(r.dias)+'</td>'
+        +'<td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.centro||'—')+'</td>'
+        +'<td>'+esc(r.detalle||'')+'</td>'
+        +'<td class="num">'+(r.cantidad==null?'—':Number(r.cantidad))+'</td>'
+        +'<td class="num">'+(r.monto==null?'—':cop(r.monto))+'</td>'
+        +'<td class="muted">'+esc(r.quien||'—')+'</td></tr>').join('')
+      +'</tbody></table></div>';
+  }catch(e){ c.innerHTML='<div class="err" style="margin:14px">'+esc(e.message)+'</div>'; }
+}
+/* Los dias deciden a quien se llama primero. A los 30 una orden sin recibir
+   dejo de ser normal; a los 60 hay que llamar al proveedor, no esperar. */
+function dias(d){
+  if(d==null) return '—';
+  const n=Number(d);
+  return '<span class="pill '+(n>60?'rojo':(n>30?'amber':''))+'">'+n+'</span>';
+}
+
+async function buscar(txt){
+  BANDEJA_ACTIVA=null;
+  document.querySelectorAll('.bandeja').forEach(el=>el.classList.remove('on'));
+  document.getElementById('conTit').textContent='Resultados de “'+txt+'”';
+  document.getElementById('conSub').textContent='requisiciones, órdenes y facturas';
+  document.getElementById('conAcc').innerHTML='';
+  const c=document.getElementById('conCuerpo');
+  c.innerHTML='<div class="muted" style="padding:24px 15px;text-align:center">Buscando…</div>';
+  try{
+    const d=await rpc('co_buscar',{p_empresa_id:EMPRESA_ID,p_texto:txt})||[];
+    if(!d.length){ c.innerHTML='<div class="muted" style="padding:30px 15px;text-align:center">'
+      +'No encontré nada con “'+esc(txt)+'”.</div>'; return; }
+    c.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Qué es</th><th>Referencia</th>'
+      +'<th>Fecha</th><th>Estado</th><th>Proveedor</th><th>Centro</th><th>Detalle</th>'
+      +'<th class="num">Monto</th></tr></thead><tbody>'
+      +d.map(r=>'<tr><td><span class="pill">'+esc(r.tipo)+'</span></td>'
+        +'<td><b>'+esc(r.ref)+'</b></td><td class="muted">'+esc(r.fecha||'—')+'</td>'
+        +'<td><span class="pill '+(/vencida|espera/.test(String(r.estado||'').toLowerCase())?'amber':'')
+          +'">'+esc(r.estado||'—')+'</span></td>'
+        +'<td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.centro||'—')+'</td>'
+        +'<td>'+esc(r.detalle||'')+'</td>'
+        +'<td class="num">'+(r.monto==null?'—':cop(r.monto))+'</td></tr>').join('')
+      +'</tbody></table></div>';
+  }catch(e){ c.innerHTML='<div class="err" style="margin:14px">'+esc(e.message)+'</div>'; }
+}
+
+async function cargarMisRQ(){
+  const c=document.getElementById('qMias');
+  try{
+    const q=await api('co_requisicion?select=id,numero,fecha,estado,justificacion,co_requisicion_linea(cantidad,valor_estimado)&order=fecha.desc&limit=40');
+    c.innerHTML=q.length?('<div class="card"><table><thead><tr><th>N°</th><th>Fecha</th><th>Justificación</th><th>Estado</th><th class="num">Estimado</th></tr></thead><tbody>'
+      +q.map(r=>{const t=montoTexto(r.co_requisicion_linea);
+        return '<tr><td><b>'+esc(r.numero)+'</b></td><td data-t="fecha">'+esc(r.fecha)+'</td>'
+        +'<td data-t="justificación">'+esc(r.justificacion||'')+'</td>'
+        +'<td data-t="estado"><span class="pill">'+esc(r.estado)+'</span></td>'
+        +'<td class="num" data-t="estimado">'+t+'</td></tr>';}).join('')
+      +'</tbody></table></div>'):'<div class="card muted">Todavía no pediste nada.</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+/* ---------- aprobar ---------- */
+async function cargarAprobar(){
+  const c=document.getElementById('aprLista');
+  /* La bandeja ya no se filtra acá: la arma la base con co_por_aprobar, que
+     sabe qué centros de costo le tocan a cada uno. Filtrar en el navegador
+     habría significado traerle a Deiber las requisiciones de HSE para después
+     esconderlas — y traérselas ya es mostrárselas a quien sepa mirar. */
+  const niveles=['aprueba_pedido','aprueba_dinero']
+                  .filter(r=>sillas().includes(r)).map(r=>NIVEL_DE[r]);
+  if(!niveles.length){ c.innerHTML=''; document.getElementById('aprKpi').innerHTML=''; return; }
+  const rotulo={pedido:'el pedido', dinero:'el dinero'};
+  try{
+    let html='', total=0;
+    for(const nivel of niveles){
+      const pend=await rpc('co_por_aprobar',{p_empresa_id:EMPRESA_ID,p_nivel:nivel})||[];
+      total+=pend.length;
+      /* El que firma la plata tiene que saber si el monto sale de una
+         cotizacion real o del catalogo. No es lo mismo y hasta ahora no podia
+         distinguirlo. */
+      if(nivel==='dinero'){
+        for(const r of pend){
+          try{ const c=await rpc('co_cotizacion_de_rq',{p_requisicion_id:r.requisicion_id});
+               r._cot = Array.isArray(c)?c[0]:c; }catch(_){ r._cot=null; }
+        }
+      }
+      /* Y las lineas, en los DOS niveles: hasta ahora la tarjeta mostraba el
+         monto y la justificacion pero no QUE se pedia. Firmar sin ver que se
+         pide no es aprobar. */
+      for(const r of pend){
+        try{ r._lin = await rpc('co_requisicion_lineas',{p_requisicion_id:r.requisicion_id}) || []; }
+        catch(_){ r._lin = null; }
+      }
+      if(niveles.length>1)
+        html+='<h3 style="margin:18px 0 8px">Esperando que apruebes '+esc(rotulo[nivel])
+             +' <span class="pill">'+pend.length+'</span></h3>';
+      html += pend.length ? pend.map(r=>tarjetaRQ(r,nivel)).join('')
+        : '<div class="card muted">Nada esperando que apruebes '+esc(rotulo[nivel])+'.'
+          +(nivel==='pedido'&&niveles.length===1
+            ? ' Lo que ya aprobaste espera la aprobación del dinero.' : '')+'</div>';
+    }
+    document.getElementById('nApr').textContent=total;
+    c.innerHTML=html;
+    document.getElementById('aprKpiTit').textContent='Lo que aprobaste';
+    kpiAprobado();
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+/* Lo que ve el Aprobador 2 antes de liberar la plata: si el numero que esta
+   mirando es una cotizacion firme de un proveedor o una referencia del
+   catalogo. Un catalogo puede estar 2,5 veces lejos del precio real. */
+/* Lo que se está pidiendo, renglón por renglón. Marca cuáles se escribieron a
+   mano: esas son las que hay que mirar con más cuidado, porque nadie sabe
+   todavía cuánto cuestan. */
+function lineasRQ(r){
+  const L = r._lin;
+  if(L === null) return '<div class="nota" style="margin-top:8px">No pude traer el detalle de esta requisición.</div>';
+  if(!L || !L.length) return '';
+  return '<div style="margin-top:9px;border:1px solid var(--line);border-radius:9px;overflow:hidden">'
+    + '<table style="font-size:13px"><thead><tr>'
+      + '<th>Qué se pide</th><th class="num">Cant.</th><th>Unidad</th><th class="num">Estimado</th>'
+    + '</tr></thead><tbody>'
+    + L.map(l => '<tr>'
+        + '<td><b>' + esc(l.articulo || l.descripcion || '—') + '</b>'
+          + (l.articulo && l.descripcion && l.descripcion !== l.articulo
+              ? '<div class="muted" style="font-size:12px">' + esc(l.descripcion) + '</div>' : '')
+          + (l.en_catalogo ? '' : ' <span class="pill amber">escrito a mano</span>')
+          + (l.unico_motivo ? '<div class="nota">proveedor único: ' + esc(l.unico_motivo)
+              + (l.unico_por ? ' — ' + esc(l.unico_por) : '') + '</div>' : '')
+          + '<div class="muted" style="font-size:12px">' + esc(l.centro || '')
+          + (l.categoria ? ' · ' + esc(l.categoria) : '') + '</div>'
+        + '</td>'
+        + '<td class="num">' + esc(l.cantidad) + '</td>'
+        + '<td>' + esc(l.unidad || '—') + '</td>'
+        + '<td class="num">' + (l.subtotal != null ? cop(l.subtotal)
+            : '<span class="muted">sin precio</span>') + '</td>'
+      + '</tr>').join('')
+    + '</tbody></table></div>';
+}
+
+function avisoCotizacion(r){
+  const c = r._cot;
+  if(!c) return '';
+  if(c.hay && c.valor!=null){
+    return '<div style="margin-top:7px"><span class="pill ok">cotizado</span> '
+      + esc(c.cotizacion_numero) + ' · <b>' + cop(c.valor) + '</b> · ' + esc(c.proveedor||'')
+      + (c.dias_entrega!=null? ' · entrega en '+esc(c.dias_entrega)+' días':'')
+      + ' · ' + c.ofertas + ' oferta(s)'
+      + (c.mas_barata===false
+          ? '<div class="nota">No es la más barata: ' + esc(c.motivo_eleccion||'sin motivo') + '</div>'
+          : '')
+      + '</div>';
+  }
+  if(c.necesitaba){
+    return '<div style="margin-top:7px"><span class="pill amber">sin cotizar</span> '
+      + '<span class="muted">el monto es del catálogo, no de un proveedor</span>'
+      + '<div class="nota">' + esc(c.motivo_regla||'') + '</div></div>';
+  }
+  return '<div style="margin-top:7px" class="muted">Monto del catálogo · no hacía falta cotizar</div>';
+}
+
+function tarjetaRQ(r,nivel){
+  const monto=Number(r.monto)||0, sin=Number(r.lineas_sin_precio)||0;
+  const t=cop(monto)+(sin?'  <span class="pill amber">+'+sin+' sin precio</span>':'');
+  return '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:240px"><div style="font-weight:700">'+esc(r.numero)+' · '+t+'</div>'
+    +'<div class="muted" style="margin-top:3px"><b>'+esc(r.centro||'')+'</b> · '+esc(r.centro_nombre||'')
+      +' · pidió '+esc(nom(r.solicitante_nombre))+' el '+esc(r.fecha||'')
+      +(r.por_asignacion?'':'  <span class="pill amber">ese centro no tiene aprobador asignado</span>')
+      +'</div>'
+    +(r.pedido_nombre
+      ? '<div class="muted" style="margin-top:4px"><span class="pill ok">pedido aprobado</span> por '
+        +esc(nom(r.pedido_nombre))
+        +(r.pedido_en?' · '+esc(String(r.pedido_en).slice(0,10)):'')+'</div>'
+      : '')
+    +'<div style="margin-top:7px">'+esc(r.justificacion||'')+'</div>'
+    +lineasRQ(r)
+    +avisoCotizacion(r)
+    +(r.necesita_para?'<div style="margin-top:6px"><span class="pill amber">lo necesita para '
+      +esc(r.necesita_para)+'</span></div>':'')+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:7px;min-width:170px">'
+    +'<button class="btn ok" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'aprobada\')">Aprobar '
+      +(nivel==='pedido'?'el pedido':'el dinero')+'</button>'
+    +'<button class="btn" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'devuelta\')">Devolver</button>'
+    +'<button class="btn" onclick="decidir('+r.requisicion_id+',\''+nivel+'\',\'rechazada\')">Rechazar</button></div>'
+    +'</div></div>';
+}
+/* Lo que firmó ESTA persona, mes a mes. Sale de co_aprobacion y no de las
+   requisiciones: lo que importa es lo que uno firmó, no lo que pasó cerca. */
+async function kpiAprobado(){
+  const c=document.getElementById('aprKpi');
+  try{
+    const a=await api('co_aprobacion?select=nivel,decision,en,monto_al_momento&por=eq.'
+      +MYID+'&decision=eq.aprobada&order=en&limit=500');
+    const porMes={};
+    (a||[]).forEach(x=>{ const m=String(x.en||'').slice(0,7); if(!m) return;
+      porMes[m]=(porMes[m]||0)+Number(x.monto_al_momento||0); });
+    const ms=Object.keys(porMes).sort();
+    c.innerHTML=ms.length
+      ? '<div class="card"><table><thead><tr><th>Mes</th><th class="num">Aprobado por vos</th>'
+        +'<th class="num">vs mes anterior</th></tr></thead><tbody>'
+        +ms.map((m,i)=>{const p=i?porMes[ms[i-1]]:null;
+          const d=p?Math.round((porMes[m]-p)/p*100):null;
+          return '<tr><td>'+m+'</td><td class="num">'+cop(porMes[m])+'</td><td class="num">'
+            +(d===null?'—':'<span class="pill '+(d>20?'rojo':(d>0?'amber':''))+'">'
+              +(d>0?'+':'')+d+'%</span>')+'</td></tr>';}).join('')
+        +'</tbody></table></div>'
+      : '<div class="card muted">Todavía no aprobaste nada.</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+async function decidir(id,nivel,decision){
+  let motivo=null;
+  if(decision!=='aprobada'){ motivo=prompt('¿Por qué la '+(decision==='devuelta'?'devolvés':'rechazás')+'?'); if(!motivo) return; }
+  try{
+    const r=await rpc('co_aprobar',{p_requisicion_id:id,p_nivel:nivel,p_decision:decision,p_motivo:motivo});
+    const res=(r&&r[0])||{};
+    aviso(res.mensaje||'Listo.', res.ok!==false);
+    cargarAprobar();
+  }catch(e){ aviso(e.message); }
+}
+
+/* ---------- presupuesto ---------- */
+async function cargarPresu(){
+  const c=document.getElementById('preLista');
+  try{
+    const e=await rpc('co_presupuesto_estado',{p_empresa_id:EMPRESA_ID,
+      p_anio:Number(document.getElementById('pAnio').value),
+      p_mes:Number(document.getElementById('pMes').value), p_centro_costo_id:null});
+    c.innerHTML=e.length?('<div class="card"><table><thead><tr><th>Centro</th><th class="num">Asignado</th>'
+      +'<th class="num">Ampliado</th><th class="num">Comprometido</th><th class="num">Ejecutado</th>'
+      +'<th class="num">Disponible</th><th class="num">Usado</th><th></th></tr></thead><tbody>'
+      +e.map(r=>{const u=Number(r.usado_pct||0);
+        return '<tr><td><b>'+esc(r.centro)+'</b><div class="muted">'+esc(r.centro_nombre)+'</div></td>'
+        +'<td class="num">'+cop(r.asignado)+'</td><td class="num">'+(Number(r.ampliado)?cop(r.ampliado):'—')+'</td>'
+        +'<td class="num">'+cop(r.comprometido)+'</td><td class="num">'+cop(r.ejecutado)+'</td>'
+        +'<td class="num"><b>'+cop(r.disponible)+'</b></td>'
+        +'<td class="num"><span class="pill '+(u>=100?'rojo':(u>=80?'amber':''))+'">'+u+'%</span></td>'
+        +'<td>'+(ROLES.includes('direccion')
+            ? '<button class="btn" onclick="ampliarPresu('+r.centro_costo_id+',\''+esc(r.centro).replace(/'/g,"")+'\')">Ampliar</button>'
+            : '')+'</td></tr>';}).join('')
+      +'</tbody></table></div>'):'<div class="card muted">No hay presupuesto cargado para ese mes.</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+/* ---------- pendientes de recibir ---------- */
+/* Asignar y ampliar. El permiso lo revisa la base (co_tiene_rol): esconder el
+   boton es comodidad de pantalla, no seguridad. */
+async function asignarPresu(){
+  const cc=document.getElementById('aCC').value;
+  const mes=Number(document.getElementById('aMes').value);
+  const monto=Number(document.getElementById('aMonto').value);
+  if(!cc) return aviso('Elegí el centro de costo.');
+  if(!(mes>=1&&mes<=12)) return aviso('El mes va de 1 a 12.');
+  if(!(monto>=0)) return aviso('Poné el monto.');
+  const b=document.getElementById('bAsignar'); b.disabled=true; b.textContent='Guardando…';
+  try{
+    const r=await rpc('co_presupuesto_asignar',{p_empresa_id:EMPRESA_ID,
+      p_centro_costo_id:Number(cc), p_anio:Number(document.getElementById('pAnio').value),
+      p_mes:mes, p_monto:monto});
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.');
+    document.getElementById('pMes').value=mes;
+    document.getElementById('aMonto').value='';
+    cargarPresu();
+  }catch(e){ aviso(e.message); }
+  finally{ b.disabled=false; b.textContent='Asignar'; }
+}
+async function ampliarPresu(ccId, codigo){
+  const pct=prompt('¿Qué porcentaje más para '+codigo+'?\n\nEjemplo: 20 para un 20% más.');
+  if(pct===null) return;
+  if(!(Number(pct)>0)) return aviso('El porcentaje tiene que ser mayor que cero.');
+  const motivo=prompt('¿Por qué? Queda escrito con tu nombre y la fecha.');
+  if(motivo===null) return;
+  try{
+    const r=await rpc('co_presupuesto_ampliar',{p_empresa_id:EMPRESA_ID,
+      p_centro_costo_id:ccId, p_anio:Number(document.getElementById('pAnio').value),
+      p_mes:Number(document.getElementById('pMes').value),
+      p_porcentaje:Number(pct), p_motivo:motivo});
+    aviso((r&&r[0]&&r[0].mensaje)||'Listo.');
+    cargarPresu();
+  }catch(e){ aviso(e.message); }
+}
+async function cargarPendientes(){
+  const c=document.getElementById('recLista'); c.innerHTML='<div class="muted">Cargando…</div>';
+  try{
+    const p=await api('co_pendiente_recibir?select=*&order=dias_desde_emision.desc&limit=300');
+    document.getElementById('nRec').textContent=p.length;
+    if(!p.length){ c.innerHTML='<div class="card muted">No hay nada pendiente de recibir. Que no haya nada también es información.</div>'; return; }
+    c.innerHTML=p.map(r=>{
+      const alerta=r.dias_desde_emision>30?'rojo':(r.dias_desde_emision>15?'amber':'');
+      return '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:start">'
+      +'<div><div style="font-weight:700">'+esc(r.descripcion)+'</div>'
+      +'<div class="muted" style="margin-top:4px">'+esc(r.orden)+' · '+esc(r.proveedor)+' · centro '+esc(r.centro)+'</div>'
+      +'<div style="margin-top:6px"><span class="pill '+alerta+'">'+r.dias_desde_emision+' días desde la emisión</span> '
+      +'<span class="pill">pedido '+r.pedido+' · recibido '+r.recibido+'</span></div></div>'
+      +'<div style="display:flex;gap:7px;align-items:end">'
+      +'<div style="width:100px"><label>Llegó</label><input type="number" step="0.01" id="rc'+r.linea_id+'" value="'+r.falta+'"></div>'
+      +'<button class="btn ok" onclick="recibir('+r.linea_id+')">Recibir</button></div>'
+      +'</div></div>';
+    }).join('');
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+async function recibir(lineaId){
+  const cant=Number(document.getElementById('rc'+lineaId).value)||0;
+  if(cant<=0){ aviso('La cantidad recibida tiene que ser mayor que cero.'); return; }
+  try{
+    await api('co_recepcion',{method:'POST',body:JSON.stringify({
+      orden_linea_id:lineaId, fecha:hoyLocal(), cantidad:cant, recibido_por:MYID
+    })});
+    aviso('Recepción registrada.',true); cargarPendientes();
+  }catch(e){ aviso(e.message); }
+}
+
+/* ---------- órdenes ---------- */
+/* La bandeja de quien arma la PO. Se eligen LINEAS, no requisiciones: una PO
+   puede juntar pedidos de varias RQ para el mismo proveedor, y una RQ puede
+   necesitar dos proveedores. La linea es la unidad. */
+/* ---------------------------------------------------------------------------
+   CATALOGO · lo mantiene Compras
+   El catalogo se cargo leyendo las ordenes de compra de 2026 archivadas en
+   Titan. Eso lo dejo vivo pero no lo deja al dia: los precios se mueven y
+   aparecen articulos nuevos. Esta pantalla es para eso.
+   Un articulo NO se borra: se da de baja. Si se borrara, las requisiciones
+   viejas que lo nombran se quedarian apuntando a la nada.
+--------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------
+   FACTURAS
+   Dos puertas. La ancha: la factura sale de una orden de compra, que a su vez
+   salio de una requisicion aprobada dos veces. La angosta: el gasto que llega
+   y no se pide — peaje, servicio publico, arriendo — que no tiene orden pero
+   SI tiene que decir a que centro y a que mes se imputa. Si no lo dijera, seria
+   plata que desaparece del presupuesto.
+   El total no se calcula solo y punto: se propone la cuenta y si el que carga
+   escribe otra cosa, se le avisa en vez de pisarsela. La factura real manda.
+--------------------------------------------------------------------------- */
+let MODO_FAC='orden', ORDENES_FAC=[];
+
+/* ---------- el reparto de una factura entre órdenes y líneas ----------
+   De la capacitación, los dos pedidos que resultaron ser el mismo:
+     «Debe crearse un sistema que permita hacer órdenes abiertas y facturar
+      parcialmente los ítems, así como se reciben parcial.»
+     «En el mes me hacen una sola facturación: voy a tener una factura con
+      cinco órdenes de compra.»
+   Una factura se reparte entre las líneas que cubre. Ese reparto es lo que
+   permite las dos cosas y lo que hace que el saldo de cada orden sea cierto. */
+let REPARTO = {};   // orden_id -> {orden, lineas:[...]}
+
+async function agregarOrdenFactura(){
+  const id = document.getElementById('fOrden').value;
+  if(!id) return aviso('Elegí una orden de la lista.');
+  if(REPARTO[id]) return aviso('Esa orden ya está en el reparto.');
+  guardarLoTipeado();
+  const o = ORDENES_FAC.find(x=>String(x.orden_id)===String(id));
+  try{
+    const lin = await rpc('co_orden_saldo',{p_orden_id:Number(id)}) || [];
+    /* La PRIMERA orden arranca con el saldo propuesto: es lo que pasa casi
+       siempre —la factura viene por lo que falta— y ahorra tipear. De la
+       segunda en adelante van en blanco, porque agregar una segunda orden
+       significa justamente que la factura se reparte y proponer el saldo
+       entero de cada una daría una suma absurda de entrada. */
+    const primera = Object.keys(REPARTO).length === 0;
+    const vals = {};
+    lin.forEach(l=>{ vals[l.orden_linea_id] = {
+      valor: (primera && Number(l.saldo)>0) ? Math.round(Number(l.saldo)) : '',
+      cantidad: '' }; });
+    REPARTO[id] = {orden:o, lineas:lin, vals:vals};
+    pintarReparto();
+    document.getElementById('fOrden').value='';
+  }catch(e){ aviso('No pude traer las líneas de esa orden: '+e.message); }
+}
+
+function quitarOrdenFactura(id){ guardarLoTipeado(); delete REPARTO[id]; pintarReparto(); }
+
+/* Antes de redibujar hay que guardarse lo que la persona ya escribió. Sin esto,
+   agregar una segunda orden borraba los números de la primera — el clásico
+   "escribí todo de nuevo" que hace que nadie quiera usar la pantalla. */
+function guardarLoTipeado(){
+  document.querySelectorAll('#fAplic [data-orden]').forEach(bloque=>{
+    const r = REPARTO[bloque.dataset.orden]; if(!r) return;
+    r.vals = r.vals || {};
+    bloque.querySelectorAll('.rval').forEach(i=>{
+      r.vals[i.dataset.l] = r.vals[i.dataset.l] || {};
+      r.vals[i.dataset.l].valor = i.value;
+    });
+    bloque.querySelectorAll('.rcant').forEach(i=>{
+      r.vals[i.dataset.l] = r.vals[i.dataset.l] || {};
+      r.vals[i.dataset.l].cantidad = i.value;
+    });
+  });
+}
+
+function pintarReparto(){
+  const c = document.getElementById('fAplic');
+  const val = (id,l,campo) => ((REPARTO[id].vals||{})[l]||{})[campo] ?? '';
+  const ids = Object.keys(REPARTO);
+  if(!ids.length){
+    c.innerHTML = '<div class="muted">Todavía no agregaste ninguna orden.</div>';
+    calcReparto(); return;
+  }
+  c.innerHTML = ids.map(id=>{
+    const r = REPARTO[id], o = r.orden || {};
+    return '<div class="card" style="margin-bottom:10px" data-orden="'+id+'">'
+      + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
+        + '<div><b>'+esc(o.numero||('orden '+id))+'</b> '
+          + (o.es_abierta?'<span class="pill amber">abierta</span>':'')
+          + (o.vencida?'<span class="pill amber">vencida el '+esc(o.vigente_hasta||'')+'</span>':'')
+          + '<div class="muted" style="font-size:12.5px">'+esc(o.proveedor||'')
+          + ' · emitida por '+cop(o.valor_neto||0)+' · ya facturado '+cop(o.facturado||0)
+          + ' · falta '+cop(o.falta||0)+'</div></div>'
+        + '<button class="x" onclick="quitarOrdenFactura(\''+id+'\')">✕</button>'
+      + '</div>'
+      + '<div style="overflow-x:auto;margin-top:9px"><table style="font-size:13px"><thead><tr>'
+        + '<th>Línea</th><th class="num">Pedido</th><th class="num">Ya facturado</th>'
+        + '<th class="num">Saldo</th><th class="num">Cantidad</th><th class="num">Aplicar ahora</th>'
+      + '</tr></thead><tbody>'
+      + r.lineas.map(l=>'<tr>'
+          + '<td>'+esc(l.descripcion)+'<div class="muted" style="font-size:12px">'
+            + esc(l.centro||'')+' · '+esc(l.unidad||'')+' · '+esc(l.estado)+'</div></td>'
+          + '<td class="num">'+cop(l.valor_pedido)+'</td>'
+          + '<td class="num">'+cop(l.valor_facturado)+'</td>'
+          + '<td class="num">'+cop(l.saldo)+'</td>'
+          + '<td class="num"><input type="number" step="0.01" min="0" style="max-width:90px"'
+            + ' class="rcant" data-l="'+l.orden_linea_id+'"'
+            + ' value="'+esc(val(id,l.orden_linea_id,'cantidad'))+'"></td>'
+          + '<td class="num"><input type="number" step="1" min="0" style="max-width:120px"'
+            + ' class="rval" data-l="'+l.orden_linea_id+'" data-iva="'+(l.iva_pct||0)+'"'
+            + ' oninput="calcReparto();totalFactura()"'
+            + ' value="'+esc(val(id,l.orden_linea_id,'valor'))+'"></td>'
+        + '</tr>').join('')
+      + '</tbody></table></div></div>';
+  }).join('');
+  calcReparto();
+}
+
+/* El IVA de la factura no se le pregunta a nadie: la orden ya lo sabe. Cada
+   línea trae su iva_pct desde co_35 —19% normal, 0% si el proveedor no es
+   responsable— así que el IVA de lo que se está aplicando es una suma, no una
+   pregunta. Y una factura mixta, parte al 19% y parte al 0%, sale bien sola.
+
+   Las retenciones NO se calculan, y es a propósito: dependen de la tarifa, del
+   concepto, del tipo de proveedor y quizás del municipio, y eso no está en
+   ninguna tabla. Liquidar una retención adivinando la tarifa la termina
+   pagando la empresa. Van a mano hasta que contabilidad diga de qué dependen. */
+let IVA_A_MANO = false, BRUTO_A_MANO = false;  // se prenden si los escribe la persona
+
+function calcReparto(){
+  let t=0, iva=0;
+  document.querySelectorAll('#fAplic .rval').forEach(i=>{
+    const v = Number(i.value)||0; if(!v) return;
+    t += v;
+    iva += v * (Number(i.dataset.iva)||0) / 100;
+  });
+
+  /* El bruto sigue al reparto mientras nadie lo haya escrito a mano. Llenarlo
+     una sola vez, al agregar la primera orden, dejaba el bruto de la primera y
+     el reparto de las tres: dos números distintos en la misma pantalla. */
+  const bi = document.getElementById('fBruto');
+  if(t > 0 && !BRUTO_A_MANO) bi.value = Math.round(t);
+
+  const fi = document.getElementById('fIva');
+  if(!IVA_A_MANO && t > 0) fi.value = Math.round(iva);
+
+  const bruto = Number(bi.value)||0;
+  const d = document.getElementById('fRepartoTot');
+  /* Que no cuadre no siempre es un error: puede faltar aplicar una parte. Pero
+     se dice, que es distinto de dejarlo pasar. */
+  d.innerHTML = '<span>Repartido</span><span>' + cop(t)
+    + (bruto && Math.abs(t-bruto) >= 1
+        ? ' <span class="pill amber">el bruto es '+cop(bruto)+'</span>' : '')
+    + (t > 0 && !IVA_A_MANO
+        ? '<div class="muted" style="font-weight:400;font-size:12.5px">IVA calculado desde las líneas de la orden: '
+          + cop(Math.round(iva)) + '</div>' : '')
+    + '</span>';
+  return t;
+}
+
+/* Recalcula el total sin volver a entrar en el reparto: calcFactura llama a
+   calcReparto y calcReparto necesita actualizar el total. Sin esta separación
+   se llaman en círculo. */
+function totalFactura(){
+  document.getElementById('fTotal').value = Math.round(cuentaFactura());
+  chequeoTotal();
+}
+
+function aplicacionesDelReparto(){
+  const out=[];
+  document.querySelectorAll('#fAplic .rval').forEach(i=>{
+    const v=Number(i.value)||0; if(v<=0) return;
+    const c=document.querySelector('#fAplic .rcant[data-l="'+i.dataset.l+'"]');
+    out.push({orden_linea_id:Number(i.dataset.l), valor:v,
+              cantidad:(c&&Number(c.value))?Number(c.value):null});
+  });
+  return out;
+}
+
+function modoFactura(m){
+  MODO_FAC=m;
+  document.getElementById('fmOrden').className = 'btn' + (m==='orden'?' pri':'');
+  document.getElementById('fmSuelta').className= 'btn' + (m==='suelta'?' pri':'');
+  document.getElementById('facDeOrden').classList.toggle('hide', m!=='orden');
+  document.getElementById('facSuelta').classList.toggle('hide', m!=='suelta');
+  if(m!=='orden'){ REPARTO={}; IVA_A_MANO=false; BRUTO_A_MANO=false; pintarReparto(); }
+}
+
+/* ---------------------------------------------------------------------------
+   COTIZACIONES
+   Van entre las dos firmas: se aprueba QUE HACE FALTA, se cotiza, y recién con
+   el precio real se firma la plata. Antes de esto el Aprobador 2 firmaba
+   mirando el precio del catálogo — y en los datos de 2026 el mismo cartucho 3M
+   aparece entre $42.017 y $104.500. Firmar contra esa referencia es firmar a
+   ciegas.
+   La regla de cuándo se exige cotizar NO está acá: la calcula la base
+   (co_necesita_cotizar) leyendo montos que Cielo edita. La pantalla solo
+   muestra el veredicto y el motivo.
+--------------------------------------------------------------------------- */
+async function cargarCotizaciones(){
+  let esp=[], rondas=[];
+  try{
+    esp    = await rpc('co_para_cotizar',{p_empresa_id:EMPRESA_ID}) || [];
+    rondas = await rpc('co_cotizaciones_ver',{p_empresa_id:EMPRESA_ID,p_estado:'abierta'}) || [];
+  }catch(e){ document.getElementById('cotEspera').innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+
+  const pend = esp.filter(x=>x.necesita && !x.cotizacion_id).length;
+  const chip = document.getElementById('nCot'); if(chip) chip.textContent = pend + rondas.length;
+
+  document.getElementById('cotEspera').innerHTML = esp.length
+    ? esp.map(filaEspera).join('')
+    : '<div class="muted">Nada esperando. Que no haya nada también es información.</div>';
+
+  document.getElementById('cotAbiertas').innerHTML = rondas.length
+    ? rondas.map(tarjetaRonda).join('')
+    : '<div class="muted">No hay rondas abiertas.</div>';
+}
+
+function filaEspera(x){
+  const pill = x.necesita
+    ? '<span class="pill amber">hay que cotizar · mínimo '+x.minimo_ofertas+'</span>'
+    : '<span class="pill ok">no hace falta</span>';
+  const ronda = x.cotizacion_id
+    ? '<span class="pill">'+esc(x.cotizacion_numero)+' · '+esc(x.cotizacion_estado)
+      +' · '+x.ofertas+' oferta(s)</span>'
+    : '';
+  const boton = x.cotizacion_id
+    ? ''
+    : '<button class="btn'+(x.necesita?' pri':'')+'" onclick="abrirRonda('+x.requisicion_id+')">Pedir cotización</button>';
+  return '<div class="lin" style="margin-bottom:9px">'
+    + '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    + '<div style="flex:1;min-width:230px">'
+      + '<div style="font-weight:700">'+esc(x.numero)+' · '+cop(x.monto_estimado)
+        + (Number(x.lineas_sin_precio)>0?' <span class="pill amber">'+x.lineas_sin_precio+' sin precio</span>':'')+'</div>'
+      + '<div class="muted" style="margin-top:3px">'+esc(x.centro||'')
+        +' · pidió '+esc(nom(x.solicitante_nombre))+' · '+x.lineas+' línea(s)</div>'
+      + '<div style="margin-top:6px">'+esc(x.justificacion||'')+'</div>'
+      + '<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">'+pill+ronda+'</div>'
+      + '<div class="nota" style="margin-top:6px">'+esc(x.motivo||'')+'</div>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:7px;min-width:160px">'+boton+'</div>'
+    + '</div></div>';
+}
+
+function tarjetaRonda(c){
+  const ofertas = Array.isArray(c.ofertas) ? c.ofertas : [];
+  const barata = ofertas.length ? Math.min.apply(null, ofertas.map(o=>Number(o.valor))) : null;
+  const filas = ofertas.length
+    ? '<table><thead><tr><th>Proveedor</th><th class="num">Oferta</th><th>Entrega</th><th></th></tr></thead><tbody>'
+      + ofertas.map(o=>'<tr>'
+        + '<td><b>'+esc(o.proveedor)+'</b>'
+          + (Number(o.valor)===barata?' <span class="pill ok">la más barata</span>':'')
+          + (o.elegida?' <span class="pill ok">elegida</span>':'')
+          + (o.nota?'<div class="muted" style="font-size:12px">'+esc(o.nota)+'</div>':'')
+          + (o.motivo_eleccion?'<div class="muted" style="font-size:12px">'+esc(o.motivo_eleccion)+'</div>':'')
+        + '</td>'
+        + '<td class="num">'+cop(o.valor)+'</td>'
+        + '<td>'+(o.dias_entrega!=null?esc(o.dias_entrega)+' días':'—')+'</td>'
+        + '<td>'+(o.elegida?'':'<button class="btn" style="padding:5px 10px;font-size:12.5px" '
+            +'onclick="elegirOferta('+o.id+','+(Number(o.valor)>barata?'true':'false')+')">Elegir</button>')+'</td>'
+        + '</tr>').join('') + '</tbody></table>'
+    : '<div class="muted">Todavía no cargaste ninguna oferta.</div>';
+
+  const faltan = Math.max(0, Number(c.minimo_ofertas||0) - ofertas.length);
+  return '<div class="card" style="background:#0d1219;margin-bottom:11px">'
+    + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+      + '<div><b>'+esc(c.numero)+'</b> <span class="muted">· de '+esc(c.requisicion)+' · '
+        + esc(c.centro||'')+' · estimado '+cop(c.monto_estimado)+'</span></div>'
+      + (faltan? '<span class="pill amber">faltan '+faltan+' oferta(s) para poder elegir</span>'
+               : '<span class="pill ok">ya se puede elegir</span>')
+    + '</div>'
+    + '<div style="margin-top:6px" class="muted">'+esc(c.justificacion||'')+'</div>'
+    + '<div style="margin-top:10px">'+filas+'</div>'
+    + '<div class="row r3" style="margin-top:12px;align-items:end">'
+      + '<div><label>Proveedor</label><select class="oProv" data-c="'+c.cotizacion_id+'">'
+        + opts(MAE.prov,'id','nombre','— elegir —')+'</select></div>'
+      + '<div><label>Lo que ofrece</label><input class="oVal" data-c="'+c.cotizacion_id+'" type="number" min="0" step="1"></div>'
+      + '<div><label>Entrega (días)</label><input class="oDias" data-c="'+c.cotizacion_id+'" type="number" min="0" step="1"></div>'
+    + '</div>'
+    + '<div class="row r2" style="align-items:end">'
+      + '<div><label>Nota</label><input class="oNota" data-c="'+c.cotizacion_id+'" placeholder="opcional: marca, condición, qué incluye"></div>'
+      + '<div><button class="btn pri" onclick="agregarOferta('+c.cotizacion_id+')" style="width:100%">Agregar oferta</button></div>'
+    + '</div></div>';
+}
+
+async function abrirRonda(rqId){
+  try{
+    const r = await rpc('co_cotizacion_abrir',{p_requisicion_id:rqId});
+    const x = Array.isArray(r)?r[0]:r;
+    aviso(x&&x.mensaje?x.mensaje:'Listo.', !!(x&&x.ok));
+  }catch(e){ aviso('No pude abrir la cotización: '+e.message); }
+  cargarCotizaciones();
+}
+
+async function agregarOferta(cotId){
+  const q = s => document.querySelector('.'+s+'[data-c="'+cotId+'"]');
+  const prov = q('oProv').value, val = q('oVal').value;
+  if(!prov){ aviso('Elegí el proveedor.'); return; }
+  if(!Number(val)){ aviso('Poné lo que ofrece ese proveedor.'); return; }
+  try{
+    await api('co_cotizacion_oferta',{method:'POST',body:JSON.stringify({
+      cotizacion_id:cotId, proveedor_id:Number(prov), valor:Number(val),
+      dias_entrega: q('oDias').value? Number(q('oDias').value) : null,
+      nota: q('oNota').value.trim() || null })});
+    aviso('Oferta cargada.',true);
+  }catch(e){
+    aviso(/duplicate key/i.test(e.message)
+      ? 'Ese proveedor ya cotizó en esta ronda. Si cambió el precio, borrá la oferta anterior.'
+      : 'No pude cargar la oferta: '+e.message);
+  }
+  cargarCotizaciones();
+}
+
+async function elegirOferta(ofertaId, esMasCara){
+  let motivo = null;
+  if(esMasCara){
+    /* No es la mas barata: el motivo lo exige la base, pero es mejor pedirlo
+       aca que dejar que rebote con un error. */
+    motivo = prompt('No es la oferta más barata. ¿Por qué la elegís?\n(plazo de entrega, calidad, stock — queda en el expediente de la compra)');
+    if(motivo===null) return;
+    if(motivo.trim().length<10){ aviso('El motivo tiene que ser algo que se entienda dentro de seis meses.'); return; }
+  }
+  try{
+    const r = await rpc('co_oferta_elegir',{p_oferta_id:ofertaId, p_motivo:motivo});
+    const x = Array.isArray(r)?r[0]:r;
+    aviso(x&&x.mensaje?x.mensaje:'Listo.', !!(x&&x.ok));
+  }catch(e){
+    aviso(/no es la más barata/i.test(e.message)
+      ? 'Falta el motivo: elegiste una oferta que no es la más barata.'
+      : 'No pude elegir: '+e.message);
+  }
+  cargarCotizaciones();
+}
+
+async function cargarFacturas(){
+  document.getElementById('fRec').value = document.getElementById('fRec').value || hoyLocal();
+  document.getElementById('fMes').value = document.getElementById('fMes').value || hoyLocal().slice(0,7);
+
+  document.getElementById('fProv').innerHTML = opts(MAE.prov,'id','nombre','— elegir —');
+  document.getElementById('fCC').innerHTML =
+    opts(MAE.cc.map(c=>({id:c.id,n:c.codigo+' · '+c.nombre})),'id','n','— elegir —');
+  /* Solo las categorias que Cielo marco como "el gasto llega". Si ofrecieramos
+     todas, cualquier compra podria entrar sin orden y el circuito seria un
+     adorno. */
+  const sinOrden = (MAE.cat||[]).filter(c=>c.requiere_orden===false);
+  document.getElementById('fCatg').innerHTML = sinOrden.length
+    ? opts(sinOrden,'id','nombre','— elegir —')
+    : '<option value="">— ninguna categoría está marcada —</option>';
+
+  try{
+    ORDENES_FAC = await rpc('co_ordenes_para_facturar',{p_empresa_id:EMPRESA_ID}) || [];
+  }catch(e){ ORDENES_FAC=[]; aviso('No pude traer las órdenes: '+e.message); }
+
+  /* Ojo con el nombre: acá "abiertas" son las que TIENEN SALDO, no las órdenes
+     abiertas del punto f1. Las de saldo con vigencia vencida van primero: una
+     orden de septiembre que en noviembre sigue esperando factura es un aviso. */
+  const conSaldo = ORDENES_FAC.filter(o=>Number(o.falta)>0)
+                     .sort((a,b)=>(b.vencida?1:0)-(a.vencida?1:0));
+  document.getElementById('fOrden').innerHTML =
+    '<option value="">— elegir —</option>' + ORDENES_FAC.map(o=>
+      '<option value="'+o.orden_id+'">'+esc(o.numero+' · '+o.proveedor)
+      + (o.es_abierta?'  [abierta]':'')
+      + (Number(o.falta)>0 ? '  (falta '+cop(o.falta)+')' : '  (ya facturada)')
+      + '</option>').join('');
+
+  document.getElementById('facPendientes').innerHTML = conSaldo.length
+    ? '<div style="overflow-x:auto"><table><thead><tr><th>Orden</th><th>Proveedor</th><th>Centro</th>'
+      + '<th class="num">Emitida</th><th class="num">Facturado</th>'
+      + '<th class="num">Falta</th><th class="num">Facturas</th></tr></thead><tbody>'
+      + conSaldo.map(o=>'<tr><td><b>'+esc(o.numero)+'</b>'
+          + (o.es_abierta?' <span class="pill amber">abierta</span>':'')
+          + (o.vencida?' <span class="pill amber">venció el '+esc(o.vigente_hasta)+'</span>':'')
+          + '<div class="muted" style="font-size:12px">'+esc(o.fecha_emision)+'</div></td>'
+          + '<td>'+esc(o.proveedor)+'</td><td>'+esc(o.centro||'')+'</td>'
+          + '<td class="num">'+cop(o.valor_neto)+'</td>'
+          + '<td class="num">'+cop(o.facturado)+'</td>'
+          + '<td class="num"><b>'+cop(o.falta)+'</b></td>'
+          + '<td class="num">'+(o.facturas||0)+'</td></tr>').join('')
+      + '</tbody></table></div>'
+    : '<div class="muted">Ninguna orden está esperando factura.</div>';
+
+  await listarFacturas();
+  calcFactura();
+}
+
+async function listarFacturas(){
+  let f=[];
+  try{ f = await rpc('co_facturas_ver',{p_empresa_id:EMPRESA_ID, p_ultimas:120}) || []; }
+  catch(e){ document.getElementById('facLista').innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+  document.getElementById('facLista').innerHTML = f.length
+    ? '<table><thead><tr><th>N°</th><th>De dónde</th><th>Proveedor</th><th>Imputa a</th>'
+      + '<th>Recibida</th><th>Vence</th><th style="text-align:right">Total</th></tr></thead><tbody>'
+      + f.map(x=>'<tr><td><b>'+esc(x.numero)+'</b></td>'
+        + '<td>'+esc(x.de_donde)+(x.orden?'<div class="muted" style="font-size:12px">'+esc(x.orden)+'</div>':'')+'</td>'
+        + '<td>'+esc(x.proveedor||'—')+'</td>'
+        + '<td>'+esc(x.centro||'—')+(x.categoria?'<div class="muted" style="font-size:12px">'+esc(x.categoria)+'</div>':'')+'</td>'
+        + '<td>'+esc(x.fecha_recepcion||'')+'</td><td>'+esc(x.fecha_vencimiento||'')+'</td>'
+        + '<td style="text-align:right"><b>'+cop(x.valor_total)+'</b></td></tr>').join('')
+      + '</tbody></table>'
+    : '<div class="muted">Todavía no hay facturas cargadas.</div>';
+}
+
+
+function catgFacturaCambio(){
+  /* La categoria propone el centro, igual que al pedir. Se propone, no se impone:
+     el instructivo esta lleno de excepciones. */
+  const c=(MAE.cat||[]).find(x=>String(x.id)===document.getElementById('fCatg').value);
+  const cc=document.getElementById('fCC');
+  if(c && c.centro_sugerido_id && !cc.value) cc.value=c.centro_sugerido_id;
+}
+
+function cuentaFactura(){
+  const n=id=>Number(document.getElementById(id).value)||0;
+  return n('fBruto') + n('fIva') - n('fRf') - n('fRi') - n('fRiva');
+}
+function calcFactura(){
+  try{ calcReparto(); }catch(_){}
+  totalFactura();
+}
+function chequeoTotal(){
+  const c=Math.round(cuentaFactura()), t=Math.round(Number(document.getElementById('fTotal').value)||0);
+  const d=document.getElementById('fCuenta');
+  d.textContent = (c===t)
+    ? 'Bruto + IVA − retenciones = ' + cop(c)
+    : 'Ojo: la cuenta da ' + cop(c) + ' y escribiste ' + cop(t) + '. Se guarda lo que escribiste — manda la factura real.';
+}
+
+async function guardarFactura(){
+  const v=id=>document.getElementById(id).value;
+  const n=id=>Number(document.getElementById(id).value)||0;
+  if(!v('fNum').trim()){ aviso('Falta el número de factura.'); return; }
+  if(!v('fRec')){ aviso('Falta la fecha de recepción. Sin eso la factura no existe.'); return; }
+  if(!v('fVen')){ aviso('Falta la fecha de vencimiento: es la que dice cuándo hay que pagar.'); return; }
+  if(!n('fBruto')){ aviso('Falta el valor bruto.'); return; }
+
+  const c={ empresa_id:EMPRESA_ID, numero:v('fNum').trim(),
+    fecha_recepcion:v('fRec'), fecha_vencimiento:v('fVen'),
+    valor_bruto:n('fBruto'), iva:n('fIva'), retefuente:n('fRf'),
+    reteica:n('fRi'), rete_iva:n('fRiva'), valor_total:n('fTotal'),
+    radicado:v('fRad').trim()||null, observaciones:v('fObs').trim()||null };
+
+  if(MODO_FAC==='orden'){
+    const ap=aplicacionesDelReparto();
+    if(!ap.length){ aviso('Agregá al menos una orden y decí cuánto de cada línea cubre esta factura.'); return; }
+    const b2=document.getElementById('btnFactura');
+    b2.disabled=true; b2.textContent='Guardando…';
+    try{
+      /* Cabecera y reparto van en UNA sola llamada. Si fueran dos viajes, el
+         primero cerraría con una factura que todavía no se aplicó a nada y la
+         base la rechazaría — y peor, una factura a medio aplicar miente sobre
+         el saldo de la orden. */
+      const r=await rpc('co_factura_cargar',{
+        p_empresa_id:EMPRESA_ID, p_numero:v('fNum').trim(),
+        p_fecha_recepcion:v('fRec'), p_fecha_vencimiento:v('fVen'),
+        p_valor_bruto:n('fBruto'), p_iva:n('fIva'), p_retefuente:n('fRf'),
+        p_reteica:n('fRi'), p_rete_iva:n('fRiva'),
+        p_valor_total:n('fTotal')||n('fBruto'),
+        p_radicado:v('fRad').trim()||null, p_observaciones:v('fObs').trim()||null,
+        p_aplicaciones:ap});
+      const m=(Array.isArray(r)?r[0]:r)||{};
+      aviso(m.mensaje||'Factura cargada.', true);
+      limpiarFactura(); REPARTO={}; pintarReparto();
+      await cargarFacturas();
+    }catch(e){ aviso(errorFactura(e.message||'')); }
+    finally{ b2.disabled=false; b2.textContent='Cargar factura'; }
+    return;
+  }else{
+    if(!v('fProv')){ aviso('Falta el proveedor.'); return; }
+    if(!v('fCatg')){ aviso('Falta la categoría. Solo se pueden cargar sin orden las que Cielo marcó como gasto que llega.'); return; }
+    if(!v('fCC')){   aviso('Falta el centro de costo: sin eso la plata no se imputa a nadie.'); return; }
+    if(!v('fMes')){  aviso('Falta el mes al que se imputa.'); return; }
+    c.proveedor_id=Number(v('fProv'));
+    c.categoria_id=Number(v('fCatg'));
+    c.centro_costo_id=Number(v('fCC'));
+    c.mes_imputacion=v('fMes')+'-01';
+  }
+
+  const b=document.getElementById('btnFactura');
+  b.disabled=true; b.textContent='Guardando…';
+  try{
+    await api('co_factura',{method:'POST',body:JSON.stringify(c)});
+    aviso('Factura cargada.',true);
+    limpiarFactura();
+    await cargarFacturas();
+  }catch(e){ aviso(errorFactura(e.message||''));
+  }finally{ b.disabled=false; b.textContent='Cargar factura'; }
+}
+
+function limpiarFactura(){
+  IVA_A_MANO=false; BRUTO_A_MANO=false;
+  ['fNum','fRad','fObs'].forEach(i=>document.getElementById(i).value='');
+  ['fBruto','fIva','fRf','fRi','fRiva'].forEach(i=>document.getElementById(i).value=i==='fBruto'?'':'0');
+  calcFactura();
+}
+
+function errorFactura(m){
+  return /duplicate key|co_factura_directa_uk|_uk/i.test(m)
+        ? 'Esa factura ya está cargada para ese proveedor u orden.'
+      : /requiere orden de compra/i.test(m)
+        ? m.replace(/^.*?La categoría/,'La categoría').split('"}')[0]
+      : /co_factura_de_donde_sale/i.test(m)
+        ? 'Una factura sin orden tiene que decir proveedor, categoría, centro de costo y mes.'
+      : /permission|policy|denied|42501/i.test(m)
+        ? 'La base no te deja cargar facturas. Hace falta el permiso «ordenes» en Administración.'
+      : /Solo Compras carga facturas/i.test(m)
+        ? 'Hace falta el permiso «ordenes» para cargar facturas.'
+        : 'No pude guardar: '+m;
+}
+
+async function cargarCatalogo(){
+  const cat=document.getElementById('cCat');
+  if(!cat.options.length){
+    cat.innerHTML='<option value="">— todas —</option>'
+      + MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  }
+  /* Releo el catalogo cada vez que entro: si Compras acaba de agregar algo
+     desde otra maquina, MAE.art de hace media hora ya no sirve. */
+  try{
+    MAE.art = await api('co_articulo?select=id,nombre,descripcion,categoria_id,unidad,'
+                      + 'precio_ref,precio_ref_al,proveedor_id,activo&order=nombre&limit=3000');
+  }catch(e){ aviso('No pude releer el catálogo: '+e.message); }
+  pintarCatalogo();
+}
+
+function catFiltrado(){
+  const q=(document.getElementById('cBusca').value||'').trim().toLowerCase();
+  const c=document.getElementById('cCat').value;
+  const est=document.getElementById('cEstado').value;
+  return (MAE.art||[]).filter(a=>{
+    if(est==='act'  && a.activo===false) return false;
+    if(est==='baja' && a.activo!==false) return false;
+    if(c && String(a.categoria_id)!==c) return false;
+    if(!q) return true;
+    return ((a.nombre||'')+' '+(a.descripcion||'')).toLowerCase().includes(q);
+  });
+}
+
+function pintarCatalogo(){
+  const lista=catFiltrado();
+  const total=(MAE.art||[]).length;
+  document.getElementById('cCuenta').textContent =
+    lista.length===total ? total+' artículos'
+                         : lista.length+' de '+total+' artículos';
+  if(!lista.length){
+    document.getElementById('catLista').innerHTML =
+      '<div class="card"><div class="muted">Nada con ese filtro. '
+      + 'Si el artículo no existe todavía, «＋ Nuevo artículo» lo crea.</div></div>';
+    return;
+  }
+  const filas=lista.map(a=>{
+    const c=MAE.cat.find(x=>x.id===a.categoria_id);
+    const p=MAE.prov.find(x=>x.id===a.proveedor_id);
+    return '<tr'+(a.activo===false?' style="opacity:.5"':'')+'>'
+      + '<td><b>'+esc(a.nombre)+'</b>'
+        + (a.descripcion?'<div class="muted" style="font-size:12px">'+esc(a.descripcion.slice(0,120))+(a.descripcion.length>120?'…':'')+'</div>':'')
+        + (a.activo===false?'<div class="muted" style="font-size:12px">· dado de baja</div>':'')
+      + '</td>'
+      + '<td>'+esc(c?c.nombre:'—')+'</td>'
+      + '<td>'+esc(a.unidad||'')+'</td>'
+      + '<td style="text-align:right">'+(a.precio_ref!=null?cop(a.precio_ref):'<span class="muted">sin precio</span>')
+        + (a.precio_ref_al?'<div class="muted" style="font-size:12px">'+esc(a.precio_ref_al)+'</div>':'')
+      + '</td>'
+      + '<td>'+esc(p?p.nombre:'—')+'</td>'
+      + '<td><button class="btn" style="padding:5px 10px;font-size:12.5px" onclick="editarArticulo('+a.id+')">✏️ Editar</button></td>'
+      + '</tr>';
+  }).join('');
+  document.getElementById('catLista').innerHTML =
+    '<div class="card"><table><thead><tr><th>Artículo</th><th>Categoría</th><th>Unidad</th>'
+    + '<th style="text-align:right">Precio ref.</th><th>Último proveedor</th><th></th></tr></thead>'
+    + '<tbody>'+filas+'</tbody></table></div>';
+}
+
+function llenarSelectsArt(actual){
+  /* Si un articulo viejo trae una unidad que no esta en la lista, se la agrego
+     igual: cambiarsela sin avisar seria peor que mostrar una unidad rara. */
+  const lista=(MAE.uni||[]).map(u=>u.nombre);
+  if(actual && !lista.includes(actual)) lista.push(actual);
+  document.getElementById('artUnidad').innerHTML =
+    lista.map(u=>'<option value="'+esc(u)+'">'+esc(u)+'</option>').join('');
+  document.getElementById('artCat').innerHTML =
+    '<option value="">— elegir —</option>'+MAE.cat.map(c=>'<option value="'+c.id+'">'+esc(c.nombre)+'</option>').join('');
+  document.getElementById('artProv').innerHTML =
+    '<option value="">— ninguno —</option>'+MAE.prov.map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('');
+}
+
+function nuevoArticulo(){
+  llenarSelectsArt();
+  document.getElementById('artTitulo').textContent='Nuevo artículo';
+  ['artId','artNombre','artPrecio','artFecha','artDesc'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('artCat').value='';
+  document.getElementById('artProv').value='';
+  document.getElementById('artActivo').value='1';
+  document.getElementById('artUnidad').value='Unidad';
+  document.getElementById('artLargo').textContent='';
+  document.getElementById('cardArt').classList.remove('hide');
+  document.getElementById('artNombre').focus();
+}
+
+function editarArticulo(id){
+  const a=(MAE.art||[]).find(x=>x.id===id); if(!a) return;
+  llenarSelectsArt(a.unidad);
+  document.getElementById('artTitulo').textContent='Editar artículo';
+  document.getElementById('artId').value=a.id;
+  document.getElementById('artNombre').value=a.nombre||'';
+  document.getElementById('artCat').value=a.categoria_id||'';
+  document.getElementById('artUnidad').value=a.unidad||'';
+  document.getElementById('artPrecio').value=a.precio_ref!=null?a.precio_ref:'';
+  document.getElementById('artFecha').value=a.precio_ref_al||'';
+  document.getElementById('artProv').value=a.proveedor_id||'';
+  document.getElementById('artActivo').value=(a.activo===false)?'0':'1';
+  document.getElementById('artDesc').value=a.descripcion||'';
+  avisoNombreLargo();
+  document.getElementById('cardArt').classList.remove('hide');
+  document.getElementById('cardArt').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cerrarArticulo(){ document.getElementById('cardArt').classList.add('hide'); }
+
+/* El nombre largo fue el problema real: los articulos cargados desde los PDF
+   traian hasta 196 caracteres y el desplegable de Pedir los cortaba. */
+function avisoNombreLargo(){
+  const n=(document.getElementById('artNombre').value||'').length;
+  document.getElementById('artLargo').textContent =
+    n>55 ? 'Va a salir cortado en la lista al pedir ('+n+' caracteres). Lo largo va en la ficha técnica.' : '';
+}
+
+async function guardarArticulo(){
+  const id=document.getElementById('artId').value;
+  const nombre=(document.getElementById('artNombre').value||'').trim();
+  const catId=document.getElementById('artCat').value;
+  if(!nombre){ aviso('Ponele un nombre al artículo.'); return; }
+  if(!catId){ aviso('Falta la categoría: es la que le propone el centro de costo a quien pide.'); return; }
+  const repe=(MAE.art||[]).find(a=>(a.nombre||'').trim().toLowerCase()===nombre.toLowerCase()
+                                 && String(a.id)!==String(id));
+  if(repe){ aviso('Ya existe un artículo con ese nombre'+(repe.activo===false?' (está dado de baja)':'')+'. Editá ese en vez de crear otro.'); return; }
+
+  const precio=document.getElementById('artPrecio').value;
+  const fecha=document.getElementById('artFecha').value;
+  const cuerpo={
+    nombre: nombre,
+    categoria_id: Number(catId),
+    unidad: document.getElementById('artUnidad').value || 'Unidad',
+    precio_ref: precio===''?null:Number(precio),
+    /* Un precio sin fecha no dice nada: si no la ponen, es de hoy. */
+    precio_ref_al: precio===''?null:(fecha||hoyLocal()),
+    proveedor_id: document.getElementById('artProv').value? Number(document.getElementById('artProv').value):null,
+    activo: document.getElementById('artActivo').value==='1',
+    descripcion: (document.getElementById('artDesc').value||'').trim()||null
+  };
+  const b=document.getElementById('btnGuardarArt');
+  b.disabled=true; b.textContent='Guardando…';
+  try{
+    if(id){
+      await api('co_articulo?id=eq.'+id,{method:'PATCH',body:JSON.stringify(cuerpo)});
+    }else{
+      cuerpo.empresa_id=EMPRESA_ID;
+      await api('co_articulo',{method:'POST',body:JSON.stringify(cuerpo)});
+    }
+    aviso(id?'Artículo actualizado.':'Artículo agregado al catálogo.',true);
+    cerrarArticulo();
+    await cargarCatalogo();
+    /* El sugeridor de Pedir vive de la misma lista: si no lo repinto, el que
+       pide sigue viendo el catalogo de antes hasta que recargue la pagina. */
+    const dl=document.getElementById('dlArt');
+    if(dl) dl.innerHTML=MAE.art.filter(x=>x.activo!==false)
+      .map(x=>'<option value="'+esc(x.nombre)+'">'+(x.descripcion?esc(x.descripcion.slice(0,90)):'')+'</option>').join('');
+  }catch(e){
+    aviso(/permission|policy|denied|42501/i.test(e.message)
+      ? 'La base no te deja tocar el catálogo. Hace falta el permiso «ordenes» (Compras) en Administración.'
+      : 'No pude guardar: '+e.message);
+  }finally{ b.disabled=false; b.textContent='Guardar'; }
+}
+
+async function cargarPorComprar(){
+  const c=document.getElementById('traerLista');
+  try{
+    const p=await api('co_por_comprar?select=*&order=fecha,requisicion,numero_linea&limit=200');
+    POR_COMPRAR=p;
+    if(!p.length){ return vacioPorComprar(c); }
+    c.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th></th><th>Requisición</th><th>Qué</th>'
+      +'<th>Centro de costo</th><th>Pidió</th><th>Firmaron</th>'
+      +'<th class="num">Falta</th><th class="num">Ref.</th><th>Para</th></tr></thead><tbody>'
+      +p.map(r=>'<tr><td><input type="checkbox" class="tr" style="width:auto" value="'+r.requisicion_linea_id+'"></td>'
+        +'<td><b>'+esc(r.requisicion)+'</b><div class="muted">'+esc(r.fecha||'')+'</div>'
+          +'<div class="muted">'+esc(r.justificacion||'')+'</div></td>'
+        +'<td>'+esc(r.descripcion)+(r.categoria?'<div class="muted">'+esc(r.categoria)+'</div>':'')+'</td>'
+        +'<td><b>'+esc(r.centro)+'</b><div class="muted">'+esc(r.centro_nombre||'')+'</div></td>'
+        +'<td>'+esc(nom(r.solicitante_nombre))+'</td>'
+        +'<td class="muted">'+esc(nom(r.pedido_nombre))+' <span class="pill">pedido</span>'
+          +'<div>'+esc(nom(r.dinero_nombre))+' <span class="pill">dinero</span></div></td>'
+        +'<td class="num">'+r.falta+'</td>'
+        +'<td class="num">'+(r.valor_estimado?cop(r.valor_estimado):'<span class="pill amber">sin precio</span>')+'</td>'
+        +'<td>'+esc(r.necesita_para||'—')+'</td></tr>').join('')
+      +'</tbody></table></div>'
+      +'<button class="btn pri" onclick="traerLineas()" style="margin-top:11px">Traer las marcadas a la orden</button>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+/* Nombre corto: perfiles guarda "APELLIDO Nombre" y en una tabla no entra. */
+/* El id de un usuario no le dice nada a nadie. MAE.usr ya trae id y nombre de
+   toda la empresa, asi que traducimos aca y no pedimos nada de mas a la base. */
+function quienEs(id){
+  if(!id) return '—';
+  const u=(MAE.usr||[]).find(x=>String(x.id)===String(id));
+  return u? nom(u.nombre) : 'alguien que ya no está en la lista';
+}
+function nom(x){ if(!x) return '—'; const p=String(x).trim().split(/\s+/); return p.length>2?p.slice(-2).join(' '):x; }
+/* Una lista vacia sin explicacion hace perder mas tiempo que un error: si no
+   hay nada para armar, decimos donde quedo parada cada requisicion. */
+async function vacioPorComprar(c){
+  try{
+    const e=await api('co_rq_estado?select=*&order=fecha.desc&limit=30');
+    if(!e.length){ c.innerHTML='<div class="muted">Todavía no hay requisiciones.</div>'; return; }
+    c.innerHTML='<div class="muted" style="margin-bottom:10px">No hay nada listo para ordenar. Dónde está parada cada requisición:</div>'
+      +'<div style="overflow-x:auto"><table><thead><tr><th>Requisición</th><th>Centro</th><th>Pidió</th>'
+      +'<th>Pedido</th><th>Dinero</th><th>Estado</th></tr></thead><tbody>'
+      +e.map(r=>'<tr><td><b>'+esc(r.numero)+'</b><div class="muted">'+esc(r.justificacion||'')+'</div></td>'
+        +'<td>'+esc(r.centro)+'</td><td>'+esc(nom(r.solicitante_nombre))+'</td>'
+        +'<td>'+esc(r.pedido)+(r.pedido_nombre?'<div class="muted">'+esc(nom(r.pedido_nombre))+'</div>':'')+'</td>'
+        +'<td>'+esc(r.dinero)+(r.dinero_nombre?'<div class="muted">'+esc(nom(r.dinero_nombre))+'</div>':'')+'</td>'
+        +'<td><span class="pill '+(r.donde_esta==='lista para armar la orden'?'':'amber')+'">'+esc(r.donde_esta)+'</span></td></tr>').join('')
+      +'</tbody></table></div>';
+  }catch(err){ c.innerHTML='<div class="muted">No hay nada aprobado esperando orden.</div>'; }
+}
+function traerLineas(){
+  const ids=[...document.querySelectorAll('#traerLista .tr:checked')].map(x=>Number(x.value));
+  if(!ids.length) return aviso('Marcá al menos una línea.');
+  ids.forEach(id=>{
+    const r=POR_COMPRAR.find(x=>Number(x.requisicion_linea_id)===id);
+    if(!r) return;
+    addLinea();
+    const l=document.getElementById('lineas').lastElementChild;
+    l.dataset.rql=r.requisicion_linea_id;
+    if(r.categoria_id) l.querySelector('.lcat').value=r.categoria_id;
+    l.querySelector('.lcc').value=r.centro_costo_id;
+    l.querySelector('.ldesc').value=r.descripcion;
+    l.querySelector('.lcant').value=r.falta;
+    if(r.valor_estimado) l.querySelector('.lvu').value=r.valor_estimado;
+    if(r.mes_imputacion) l.querySelector('.lmes').value=String(r.mes_imputacion).slice(0,7);
+    l.querySelector('.nota').textContent='Viene de '+r.requisicion+' · línea '+r.numero_linea
+      +(r.valor_estimado?'. El valor es la referencia del catálogo: cambialo por el que te cotizó el proveedor.'
+                        :'. Sin precio de referencia: poné el que te cotizó el proveedor.');
+    [...document.querySelectorAll('#traerLista .tr')].forEach(x=>{ if(Number(x.value)===id) x.checked=false; });
+  });
+  calc();
+  aviso(ids.length+(ids.length===1?' línea traída.':' líneas traídas.'),true);
+}
+async function cargarOrdenes(){
+  const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
+  try{
+    const o=await api('co_orden?select=id,numero,fecha_emision,descripcion,estado,co_proveedor(nombre,correo),co_orden_linea(valor_neto)&order=fecha_emision.desc&limit=200');
+    if(!o.length){ c.innerHTML='<div class="card muted">Todavía no hay órdenes cargadas.</div>'; return; }
+    c.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Proveedor</th>'
+      +'<th>Descripción</th><th>Estado</th><th class="num">Total</th><th></th></tr></thead><tbody>'
+      +o.map(r=>{const t=(r.co_orden_linea||[]).reduce((a,l)=>a+Number(l.valor_neto||0),0);
+        const pv=r.co_proveedor||{}, enviada=r.estado==='enviada';
+        return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha_emision)+'</td>'
+        +'<td>'+esc(pv.nombre||'')+(pv.correo?'':'<div class="muted">sin correo cargado</div>')+'</td>'
+        +'<td>'+esc(r.descripcion)+'</td>'
+        +'<td><span class="pill '+(enviada?'':'amber')+'">'+esc(r.estado||'')+'</span></td>'
+        +'<td class="num">'+cop(t)+'</td>'
+        +'<td style="white-space:nowrap"><button class="btn" onclick="verOrden('+r.id+')">Ver</button> '
+        +(enviada ? ''
+          : (pv.correo
+             ? '<button class="btn pri" onclick="enviarOrden('+r.id+')">Enviar</button>'
+             : '<button class="btn" onclick="marcarEnviada('+r.id+')">Marcar enviada</button>'))
+        +'</td></tr>';}).join('')
+      +'</tbody></table></div></div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+/* Cuando el proveedor no tiene correo en el sistema, o la orden se mando por
+   WhatsApp o se entrego en mano, igual hay que poder dejar constancia. Si no,
+   la bandeja "sin enviar" se llena de ordenes que SI se enviaron y deja de
+   servir para lo unico que sirve: saber que falta. */
+async function marcarEnviada(id){
+  const a=prompt('¿A dónde se envió? Podés poner un correo, "WhatsApp" o "entregada en mano".\n\nQueda anotado con tu nombre y la fecha.');
+  if(a===null) return;
+  try{
+    const r=await rpc('co_orden_enviada',{p_orden_id:id, p_a:a.trim()||null});
+    aviso((r&&r[0]&&r[0].mensaje)||'Anotado.', true);
+    cargarOrdenes(); if(BANDEJA_ACTIVA) cargarBandejas();
+  }catch(e){ aviso(e.message); }
+}
+
+/* Enviar, hoy: se abre el correo de la persona con todo escrito y la orden
+   queda anotada como enviada, con quien y a que direccion. El PDF lo adjunta
+   ella desde "Imprimir / guardar PDF". Cuando lo automaticemos por n8n, el
+   que llame a co_orden_enviada va a ser el flujo y esta pantalla no cambia. */
+async function enviarOrden(id){
+  const o=(await api('co_orden?id=eq.'+id+'&select=numero,fecha_emision,descripcion,'
+    +'co_proveedor(nombre,correo),co_orden_linea(numero_linea,descripcion,cantidad,valor_unitario,valor_neto)'))[0];
+  if(!o) return aviso('No encontré esa orden.');
+  const pv=o.co_proveedor||{};
+  if(!pv.correo) return aviso('Ese proveedor no tiene correo cargado.');
+  const lin=(o.co_orden_linea||[]).sort((a,b)=>a.numero_linea-b.numero_linea);
+  const total=lin.reduce((a,l)=>a+Number(l.valor_neto||0),0);
+  const cuerpo='Buenos días,\n\nAdjuntamos la orden de compra '+o.numero+' de Total QC S.A.S.\n\n'
+    +lin.map(l=>'· '+l.descripcion+' — '+l.cantidad+' x '+cop(l.valor_unitario)+' = '+cop(l.valor_neto)).join('\n')
+    +'\n\nTotal sin IVA: '+cop(total)
+    +'\n\nPor favor confirmar recepción y fecha de entrega.\n\nTotal QC S.A.S. · NIT 900.300.543-1';
+  window.location.href='mailto:'+encodeURIComponent(pv.correo)
+    +'?subject='+encodeURIComponent('Orden de compra '+o.numero+' · Total QC S.A.S.')
+    +'&body='+encodeURIComponent(cuerpo);
+  try{
+    const r=await rpc('co_orden_enviada',{p_orden_id:id, p_a:pv.correo});
+    aviso((r&&r[0]&&r[0].mensaje)||'Anotado.', true);
+    cargarOrdenes(); if(BANDEJA_ACTIVA) cargarBandejas();
+  }catch(e){ aviso('Se abrió el correo, pero no pude dejar constancia: '+e.message); }
+}
+
+/* La orden como documento. Sigue FT-COM-003 version 005, el formato real que
+   Dania pasó en PO7913: mismos bloques, mismo orden, mismos rótulos. No es
+   estética — el proveedor y el auditor buscan cada dato donde siempre estuvo.
+
+   De la capacitación:
+     «Los proveedores hacen la venta y ahí necesitan tener la información.»
+     «Tiene que tener una dirección.»
+     «Faltaría la firma tuya de enviado, para que tenga alguna legalidad.»
+
+   Todo sale de co_orden_documento y co_orden_documento_lineas: dos llamadas en
+   vez de las siete que harían falta resolviendo los nombres acá.
+
+   Lo que falta se marca EN PANTALLA y no se imprime: la orden sale igual —a
+   veces hay que mandarla ya— pero quien la manda ve qué le está faltando. */
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+             'septiembre','octubre','noviembre','diciembre'];
+const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+
+/* La fecha larga en castellano, como en PO7913 ("viernes, 28 de agosto de
+   2026"). Se arma a mano: toLocaleDateString sobre un 'YYYY-MM-DD' lo lee como
+   UTC y en Colombia (UTC-5) devuelve el día anterior. */
+function fechaLarga(iso){
+  if(!iso) return '—';
+  const p=String(iso).slice(0,10).split('-').map(Number);
+  const d=new Date(p[0],p[1]-1,p[2]);
+  return DIAS[d.getDay()]+', '+p[2]+' de '+MESES[p[1]-1]+' de '+p[0];
+}
+
+function campoPO(rot,val,falta,ancho){
+  return '<div class="poc'+(ancho?' poc2':'')+'"><span class="pol">'+esc(rot)+'</span>'
+    + '<span class="pov">'+(val ? esc(val)
+        : '<span class="poX">'+(falta||'falta')+'</span>')+'</span></div>';
+}
+
+async function verOrden(id){
+  const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
+  try{
+    const [dd,ll]=await Promise.all([
+      rpc('co_orden_documento',{p_orden_id:id}),
+      rpc('co_orden_documento_lineas',{p_orden_id:id})
+    ]);
+    const d=Array.isArray(dd)?dd[0]:dd, lin=ll||[];
+    if(!d){ c.innerHTML='<div class="err">No encontré esa orden.</div>'; return; }
+
+    /* Lo que le falta para salir completa. Es la misma lista que devuelve la
+       consulta de co_35, para que la pantalla y la base digan lo mismo. */
+    const falta=[];
+    if(!d.prov_direccion)  falta.push('dirección del proveedor');
+    if(!d.prov_telefono)   falta.push('teléfono del proveedor');
+    if(!d.prov_correo)     falta.push('correo del proveedor');
+    if(!d.prov_contacto)   falta.push('persona de contacto');
+    if(!d.base_direccion)  falta.push('dirección de entrega');
+    if(!d.recibe_telefono) falta.push('teléfono de quien recibe');
+    if(!d.plazo_entrega)   falta.push('plazo de entrega');
+    if(!d.autorizado_por)  falta.push('quién autorizó');
+
+    const enc=(d.encabezado||FORMATO.encabezado||[]);
+    const ivaRot = d.iva_uniforme==null ? 'IVA' : 'IVA '+Number(d.iva_uniforme)+'%';
+
+    c.innerHTML=
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px" class="noimp">'
+      +'<button class="btn" onclick="cargarOrdenes()">← Volver a la lista</button>'
+      +'<button class="btn" onclick="window.print()">Imprimir / guardar PDF</button>'
+      +(d.estado==='enviada'
+         ? '<span class="pill ok" style="align-self:center">ya enviada</span>'
+         : (d.prov_correo
+            ? '<button class="btn pri" onclick="enviarOrden('+id+')">Enviar al proveedor</button>'
+            : '<button class="btn pri" onclick="marcarEnviada('+id+')">Marcar como enviada</button>'))
+      +'</div>'
+      +(falta.length
+        ? '<div class="nota noimp" style="margin-bottom:11px">Sale igual, pero le falta: <b>'
+          +esc(falta.join(' · '))+'</b>. Lo del proveedor se carga en su ficha; lo de la '
+          +'entrega, en la base y en la orden.</div>'
+        : '')
+
+      +'<div class="card po" id="poDoc">'
+
+      /* ---- encabezado ------------------------------------------------ */
+      +'<div class="pohead">'
+        +'<div>'
+          +(FORMATO.logo_url?'<img src="'+esc(FORMATO.logo_url)+'" alt="" style="max-height:46px;margin-bottom:5px">':'')
+          +'<div style="font-weight:800">'+esc(FORMATO.razon_social||'')+'</div>'
+          +(FORMATO.nit?'<div>Nit. '+esc(FORMATO.nit)+'</div>':'')
+          +enc.map(x=>'<div>'+esc(x)+'</div>').join('')
+        +'</div>'
+        +'<div style="text-align:center">'
+          +'<div style="font-weight:800;font-size:14px">'+esc(FORMATO.codigo||'FT-COM-003')+'</div>'
+          +'<div style="font-weight:700">Orden de compra</div>'
+          +'<div>Versión: '+esc(FORMATO.version==null?'—':String(FORMATO.version).padStart(3,'0'))+'</div>'
+          +'<div>Fecha: '+esc(FORMATO.fecha_version||'—')+'</div>'
+        +'</div>'
+        +'<div style="text-align:center">'
+          +'<div style="font-size:11px;letter-spacing:.4px">N° ORDEN DE COMPRA</div>'
+          +'<div style="font-size:22px;font-weight:800;margin-top:3px">'+esc(d.numero)+'</div>'
+        +'</div>'
+      +'</div>'
+
+      /* ---- 1. datos generales ---------------------------------------- */
+      +'<div class="pot">1. DATOS GENERALES</div>'
+      +'<div class="pog">'
+        +campoPO('Fecha', fechaLarga(d.fecha_emision), null, true)
+        +campoPO('Nombre Proveedor', d.prov_nombre)
+        +campoPO('Nit', d.prov_nit)
+        +campoPO('Dirección', d.prov_direccion)
+        +campoPO('Teléfono', d.prov_telefono)
+        +campoPO('Ciudad', d.prov_ciudad)
+        +campoPO('E-mail', d.prov_correo)
+        +campoPO('Contacto', d.prov_contacto)
+      +'</div>'
+
+      /* ---- 2. orden --------------------------------------------------- */
+      +'<div class="pot">2. ORDEN</div>'
+      +'<div class="pog">'
+        +campoPO('N° Requisición', d.requisiciones, 'sin requisición')
+        +campoPO('N° Cotización', d.cotizacion, 'no se cotizó')
+        +campoPO('Plazo', d.plazo_entrega)
+        /* Sin "en la práctica N días": ese dato es para analizar adentro, no
+           para que lo lea el proveedor. Lo pidió Marcelo en la reunión. */
+        +campoPO('Forma de Pago', d.forma_pago)
+      +'</div>'
+
+      +'<div style="overflow-x:auto"><table class="poitems"><thead><tr>'
+        +'<th>Item</th><th>Tipo de servicio y/o producto</th><th>Concepto</th>'
+        +'<th>Centro de Costo</th><th>Unidad de medida</th><th class="num">Cantidad</th>'
+        +'<th class="num">Precio unitario</th><th class="num">Sub Total</th>'
+      +'</tr></thead><tbody>'
+      +lin.map(l=>'<tr>'
+        +'<td>'+l.numero_linea+'</td>'
+        +'<td>'+esc(l.tipo)+'</td>'
+        +'<td>'+esc(l.concepto)+'</td>'
+        +'<td>'+esc(l.centro)+'</td>'
+        +'<td>'+esc(l.unidad)+'</td>'
+        +'<td class="num">'+esc(l.cantidad)+'</td>'
+        +'<td class="num">'+cop(l.valor_unitario)+'</td>'
+        +'<td class="num">'+cop(l.subtotal)+'</td>'
+      +'</tr>').join('')
+      +'</tbody></table></div>'
+
+      +(d.nota?'<div class="ponota"><b>Nota:</b> '+esc(d.nota)+'</div>':'')
+      +'<div class="polegal">La entrega de los bienes y/o servicios deberá estar acompañada '
+      +'de la remisión firmada como soporte del recibido, requisito indispensable para su aceptación.</div>'
+
+      +'<div class="pototales">'
+        +'<div><span>SubTOTAL</span><span>'+cop(d.subtotal)+'</span></div>'
+        +'<div><span>'+ivaRot+'</span><span>'+cop(d.iva)+'</span></div>'
+        +(d.iva_uniforme==null
+          ? '<div class="poX" style="grid-column:1/-1;font-size:11.5px;text-align:right">'
+            +'esta orden tiene líneas con IVA distinto — el detalle está en cada renglón</div>'
+          : '')
+        +'<div class="pofin"><span>Total</span><span>'+cop(d.total)+'</span></div>'
+      +'</div>'
+
+      /* ---- 3. enviar a ------------------------------------------------ */
+      +'<div class="pot">3. ENVIAR A</div>'
+      +'<div class="pog">'
+        +campoPO('Nombre', FORMATO.razon_social)
+        +campoPO('Base', d.base_nombre)
+        +campoPO('Persona que recibe', d.recibe_nombre)
+        +campoPO('Ciudad', d.base_ciudad)
+        +campoPO('Dirección', d.base_direccion)
+        +campoPO('Teléfono', d.recibe_telefono || d.base_telefono)
+      +'</div>'
+
+      /* ---- 4. firmas -------------------------------------------------- */
+      +'<div class="bloque4"><div class="pot">4. FIRMAS</div>'
+      +'<div class="pofirmas">'
+        +'<div><div class="pofl"></div><div class="pol">Elaborado</div>'
+          +'<div>'+esc(d.elaborado_por||'—')+'</div></div>'
+        +'<div><div class="pofl"></div><div class="pol">Autorizado</div>'
+          +'<div>'+(d.autorizado_por
+              ? esc(d.autorizado_por)+'<div class="pol">aprobó el dinero el '
+                +esc(d.autorizado_en||'')+'</div>'
+              : '<span class="poX">nadie firmó el dinero de esta orden</span>')+'</div></div>'
+      +'</div></div>'
+
+      +'</div>';
+  }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
+}
+</script></body></html>

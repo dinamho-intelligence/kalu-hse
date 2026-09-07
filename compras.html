@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v36</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v37</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -310,9 +310,17 @@ body.ancho .wrap{max-width:1600px}
       </div>
 
       <div id="facDeOrden">
-        <div class="row"><div><label>Orden de compra *</label>
-          <select id="fOrden" onchange="ordenElegida()"></select>
-          <div class="muted" id="fOrdenNota" style="font-size:12.5px;margin-top:5px"></div></div></div>
+        <div class="muted" style="margin-bottom:9px">Una factura puede cubrir <b>varias órdenes</b>,
+          y de cada orden podés facturar <b>solo algunas líneas o parte de ellas</b>. Agregá las
+          órdenes que cubre esta factura y repartí el valor.</div>
+        <div class="row r2">
+          <div><label>Agregar una orden</label><select id="fOrden"></select></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" onclick="agregarOrdenFactura()" style="width:100%">＋ Agregar al reparto</button>
+          </div>
+        </div>
+        <div id="fAplic" style="margin-top:12px"></div>
+        <div class="tot" id="fRepartoTot"><span>Repartido</span><span>$0</span></div>
       </div>
 
       <div id="facSuelta" class="hide">
@@ -442,6 +450,24 @@ body.ancho .wrap{max-width:1600px}
         <div><label>Descripción general *</label><input id="oDesc" placeholder="Insumos operativos base Villavicencio"></div>
       </div>
       <div class="row"><div><label>Nota para el proveedor</label><input id="oNota" placeholder="Entregar en horario de 7 a 4. Facturar a nombre de Total QC S.A.S."></div></div>
+      <div class="row"><div>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="oAbierta" onchange="abiertaCambio()" style="width:auto;margin:0">
+          <span>Orden abierta — contra esta van llegando varias facturas durante un período</span>
+        </label>
+      </div></div>
+      <div id="oVigencia" class="hide">
+        <div class="row r3">
+          <div><label>Vigente desde</label><input id="oDesde" type="date"></div>
+          <div><label>Vigente hasta</label><input id="oHasta" type="date"></div>
+          <div></div>
+        </div>
+        <div class="nota">Peajes, transportes, IPS, papelería: se emite una orden por el mes y
+          contra ella se van aplicando las facturas que llegan. La cantidad de cada línea es un
+          <b>techo</b>, no un pedido. Y ejecuta presupuesto <b>al facturar</b>, no al recibir —
+          nadie recibe un peaje, y si esperáramos la recepción el mes cerraría mostrando plata
+          disponible que ya se gastó.</div>
+      </div>
       <div class="nota">Plazo, teléfono y nota salen impresos en la orden que ve el proveedor.
         Sin dirección de entrega ni teléfono, el transportador no sabe a dónde ir ni a quién llamar.</div>
     </div>
@@ -710,6 +736,11 @@ function uniOpts(){
   return (MAE.uni||[]).map(u=>'<option value="'+esc(u.nombre)+'">'+esc(u.nombre)+'</option>').join('');
 }
 
+function abiertaCambio(){
+  document.getElementById('oVigencia').classList.toggle('hide',
+    !document.getElementById('oAbierta').checked);
+}
+
 function addLinea(){
   const i=++nLin;
   const ccOpts=MAE.cc.map(c=>'<option value="'+c.id+'">'+esc(c.codigo+' · '+c.nombre)+(c.es_directo?'':'  (apoyo)')+'</option>').join('');
@@ -816,7 +847,10 @@ async function guardarOrden(){
       entregar_en_base_id:g('oBase')?Number(g('oBase')):null,
       plazo_entrega:g('oPlazo').trim()||null,
       recibe_telefono:g('oTelRec').trim()||null,
-      nota:g('oNota').trim()||null
+      nota:g('oNota').trim()||null,
+      es_abierta:document.getElementById('oAbierta').checked,
+      vigente_desde:g('oDesde')||null,
+      vigente_hasta:g('oHasta')||null
     })});
     const oid=o[0].id;
     await api('co_orden_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
@@ -1336,13 +1370,134 @@ async function recibir(lineaId){
 --------------------------------------------------------------------------- */
 let MODO_FAC='orden', ORDENES_FAC=[];
 
+/* ---------- el reparto de una factura entre órdenes y líneas ----------
+   De la capacitación, los dos pedidos que resultaron ser el mismo:
+     «Debe crearse un sistema que permita hacer órdenes abiertas y facturar
+      parcialmente los ítems, así como se reciben parcial.»
+     «En el mes me hacen una sola facturación: voy a tener una factura con
+      cinco órdenes de compra.»
+   Una factura se reparte entre las líneas que cubre. Ese reparto es lo que
+   permite las dos cosas y lo que hace que el saldo de cada orden sea cierto. */
+let REPARTO = {};   // orden_id -> {orden, lineas:[...]}
+
+async function agregarOrdenFactura(){
+  const id = document.getElementById('fOrden').value;
+  if(!id) return aviso('Elegí una orden de la lista.');
+  if(REPARTO[id]) return aviso('Esa orden ya está en el reparto.');
+  guardarLoTipeado();
+  const o = ORDENES_FAC.find(x=>String(x.orden_id)===String(id));
+  try{
+    const lin = await rpc('co_orden_saldo',{p_orden_id:Number(id)}) || [];
+    /* La PRIMERA orden arranca con el saldo propuesto: es lo que pasa casi
+       siempre —la factura viene por lo que falta— y ahorra tipear. De la
+       segunda en adelante van en blanco, porque agregar una segunda orden
+       significa justamente que la factura se reparte y proponer el saldo
+       entero de cada una daría una suma absurda de entrada. */
+    const primera = Object.keys(REPARTO).length === 0;
+    const vals = {};
+    lin.forEach(l=>{ vals[l.orden_linea_id] = {
+      valor: (primera && Number(l.saldo)>0) ? Math.round(Number(l.saldo)) : '',
+      cantidad: '' }; });
+    REPARTO[id] = {orden:o, lineas:lin, vals:vals};
+    pintarReparto();
+    document.getElementById('fOrden').value='';
+  }catch(e){ aviso('No pude traer las líneas de esa orden: '+e.message); }
+}
+
+function quitarOrdenFactura(id){ guardarLoTipeado(); delete REPARTO[id]; pintarReparto(); }
+
+/* Antes de redibujar hay que guardarse lo que la persona ya escribió. Sin esto,
+   agregar una segunda orden borraba los números de la primera — el clásico
+   "escribí todo de nuevo" que hace que nadie quiera usar la pantalla. */
+function guardarLoTipeado(){
+  document.querySelectorAll('#fAplic [data-orden]').forEach(bloque=>{
+    const r = REPARTO[bloque.dataset.orden]; if(!r) return;
+    r.vals = r.vals || {};
+    bloque.querySelectorAll('.rval').forEach(i=>{
+      r.vals[i.dataset.l] = r.vals[i.dataset.l] || {};
+      r.vals[i.dataset.l].valor = i.value;
+    });
+    bloque.querySelectorAll('.rcant').forEach(i=>{
+      r.vals[i.dataset.l] = r.vals[i.dataset.l] || {};
+      r.vals[i.dataset.l].cantidad = i.value;
+    });
+  });
+}
+
+function pintarReparto(){
+  const c = document.getElementById('fAplic');
+  const val = (id,l,campo) => ((REPARTO[id].vals||{})[l]||{})[campo] ?? '';
+  const ids = Object.keys(REPARTO);
+  if(!ids.length){
+    c.innerHTML = '<div class="muted">Todavía no agregaste ninguna orden.</div>';
+    calcReparto(); return;
+  }
+  c.innerHTML = ids.map(id=>{
+    const r = REPARTO[id], o = r.orden || {};
+    return '<div class="card" style="margin-bottom:10px" data-orden="'+id+'">'
+      + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
+        + '<div><b>'+esc(o.numero||('orden '+id))+'</b> '
+          + (o.es_abierta?'<span class="pill amber">abierta</span>':'')
+          + (o.vencida?'<span class="pill amber">vencida el '+esc(o.vigente_hasta||'')+'</span>':'')
+          + '<div class="muted" style="font-size:12.5px">'+esc(o.proveedor||'')
+          + ' · emitida por '+cop(o.valor_neto||0)+' · ya facturado '+cop(o.facturado||0)
+          + ' · falta '+cop(o.falta||0)+'</div></div>'
+        + '<button class="x" onclick="quitarOrdenFactura(\''+id+'\')">✕</button>'
+      + '</div>'
+      + '<div style="overflow-x:auto;margin-top:9px"><table style="font-size:13px"><thead><tr>'
+        + '<th>Línea</th><th class="num">Pedido</th><th class="num">Ya facturado</th>'
+        + '<th class="num">Saldo</th><th class="num">Cantidad</th><th class="num">Aplicar ahora</th>'
+      + '</tr></thead><tbody>'
+      + r.lineas.map(l=>'<tr>'
+          + '<td>'+esc(l.descripcion)+'<div class="muted" style="font-size:12px">'
+            + esc(l.centro||'')+' · '+esc(l.unidad||'')+' · '+esc(l.estado)+'</div></td>'
+          + '<td class="num">'+cop(l.valor_pedido)+'</td>'
+          + '<td class="num">'+cop(l.valor_facturado)+'</td>'
+          + '<td class="num">'+cop(l.saldo)+'</td>'
+          + '<td class="num"><input type="number" step="0.01" min="0" style="max-width:90px"'
+            + ' class="rcant" data-l="'+l.orden_linea_id+'"'
+            + ' value="'+esc(val(id,l.orden_linea_id,'cantidad'))+'"></td>'
+          + '<td class="num"><input type="number" step="1" min="0" style="max-width:120px"'
+            + ' class="rval" data-l="'+l.orden_linea_id+'" oninput="calcReparto()"'
+            + ' value="'+esc(val(id,l.orden_linea_id,'valor'))+'"></td>'
+        + '</tr>').join('')
+      + '</tbody></table></div></div>';
+  }).join('');
+  calcReparto();
+}
+
+function calcReparto(){
+  let t=0;
+  document.querySelectorAll('#fAplic .rval').forEach(i=>{ t+=Number(i.value)||0; });
+  const bruto = Number(document.getElementById('fBruto').value)||0;
+  const d = document.getElementById('fRepartoTot');
+  /* Que no cuadre no siempre es un error: puede faltar aplicar una parte. Pero
+     se dice, que es distinto de dejarlo pasar. */
+  d.innerHTML = '<span>Repartido</span><span>' + cop(t)
+    + (bruto && Math.abs(t-bruto) >= 1
+        ? ' <span class="pill amber">el bruto es '+cop(bruto)+'</span>' : '')
+    + '</span>';
+  return t;
+}
+
+function aplicacionesDelReparto(){
+  const out=[];
+  document.querySelectorAll('#fAplic .rval').forEach(i=>{
+    const v=Number(i.value)||0; if(v<=0) return;
+    const c=document.querySelector('#fAplic .rcant[data-l="'+i.dataset.l+'"]');
+    out.push({orden_linea_id:Number(i.dataset.l), valor:v,
+              cantidad:(c&&Number(c.value))?Number(c.value):null});
+  });
+  return out;
+}
+
 function modoFactura(m){
   MODO_FAC=m;
   document.getElementById('fmOrden').className = 'btn' + (m==='orden'?' pri':'');
   document.getElementById('fmSuelta').className= 'btn' + (m==='suelta'?' pri':'');
   document.getElementById('facDeOrden').classList.toggle('hide', m!=='orden');
   document.getElementById('facSuelta').classList.toggle('hide', m!=='suelta');
-  document.getElementById('fOrdenNota').textContent='';
+  if(m!=='orden'){ REPARTO={}; pintarReparto(); }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1510,24 +1665,32 @@ async function cargarFacturas(){
     ORDENES_FAC = await rpc('co_ordenes_para_facturar',{p_empresa_id:EMPRESA_ID}) || [];
   }catch(e){ ORDENES_FAC=[]; aviso('No pude traer las órdenes: '+e.message); }
 
-  const abiertas = ORDENES_FAC.filter(o=>Number(o.falta)>0);
+  /* Ojo con el nombre: acá "abiertas" son las que TIENEN SALDO, no las órdenes
+     abiertas del punto f1. Las de saldo con vigencia vencida van primero: una
+     orden de septiembre que en noviembre sigue esperando factura es un aviso. */
+  const conSaldo = ORDENES_FAC.filter(o=>Number(o.falta)>0)
+                     .sort((a,b)=>(b.vencida?1:0)-(a.vencida?1:0));
   document.getElementById('fOrden').innerHTML =
     '<option value="">— elegir —</option>' + ORDENES_FAC.map(o=>
       '<option value="'+o.orden_id+'">'+esc(o.numero+' · '+o.proveedor)
+      + (o.es_abierta?'  [abierta]':'')
       + (Number(o.falta)>0 ? '  (falta '+cop(o.falta)+')' : '  (ya facturada)')
       + '</option>').join('');
 
-  document.getElementById('facPendientes').innerHTML = abiertas.length
-    ? '<table><thead><tr><th>Orden</th><th>Proveedor</th><th>Centro</th>'
-      + '<th style="text-align:right">Emitida</th><th style="text-align:right">Facturado</th>'
-      + '<th style="text-align:right">Falta</th></tr></thead><tbody>'
-      + abiertas.map(o=>'<tr><td><b>'+esc(o.numero)+'</b><div class="muted" style="font-size:12px">'
-          + esc(o.fecha_emision)+'</div></td>'
+  document.getElementById('facPendientes').innerHTML = conSaldo.length
+    ? '<div style="overflow-x:auto"><table><thead><tr><th>Orden</th><th>Proveedor</th><th>Centro</th>'
+      + '<th class="num">Emitida</th><th class="num">Facturado</th>'
+      + '<th class="num">Falta</th><th class="num">Facturas</th></tr></thead><tbody>'
+      + conSaldo.map(o=>'<tr><td><b>'+esc(o.numero)+'</b>'
+          + (o.es_abierta?' <span class="pill amber">abierta</span>':'')
+          + (o.vencida?' <span class="pill amber">venció el '+esc(o.vigente_hasta)+'</span>':'')
+          + '<div class="muted" style="font-size:12px">'+esc(o.fecha_emision)+'</div></td>'
           + '<td>'+esc(o.proveedor)+'</td><td>'+esc(o.centro||'')+'</td>'
-          + '<td style="text-align:right">'+cop(o.valor_neto)+'</td>'
-          + '<td style="text-align:right">'+cop(o.facturado)+'</td>'
-          + '<td style="text-align:right"><b>'+cop(o.falta)+'</b></td></tr>').join('')
-      + '</tbody></table>'
+          + '<td class="num">'+cop(o.valor_neto)+'</td>'
+          + '<td class="num">'+cop(o.facturado)+'</td>'
+          + '<td class="num"><b>'+cop(o.falta)+'</b></td>'
+          + '<td class="num">'+(o.facturas||0)+'</td></tr>').join('')
+      + '</tbody></table></div>'
     : '<div class="muted">Ninguna orden está esperando factura.</div>';
 
   await listarFacturas();
@@ -1551,15 +1714,6 @@ async function listarFacturas(){
     : '<div class="muted">Todavía no hay facturas cargadas.</div>';
 }
 
-function ordenElegida(){
-  const o = ORDENES_FAC.find(x=>String(x.orden_id)===document.getElementById('fOrden').value);
-  const n = document.getElementById('fOrdenNota');
-  if(!o){ n.textContent=''; return; }
-  n.textContent = o.proveedor + ' · ' + (o.centro||'') + ' · emitida por ' + cop(o.valor_neto)
-    + ' · ya facturado ' + cop(o.facturado) + ' · falta ' + cop(o.falta);
-  const b=document.getElementById('fBruto');
-  if(!Number(b.value) && Number(o.falta)>0){ b.value=Math.round(Number(o.falta)); calcFactura(); }
-}
 
 function catgFacturaCambio(){
   /* La categoria propone el centro, igual que al pedir. Se propone, no se impone:
@@ -1574,6 +1728,7 @@ function cuentaFactura(){
   return n('fBruto') + n('fIva') - n('fRf') - n('fRi') - n('fRiva');
 }
 function calcFactura(){
+  try{ calcReparto(); }catch(_){}
   const t=document.getElementById('fTotal');
   t.value = Math.round(cuentaFactura());
   chequeoTotal();
@@ -1601,8 +1756,30 @@ async function guardarFactura(){
     radicado:v('fRad').trim()||null, observaciones:v('fObs').trim()||null };
 
   if(MODO_FAC==='orden'){
-    if(!v('fOrden')){ aviso('Elegí de qué orden sale esta factura.'); return; }
-    c.orden_id=Number(v('fOrden'));
+    const ap=aplicacionesDelReparto();
+    if(!ap.length){ aviso('Agregá al menos una orden y decí cuánto de cada línea cubre esta factura.'); return; }
+    const b2=document.getElementById('btnFactura');
+    b2.disabled=true; b2.textContent='Guardando…';
+    try{
+      /* Cabecera y reparto van en UNA sola llamada. Si fueran dos viajes, el
+         primero cerraría con una factura que todavía no se aplicó a nada y la
+         base la rechazaría — y peor, una factura a medio aplicar miente sobre
+         el saldo de la orden. */
+      const r=await rpc('co_factura_cargar',{
+        p_empresa_id:EMPRESA_ID, p_numero:v('fNum').trim(),
+        p_fecha_recepcion:v('fRec'), p_fecha_vencimiento:v('fVen'),
+        p_valor_bruto:n('fBruto'), p_iva:n('fIva'), p_retefuente:n('fRf'),
+        p_reteica:n('fRi'), p_rete_iva:n('fRiva'),
+        p_valor_total:n('fTotal')||n('fBruto'),
+        p_radicado:v('fRad').trim()||null, p_observaciones:v('fObs').trim()||null,
+        p_aplicaciones:ap});
+      const m=(Array.isArray(r)?r[0]:r)||{};
+      aviso(m.mensaje||'Factura cargada.', true);
+      limpiarFactura(); REPARTO={}; pintarReparto();
+      await cargarFacturas();
+    }catch(e){ aviso(errorFactura(e.message||'')); }
+    finally{ b2.disabled=false; b2.textContent='Cargar factura'; }
+    return;
   }else{
     if(!v('fProv')){ aviso('Falta el proveedor.'); return; }
     if(!v('fCatg')){ aviso('Falta la categoría. Solo se pueden cargar sin orden las que Cielo marcó como gasto que llega.'); return; }
@@ -1619,14 +1796,20 @@ async function guardarFactura(){
   try{
     await api('co_factura',{method:'POST',body:JSON.stringify(c)});
     aviso('Factura cargada.',true);
-    ['fNum','fRad','fObs'].forEach(i=>document.getElementById(i).value='');
-    ['fBruto','fIva','fRf','fRi','fRiva'].forEach(i=>document.getElementById(i).value=i==='fBruto'?'':'0');
-    document.getElementById('fOrden').value=''; document.getElementById('fOrdenNota').textContent='';
-    calcFactura();
+    limpiarFactura();
     await cargarFacturas();
-  }catch(e){
-    const m=e.message||'';
-    aviso(/duplicate key|co_factura_directa_uk|_uk/i.test(m)
+  }catch(e){ aviso(errorFactura(e.message||''));
+  }finally{ b.disabled=false; b.textContent='Cargar factura'; }
+}
+
+function limpiarFactura(){
+  ['fNum','fRad','fObs'].forEach(i=>document.getElementById(i).value='');
+  ['fBruto','fIva','fRf','fRi','fRiva'].forEach(i=>document.getElementById(i).value=i==='fBruto'?'':'0');
+  calcFactura();
+}
+
+function errorFactura(m){
+  return /duplicate key|co_factura_directa_uk|_uk/i.test(m)
         ? 'Esa factura ya está cargada para ese proveedor u orden.'
       : /requiere orden de compra/i.test(m)
         ? m.replace(/^.*?La categoría/,'La categoría').split('"}')[0]
@@ -1634,8 +1817,9 @@ async function guardarFactura(){
         ? 'Una factura sin orden tiene que decir proveedor, categoría, centro de costo y mes.'
       : /permission|policy|denied|42501/i.test(m)
         ? 'La base no te deja cargar facturas. Hace falta el permiso «ordenes» en Administración.'
-        : 'No pude guardar: '+m);
-  }finally{ b.disabled=false; b.textContent='Cargar factura'; }
+      : /Solo Compras carga facturas/i.test(m)
+        ? 'Hace falta el permiso «ordenes» para cargar facturas.'
+        : 'No pude guardar: '+m;
 }
 
 async function cargarCatalogo(){

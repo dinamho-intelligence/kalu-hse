@@ -3,146 +3,66 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Ingreso — KALU | Dinamho Intelligence</title>
-<meta name="description" content="Ingreso a la plataforma KALU de Dinamho Intelligence. Un solo acceso a todos tus módulos: HSE, Realidad Asistida, Consola." />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<title>Primer ingreso — KALU | Dinamho Intelligence</title>
+<meta name="description" content="Primer ingreso a la plataforma KALU: verificá tu correo y activá tu cuenta." />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.35);--glow-c:rgba(0,212,255,.25)}
-  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;overflow-x:hidden}
-  a{color:inherit;text-decoration:none}
-  .bg{position:fixed;inset:0;z-index:0;pointer-events:none}
-  .bg .grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,#000 20%,transparent 75%);opacity:.5}
-  .bg .glow1{position:absolute;top:-10%;right:-5%;width:640px;height:640px;background:radial-gradient(circle,var(--glow-o),transparent 62%);filter:blur(30px);opacity:.45}
-  .bg .glow2{position:absolute;bottom:-20%;left:-10%;width:560px;height:560px;background:radial-gradient(circle,var(--glow-c),transparent 62%);filter:blur(30px);opacity:.4}
-  .mono{font-family:'JetBrains Mono',monospace}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--orange)}
-  .logo{display:inline-flex;align-items:center;gap:11px;margin-bottom:26px}
-  .logo-txt{display:flex;flex-direction:column;line-height:1.05;text-align:left}
-  .logo-txt .b{font-weight:700;font-size:15px;letter-spacing:1px}
-  .logo-txt .s{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;font-weight:600;font-size:15px;padding:13px 24px;border-radius:12px;cursor:pointer;transition:all .25s;border:1px solid transparent}
-  .btn-primary{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;box-shadow:0 8px 30px -8px var(--glow-o)}
-  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 40px -8px var(--glow-o)}
-  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-  .btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
-  /* stage */
-  .stage{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 24px}
-  /* login card */
-  .login{width:100%;max-width:410px;text-align:center}
-  .card{background:linear-gradient(180deg,rgba(22,26,34,.9),rgba(15,18,24,.9));border:1px solid var(--border);border-radius:22px;padding:34px 30px;backdrop-filter:blur(8px);box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
-  .card h1{font-size:24px;font-weight:700;letter-spacing:-.3px;margin-bottom:5px}
-  .card .sub{color:var(--muted);font-size:14px;margin-bottom:24px}
-  .fld{text-align:left;margin-bottom:14px}
-  .fld label{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-  .fld input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:inherit;font-size:15px;padding:12px 15px;outline:none;transition:border-color .2s}
-  .fld input:focus{border-color:var(--orange)}
-  .err{color:#ff6b6b;font-size:13px;margin-bottom:12px;display:none;text-align:left}
-  .foot{margin-top:20px;font-size:12px;color:var(--muted)}
-  .foot a{color:var(--cyan)}
-  /* portal */
-  .portal{width:100%;max-width:1000px;display:none}
-  .phead{text-align:center;margin-bottom:36px}
-  .phead h1{font-size:clamp(26px,3.4vw,38px);font-weight:700;letter-spacing:-.5px;margin:12px 0 8px}
-  .phead .who{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted)}
-  .phead .who b{color:var(--cyan)}
-  .mods{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-  .mod{background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--border);border-radius:18px;padding:24px;display:flex;flex-direction:column;transition:transform .3s,border-color .3s}
-  .mod:hover{transform:translateY(-5px);border-color:rgba(242,140,0,.45)}
-  .mod.c:hover{border-color:rgba(0,212,255,.45)}
-  .mod.g:hover{border-color:rgba(52,211,153,.45)}
-  .mod .ic{width:52px;height:52px;border-radius:14px;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:25px;margin-bottom:16px}
-  .mod .st{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:20px;align-self:flex-start;margin-bottom:12px}
-  .st-live{color:#34d399;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
-  .st-soon{color:var(--muted);border:1px solid var(--border)}
-  .mod h3{font-size:18px;font-weight:600;margin-bottom:7px}
-  .mod p{color:var(--muted);font-size:13.5px;flex:1;margin-bottom:16px}
-  .mod .go{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--orange);align-self:flex-start}
-  .mod.c .go{color:var(--cyan)} .mod.g .go{color:#34d399}
-  .mod.disabled{opacity:.5;pointer-events:none}
-  .ptools{text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-  .spin{color:var(--muted);font-size:14px}
-  @media(max-width:860px){.mods{grid-template-columns:1fr 1fr}}
-  @media(max-width:520px){.mods{grid-template-columns:1fr}}
+  :root{--bg:#080A0D;--bg2:#0F1218;--bg3:#161A22;--orange:#F28C00;--orange2:#FF9F1C;--cyan:#00D4FF;--text:#EDEFF2;--muted:#8A909C;--border:rgba(255,255,255,.08);--glow-o:rgba(242,140,0,.30)}
+  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{width:100%;max-width:420px;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:34px 28px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .brand{font-size:12px;letter-spacing:3px;color:var(--orange);font-weight:600;text-align:center}
+  h1{font-size:23px;margin:8px 0 4px;text-align:center;font-weight:600}
+  .sub{color:var(--muted);font-size:13.5px;text-align:center;margin-bottom:20px}
+  label{display:block;font-size:12px;color:var(--muted);margin:16px 0 5px;font-weight:500}
+  input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;font-family:inherit}
+  input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--glow-o)}
+  .code{letter-spacing:10px;text-align:center;font-size:22px}
+  .btn{width:100%;margin-top:22px;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn:disabled{opacity:.6;cursor:default}
+  .msg{margin-top:14px;font-size:13px;min-height:1px}
+  .msg.err{color:#ff6b6b}
+  .msg.ok{color:#34d399}
+  .link{display:block;text-align:center;margin-top:16px;color:var(--cyan);font-size:13px;cursor:pointer}
+  .hide{display:none}
 </style>
 </head>
 <body>
-<div class="bg"><div class="grid"></div><div class="glow1"></div><div class="glow2"></div></div>
-<div class="stage">
-  <!-- LOGIN -->
-  <div class="login" id="loginView">
-    <a class="logo" href="index.html" title="Volver al inicio">
-      <svg viewBox="0 0 40 40" fill="none" style="width:36px;height:36px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
-      <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
-    </a>
-    <div class="card">
-      <span class="eyebrow">Plataforma KALU</span>
-      <h1>Ingresá a tu cuenta</h1>
-      <div class="sub">Un solo acceso a todos tus módulos.</div>
-      <div class="fld"><label>Email</label><input id="g_email" type="email" placeholder="tu@empresa.com" autocomplete="username" /></div>
-      <div class="fld"><label>Contraseña</label><input id="g_pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" /></div>
-      <div class="err" id="g_err"></div>
-      <button class="btn btn-primary" id="g_btn" style="width:100%" onclick="doLogin()">Ingresar →</button>
-     <div style="text-align:center;margin-top:12px"><a href="#" onclick="olvideClave();return false;" style="color:var(--muted);font-size:13px">¿Olvidaste tu contraseña?</a></div>
-      <div style="text-align:center;margin-top:8px"><a href="index.html" style="color:var(--muted);font-size:13px">← Volver al inicio</a></div>
-    </div>
-    <div class="foot">¿Problemas para entrar? Escribinos a <a href="mailto:info@dinamho.co">info@dinamho.co</a></div>
+<div class="card">
+  <div class="brand">PLATAFORMA KALU</div>
+  <h1>Primer ingreso</h1>
+
+  <div id="paso1">
+    <div class="sub">Ingresá con tu correo y tu cédula. Te enviamos un código al correo para verificar que sos vos.</div>
+    <label>Correo</label>
+    <input id="correo" type="email" autocomplete="email" placeholder="tucorreo@empresa.com" />
+    <label>Cédula / Documento</label>
+    <input id="cedula" inputmode="numeric" placeholder="12345678" onkeydown="if(event.key==='Enter')enviarCodigo()" />
+    <button class="btn" id="btn1" onclick="enviarCodigo()">Enviarme el código →</button>
+    <div class="msg" id="msg1"></div>
   </div>
-  <!-- PORTAL -->
-  <div class="portal" id="portalView">
-    <div class="phead">
-      <a class="logo" href="index.html" style="justify-content:center" id="p_logo">
-        <svg viewBox="0 0 40 40" fill="none" style="width:34px;height:34px"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#F28C00" stroke-width="1.6"/><polygon points="20,8 30,14 30,26 20,32 10,26 10,14" fill="rgba(242,140,0,0.12)" stroke="#F28C00" stroke-width="0.6"/><text x="20" y="26" text-anchor="middle" fill="#F28C00" font-size="13" font-weight="700" font-family="Space Grotesk">DI</text></svg>
-        <div class="logo-txt"><span class="b">KALU</span><span class="s">DINAMHO INTELLIGENCE</span></div>
-      </a>
-      <h1 id="p_hola">Hola</h1>
-      <div class="who" id="p_who"></div>
-    </div>
-    <div class="mods" id="mods"></div>
-    <div class="ptools">
-      <span class="mono" style="font-size:11px;color:var(--muted);align-self:center">La administración de empresas, módulos y usuarios está en el panel de Administración</span>
-      <button class="btn btn-ghost" onclick="salir()">⎋ Cerrar sesión</button>
-    </div>
+
+  <div id="paso2" class="hide">
+    <div class="sub" id="sub2">Te enviamos un código a tu correo. Escribilo acá.</div>
+    <label>Código de 6 dígitos</label>
+    <input id="codigo" class="code" inputmode="numeric" maxlength="6" placeholder="••••••" onkeydown="if(event.key==='Enter')verificar()" />
+    <button class="btn" id="btn2" onclick="verificar()">Ingresar →</button>
+    <div class="msg" id="msg2"></div>
+    <span class="link" onclick="reenviar()">Reenviar código</span>
   </div>
+
+  <span class="link" onclick="location.href='ingreso.html'">← Volver al ingreso normal</span>
 </div>
+
 <script>
-const $ = s => document.querySelector(s);
-function esc(s){return (s==null?"":String(s)).replace(/[<>&"]/g,function(c){return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];});}
-/* CASA DE LOS USUARIOS = plataforma unificada. La puerta única pregunta acá. */
 const SB_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
-let SB_TOKEN=null, SB_EMPRESA=null, SB_EMAIL=null, SB_NOMBRE=null, SB_ROL=null, SB_SUPER=false, SB_MODULOS=[], SB_EMPRESA_NOMBRE="", SB_BRANDING={};
-/* ===== KALU · sesión compartida (localStorage) + único por equipo + auto-cierre por inactividad ===== */
-const SB_REF="nignqeipzlemwfrwmpip";
-const SESS_KEY="sb-"+SB_REF+"-auth-token";
-const LOGOUT_KEY="kalu_logout";
-let MY_SESION=null, MY_UID=null, IDLE_MIN=15, _idleTimer=null, _pollTimer=null, RESTORING=false;
-function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
-function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
-function clearSession(){ try{ localStorage.removeItem(SESS_KEY); localStorage.removeItem("kalu_sid"); }catch(_){} }
-async function refrescarToken(rt){ if(!rt) return null; try{ const d=await sbFetch("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:JSON.stringify({refresh_token:rt})}); if(!d||!d.access_token) return null; saveSession(d); return d; }catch(_){ return null; } }
-function _uuid(){ return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2); }
-async function sellarSesion(){ MY_SESION=_uuid(); try{ localStorage.setItem("kalu_sid",MY_SESION); }catch(_){} try{ await sbFetch("/rest/v1/rpc/kalu_set_sesion",{method:"POST",body:JSON.stringify({p_sid:MY_SESION})}); }catch(_){} }
-async function chequearSesion(){ if(!SB_TOKEN||!MY_UID) return; try{ const r=await sbFetch("/rest/v1/perfiles?id=eq."+MY_UID+"&select=sesion_id"); const sid=(r&&r[0]&&r[0].sesion_id)||null; if(sid && MY_SESION && sid!==MY_SESION){ forzarSalida("Se inició sesión en otro equipo. Por seguridad, cerramos esta sesión."); } }catch(_){} }
-function resetIdle(){ if(_idleTimer)clearTimeout(_idleTimer); _idleTimer=setTimeout(function(){ forzarSalida("Cerramos tu sesión por inactividad."); }, (IDLE_MIN||15)*60000); }
-function armarGuards(){ ["mousemove","mousedown","keydown","touchstart","scroll","click"].forEach(function(ev){ window.addEventListener(ev,resetIdle,{passive:true}); }); resetIdle(); if(_pollTimer)clearInterval(_pollTimer); _pollTimer=setInterval(chequearSesion,30000); document.addEventListener("visibilitychange",function(){ if(!document.hidden) chequearSesion(); }); window.addEventListener("storage",function(e){ if(e.key===LOGOUT_KEY){ cerrarLocal(); } }); }
-function cerrarLocal(){ SB_TOKEN=null; try{ if(_idleTimer)clearTimeout(_idleTimer); if(_pollTimer)clearInterval(_pollTimer); }catch(_){} location.href="index.html"; }
-function forzarSalida(msg){ clearSession(); try{ localStorage.setItem(LOGOUT_KEY, String(Date.now())); }catch(_){} if(msg){ try{ alert(msg); }catch(_){} } cerrarLocal(); }
-function focusEmail(){ setTimeout(function(){ var e=$("#g_email"); if(e)e.focus(); },80); }
-/* Catálogo del portal. Cada app declara a qué MÓDULO pertenece (mod). El portal
-   le muestra a cada empresa SOLO los módulos que tiene contratados en empresas.modulos. */
-const PORTAL=[
-  {mod:"hse",  href:"app.html",              ic:"🛡️", cls:"g", nombre:"KALU HSE",                desc:"Validación, ATS e investigación de accidentes bajo norma."},
-  {mod:"hse",  href:"hse.html",              ic:"📊", cls:"c", nombre:"Consola HSE",              desc:"Tablero, expedientes, tarjetas y auditoría."},
-  {mod:"capacitador", href:"capacitador.html", ic:"🎓", cls:"g", nombre:"Capacitador", desc:"Pasaporte de capacitaciones, cronograma y certificados."},
-  {mod:"patrones", href:"patrones.html", ic:"🧠", cls:"c", nombre:"Patrones · IA", desc:"KALU cruza eventos, tarjetas y ATS, detecta patrones y arma memos de hallazgo."},
-  {mod:"ra",   href:"captura-ra.html",       ic:"🥽", cls:"c", nombre:"RA · Captura",            desc:"Lente o celular del operador en terreno."},
-  {mod:"ra",   href:"consola-ra.html",       ic:"🎧", cls:"c", nombre:"RA · Consola",            desc:"El coordinador monitorea y asiste en vivo."},
-  {mod:"qaqc", href:"captura-qaqc.html",     ic:"📐", cls:"g", nombre:"QA/QC · Captura",         desc:"Inspección con tablet o teléfono en terreno."},
-  {mod:"qaqc", href:"consola-qaqc.html",     ic:"📋", cls:"g", nombre:"QA/QC · Consola",         desc:"Coordinación y seguimiento de inspecciones."},
-  {mod:"qaqc", href:"editor-informes-qaqc.html", ic:"📝", cls:"g", nombre:"QA/QC · Editor de informes", desc:"El asegurador arma su informe en la oficina."},
-  {mod:"ndt",  href:"#",                      ic:"🔬", cls:"c", nombre:"NDT",                     desc:"Ensayos no destructivos.", soon:true}
-];
+const SB_REF  = "nignqeipzlemwfrwmpip";
+const SESS_KEY = "sb-" + SB_REF + "-auth-token";
+let SB_TOKEN = null, EMAIL = "";
+const $ = function(id){ return document.getElementById(id); };
+function setMsg(id, txt, cls){ var m=$(id); m.textContent=txt||""; m.className="msg "+(cls||""); }
+
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
   if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
@@ -151,102 +71,45 @@ async function sbFetch(path, opts){
   if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
   return data;
 }
-async function sbLoginPass(email,password){
-  const d=await sbFetch("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email:email,password:password})});
-  SB_TOKEN=d.access_token; SB_EMAIL=email; saveSession(d);
-}
-async function cargarPerfilYPortal(){
-  const u=await sbFetch("/auth/v1/user",{});
-  if(u&&u.email) SB_EMAIL=u.email;
-  MY_UID=u.id;
-  const perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado");
-  if(!perf||!perf.length) throw new Error("Tu usuario no tiene perfil asignado. Contactá a tu administrador.");
-  const p=perf[0];
-  if(p.estado && p.estado!=="activo") throw new Error("Tu cuenta está "+p.estado+". Contactá a tu administrador.");
-  SB_EMPRESA=p.empresa_id; SB_NOMBRE=p.nombre||""; SB_ROL=p.rol||""; SB_SUPER=!!p.es_super;
-  /* módulos contratados por su empresa → el portal muestra solo esos */
-  SB_MODULOS=[]; SB_EMPRESA_NOMBRE=""; SB_BRANDING={};
+
+async function enviarCodigo(){
+  EMAIL=($("correo").value||"").trim().toLowerCase();
+  const ced=($("cedula").value||"").trim();
+  if(!EMAIL||!ced){ setMsg("msg1","Completá correo y cédula.","err"); return; }
+  const b=$("btn1"); b.disabled=true; b.textContent="Verificando…"; setMsg("msg1","","");
   try{
-    const emp=await sbFetch("/rest/v1/empresas?id=eq."+SB_EMPRESA+"&select=razon_social,modulos,activa,branding");
-    if(emp&&emp.length){
-      if(emp[0].activa===false) throw new Error("La empresa está inactiva. Contactá a Dinamho.");
-      SB_MODULOS=Array.isArray(emp[0].modulos)?emp[0].modulos:[];
-      SB_EMPRESA_NOMBRE=emp[0].razon_social||"";
-      SB_BRANDING=(emp[0].branding&&typeof emp[0].branding==='object')?emp[0].branding:{};
+    const ok=await sbFetch("/rest/v1/rpc/padron_puede_ingresar",{method:"POST",body:JSON.stringify({p_correo:EMAIL,p_cedula:ced})});
+    if(ok!==true){
+      setMsg("msg1","No encontramos ese correo y esa cédula juntos en el padrón. Verificá los datos o avisá a tu supervisor.","err");
+      b.disabled=false; b.textContent="Enviarme el código →"; return;
     }
-  }catch(e){ if(String(e.message).indexOf("inactiva")>=0) throw e; /* si RLS bloquea, queda sin módulos y avisamos abajo */ }
-  /* sesión única por equipo + auto-cierre por inactividad (60 min para gestores, 15 el resto) */
-  IDLE_MIN=(p.es_super||["hse","supervisor","admin"].indexOf(p.rol)>=0)?60:15;
-  if(RESTORING){ MY_SESION=localStorage.getItem("kalu_sid")||null; } else { await sellarSesion(); }
-  armarGuards();
-  mostrarPortal();
+    await sbFetch("/auth/v1/otp",{method:"POST",body:JSON.stringify({email:EMAIL,create_user:true})});
+    $("paso1").classList.add("hide"); $("paso2").classList.remove("hide");
+    $("sub2").textContent="Te enviamos un código a "+EMAIL+". Escribilo acá (revisá spam si no lo ves).";
+    $("codigo").focus();
+  }catch(e){ setMsg("msg1",(e&&e.message)||"No se pudo enviar el código.","err"); b.disabled=false; b.textContent="Enviarme el código →"; }
 }
-async function olvideClave(){
-  const email=($("#g_email").value||"").trim(), err=$("#g_err");
-  if(!email){ err.style.color="#ff6b6b"; err.textContent="Escribí tu email arriba y volvé a tocar el enlace."; err.style.display="block"; return; }
+
+async function verificar(){
+  const code=($("codigo").value||"").trim();
+  if(!code){ setMsg("msg2","Escribí el código.","err"); return; }
+  const b=$("btn2"); b.disabled=true; b.textContent="Ingresando…"; setMsg("msg2","","");
   try{
-    await sbFetch("/auth/v1/recover?redirect_to="+encodeURIComponent("https://getkalu.com/set-password.html"),{method:"POST",body:JSON.stringify({email:email})});
-    err.style.color="#34d399"; err.textContent="Te enviamos un correo para poner una nueva contraseña. Revisá tu bandeja (y spam)."; err.style.display="block";
-  }catch(e){ err.style.color="#ff6b6b"; err.textContent="No se pudo enviar el correo. Probá de nuevo."; err.style.display="block"; }
+    const sess=await sbFetch("/auth/v1/verify",{method:"POST",body:JSON.stringify({type:"email",email:EMAIL,token:code})});
+    if(!sess||!sess.access_token) throw new Error("Código inválido o vencido.");
+    try{ localStorage.setItem(SESS_KEY, JSON.stringify(sess)); }catch(_){}
+    SB_TOKEN=sess.access_token;
+    try{ await sbFetch("/rest/v1/rpc/activar_mi_cuenta",{method:"POST",body:"{}"}); }catch(_){}
+    setMsg("msg2","¡Listo! Entrando…","ok");
+    setTimeout(function(){ location.href="ingreso.html"; }, 500);
+  }catch(e){ setMsg("msg2",(e&&e.message)||"Código inválido o vencido.","err"); b.disabled=false; b.textContent="Ingresar →"; }
 }
-async function doLogin(){
-  const email=$("#g_email").value.trim(), pass=$("#g_pass").value, err=$("#g_err"), btn=$("#g_btn");
-  if(!email||!pass){ err.textContent="Completá email y contraseña."; err.style.display="block"; return; }
-  btn.disabled=true; btn.textContent="Ingresando…"; err.style.display="none";
-  try{ await sbLoginPass(email,pass); await cargarPerfilYPortal(); }
-  catch(e){ err.textContent=(e&&e.message)||"Error de login"; err.style.display="block"; }
-  finally{ btn.disabled=false; btn.textContent="Ingresar →"; }
+
+async function reenviar(){
+  if(!EMAIL) return;
+  try{ await sbFetch("/auth/v1/otp",{method:"POST",body:JSON.stringify({email:EMAIL,create_user:true})}); setMsg("msg2","Código reenviado. Revisá tu correo (y spam).","ok"); }
+  catch(e){ setMsg("msg2",(e&&e.message)||"No se pudo reenviar.","err"); }
 }
-/* Branding por empresa: pinta el color y cambia el logo del portal.
-   La pantalla de login queda con KALU (aún no sabemos la empresa). */
-function aplicarBrandingPortal(){
-  var b=SB_BRANDING||{};
-  if(b.color && /^#[0-9a-fA-F]{6}$/.test(b.color)){
-    var r=document.documentElement.style;
-    r.setProperty('--orange', b.color);
-    r.setProperty('--orange2', b.color);
-    r.setProperty('--glow-o', b.color+'59');   /* mismo color, ~35% alpha */
-  }
-  var el=$("#p_logo"); if(!el) return;
-  if(b.logo_url){
-    el.innerHTML='<img src="'+esc(b.logo_url)+'" alt="logo" style="height:88px;width:auto;max-width:400px;object-fit:contain">';
-  }
-}
-function mostrarPortal(){
-  $("#loginView").style.display="none";
-  $("#portalView").style.display="block";
-  $("#p_hola").textContent = "Hola" + (SB_NOMBRE ? ", "+SB_NOMBRE.split(" ")[0] : "");
-  $("#p_who").innerHTML = "Ingresaste como <b>"+esc(SB_EMAIL||"")+"</b>"+(SB_EMPRESA_NOMBRE?' · <b>'+esc(SB_EMPRESA_NOMBRE)+'</b>':'');
-  aplicarBrandingPortal();
-  /* solo los módulos contratados por la empresa */
-  const contratados = PORTAL.filter(function(c){ return SB_SUPER || SB_MODULOS.indexOf(c.mod)>=0; });
-  let cards=contratados.map(function(c){
-    const st=c.soon?'<span class="st st-soon">Próximo</span>':'<span class="st st-live">● En operación</span>';
-    const href=c.soon?'#':c.href;
-    return '<a class="mod '+c.cls+(c.soon?' disabled':'')+'" href="'+href+'">'+
-      '<div class="ic">'+c.ic+'</div>'+st+'<h3>'+esc(c.nombre)+'</h3><p>'+esc(c.desc)+'</p>'+
-      (c.soon?'':'<span class="go">Entrar →</span>')+'</a>';
-  });
-  if(SB_SUPER || SB_ROL==="admin" || SB_ROL==="hse"){
-    cards.push('<a class="mod g" href="admin.html"><div class="ic">⚙️</div><span class="st st-live">'+(SB_SUPER?"super-admin":esc(SB_ROL))+'</span><h3>Administración</h3><p>Empresas, módulos, usuarios, roles, acceso y personal.</p><span class="go">Abrir →</span></a>');
-  }
-  if(!cards.length){
-    cards.push('<div class="empty" style="grid-column:1/-1;color:var(--muted);text-align:center;padding:34px;border:2px dashed var(--border);border-radius:16px">Tu empresa todavía no tiene módulos habilitados.<br>Contactá a tu administrador.</div>');
-  }
-  $("#mods").innerHTML = cards.join("");
-}
-function salir(){ forzarSalida(""); }
-/* Si ya hay sesión activa en el cajón compartido, restaurarla y mostrar el portal */
-(async function(){
-  const s=readSession();
-  if(s && s.access_token){
-    let sess=s; const now=Math.floor(Date.now()/1000);
-    if(s.expires_at && s.expires_at < now+60){ sess=await refrescarToken(s.refresh_token); if(!sess){ clearSession(); focusEmail(); return; } }
-    SB_TOKEN=sess.access_token; SB_EMAIL=(sess.user&&sess.user.email)||"";
-    RESTORING=true;
-    cargarPerfilYPortal().catch(function(){ clearSession(); SB_TOKEN=null; $("#loginView").style.display="block"; $("#portalView").style.display="none"; focusEmail(); }).finally(function(){ RESTORING=false; });
-  } else { focusEmail(); }
-})();
 </script>
 </body>
 </html>

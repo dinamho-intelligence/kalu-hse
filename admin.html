@@ -51,6 +51,10 @@
   .mchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;background:#f7f8fb;border:1.5px solid var(--line2);border-radius:20px;padding:5px 11px;cursor:pointer;user-select:none}
   .mchk.on{background:#fff3e0;border-color:var(--amber);color:#8a5a12}
   .card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .tbl th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;padding:8px 10px;border-bottom:1.5px solid var(--line)}
+  .tbl td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .tbl tr:last-child td{border-bottom:none}
   .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
   .fld label{display:block;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
   .fld input,.fld select{width:100%;font-family:inherit;font-size:14px;border:1.5px solid var(--line2);border-radius:9px;padding:9px 12px;outline:none;background:#fff}
@@ -214,7 +218,7 @@ const PERM_LABEL={
 function modDef(k){ return MODULOS.find(function(m){return m.key===k;}); }
 /* Roles de KALU (del software): nombre visible + descripción por módulo */
 const ROL_LABEL={ hse:{ supervisor:"Supervisor HSE", coordinador:"Coordinador HSE" }, ra:{ coordinador:"Coordinador RA" }, qaqc:{ coordinador:"Coordinador QA/QC" },
-  compras:{ solicitante:"Pedidor", aprobador:"Aprobador", comprador:"Compras", direccion:"Dirección" } };
+  compras:{ solicitante:"Solicitante", aprobador:"Aprobador", comprador:"Compras", direccion:"Dirección" } };
 const ROL_DESC={ hse:{
   trabajador:"Trabajador de a pie. Solo carga Tarjetas.",
   operador:"Operador del sistema (personal instruido; ej. un supervisor de operaciones). Tarjetas, ATS e Investigaciones; se le puede habilitar Aprobar ATS.",
@@ -281,6 +285,7 @@ function construirTabs(){
   if(ME.es_super) tabs.push(["demos","🎫 Demos"]);
   tabs.push(["miempresa","🏢 Mi empresa"]);
   tabs.push(["usuarios","👥 Usuarios y accesos"]);
+  if(tieneCompras()) tabs.push(["aprobadores","✍️ Aprobadores de compras"]);
   tabs.push(["padron","🪪 Padrón (cédulas)"]);
   tabs.push(["formatos","📄 Control documental"]);
   tabs.push(["auditoria","📜 Auditoría"]);
@@ -288,7 +293,7 @@ function construirTabs(){
   irTab(tabs[0][0]);
 }
 function irTab(t){ TAB=t; document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("active",b.id==="tab_"+t);});
-  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="demos") viewDemos(); else if(t==="miempresa") viewMiEmpresa(); else if(t==="usuarios") viewUsuarios(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
+  if(t==="empresas") viewEmpresas(); else if(t==="enrolamiento") viewEnrolamiento(); else if(t==="demos") viewDemos(); else if(t==="miempresa") viewMiEmpresa(); else if(t==="usuarios") viewUsuarios(); else if(t==="aprobadores") viewAprobadores(); else if(t==="padron") viewPadron(); else if(t==="formatos") viewFormatos(); else viewAuditoria(); }
 async function viewEnrolamiento(){
   var h='<h2 class="sec">Enrolar una empresa nueva</h2>';
   h+='<div class="note" style="margin-bottom:14px">Ingresá el correo del futuro <b>administrador</b> de la empresa y qué módulos le autorizás. KALU le manda un correo para que <b>él</b> cargue todos los datos y cree su usuario. La empresa se crea sola cuando termina — vos solo das el gatillo.</div>';
@@ -761,6 +766,125 @@ async function toggleSuper(id,val){ if(val&&!confirm("¿Hacer super-admin? Va a 
 async function bajaUsuario(id){ if(!confirm("¿Desactivar este usuario? No podrá entrar (se puede reactivar)."))return; try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"baja"})}); logAud("baja_usuario","perfil",id,null); toast("Usuario desactivado"); viewUsuarios(); }catch(e){ toast("Error: "+e.message,true); } }
 async function reactivarUsuario(id){ try{ await sbFetch("/rest/v1/perfiles?id=eq."+id,{method:"PATCH",body:JSON.stringify({estado:"activo"})}); logAud("reactivar_usuario","perfil",id,null); toast("Reactivado"); viewUsuarios(); }catch(e){ toast("Error: "+e.message,true); } }
 /* ---------- PADRÓN (personas · cédulas + accesos previstos) ---------- */
+/* ---------- APROBADORES DE COMPRAS ----------
+   Quien firma que se puede pedir (Aprobador 1) y quien firma que se puede
+   gastar (Aprobador 2), POR CENTRO DE COSTO. Es lo que hace que HSEQ lo
+   apruebe HSEQ y Administracion lo apruebe Administracion.
+   Si un centro queda sin nadie, el sistema NO se traba: cae al permiso
+   suelto y lo aprueba cualquiera que lo tenga. Eso es comodo para arrancar
+   y peligroso para quedarse, asi que la pantalla lo dice en la cara. */
+function tieneCompras(){
+  if(ME && ME.es_super) return true;
+  var m=empModulos(CTX_EMP||ME.empresa_id);
+  return !m || m.indexOf("compras")>=0;
+}
+var APR_CENTROS=[], APR_GENTE=[];
+async function viewAprobadores(){
+  var emp=CTX_EMP||ME.empresa_id;
+  var h='<h2 class="sec">Aprobadores de compras</h2>';
+  h+='<div class="note" style="margin-bottom:14px">Quién firma en <b>cada centro de costo</b>. '
+   +'<b>Aprobador 1</b> dice que la compra hace falta; <b>Aprobador 2</b> dice que hay con qué pagarla. '
+   +'Una persona solo aparece acá si en <b>Usuarios y accesos</b> ya tiene el permiso correspondiente en Compras.</div>';
+  try{
+    var r=await Promise.all([
+      sbFetch("/rest/v1/rpc/co_aprobadores_ver",{method:"POST",body:JSON.stringify({p_empresa_id:emp})}),
+      sbFetch("/rest/v1/accesos?empresa_id=eq."+emp+"&modulo=eq.compras&estado=eq.activo&select=usuario_id,permisos")
+    ]);
+    APR_CENTROS=r[0]||[];
+    var accesos=r[1]||[];
+    var ids=accesos.map(function(a){return a.usuario_id;});
+    var perf=ids.length
+      ? await sbFetch("/rest/v1/perfiles?id=in.("+ids.join(",")+")&select=id,nombre,email&order=nombre.asc")
+      : [];
+    APR_GENTE=perf.map(function(p){
+      var a=accesos.find(function(x){return x.usuario_id===p.id;})||{};
+      var perms=Array.isArray(a.permisos)?a.permisos:[];
+      return {id:p.id, nombre:p.nombre||p.email,
+              pedido:perms.indexOf("aprueba_pedido")>=0,
+              dinero:perms.indexOf("aprueba_dinero")>=0};
+    });
+  }catch(e){ $("#view").innerHTML='<div class="empty" style="color:var(--no)">'+esc(e.message)+'</div>'; return; }
+
+  var sinNadie=APR_CENTROS.filter(function(c){
+    return (c.aprueban_pedido||[]).length===0 && (c.aprueban_dinero||[]).length===0; }).length;
+  var hayGente=APR_GENTE.some(function(g){return g.pedido;}) && APR_GENTE.some(function(g){return g.dinero;});
+
+  if(!hayGente){
+    h+='<div class="note" style="border-color:var(--amber);margin-bottom:14px">'
+     +'Todavía no hay nadie con permiso de aprobar en Compras. Andá a <b>Usuarios y accesos</b>, '
+     +'abrí el módulo <b>Compras</b> de cada persona y tildá <b>Aprueba el pedido</b> o '
+     +'<b>Aprueba el dinero</b>. Después volvé acá a decir en qué centros firma cada uno.</div>';
+  }else if(sinNadie){
+    h+='<div class="note" style="border-color:var(--amber);margin-bottom:14px">'
+     +'<b>'+sinNadie+'</b> de '+APR_CENTROS.length+' centros no tienen a nadie asignado. '
+     +'Mientras estén vacíos, cualquiera que tenga el permiso puede aprobar compras de esos centros.</div>';
+  }
+
+  h+='<div class="card"><div style="overflow-x:auto"><table class="tbl"><thead><tr>'
+   +'<th style="min-width:180px">Centro de costo</th>'
+   +'<th style="min-width:230px">Aprobador 1 · el pedido</th>'
+   +'<th style="min-width:230px">Aprobador 2 · el dinero</th></tr></thead><tbody>'
+   + APR_CENTROS.map(function(c){
+       return '<tr><td><b>'+esc(c.centro)+'</b> · '+esc(c.centro_nombre)
+         + (c.es_directo?'':' <span class="meta">(apoyo)</span>') + '</td>'
+         + '<td>'+celdaApr(c,"pedido")+'</td>'
+         + '<td>'+celdaApr(c,"dinero")+'</td></tr>';
+     }).join("")
+   +'</tbody></table></div></div>';
+  $("#view").innerHTML=h;
+}
+
+function celdaApr(c, nivel){
+  var puestos = (nivel==="pedido" ? c.aprueban_pedido : c.aprueban_dinero) || [];
+  var puede = APR_GENTE.filter(function(g){ return nivel==="pedido" ? g.pedido : g.dinero; });
+  var yaEstan = puestos.map(function(p){ return p.id; });
+  var libres = puede.filter(function(g){ return yaEstan.indexOf(g.id)<0; });
+  var chips = puestos.length
+    ? puestos.map(function(p){
+        return '<span class="mchk on" style="cursor:default">'+esc(p.nombre)
+          +' <b style="cursor:pointer;margin-left:4px" title="Quitar" onclick="quitarApr('
+          + c.centro_costo_id + ",'" + nivel + "','" + p.id + '\')">×</b></span>'; }).join(" ")
+    : '<span class="meta">nadie · lo aprueba cualquiera con el permiso</span>';
+  var sel = libres.length
+    ? '<select onchange="ponerApr('+c.centro_costo_id+",'"+nivel+'\',this.value,this)" '
+      +'style="margin-top:7px;background:#f7f8fb;border:1px solid var(--line2);border-radius:8px;'
+      +'color:var(--tx);padding:6px 9px;font-size:12.5px;max-width:100%">'
+      +'<option value="">+ agregar…</option>'
+      + libres.map(function(g){ return '<option value="'+g.id+'">'+esc(g.nombre)+'</option>'; }).join("")
+      +'</select>'
+    : (puede.length ? '' : '<div class="meta" style="margin-top:6px">nadie tiene ese permiso todavía</div>');
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px">'+chips+'</div>'+sel;
+}
+
+async function ponerApr(centroId, nivel, usuarioId, sel){
+  if(!usuarioId) return;
+  if(sel) sel.disabled=true;
+  try{
+    var r=await sbFetch("/rest/v1/rpc/co_aprobador_asignar",{method:"POST",body:JSON.stringify({
+      p_empresa_id:CTX_EMP||ME.empresa_id, p_centro_costo_id:centroId,
+      p_nivel:nivel, p_usuario_id:usuarioId })});
+    var res=Array.isArray(r)?r[0]:r;
+    if(res && res.ok===false){ toast(res.mensaje||"No se pudo",true); }
+    else{ logAud("compras_aprobador_asignar","centro_costo",centroId,{nivel:nivel,usuario:usuarioId});
+          toast("Asignado"); }
+  }catch(e){ toast("Error: "+e.message,true); }
+  viewAprobadores();
+}
+
+async function quitarApr(centroId, nivel, usuarioId){
+  if(!confirm("¿Quitarle la firma de este centro?")) return;
+  try{
+    var r=await sbFetch("/rest/v1/rpc/co_aprobador_quitar",{method:"POST",body:JSON.stringify({
+      p_empresa_id:CTX_EMP||ME.empresa_id, p_centro_costo_id:centroId,
+      p_nivel:nivel, p_usuario_id:usuarioId })});
+    var res=Array.isArray(r)?r[0]:r;
+    if(res && res.ok===false){ toast(res.mensaje||"No se pudo",true); }
+    else{ logAud("compras_aprobador_quitar","centro_costo",centroId,{nivel:nivel,usuario:usuarioId});
+          toast("Quitado"); }
+  }catch(e){ toast("Error: "+e.message,true); }
+  viewAprobadores();
+}
+
 async function viewPadron(){
   $("#view").innerHTML='<div class="spin">Cargando padrón…</div>';
   let ps=[];

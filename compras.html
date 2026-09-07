@@ -109,16 +109,74 @@ h3{margin:0 0 12px;font-size:16px}
 .bandeja.vacia{opacity:.45}
 .bandeja.alerta .n{color:#ff8f8f}
 .bandeja.ojo .n{color:var(--amber)}
+
+/* ---- la orden impresa, segun FT-COM-003 v005 ---------------------------- */
+.po{font-size:12.5px}
+.pohead{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:start;
+ border:1px solid var(--line2);border-radius:7px;padding:10px 12px;line-height:1.5}
+.pot{margin:14px 0 7px;padding:5px 9px;border-radius:5px;background:var(--line);color:var(--tx);
+ font-weight:800;font-size:11.5px;letter-spacing:.6px}
+.pog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+.poc{display:flex;gap:8px;padding:4px 0;border-bottom:1px dotted var(--line)}
+.poc2{grid-column:1/-1}
+.pol{color:var(--tx2);font-size:11px;min-width:130px;text-transform:uppercase;letter-spacing:.3px}
+.pov{flex:1}
+.poX{color:var(--warn,#b45309);font-style:italic}
+table.poitems{margin-top:12px;font-size:12px}
+table.poitems th{white-space:nowrap}
+.ponota{margin-top:10px;padding:7px 10px;border-left:3px solid var(--line2)}
+.polegal{margin-top:9px;font-size:11px;color:var(--tx2);line-height:1.5}
+.pototales{margin-top:12px;margin-left:auto;width:min(320px,100%);
+ display:grid;grid-template-columns:1fr auto;gap:4px 16px}
+.pototales>div{display:contents}
+.pototales span:nth-child(2){text-align:right;font-variant-numeric:tabular-nums}
+.pofin span{font-weight:800;font-size:15px;border-top:1px solid var(--line2);padding-top:5px}
+.bloque4{margin-top:0}
+.pofirmas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px;margin-top:26px}
+.pofl{height:44px;border-bottom:1px solid var(--tx2)}
+@media(max-width:720px){.pohead,.pog,.pofirmas{grid-template-columns:1fr}}
+
 /* Consultas se mira ancho: es una tabla de trabajo, no un formulario. */
 body.ancho .wrap{max-width:1600px}
 @media print{
   body{background:#fff;color:#000}
-  .top,.tabs,.noimp,#msg,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat,#vFac,#vCot{display:none!important}
+  .top,.tabs,.noimp,#msg,#vLogin,#vCon,#vPed,#vApr,#vPre,#vRec,#vNue,#vCat,#vFac,#vCot{display:none!important}
   .card{border:1px solid #ccc;background:#fff}
   .muted,label{color:#555}
   .pill{border-color:#bbb;color:#555}
   th{color:#333;border-bottom:1px solid #999}
   td{border-bottom:1px solid #ddd}
+  /* El documento manda: sin sombra, sin bordes redondeados y sin cortar una
+     linea de items entre dos hojas. */
+  .po .card,#poDoc{border:none;box-shadow:none;padding:0}
+  /* Un titulo de seccion nunca queda solo al pie de una hoja. */
+  .pot{background:#eee;color:#000}
+  .bloque4{break-inside:avoid}
+  .pofirmas{margin-top:16px;gap:20px}
+  .pofl{height:34px}
+  .polegal{margin-top:7px}
+  .pohead{border-color:#999}
+  .poX{color:#000}
+  table.poitems tr{break-inside:avoid}
+  .pofirmas{break-inside:avoid}
+  .po>*:last-child{margin-bottom:0}
+  /* En pantalla la tabla de items se arrastra de costado; en papel no hay
+     costado. Sin esto se imprimen las primeras columnas y se pierden el precio
+     y el subtotal, que es justo lo que el proveedor mira. */
+  #poDoc div[style*="overflow-x"]{overflow:visible!important}
+  table.poitems{font-size:10px;table-layout:auto;width:100%}
+  table.poitems th,table.poitems td{padding:4px 5px;white-space:normal!important}
+  .pol{font-size:9.5px;min-width:105px}
+  .po{font-size:11px}
+  /* Apretar el documento en papel: una orden de pocas líneas tiene que caber
+     en una hoja, que es como se archiva y como se manda. */
+  .pohead{padding:7px 10px;line-height:1.35}
+  .pot{margin:9px 0 4px;padding:3px 8px}
+  .poc{padding:2px 0}
+  .pototales{margin-top:8px}
+  .pofirmas{margin-top:12px;gap:18px}
+  .pofl{height:30px}
+  @page{margin:12mm}
 }
 </style></head><body>
 
@@ -135,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v35</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v36</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -378,7 +436,14 @@ body.ancho .wrap{max-width:1600px}
         <div><label>Entregar en base</label><select id="oBase"></select></div>
         <div><label>Destinatario — quién recibe *</label><select id="oDest"></select></div>
       </div>
-      <div class="row"><div><label>Descripción general *</label><input id="oDesc" placeholder="Insumos operativos base Villavicencio"></div></div>
+      <div class="row r3">
+        <div><label>Plazo de entrega</label><input id="oPlazo" placeholder="8 días hábiles"></div>
+        <div><label>Teléfono de quien recibe</label><input id="oTelRec" placeholder="311 826 5642"></div>
+        <div><label>Descripción general *</label><input id="oDesc" placeholder="Insumos operativos base Villavicencio"></div>
+      </div>
+      <div class="row"><div><label>Nota para el proveedor</label><input id="oNota" placeholder="Entregar en horario de 7 a 4. Facturar a nombre de Total QC S.A.S."></div></div>
+      <div class="nota">Plazo, teléfono y nota salen impresos en la orden que ve el proveedor.
+        Sin dirección de entrega ni teléfono, el transportador no sabe a dónde ir ni a quién llamar.</div>
     </div>
 
     <div class="card">
@@ -639,6 +704,12 @@ function ver(v){
 }
 
 /* ---------- líneas ---------- */
+/* La lista de unidades es la misma que la del catalogo: si cada pantalla arma
+   la suya, en dos semanas hay "Und" en un lado y "Unidad" en el otro. */
+function uniOpts(){
+  return (MAE.uni||[]).map(u=>'<option value="'+esc(u.nombre)+'">'+esc(u.nombre)+'</option>').join('');
+}
+
 function addLinea(){
   const i=++nLin;
   const ccOpts=MAE.cc.map(c=>'<option value="'+c.id+'">'+esc(c.codigo+' · '+c.nombre)+(c.es_directo?'':'  (apoyo)')+'</option>').join('');
@@ -656,6 +727,13 @@ function addLinea(){
    +  '<div><label>Cant. *</label><input class="lcant" type="number" step="0.01" value="1" oninput="calc()"></div>'
    +  '<div><label>Valor unitario *</label><input class="lvu" type="number" step="1" placeholder="0" oninput="calc()"></div>'
    +  '<div><label>Mes del gasto *</label><input class="lmes" type="month" value="'+mesActual().slice(0,7)+'"></div>'
+   +'</div>'
+   +'<div class="f2">'
+   +  '<div><label>Unidad</label><select class="luni">'+uniOpts()+'</select></div>'
+   +  '<div><label>IVA %</label><select class="liva" onchange="calc()">'
+   +    '<option value="19">19 %</option><option value="5">5 %</option>'
+   +    '<option value="0">0 % — no responsable / excluido</option></select></div>'
+   +  '<div></div><div></div>'
    +'</div>'
    +'<div class="nota"></div>';
   document.getElementById('lineas').appendChild(d); calc();
@@ -685,16 +763,24 @@ function artCambio(sel){
   const lin=sel.closest('.lin');
   if(!lin.querySelector('.ldesc').value) lin.querySelector('.ldesc').value=a.nombre;
   if(a.precio_ref && !Number(lin.querySelector('.lvu').value)) lin.querySelector('.lvu').value=a.precio_ref;
+  /* La unidad la manda el catalogo: es el dato que evita que la misma bota se
+     pida por par en una orden y por unidad en la siguiente. */
+  const u=lin.querySelector('.luni');
+  if(u && a.unidad && [...u.options].some(o=>o.value===a.unidad)) u.value=a.unidad;
   calc();
 }
 function calc(){
-  let t=0;
+  let sub=0, iva=0;
   /* Acotado a #lineas: la requisicion usa la misma clase .lin y no tiene
      campo de precio. Sin el acote, esto recorria las dos y explotaba. */
   document.querySelectorAll('#lineas .lin').forEach(l=>{
-    t+=(Number(l.querySelector('.lcant').value)||0)*(Number(l.querySelector('.lvu').value)||0);
+    const n=(Number(l.querySelector('.lcant').value)||0)*(Number(l.querySelector('.lvu').value)||0);
+    const p=Number((l.querySelector('.liva')||{}).value||0);
+    sub+=n; iva+=n*p/100;
   });
-  document.getElementById('oTotal').textContent=cop(t);
+  document.getElementById('oTotal').innerHTML=
+    '<span style="font-weight:400;font-size:13px" class="muted">'
+    +cop(sub)+' + IVA '+cop(Math.round(iva))+' = </span>'+cop(Math.round(sub+iva));
 }
 async function guardarOrden(){
   const b=document.getElementById('btnGuardar');
@@ -708,7 +794,9 @@ async function guardarOrden(){
     descripcion:l.querySelector('.ldesc').value.trim(),
     cantidad:Number(l.querySelector('.lcant').value)||0,
     valor_unitario:Number(l.querySelector('.lvu').value)||0,
-    mes_imputacion:l.querySelector('.lmes').value+'-01'
+    mes_imputacion:l.querySelector('.lmes').value+'-01',
+    unidad:(l.querySelector('.luni')||{}).value||null,
+    iva_pct:Number((l.querySelector('.liva')||{}).value||19)
   }));
   const falta=[];
   if(!g('oNum').trim()) falta.push('número de orden');
@@ -725,7 +813,10 @@ async function guardarOrden(){
       empresa_id:EMPRESA_ID, numero:g('oNum').trim(), fecha_emision:g('oFecha'),
       proveedor_id:Number(g('oProv')), condicion_pago_id:Number(g('oCond')),
       descripcion:g('oDesc').trim(), destinatario_id:g('oDest'),
-      entregar_en_base_id:g('oBase')?Number(g('oBase')):null
+      entregar_en_base_id:g('oBase')?Number(g('oBase')):null,
+      plazo_entrega:g('oPlazo').trim()||null,
+      recibe_telefono:g('oTelRec').trim()||null,
+      nota:g('oNota').trim()||null
     })});
     const oid=o[0].id;
     await api('co_orden_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
@@ -734,10 +825,13 @@ async function guardarOrden(){
       articulo_id: l.articulo_id? Number(l.articulo_id) : null,
       requisicion_linea_id: l.requisicion_linea_id,
       descripcion:l.descripcion, cantidad:l.cantidad, valor_unitario:l.valor_unitario,
-      valor_neto:+(l.cantidad*l.valor_unitario).toFixed(2), mes_imputacion:l.mes_imputacion
+      valor_neto:+(l.cantidad*l.valor_unitario).toFixed(2), mes_imputacion:l.mes_imputacion,
+      unidad:l.unidad, iva_pct:l.iva_pct
     })))});
     aviso('Orden '+g('oNum')+' guardada con '+lins.length+' línea'+(lins.length>1?'s':'')+'.',true);
-    document.getElementById('lineas').innerHTML=''; document.getElementById('oDesc').value=''; addLinea();
+    document.getElementById('lineas').innerHTML='';
+    ['oDesc','oPlazo','oTelRec','oNota'].forEach(i=>document.getElementById(i).value='');
+    addLinea();
     try{ const px=await rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}); if(px) document.getElementById('oNum').value=px; }catch(_){}
     cargarPorComprar();
     ver('ord');
@@ -1845,69 +1939,181 @@ async function enviarOrden(id){
   }catch(e){ aviso('Se abrió el correo, pero no pude dejar constancia: '+e.message); }
 }
 
-/* La orden como documento: es lo que ve el proveedor y lo que se archiva.
-   Se arma en pantalla y de ahi sale impresa o en PDF con el propio navegador. */
+/* La orden como documento. Sigue FT-COM-003 version 005, el formato real que
+   Dania pasó en PO7913: mismos bloques, mismo orden, mismos rótulos. No es
+   estética — el proveedor y el auditor buscan cada dato donde siempre estuvo.
+
+   De la capacitación:
+     «Los proveedores hacen la venta y ahí necesitan tener la información.»
+     «Tiene que tener una dirección.»
+     «Faltaría la firma tuya de enviado, para que tenga alguna legalidad.»
+
+   Todo sale de co_orden_documento y co_orden_documento_lineas: dos llamadas en
+   vez de las siete que harían falta resolviendo los nombres acá.
+
+   Lo que falta se marca EN PANTALLA y no se imprime: la orden sale igual —a
+   veces hay que mandarla ya— pero quien la manda ve qué le está faltando. */
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+             'septiembre','octubre','noviembre','diciembre'];
+const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+
+/* La fecha larga en castellano, como en PO7913 ("viernes, 28 de agosto de
+   2026"). Se arma a mano: toLocaleDateString sobre un 'YYYY-MM-DD' lo lee como
+   UTC y en Colombia (UTC-5) devuelve el día anterior. */
+function fechaLarga(iso){
+  if(!iso) return '—';
+  const p=String(iso).slice(0,10).split('-').map(Number);
+  const d=new Date(p[0],p[1]-1,p[2]);
+  return DIAS[d.getDay()]+', '+p[2]+' de '+MESES[p[1]-1]+' de '+p[0];
+}
+
+function campoPO(rot,val,falta,ancho){
+  return '<div class="poc'+(ancho?' poc2':'')+'"><span class="pol">'+esc(rot)+'</span>'
+    + '<span class="pov">'+(val ? esc(val)
+        : '<span class="poX">'+(falta||'falta')+'</span>')+'</span></div>';
+}
+
 async function verOrden(id){
   const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{
-    const o=(await api('co_orden?id=eq.'+id+'&select=*,co_proveedor(nombre,nit,correo,telefono,direccion),'
-      +'co_condicion_pago(nombre,dias_pactados,dias_reales),co_base(nombre),'
-      +'co_orden_linea(numero_linea,descripcion,cantidad,valor_unitario,valor_neto,mes_imputacion,'
-      +'requisicion_linea_id,co_centro_costo(codigo,nombre))'))[0];
-    if(!o){ c.innerHTML='<div class="err">No encontré esa orden.</div>'; return; }
-    const pv=o.co_proveedor||{}, cp=o.co_condicion_pago||{};
-    const lin=(o.co_orden_linea||[]).sort((a,b)=>a.numero_linea-b.numero_linea);
-    const total=lin.reduce((a,l)=>a+Number(l.valor_neto||0),0);
-    c.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px" class="noimp">'
+    const [dd,ll]=await Promise.all([
+      rpc('co_orden_documento',{p_orden_id:id}),
+      rpc('co_orden_documento_lineas',{p_orden_id:id})
+    ]);
+    const d=Array.isArray(dd)?dd[0]:dd, lin=ll||[];
+    if(!d){ c.innerHTML='<div class="err">No encontré esa orden.</div>'; return; }
+
+    /* Lo que le falta para salir completa. Es la misma lista que devuelve la
+       consulta de co_35, para que la pantalla y la base digan lo mismo. */
+    const falta=[];
+    if(!d.prov_direccion)  falta.push('dirección del proveedor');
+    if(!d.prov_telefono)   falta.push('teléfono del proveedor');
+    if(!d.prov_correo)     falta.push('correo del proveedor');
+    if(!d.prov_contacto)   falta.push('persona de contacto');
+    if(!d.base_direccion)  falta.push('dirección de entrega');
+    if(!d.recibe_telefono) falta.push('teléfono de quien recibe');
+    if(!d.plazo_entrega)   falta.push('plazo de entrega');
+    if(!d.autorizado_por)  falta.push('quién autorizó');
+
+    const enc=(d.encabezado||FORMATO.encabezado||[]);
+    const ivaRot = d.iva_uniforme==null ? 'IVA' : 'IVA '+Number(d.iva_uniforme)+'%';
+
+    c.innerHTML=
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px" class="noimp">'
       +'<button class="btn" onclick="cargarOrdenes()">← Volver a la lista</button>'
       +'<button class="btn" onclick="window.print()">Imprimir / guardar PDF</button>'
-      +(o.estado==='enviada'
+      +(d.estado==='enviada'
          ? '<span class="pill ok" style="align-self:center">ya enviada</span>'
-         : (pv.correo
+         : (d.prov_correo
             ? '<button class="btn pri" onclick="enviarOrden('+id+')">Enviar al proveedor</button>'
-            : '<button class="btn pri" onclick="marcarEnviada('+id+')">Marcar como enviada</button>'
-              +'<span class="pill amber" style="align-self:center">'+esc(pv.nombre||'')
-              +' no tiene correo cargado</span>'))
+            : '<button class="btn pri" onclick="marcarEnviada('+id+')">Marcar como enviada</button>'))
       +'</div>'
-      +'<div class="card" id="poDoc">'
-      +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:flex-start;'
-        +'border-bottom:1px solid var(--line2);padding-bottom:12px;margin-bottom:12px">'
-      +'<div style="display:flex;gap:12px;align-items:center">'
-        +(FORMATO.logo_url?'<img src="'+esc(FORMATO.logo_url)+'" alt="" style="max-height:56px">':'')
-        +'<div><div style="font-size:20px;font-weight:800">Orden de compra '+esc(o.numero)+'</div>'
-        +'<div class="muted">'+esc(FORMATO.razon_social||'')
-          +(FORMATO.nit?' · NIT '+esc(FORMATO.nit):'')+'</div>'
-        +'<div class="muted">Emitida el '+esc(o.fecha_emision)+'</div></div></div>'
-      +'<div style="font-size:11.5px;text-align:right;line-height:1.7">'
-        +(FORMATO.codigo
-          ? '<div><b>'+esc(FORMATO.codigo)+'</b></div>'
-            +'<div class="muted">Versión '+esc(FORMATO.version||'—')+'</div>'
-            +'<div class="muted">'+esc(FORMATO.fecha_version||'—')+'</div>'
-          : '<span class="pill amber noimp">falta cargar el código de formato</span>')
+      +(falta.length
+        ? '<div class="nota noimp" style="margin-bottom:11px">Sale igual, pero le falta: <b>'
+          +esc(falta.join(' · '))+'</b>. Lo del proveedor se carga en su ficha; lo de la '
+          +'entrega, en la base y en la orden.</div>'
+        : '')
+
+      +'<div class="card po" id="poDoc">'
+
+      /* ---- encabezado ------------------------------------------------ */
+      +'<div class="pohead">'
+        +'<div>'
+          +(FORMATO.logo_url?'<img src="'+esc(FORMATO.logo_url)+'" alt="" style="max-height:46px;margin-bottom:5px">':'')
+          +'<div style="font-weight:800">'+esc(FORMATO.razon_social||'')+'</div>'
+          +(FORMATO.nit?'<div>Nit. '+esc(FORMATO.nit)+'</div>':'')
+          +enc.map(x=>'<div>'+esc(x)+'</div>').join('')
+        +'</div>'
+        +'<div style="text-align:center">'
+          +'<div style="font-weight:800;font-size:14px">'+esc(FORMATO.codigo||'FT-COM-003')+'</div>'
+          +'<div style="font-weight:700">Orden de compra</div>'
+          +'<div>Versión: '+esc(FORMATO.version==null?'—':String(FORMATO.version).padStart(3,'0'))+'</div>'
+          +'<div>Fecha: '+esc(FORMATO.fecha_version||'—')+'</div>'
+        +'</div>'
+        +'<div style="text-align:center">'
+          +'<div style="font-size:11px;letter-spacing:.4px">N° ORDEN DE COMPRA</div>'
+          +'<div style="font-size:22px;font-weight:800;margin-top:3px">'+esc(d.numero)+'</div>'
         +'</div>'
       +'</div>'
-      +'<div style="text-align:right;margin-bottom:8px"><div style="font-weight:700">'+esc(pv.nombre||'')+'</div>'
-      +'<div class="muted">'+esc(pv.nit||'')+'</div>'
-      +'<div class="muted">'+esc(pv.correo||'')+'</div>'
-      +'<div class="muted">'+esc(pv.telefono||'')+'</div></div>'
-      +'<div class="row r3" style="margin-top:14px">'
-      +'<div><label>Condición de pago</label><div>'+esc(cp.nombre||'—')
-        +(cp.dias_reales?' <span class="pill amber">en la práctica '+cp.dias_reales+' días</span>':'')+'</div></div>'
-      +'<div><label>Entregar en</label><div>'+esc((o.co_base||{}).nombre||'—')+'</div></div>'
-      +'<div><label>Recibe</label><div>'+esc(quienEs(o.destinatario_id))+'</div></div>'
+
+      /* ---- 1. datos generales ---------------------------------------- */
+      +'<div class="pot">1. DATOS GENERALES</div>'
+      +'<div class="pog">'
+        +campoPO('Fecha', fechaLarga(d.fecha_emision), null, true)
+        +campoPO('Nombre Proveedor', d.prov_nombre)
+        +campoPO('Nit', d.prov_nit)
+        +campoPO('Dirección', d.prov_direccion)
+        +campoPO('Teléfono', d.prov_telefono)
+        +campoPO('Ciudad', d.prov_ciudad)
+        +campoPO('E-mail', d.prov_correo)
+        +campoPO('Contacto', d.prov_contacto)
       +'</div>'
-      +'<div style="margin-bottom:12px"><label>Descripción</label><div>'+esc(o.descripcion||'')+'</div></div>'
-      +'<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Descripción</th><th>Centro de costo</th>'
-      +'<th class="num">Cant.</th><th class="num">Unitario</th><th class="num">Total</th></tr></thead><tbody>'
-      +lin.map(l=>'<tr><td>'+l.numero_linea+'</td>'
-        +'<td>'+esc(l.descripcion)
-          +(l.requisicion_linea_id?'<div class="muted">viene de una requisición aprobada</div>':'')+'</td>'
-        +'<td>'+esc((l.co_centro_costo||{}).codigo||'')+'<div class="muted">'
-          +esc((l.co_centro_costo||{}).nombre||'')+'</div></td>'
-        +'<td class="num">'+l.cantidad+'</td><td class="num">'+cop(l.valor_unitario)+'</td>'
-        +'<td class="num">'+cop(l.valor_neto)+'</td></tr>').join('')
+
+      /* ---- 2. orden --------------------------------------------------- */
+      +'<div class="pot">2. ORDEN</div>'
+      +'<div class="pog">'
+        +campoPO('N° Requisición', d.requisiciones, 'sin requisición')
+        +campoPO('N° Cotización', d.cotizacion, 'no se cotizó')
+        +campoPO('Plazo', d.plazo_entrega)
+        /* Sin "en la práctica N días": ese dato es para analizar adentro, no
+           para que lo lea el proveedor. Lo pidió Marcelo en la reunión. */
+        +campoPO('Forma de Pago', d.forma_pago)
+      +'</div>'
+
+      +'<div style="overflow-x:auto"><table class="poitems"><thead><tr>'
+        +'<th>Item</th><th>Tipo de servicio y/o producto</th><th>Concepto</th>'
+        +'<th>Centro de Costo</th><th>Unidad de medida</th><th class="num">Cantidad</th>'
+        +'<th class="num">Precio unitario</th><th class="num">Sub Total</th>'
+      +'</tr></thead><tbody>'
+      +lin.map(l=>'<tr>'
+        +'<td>'+l.numero_linea+'</td>'
+        +'<td>'+esc(l.tipo)+'</td>'
+        +'<td>'+esc(l.concepto)+'</td>'
+        +'<td>'+esc(l.centro)+'</td>'
+        +'<td>'+esc(l.unidad)+'</td>'
+        +'<td class="num">'+esc(l.cantidad)+'</td>'
+        +'<td class="num">'+cop(l.valor_unitario)+'</td>'
+        +'<td class="num">'+cop(l.subtotal)+'</td>'
+      +'</tr>').join('')
       +'</tbody></table></div>'
-      +'<div class="tot"><span>Total sin IVA</span><span>'+cop(total)+'</span></div>'
+
+      +(d.nota?'<div class="ponota"><b>Nota:</b> '+esc(d.nota)+'</div>':'')
+      +'<div class="polegal">La entrega de los bienes y/o servicios deberá estar acompañada '
+      +'de la remisión firmada como soporte del recibido, requisito indispensable para su aceptación.</div>'
+
+      +'<div class="pototales">'
+        +'<div><span>SubTOTAL</span><span>'+cop(d.subtotal)+'</span></div>'
+        +'<div><span>'+ivaRot+'</span><span>'+cop(d.iva)+'</span></div>'
+        +(d.iva_uniforme==null
+          ? '<div class="poX" style="grid-column:1/-1;font-size:11.5px;text-align:right">'
+            +'esta orden tiene líneas con IVA distinto — el detalle está en cada renglón</div>'
+          : '')
+        +'<div class="pofin"><span>Total</span><span>'+cop(d.total)+'</span></div>'
+      +'</div>'
+
+      /* ---- 3. enviar a ------------------------------------------------ */
+      +'<div class="pot">3. ENVIAR A</div>'
+      +'<div class="pog">'
+        +campoPO('Nombre', FORMATO.razon_social)
+        +campoPO('Base', d.base_nombre)
+        +campoPO('Persona que recibe', d.recibe_nombre)
+        +campoPO('Ciudad', d.base_ciudad)
+        +campoPO('Dirección', d.base_direccion)
+        +campoPO('Teléfono', d.recibe_telefono || d.base_telefono)
+      +'</div>'
+
+      /* ---- 4. firmas -------------------------------------------------- */
+      +'<div class="bloque4"><div class="pot">4. FIRMAS</div>'
+      +'<div class="pofirmas">'
+        +'<div><div class="pofl"></div><div class="pol">Elaborado</div>'
+          +'<div>'+esc(d.elaborado_por||'—')+'</div></div>'
+        +'<div><div class="pofl"></div><div class="pol">Autorizado</div>'
+          +'<div>'+(d.autorizado_por
+              ? esc(d.autorizado_por)+'<div class="pol">aprobó el dinero el '
+                +esc(d.autorizado_en||'')+'</div>'
+              : '<span class="poX">nadie firmó el dinero de esta orden</span>')+'</div></div>'
+      +'</div></div>'
+
       +'</div>';
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }

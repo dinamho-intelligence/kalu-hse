@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v44</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v48</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -1691,6 +1691,15 @@ async function cargarCotizaciones(){
   try{
     esp    = await rpc('co_para_cotizar',{p_empresa_id:EMPRESA_ID}) || [];
     rondas = await rpc('co_cotizaciones_ver',{p_empresa_id:EMPRESA_ID,p_estado:'abierta'}) || [];
+    /* A quién se le pidió cada ronda. Es la mitad que faltaba: hasta ahora el
+       módulo registraba lo que cada proveedor ofreció, pero no que se le
+       hubiera pedido. Sin eso, «tres ofertas» es una regla que no se puede
+       auditar — y una ronda donde nadie contestó se ve igual que una donde
+       nadie preguntó. */
+    for(const c of rondas){
+      try{ c._inv = await rpc('co_cotizacion_invitados',{p_cotizacion_id:c.cotizacion_id}) || []; }
+      catch(_){ c._inv = null; }
+    }
   }catch(e){ document.getElementById('cotEspera').innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
 
   const pend = esp.filter(x=>x.necesita && !x.cotizacion_id).length;
@@ -1731,6 +1740,339 @@ function filaEspera(x){
     + '</div></div>';
 }
 
+/* ---------- los papeles del expediente ----------
+   f4 de la capacitación. Dania: «no puedo analizar la cotización ahí en el
+   sistema, así como la factura». Marcelo: «acá no la tengo conectada a nada».
+
+   El archivo va a Supabase Storage, bucket privado `compras`, y la ruta SIEMPRE
+   empieza por el empresa_id: la política de Storage lee esa primera carpeta
+   para aislar entre empresas. Si la ruta no la lleva, la base rechaza el
+   registro — mejor que quede sin subir a que quede accesible de más.
+
+   Nada se sirve por URL pública: para abrir un papel se pide una URL firmada
+   que dura una hora. */
+const CLASES_ADJUNTO = [
+  ['cotizacion',    'Cotización del proveedor'],
+  ['factura',       'Factura'],
+  ['remision',      'Remisión firmada'],
+  ['orden_firmada', 'Orden firmada'],
+  ['soporte',       'Otro soporte'],
+];
+
+async function storage(path, opt){
+  if(!await asegurarToken()){ clearSession(); location.reload(); throw new Error('sesión vencida'); }
+  const o = opt||{};
+  o.headers = Object.assign({apikey:SB_ANON, Authorization:'Bearer '+TOKEN}, o.headers||{});
+  const r = await fetch(SB_URL+'/storage/v1/'+path, o);
+  const txt = await r.text();
+  if(!r.ok){
+    /* El error crudo de Storage no le dice nada a nadie. Traducimos los dos
+       que van a pasar de verdad. */
+    if(/Bucket not found/i.test(txt))
+      throw new Error('Falta crear el depósito de archivos. Hay que correr co_48 en la base.');
+    if(r.status===403 || /row-level security|Unauthorized/i.test(txt))
+      throw new Error('La base no te deja subir archivos. Hace falta el permiso «ordenes».');
+    throw new Error('Storage respondió '+r.status+(txt?' — '+txt.slice(0,200):''));
+  }
+  try{ return JSON.parse(txt); }catch(_){ return null; }
+}
+
+function tamano(b){
+  if(b==null) return '';
+  return b < 1024*1024 ? Math.round(b/1024)+' KB' : (b/1024/1024).toFixed(1)+' MB';
+}
+
+async function pintarAdjuntos(entidad, id, claseSugerida){
+  const cont = document.getElementById('adj-'+entidad+'-'+id);
+  if(!cont) return;
+  let lista = [];
+  try{ lista = await rpc('co_adjuntos_de',{p_entidad:entidad, p_entidad_id:Number(id)}) || []; }
+  catch(e){
+    cont.innerHTML = '<div class="nota">No pude traer los papeles: '+esc(e.message)
+      + ' — ¿corriste <b>co_48</b>?</div>';
+    return;
+  }
+  const rot = c => (CLASES_ADJUNTO.find(x=>x[0]===c)||[null,'—'])[1];
+  cont.innerHTML =
+    (lista.length
+      ? '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">'
+        + lista.map(a=>'<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
+          + '<span class="pill">'+esc(rot(a.clase))+'</span>'
+          + '<button class="btn" style="padding:4px 9px;font-size:12.5px" '
+            + 'onclick="abrirAdjunto(\'' + encodeURIComponent(a.ruta) + '\')">📎 '+esc(a.nombre)+'</button>'
+          + '<span class="muted" style="font-size:12px">'+esc(tamano(a.bytes))
+            + ' · ' + esc(String(a.subido_en||'').slice(0,10))
+            + ' · ' + esc(a.subido_por||'') + '</span>'
+        + '</div>').join('')
+        + '</div>'
+      : '<div class="muted" style="margin-bottom:8px">Todavía no hay ningún papel guardado acá.</div>')
+    + '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">'
+      + '<select id="cls-'+entidad+'-'+id+'" style="max-width:210px">'
+        + CLASES_ADJUNTO.map(c=>'<option value="'+c[0]+'"'
+          + (c[0]===claseSugerida?' selected':'')+'>'+esc(c[1])+'</option>').join('')
+      + '</select>'
+      + '<input type="file" id="file-'+entidad+'-'+id+'" style="max-width:260px">'
+      + '<button class="btn pri" onclick="subirAdjunto(\''+entidad+'\','+id+')">Guardar el papel</button>'
+    + '</div>';
+}
+
+async function subirAdjunto(entidad, id){
+  const inp = document.getElementById('file-'+entidad+'-'+id);
+  const f = inp && inp.files && inp.files[0];
+  if(!f) return aviso('Elegí un archivo primero.');
+  if(f.size > 25*1024*1024) return aviso('El archivo pesa '+tamano(f.size)+' y el máximo son 25 MB.');
+  const clase = (document.getElementById('cls-'+entidad+'-'+id)||{}).value || 'soporte';
+  /* El nombre se limpia pero se guarda el original aparte: la ruta tiene que
+     ser predecible, el nombre que ve la persona tiene que ser el suyo. */
+  const limpio = f.name.normalize('NFD').replace(/[̀-ͯ]/g,'')
+                       .replace(/[^A-Za-z0-9._-]+/g,'_').slice(-80);
+  const ruta = EMPRESA_ID+'/'+entidad+'/'+id+'/'+Date.now()+'-'+limpio;
+  aviso('Subiendo '+f.name+'…', true);
+  try{
+    await storage('object/compras/'+ruta, {method:'POST', body:f,
+      headers:{'x-upsert':'false', 'Content-Type': f.type || 'application/octet-stream'}});
+    const r = await rpc('co_adjunto_registrar',{
+      p_entidad:entidad, p_entidad_id:Number(id), p_ruta:ruta, p_nombre:f.name,
+      p_tipo:f.type||null, p_bytes:f.size, p_clase:clase, p_nota:null});
+    const m = (Array.isArray(r)?r[0]:r)||{};
+    aviso(m.mensaje||'Guardado.', true);
+    inp.value='';
+    pintarAdjuntos(entidad, id, clase);
+  }catch(e){ aviso(e.message); }
+}
+
+/* Nada se sirve por URL pública: se pide una URL firmada que dura una hora. */
+async function abrirAdjunto(rutaCodificada){
+  const ruta = decodeURIComponent(rutaCodificada);
+  try{
+    const r = await storage('object/sign/compras/'+ruta, {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({expiresIn:3600})});
+    if(!r || !r.signedURL) throw new Error('No me devolvió el enlace.');
+    window.open(SB_URL+'/storage/v1'+r.signedURL, '_blank');
+  }catch(e){ aviso(e.message); }
+}
+
+function cajaAdjuntos(entidad, id, titulo, claseSugerida){
+  /* El contenedor se pinta vacío y se llena después: así la tarjeta aparece de
+     una y los papeles llegan cuando llegan, sin trabar el resto. */
+  setTimeout(()=>pintarAdjuntos(entidad, id, claseSugerida), 0);
+  return '<div style="margin-top:11px;border-top:1px solid var(--line);padding-top:10px">'
+    + '<label>'+esc(titulo)+'</label>'
+    + '<div id="adj-'+entidad+'-'+id+'"><span class="muted">Cargando…</span></div>'
+    + '</div>';
+}
+
+/* ---------- a quién se le pidió la cotización ----------
+   De la revisión de Marcelo: «falta el doc que solicita la cotización, cómo
+   pides cotización a un proveedor». El módulo tenía solo la vuelta. Sin la ida
+   no se sabe a quién se le pidió, ni desde cuándo no contesta, ni hay con qué
+   probar en una auditoría que se pidieron tres ofertas. */
+function aQuienSeLePidio(c){
+  const inv = c._inv;
+  if(inv === null)
+    return '<div class="nota" style="margin-top:9px">No pude traer a quién se le pidió. '
+         + '¿Corriste <b>co_47</b>?</div>';
+
+  const sinContestar = (inv||[]).filter(x=>!x.respondio);
+  const lista = (inv||[]).length
+    ? '<div style="overflow-x:auto;margin-top:7px"><table style="font-size:13px"><thead><tr>'
+      + '<th>Se le pidió a</th><th>Correo</th><th class="num">Hace</th><th>Estado</th>'
+      + '</tr></thead><tbody>'
+      + inv.map(x=>'<tr>'
+        + '<td>'+esc(x.proveedor)+(x.contacto?'<div class="muted" style="font-size:12px">'+esc(x.contacto)+'</div>':'')+'</td>'
+        + '<td class="muted">'+(x.correo?esc(x.correo):'<span class="poX">sin correo</span>')+'</td>'
+        + '<td class="num">'+x.dias_sin_contestar+' día'+(x.dias_sin_contestar===1?'':'s')+'</td>'
+        + '<td>'+(x.respondio
+            ? '<span class="pill ok">contestó '+cop(x.valor)+'</span>'
+            : '<span class="pill amber">sin contestar</span>')+'</td>'
+      + '</tr>').join('')
+      + '</tbody></table></div>'
+    : '<div class="nota" style="margin-top:7px">Todavía no se le pidió a nadie. '
+      + 'Las ofertas que cargues sin haber pedido nada no dejan rastro de cómo se consiguieron.</div>';
+
+  return '<div style="margin-top:11px;border-top:1px solid var(--line);padding-top:10px">'
+    + '<label>A quién se le pidió</label>'
+    + lista
+    + (sinContestar.length
+       ? '<div class="nota">' + sinContestar.length + ' sin contestar. '
+         + 'Los que tienen correo se pueden volver a llamar desde acá.</div>' : '')
+    + '<div class="row r3" style="margin-top:9px;align-items:end">'
+      + '<div><label>Pedirle a</label><select class="iProv" data-c="'+c.cotizacion_id+'" multiple size="3">'
+        + (MAE.prov||[]).map(p=>'<option value="'+p.id+'">'+esc(p.nombre)+'</option>').join('')
+        + '</select><div class="muted" style="font-size:12px">Ctrl para elegir varios</div></div>'
+      + '<div><label>Que respondan antes de</label>'
+        + '<input class="iFecha" data-c="'+c.cotizacion_id+'" type="date"></div>'
+      + '<div style="display:flex;flex-direction:column;gap:6px">'
+        + '<button class="btn pri" onclick="pedirCotizacion('+c.cotizacion_id+')">Anotar a quién se le pidió</button>'
+        + '<button class="btn" onclick="verSolicitud('+c.cotizacion_id+')">📄 Ver la solicitud</button>'
+      + '</div>'
+    + '</div></div>';
+}
+
+async function pedirCotizacion(id){
+  const q = s => document.querySelector('.'+s+'[data-c="'+id+'"]');
+  const sel = q('iProv');
+  const ids = [...sel.selectedOptions].map(o=>Number(o.value));
+  if(!ids.length) return aviso('Elegí al menos un proveedor.');
+  try{
+    const r = await rpc('co_cotizacion_invitar',{
+      p_cotizacion_id:id, p_proveedores:ids,
+      p_enviado_a:null, p_responder_antes:q('iFecha').value||null});
+    const m = (Array.isArray(r)?r[0]:r)||{};
+    aviso(m.mensaje||'Anotado.', Number(m.invitados)>0);
+    cargarCotizaciones();
+  }catch(e){ aviso(e.message); }
+}
+
+/* La solicitud, como documento. Misma estructura que la orden y por el mismo
+   motivo: el proveedor y el auditor buscan cada dato donde siempre estuvo. */
+async function verSolicitud(id){
+  const c = document.getElementById('cotAbiertas');
+  const volver = '<button class="btn noimp" onclick="cargarCotizaciones()">← Volver a las rondas</button>';
+  try{
+    const [dd,ll,ii,ff] = await Promise.all([
+      rpc('co_cotizacion_documento',{p_cotizacion_id:id}),
+      rpc('co_cotizacion_documento_lineas',{p_cotizacion_id:id}),
+      rpc('co_cotizacion_invitados',{p_cotizacion_id:id}),
+      rpc('co_formato_de',{p_empresa_id:EMPRESA_ID,p_nombre:'Solicitud de cotización'}).catch(()=>[])
+    ]);
+    const d = Array.isArray(dd)?dd[0]:dd, lin = ll||[], inv = ii||[];
+    const F = (Array.isArray(ff)?ff[0]:ff) || FORMATO || {};
+    if(!d){ c.innerHTML = volver+'<div class="err">No encontré esa cotización.</div>'; return; }
+    const enc = F.encabezado || FORMATO.encabezado || [];
+    const correos = inv.filter(x=>x.correo).map(x=>x.correo);
+
+    c.innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px" class="noimp">'
+      + volver
+      + '<button class="btn" onclick="window.print()">Imprimir / guardar PDF</button>'
+      + (correos.length
+         ? '<button class="btn pri" onclick="mailSolicitud(\'' + esc(d.numero) + '\',\''
+           + correos.join(',') + '\',\'' + esc(d.correo_ofertas||d.pide_correo||'') + '\')">'
+           + 'Enviar por correo a los ' + correos.length + '</button>'
+         : '<span class="pill amber" style="align-self:center">ninguno de los invitados tiene correo cargado</span>')
+      + '</div>'
+
+      + '<div class="card po" id="poDoc">'
+      + '<div class="pohead">'
+        + '<div>'
+          + (F.logo_url?'<img src="'+esc(F.logo_url)+'" alt="" style="max-height:46px;margin-bottom:5px">':'')
+          + '<div style="font-weight:800">'+esc(F.razon_social||'')+'</div>'
+          + (F.nit?'<div>Nit. '+esc(F.nit)+'</div>':'')
+          + enc.map(x=>'<div>'+esc(x)+'</div>').join('')
+        + '</div>'
+        + '<div style="text-align:center">'
+          /* «POR ASIGNAR» es el marcador que deja co_47 porque la base no
+             acepta un código vacío. Se trata igual que si no hubiera. */
+          + (F.codigo && F.codigo !== 'POR ASIGNAR'
+             ? '<div style="font-weight:800;font-size:14px">'+esc(F.codigo)+'</div>'
+               + '<div>Versión: '+esc(F.version==null?'—':String(F.version).padStart(3,'0'))+'</div>'
+               + '<div>Fecha: '+esc(F.fecha_version||'—')+'</div>'
+             : '<div class="poX noimp">falta cargar el código de formato en Control documental</div>')
+          + '<div style="font-weight:700;margin-top:3px">Solicitud de cotización</div>'
+        + '</div>'
+        + '<div style="text-align:center">'
+          + '<div style="font-size:11px;letter-spacing:.4px">N° SOLICITUD</div>'
+          + '<div style="font-size:22px;font-weight:800;margin-top:3px">'+esc(d.numero)+'</div>'
+        + '</div>'
+      + '</div>'
+
+      + '<div class="pot">1. QUÉ NECESITAMOS COTIZAR</div>'
+      + '<div class="pog">'
+        + campoPO('Fecha', fechaLarga(d.pedida_en), null, true)
+        + campoPO('Responder antes de', d.responder_antes ? fechaLarga(d.responder_antes) : null, 'falta la fecha límite')
+        + campoPO('Requisición de origen', d.requisicion)
+        + campoPO('Se necesita para', d.necesita_para ? fechaLarga(d.necesita_para) : null, 'sin fecha')
+        + campoPO('Entregar en', d.entregar_en)
+        + campoPO('Dirección de entrega', d.entregar_direccion)
+        + campoPO('Ciudad', d.entregar_ciudad)
+      + '</div>'
+
+      + '<div style="overflow-x:auto"><table class="poitems"><thead><tr>'
+        + '<th>Item</th><th>Descripción de lo solicitado</th><th>Tipo</th>'
+        + '<th>Unidad de medida</th><th class="num">Cantidad</th>'
+      + '</tr></thead><tbody>'
+      + lin.map(l=>'<tr>'
+        + '<td>'+l.numero_linea+'</td>'
+        + '<td>'+esc(l.articulo || l.descripcion)
+          + (l.articulo && l.descripcion && l.descripcion!==l.articulo
+             ? '<div class="muted" style="font-size:12px">'+esc(l.descripcion)+'</div>' : '')
+          + '</td>'
+        + '<td>'+esc(l.categoria||'—')+'</td>'
+        + '<td>'+esc(l.unidad)+'</td>'
+        + '<td class="num">'+esc(l.cantidad)+'</td>'
+      + '</tr>').join('')
+      + '</tbody></table></div>'
+
+      + (d.nota?'<div class="ponota"><b>Nota:</b> '+esc(d.nota)+'</div>':'')
+
+      /* Sin columnas en blanco: el proveedor cotiza en SU formato. Lo que el
+         documento tiene que dejar clarísimo no es dónde escribir el precio,
+         sino a dónde contestar y con qué número — ese número es lo que después
+         permite enganchar el correo con esta ronda. */
+      + '<div class="pot">2. CÓMO RESPONDER</div>'
+      + '<div style="border:1px solid var(--line2);border-radius:7px;padding:11px 13px;margin-top:7px">'
+        + '<div>Envíe su cotización, <b>en el formato que usted utilice</b>, al correo:</div>'
+        + '<div style="font-size:19px;font-weight:800;margin:6px 0">'
+          + (d.correo_ofertas ? esc(d.correo_ofertas)
+             : (d.pide_correo ? esc(d.pide_correo)
+                : '<span class="poX">falta cargar el buzón de ofertas</span>'))
+        + '</div>'
+        + '<div>Indicando en el <b>asunto</b> el número de esta solicitud:</div>'
+        + '<div style="font-size:19px;font-weight:800;margin:6px 0">'+esc(d.numero)+'</div>'
+        + '<div class="polegal" style="margin-top:8px">Puede responder con su propio formato de '
+        + 'cotización adjunto o en el cuerpo del correo. Agradecemos indicar precio unitario sin '
+        + 'IVA, plazo de entrega, validez de la oferta y condiciones de pago. Sin el número de '
+        + 'solicitud en el asunto la oferta puede no ser tenida en cuenta a tiempo. '
+        + 'La presentación de esta cotización no obliga a Total QC S.A.S. a adjudicar la compra.</div>'
+      + '</div>'
+
+      + '<div class="pot">3. CUALQUIER DUDA</div>'
+      + '<div class="pog">'
+        + campoPO('Nombre', d.pide_nombre)
+        + campoPO('Correo', d.pide_correo)
+      + '</div>'
+
+      + '<div class="card noimp" style="margin-top:14px">'
+        + '<h3>A quién se le mandó</h3>'
+        + '<div class="muted" style="margin-bottom:9px">Esto no sale impreso: es el registro '
+        + 'de la ronda. Es lo que prueba que se pidieron '+d.minimo_ofertas+' ofertas.</div>'
+        + (inv.length
+           ? '<div style="overflow-x:auto"><table style="font-size:13px"><thead><tr>'
+             + '<th>Proveedor</th><th>Correo</th><th class="num">Hace</th><th>Estado</th>'
+             + '</tr></thead><tbody>'
+             + inv.map(x=>'<tr><td>'+esc(x.proveedor)+'</td>'
+               + '<td class="muted">'+(x.correo?esc(x.correo):'<span class="poX">sin correo</span>')+'</td>'
+               + '<td class="num">'+x.dias_sin_contestar+' d</td>'
+               + '<td>'+(x.respondio?'<span class="pill ok">contestó '+cop(x.valor)+'</span>'
+                                     :'<span class="pill amber">sin contestar</span>')+'</td></tr>').join('')
+             + '</tbody></table></div>'
+           : '<div class="nota">Todavía no se le pidió a nadie.</div>')
+      + '</div>'
+      + '</div>';
+    window.scrollTo(0,0);
+  }catch(e){ c.innerHTML = volver+'<div class="err">'+esc(e.message)+'</div>'; }
+}
+
+function mailSolicitud(numero, correos, buzon){
+  /* El asunto lleva el número y el cuerpo lo repite. Cuando esto lo mande n8n,
+     el mismo número es lo que va a permitir leer el buzón y enganchar cada
+     respuesta con su ronda sin que nadie la clasifique a mano. */
+  const cuerpo = 'Buenos días,\n\nAdjuntamos la solicitud de cotización ' + numero
+    + ' de Total QC S.A.S.\n\n'
+    + 'Puede responder con su propio formato de cotización, adjunto o en el cuerpo del correo,\n'
+    + (buzon ? 'enviándolo a ' + buzon + ' e indicando ' + numero + ' en el asunto.\n' : '')
+    + '\nAgradecemos indicar precio unitario sin IVA, plazo de entrega, '
+    + 'validez de la oferta y condiciones de pago.\n\nQuedamos atentos.\n\n'
+    + 'Total QC S.A.S. · NIT 900.300.543-1';
+  /* El PDF lo adjunta la persona desde "Imprimir / guardar PDF". Cuando esto lo
+     mande n8n, el flujo va a llamar a co_cotizacion_invitar igual que hace la
+     pantalla, y esta parte se cae sola. */
+  window.location.href = 'mailto:' + encodeURIComponent(correos)
+    + '?subject=' + encodeURIComponent(numero + ' · Solicitud de cotización · Total QC S.A.S.')
+    + '&body=' + encodeURIComponent(cuerpo);
+}
+
 function tarjetaRonda(c){
   const ofertas = Array.isArray(c.ofertas) ? c.ofertas : [];
   const barata = ofertas.length ? Math.min.apply(null, ofertas.map(o=>Number(o.valor))) : null;
@@ -1759,7 +2101,10 @@ function tarjetaRonda(c){
                : '<span class="pill ok">ya se puede elegir</span>')
     + '</div>'
     + '<div style="margin-top:6px" class="muted">'+esc(c.justificacion||'')+'</div>'
+    + aQuienSeLePidio(c)
     + '<div style="margin-top:10px">'+filas+'</div>'
+    + cajaAdjuntos('cotizacion', c.cotizacion_id,
+        'Las cotizaciones que mandaron', 'cotizacion')
     + '<div class="row r3" style="margin-top:12px;align-items:end">'
       + '<div><label>Proveedor</label><select class="oProv" data-c="'+c.cotizacion_id+'">'
         + opts(MAE.prov,'id','nombre','— elegir —')+'</select></div>'
@@ -1872,20 +2217,34 @@ async function cargarFacturas(){
   calcFactura();
 }
 
+/* Los papeles de una factura se muestran solo si se piden: la lista tiene 120
+   filas y traerle los adjuntos a todas sería 120 llamadas para mirar una. */
+function papelesFactura(id){
+  const fila = document.getElementById('fpap-'+id);
+  if(!fila) return;
+  const abriendo = fila.classList.contains('hide');
+  fila.classList.toggle('hide');
+  if(abriendo) pintarAdjuntos('factura', id, 'factura');
+}
+
 async function listarFacturas(){
   let f=[];
   try{ f = await rpc('co_facturas_ver',{p_empresa_id:EMPRESA_ID, p_ultimas:120}) || []; }
   catch(e){ document.getElementById('facLista').innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
   document.getElementById('facLista').innerHTML = f.length
-    ? '<table><thead><tr><th>N°</th><th>De dónde</th><th>Proveedor</th><th>Imputa a</th>'
-      + '<th>Recibida</th><th>Vence</th><th style="text-align:right">Total</th></tr></thead><tbody>'
+    ? '<div style="overflow-x:auto"><table><thead><tr><th>N°</th><th>De dónde</th><th>Proveedor</th><th>Imputa a</th>'
+      + '<th>Recibida</th><th>Vence</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>'
       + f.map(x=>'<tr><td><b>'+esc(x.numero)+'</b></td>'
         + '<td>'+esc(x.de_donde)+(x.orden?'<div class="muted" style="font-size:12px">'+esc(x.orden)+'</div>':'')+'</td>'
         + '<td>'+esc(x.proveedor||'—')+'</td>'
         + '<td>'+esc(x.centro||'—')+(x.categoria?'<div class="muted" style="font-size:12px">'+esc(x.categoria)+'</div>':'')+'</td>'
         + '<td>'+esc(x.fecha_recepcion||'')+'</td><td>'+esc(x.fecha_vencimiento||'')+'</td>'
-        + '<td style="text-align:right"><b>'+cop(x.valor_total)+'</b></td></tr>').join('')
-      + '</tbody></table>'
+          + '<td style="text-align:right"><b>'+cop(x.valor_total)+'</b></td>'
+        + '<td><button class="btn" style="padding:4px 9px;font-size:12.5px" '
+          + 'onclick="papelesFactura('+x.id+')">📎 Papeles</button></td></tr>'
+        + '<tr id="fpap-'+x.id+'" class="hide"><td colspan="8">'
+          + '<div id="adj-factura-'+x.id+'"></div></td></tr>').join('')
+      + '</tbody></table></div>'
     : '<div class="muted">Todavía no hay facturas cargadas.</div>';
 }
 
@@ -2436,6 +2795,30 @@ function consumoOrden(d, sal, fac, errSal, errFac){
     + '</div>';
 }
 
+/* Qué le falta al expediente. La pregunta de una auditoría no es «¿hay
+   archivos?», es «¿está la remisión firmada?». Por eso lista los cuatro papeles
+   que tiene que tener una compra y marca cuáles faltan, en vez de contar. */
+async function pintarExpediente(ordenId){
+  const c = document.getElementById('exp-'+ordenId);
+  if(!c) return;
+  try{
+    const d = await rpc('co_expediente',{p_orden_id:Number(ordenId)}) || [];
+    const faltan = d.filter(x=>!x.hay).length;
+    c.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">'
+      + d.map(x=>'<div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap">'
+        + '<span class="pill'+(x.hay?' ok':' amber')+'">'+(x.hay?'✓':'falta')+'</span>'
+        + '<b>'+esc(x.que)+'</b>'
+        + '<span class="muted" style="font-size:12.5px">'+esc(x.detalle)+'</span>'
+      + '</div>').join('')
+      + '</div>'
+      + (faltan ? '<div class="nota" style="margin-top:9px">Le faltan <b>'+faltan
+                  +'</b> papel(es) al expediente.</div>' : '');
+  }catch(e){
+    c.innerHTML = '<div class="nota">No pude armar el expediente: '+esc(e.message)
+      + ' — ¿corriste <b>co_48</b>?</div>';
+  }
+}
+
 async function verOrden(id){
   const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{
@@ -2589,7 +2972,15 @@ async function verOrden(id){
 
       +'</div>'
 
-      + consumoOrden(d, sal, fac, errSal, errFac);
+      + consumoOrden(d, sal, fac, errSal, errFac)
+      + '<div class="card noimp" style="margin-top:14px">'
+        + '<h3>El expediente de esta compra</h3>'
+        + '<div class="muted" style="margin-bottom:10px">Lo que una auditoría pide no son los '
+        + 'datos de la pantalla, son los papeles. Esto no sale impreso.</div>'
+        + '<div id="exp-'+id+'"><span class="muted">Cargando…</span></div>'
+        + cajaAdjuntos('orden', id, 'Papeles de esta orden', 'remision')
+      + '</div>';
+    pintarExpediente(id);
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 </script></body></html>

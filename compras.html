@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v50</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v51</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -892,6 +892,10 @@ async function guardarOrden(){
   b.disabled=true; b.textContent='Guardando…';
   try{
     const o=await api('co_orden',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({
+      /* Quién la arma es la firma de «Elaborado» que va impresa en el papel.
+         La base también lo pone sola (co_50), pero mandarlo acá deja claro de
+         dónde sale. */
+      creado_por:MYID,
       empresa_id:EMPRESA_ID, numero:g('oNum').trim(), fecha_emision:g('oFecha'),
       proveedor_id:Number(g('oProv')), condicion_pago_id:Number(g('oCond')),
       descripcion:g('oDesc').trim(), destinatario_id:g('oDest'),

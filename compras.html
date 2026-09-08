@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v48</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v50</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -1448,19 +1448,53 @@ async function cargarPendientes(){
       +'<span class="pill">pedido '+r.pedido+' · recibido '+r.recibido+'</span></div></div>'
       +'<div style="display:flex;gap:7px;align-items:end">'
       +'<div style="width:100px"><label>Llegó</label><input type="number" step="0.01" id="rc'+r.linea_id+'" value="'+r.falta+'"></div>'
+      +'<div><label>Remisión del proveedor</label>'
+        +'<input type="file" id="rem'+r.linea_id+'" accept="image/*,application/pdf" capture="environment" style="max-width:230px"></div>'
       +'<button class="btn ok" onclick="recibir('+r.linea_id+')">Recibir</button></div>'
-      +'</div></div>';
+      +'</div>'
+      /* La foto va acá y no después: el que recibe tiene la remisión en la mano
+         en ese momento y el teléfono también. Si se deja para luego, no pasa. */
+      +'<div class="nota">Sacale la foto a la remisión ahora — queda pegada a este recibido, '
+      +'no suelta en la orden. Si hay tres entregas, cada una con la suya.</div>'
+      +'</div>';
     }).join('');
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 async function recibir(lineaId){
   const cant=Number(document.getElementById('rc'+lineaId).value)||0;
   if(cant<=0){ aviso('La cantidad recibida tiene que ser mayor que cero.'); return; }
+  const inp=document.getElementById('rem'+lineaId);
+  const foto=inp && inp.files && inp.files[0];
   try{
-    await api('co_recepcion',{method:'POST',body:JSON.stringify({
-      orden_linea_id:lineaId, fecha:hoyLocal(), cantidad:cant, recibido_por:MYID
-    })});
-    aviso('Recepción registrada.',true); cargarPendientes();
+    /* La recepción se graba primero y con return=representation, porque para
+       colgarle la foto hace falta su id. Si la foto falla, la recepción ya
+       quedó: el recibido es el dato importante y no se pierde por un archivo. */
+    const r=await api('co_recepcion',{method:'POST',
+      headers:{Prefer:'return=representation'},
+      body:JSON.stringify({orden_linea_id:lineaId, fecha:hoyLocal(),
+                           cantidad:cant, recibido_por:MYID})});
+    const rid = Array.isArray(r) && r[0] ? r[0].id : null;
+
+    if(foto && rid){
+      try{
+        const limpio = foto.name.normalize('NFD').replace(/[̀-ͯ]/g,'')
+                          .replace(/[^A-Za-z0-9._-]+/g,'_').slice(-80);
+        const ruta = EMPRESA_ID+'/recepcion/'+rid+'/'+Date.now()+'-'+limpio;
+        await storage('object/compras/'+ruta,{method:'POST',body:foto,
+          headers:{'x-upsert':'false','Content-Type':foto.type||'application/octet-stream'}});
+        await rpc('co_adjunto_registrar',{p_entidad:'recepcion', p_entidad_id:rid,
+          p_ruta:ruta, p_nombre:foto.name, p_tipo:foto.type||null,
+          p_bytes:foto.size, p_clase:'remision', p_nota:null});
+        aviso('Recepción registrada con la foto de la remisión.', true);
+      }catch(e){
+        aviso('Quedó registrado el recibido, pero la foto no subió: '+e.message
+             +'. Podés subirla después desde la orden.');
+      }
+    } else {
+      aviso(foto ? 'Recepción registrada, pero no pude colgar la foto.'
+                 : 'Recepción registrada. Sin foto de la remisión.', !foto ? true : false);
+    }
+    cargarPendientes();
   }catch(e){ aviso(e.message); }
 }
 
@@ -1751,12 +1785,13 @@ function filaEspera(x){
 
    Nada se sirve por URL pública: para abrir un papel se pide una URL firmada
    que dura una hora. */
+/* Solo papeles que vienen de AFUERA. La orden firmada no está en la lista a
+   propósito: la orden sale de acá y su firma son las aprobaciones. */
 const CLASES_ADJUNTO = [
-  ['cotizacion',    'Cotización del proveedor'],
-  ['factura',       'Factura'],
-  ['remision',      'Remisión firmada'],
-  ['orden_firmada', 'Orden firmada'],
-  ['soporte',       'Otro soporte'],
+  ['cotizacion', 'Cotización del proveedor'],
+  ['factura',    'Factura del proveedor'],
+  ['remision',   'Remisión del proveedor'],
+  ['soporte',    'Otro soporte'],
 ];
 
 async function storage(path, opt){
@@ -2795,27 +2830,70 @@ function consumoOrden(d, sal, fac, errSal, errFac){
     + '</div>';
 }
 
-/* Qué le falta al expediente. La pregunta de una auditoría no es «¿hay
-   archivos?», es «¿está la remisión firmada?». Por eso lista los cuatro papeles
-   que tiene que tener una compra y marca cuáles faltan, en vez de contar. */
+/* El expediente de una compra son DOS cosas distintas y confundirlas fue mi
+   error en co_48:
+
+     lo que SALE del sistema    → la firma es la aprobación, con usuario y hora
+     lo que VIENE de un tercero → eso sí es un papel y hay que guardarlo
+
+   Pedirle a alguien que imprima la orden, la firme, la escanee y la suba es
+   pedirle que debilite el registro: una firma escaneada prueba menos que una
+   aprobación con usuario, hora y bitácora — el papel se puede firmar después,
+   con otra fecha, o firmarlo otro. */
+/* Cada entrega con quién la recibió y su remisión. La foto cuelga de la
+   recepción, no de la orden: con tres entregas parciales, tres fotos sueltas en
+   la orden no dicen cuál corresponde a cuál. */
+async function pintarRecepciones(ordenId){
+  const c = document.getElementById('rec-'+ordenId);
+  if(!c) return;
+  try{
+    const d = await rpc('co_recepciones_de',{p_orden_id:Number(ordenId)}) || [];
+    if(!d.length){ c.innerHTML=''; return; }
+    c.innerHTML = '<div style="margin-bottom:12px"><label>Las entregas, una por una</label>'
+      + d.map(r=>'<div style="margin-top:8px;border-left:3px solid var(--line2);padding-left:10px">'
+        + '<div><b>'+esc(r.cantidad)+' '+esc(r.unidad)+'</b> · '+esc(r.linea)+'</div>'
+        + '<div class="muted" style="font-size:12.5px">recibió '+esc(r.recibio)
+          + ' el '+esc(r.fecha)
+          + (r.fotos>0 ? ' · '+r.fotos+' foto(s) de la remisión'
+                       : ' · <span class="poX">sin foto de la remisión</span>')+'</div>'
+        + (r.observacion?'<div class="muted" style="font-size:12.5px">'+esc(r.observacion)+'</div>':'')
+        + '<div id="adj-recepcion-'+r.recepcion_id+'" style="margin-top:6px"></div>'
+      + '</div>').join('')
+      + '</div>';
+    /* Cada recepción trae su propio bloque de adjuntos, para poder subir la
+       foto después si en el momento no se pudo. */
+    d.forEach(r=>pintarAdjuntos('recepcion', r.recepcion_id, 'remision'));
+  }catch(e){ c.innerHTML='<div class="nota">No pude traer las entregas: '+esc(e.message)+'</div>'; }
+}
+
 async function pintarExpediente(ordenId){
   const c = document.getElementById('exp-'+ordenId);
   if(!c) return;
   try{
     const d = await rpc('co_expediente',{p_orden_id:Number(ordenId)}) || [];
-    const faltan = d.filter(x=>!x.hay).length;
-    c.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">'
-      + d.map(x=>'<div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap">'
-        + '<span class="pill'+(x.hay?' ok':' amber')+'">'+(x.hay?'✓':'falta')+'</span>'
-        + '<b>'+esc(x.que)+'</b>'
-        + '<span class="muted" style="font-size:12.5px">'+esc(x.detalle)+'</span>'
-      + '</div>').join('')
-      + '</div>'
-      + (faltan ? '<div class="nota" style="margin-top:9px">Le faltan <b>'+faltan
-                  +'</b> papel(es) al expediente.</div>' : '');
+    if(!d.length){ c.innerHTML='<div class="muted">Sin datos.</div>'; return; }
+    const grupos = [...new Set(d.map(x=>x.grupo))];
+    const falta = d.filter(x=>!x.hay && !/opcional/i.test(x.que)).length;
+    c.innerHTML = grupos.map(g=>
+      '<div style="margin-bottom:12px">'
+      + '<label>'+esc(g)+'</label>'
+      + '<div style="display:flex;flex-direction:column;gap:6px;margin-top:5px">'
+      + d.filter(x=>x.grupo===g).map(x=>
+          '<div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap">'
+          + '<span class="pill'+(x.hay?' ok':(/opcional/i.test(x.que)?'':' amber'))+'">'
+            + (x.hay?'✓':'falta')+'</span>'
+          + '<b>'+esc(x.que)+'</b>'
+          + (x.quien?'<span>'+esc(x.quien)+'</span>':'')
+          + (x.cuando?'<span class="muted" style="font-size:12.5px">'+esc(x.cuando)+'</span>':'')
+          + '<span class="muted" style="font-size:12.5px">'+esc(x.detalle)+'</span>'
+        + '</div>').join('')
+      + '</div></div>').join('')
+      + (falta
+         ? '<div class="nota">Le faltan <b>'+falta+'</b> pieza(s) al expediente.</div>'
+         : '<div class="nota">El expediente está completo.</div>');
   }catch(e){
     c.innerHTML = '<div class="nota">No pude armar el expediente: '+esc(e.message)
-      + ' — ¿corriste <b>co_48</b>?</div>';
+      + ' — ¿corriste <b>co_49</b>?</div>';
   }
 }
 
@@ -2975,12 +3053,13 @@ async function verOrden(id){
       + consumoOrden(d, sal, fac, errSal, errFac)
       + '<div class="card noimp" style="margin-top:14px">'
         + '<h3>El expediente de esta compra</h3>'
-        + '<div class="muted" style="margin-bottom:10px">Lo que una auditoría pide no son los '
-        + 'datos de la pantalla, son los papeles. Esto no sale impreso.</div>'
+        + '<div class="muted" style="margin-bottom:10px">Quién firmó qué, y qué papeles de '
+        + 'terceros hay guardados. Esto no sale impreso.</div>'
         + '<div id="exp-'+id+'"><span class="muted">Cargando…</span></div>'
-        + cajaAdjuntos('orden', id, 'Papeles de esta orden', 'remision')
+        + '<div id="rec-'+id+'"></div>'
+        + cajaAdjuntos('orden', id, 'Otros papeles de terceros', 'cotizacion')
       + '</div>';
-    pintarExpediente(id);
+    pintarExpediente(id); pintarRecepciones(id);
   }catch(e){ c.innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
 </script></body></html>

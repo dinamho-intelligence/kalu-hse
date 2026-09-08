@@ -187,6 +187,9 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
   <div id="periodo" class="muted" style="margin-bottom:4px"></div>
   <div id="cobertura" class="cobertura" style="margin-bottom:12px"></div>
   <div class="kpigrupo">
+    <h4>Cobranza (lo que entra)</h4>
+    <div id="kpisCobranza" class="kpis"></div>
+
     <h4>Ventas (Facturación a clientes)</h4>
     <div id="kpisFacturado" class="kpis">
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
@@ -641,9 +644,50 @@ function pintarKpis(){
   var facturasValidas = FACTURAS.filter(function(r){ return estadoLimpio(r.estado).toLowerCase() !== 'anulado'; });
   var facturadoAnio  = sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, inicioAnioStr, hoyStr);}), function(r){return r.valor_total_factura;});
   var facturadoMesAnt= sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, ma.desde, ma.hasta);}), function(r){return r.valor_total_factura;});
+
+  /* Mes en curso, igual que Compras. Sin esto, entre el 1 y el 30 la pantalla
+     solo sabe decir cuánto se facturó el mes pasado — que es el dato que menos
+     sirve un martes 8. */
+  var inicioMesStr = ymd(new Date(anio, hoy.getMonth(), 1));
+  var facturasMes  = facturasValidas.filter(function(r){ return enRango(r.fecha_factura, inicioMesStr, hoyStr); });
+  var facturadoMes = sum(facturasMes, function(r){ return r.valor_total_factura; });
+  var mesNom = hoy.toLocaleDateString('es-CO',{month:'long',year:'numeric'});
+
   document.getElementById('kpisFacturado').innerHTML=[
     kpi(fmtCOP(facturadoAnio),'','Año '+anio+' a la fecha','Del '+inicioAnioStr+' al '+hoyStr+' · excluye anuladas'),
-    kpi(fmtCOP(facturadoMesAnt),'','Último mes cerrado · '+ma.etiqueta,'Del '+ma.desde+' al '+ma.hasta)
+    kpi(fmtCOP(facturadoMesAnt),'','Último mes cerrado · '+ma.etiqueta,'Del '+ma.desde+' al '+ma.hasta),
+    kpi(fmtCOP(facturadoMes),'','Mes en curso · '+mesNom+'<span class="tagparcial">parcial</span>',
+        'Del '+inicioMesStr+' al '+hoyStr+' · '+facturasMes.length+' factura'+(facturasMes.length===1?'':'s')
+        +' · el mes no terminó', null, true)
+  ].join('');
+
+  /* ---------- Cobranza: lo que entró y lo que entra ----------
+     Pedido de Marcelo: «necesito el parcial facturado a la fecha y los pagos
+     que hemos recibido a la fecha y los que se recibirán en la semana».
+     Facturar no es cobrar: son dos preguntas distintas y hasta hoy la pantalla
+     solo contestaba una. */
+  var cobradoMes = sum(
+    facturasValidas.filter(function(r){ return enRango(r.fecha_pago, inicioMesStr, hoyStr); }),
+    function(r){ return r.valor_total_factura; });
+
+  /* Lo que vence en los próximos 7 días y sigue pendiente. Se cuenta desde HOY:
+     lo que venció antes y no se cobró no es "lo que entra esta semana", es
+     mora — mezclarlos haría contar como ingreso futuro una plata que ya
+     debería haber entrado. Por eso van en dos tarjetas y no en una. */
+  var en7 = ymd(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()+7));
+  var pendientes = facturasValidas.filter(function(r){ return estadoLimpio(r.estado)==='Pdte de Pago'; });
+  var porEntrar  = pendientes.filter(function(r){ return enRango(r.fecha_vencimiento, hoyStr, en7); });
+  var vencido    = pendientes.filter(function(r){ return r.fecha_vencimiento && r.fecha_vencimiento < hoyStr; });
+
+  var elCob = document.getElementById('kpisCobranza');
+  if(elCob) elCob.innerHTML=[
+    kpi(fmtCOP(cobradoMes),'','Cobrado en el mes<span class="tagparcial">parcial</span>',
+        'Pagos recibidos del '+inicioMesStr+' al '+hoyStr, VERDE, true),
+    kpi(fmtCOP(sum(porEntrar,function(r){return r.valor_total_factura;})),'','Entra esta semana',
+        porEntrar.length+' factura'+(porEntrar.length===1?'':'s')+' que vence'+(porEntrar.length===1?'':'n')
+        +' entre hoy y el '+en7),
+    kpi(fmtCOP(sum(vencido,function(r){return r.valor_total_factura;})),'','Vencido y sin cobrar',
+        vencido.length+' factura'+(vencido.length===1?'':'s')+' que ya pasó su vencimiento', ROJO)
   ].join('');
 
   /* ---------- Compras (mes calendario, desde biz_cierre_mensual) ---------- */

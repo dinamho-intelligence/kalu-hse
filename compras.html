@@ -193,7 +193,7 @@ body.ancho .wrap{max-width:1600px}
 
 <div id="vApp" class="wrap hide">
   <div class="top">
-    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v51</span></div>
+    <div class="brand"><span class="wm">KALU</span><span class="bt">Compras · Total QC</span><span class="pill" style="margin-left:8px">v52</span></div>
     <div class="topder" style="display:flex;gap:8px"><span class="muted" id="quien"></span><span class="muted hide" id="rolesDe" style="font-size:12px;align-self:center"></span>
       <span class="hide" id="cajaActuar" style="align-self:center;display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px">Actuando como</span>
@@ -301,7 +301,15 @@ body.ancho .wrap{max-width:1600px}
     <div id="recLista"></div>
   </div>
 
-  <div id="vOrd" class="hide"><div id="ordLista"></div></div>
+  <div id="vOrd" class="hide">
+    <div class="card" style="margin-bottom:12px">
+      <h3>Órdenes de servicio en la calle</h3>
+      <div class="muted" style="margin-bottom:9px">Autorizadas y todavía sin legalizar.
+        Comprometen presupuesto: la que nadie cierra deja la plata trabada.</div>
+      <div id="servCalle"><span class="muted">Cargando…</span></div>
+    </div>
+    <div id="ordLista"></div>
+  </div>
 
   <div id="vCot" class="hide">
     <div class="card">
@@ -452,6 +460,21 @@ body.ancho .wrap{max-width:1600px}
     <div class="card">
       <h3>Datos de la orden</h3>
       <div class="row r3">
+        <div><label>Qué estás emitiendo *</label>
+          <select id="oTipo" onchange="tipoOrdenCambio()">
+            <option value="compra">Orden de compra — se paga lo que llega</option>
+            <option value="servicio">Orden de servicio — autoriza a empezar</option>
+          </select></div>
+        <div id="wLegaliza" class="hide"><label>¿Legaliza una orden de servicio?</label>
+          <select id="oLegaliza" onchange="legalizaCambio()"><option value="">— ninguna —</option></select></div>
+        <div></div>
+      </div>
+      <div id="notaServicio" class="nota hide">La orden de servicio <b>autoriza al proveedor a
+        empezar</b> y compromete el presupuesto desde ya — si no lo hiciera, el que pide después
+        vería disponible una plata que ya está prometida. Cuando el trabajo termine, Compras emite
+        la orden de compra con el valor real y esta deja de comprometer.
+        Viene de la auditoría de Ecopetrol.</div>
+      <div class="row r3">
         <div><label>Número de orden *</label><input id="oNum" placeholder="PO-3421"></div>
         <div><label>Fecha de emisión *</label><input id="oFecha" type="date"></div>
         <div><label>Proveedor *</label><select id="oProv"></select></div>
@@ -473,6 +496,15 @@ body.ancho .wrap{max-width:1600px}
           <span>Orden abierta — contra esta van llegando varias facturas durante un período</span>
         </label>
       </div></div>
+      <div id="oServicio" class="hide">
+        <div class="row"><div><label>Alcance del servicio *</label>
+          <input id="oAlcance" placeholder="Mantenimiento correctivo de la planta eléctrica de la base"></div></div>
+        <div class="row r3">
+          <div><label>Ejecuta desde</label><input id="oSDesde" type="date"></div>
+          <div><label>Ejecuta hasta</label><input id="oSHasta" type="date"></div>
+          <div><label>Dónde</label><input id="oSLugar" placeholder="Base Yopal"></div>
+        </div>
+      </div>
       <div id="oVigencia" class="hide">
         <div class="row r3">
           <div><label>Vigente desde</label><input id="oDesde" type="date"></div>
@@ -761,6 +793,102 @@ function uniOpts(){
   return (MAE.uni||[]).map(u=>'<option value="'+esc(u.nombre)+'">'+esc(u.nombre)+'</option>').join('');
 }
 
+/* ---------- orden de servicio (f3) ----------
+   De la auditoría de Ecopetrol: «debe haber una orden de servicio antes de la
+   orden de compra, porque la orden de compra sería cuando el servicio ya esté
+   terminado». Es la misma orden con otro tipo: lo que cambia es qué autoriza y
+   cuándo. */
+let SERV_PENDIENTES = [];
+
+function tipoOrdenCambio(){
+  const esServ = document.getElementById('oTipo').value === 'servicio';
+  document.getElementById('oServicio').classList.toggle('hide', !esServ);
+  document.getElementById('notaServicio').classList.toggle('hide', !esServ);
+  document.getElementById('wLegaliza').classList.toggle('hide', esServ);
+  /* Una orden abierta de servicio no tiene sentido: el marco ya es la
+     autorización. Si se elige servicio, se apaga. */
+  if(esServ){
+    const ab=document.getElementById('oAbierta');
+    if(ab.checked){ ab.checked=false; abiertaCambio(); }
+  }
+  if(!esServ) cargarServiciosPendientes();
+}
+
+async function cargarServiciosPendientes(){
+  const sel=document.getElementById('oLegaliza');
+  if(!sel) return;
+  try{
+    SERV_PENDIENTES = await rpc('co_servicios_pendientes',{p_empresa_id:EMPRESA_ID}) || [];
+  }catch(_){ SERV_PENDIENTES=[]; }
+  sel.innerHTML = '<option value="">— ninguna —</option>'
+    + SERV_PENDIENTES.map(s=>'<option value="'+s.orden_id+'">'
+      + esc(s.numero+' · '+s.proveedor+' · '+cop(s.valor))
+      + (s.ejecutado_en?'  (terminó el '+s.ejecutado_en+')':'  (en ejecución)')
+      + '</option>').join('');
+}
+
+/* Al legalizar, la orden nace con los datos de la de servicio: proveedor,
+   descripción y una línea con el valor autorizado, para que quien la arma solo
+   corrija el número real. Escribir todo de nuevo es como se cuelan las
+   diferencias entre lo autorizado y lo pagado. */
+function legalizaCambio(){
+  const id=document.getElementById('oLegaliza').value;
+  const s=SERV_PENDIENTES.find(x=>String(x.orden_id)===String(id));
+  const n=document.getElementById('notaServicio');
+  if(!s){ n.classList.add('hide'); return; }
+  n.classList.remove('hide');
+  n.innerHTML='Vas a legalizar <b>'+esc(s.numero)+'</b> — '+esc(s.alcance||'')
+    +'. Autorizado por '+cop(s.valor)+'. Poné acá abajo el <b>valor real</b>: '
+    +'si es distinto, manda este, y la orden de servicio deja de comprometer.';
+  const p=document.getElementById('oProv');
+  if(p && !p.value){
+    const opt=[...p.options].find(o=>o.textContent.trim()===String(s.proveedor).trim());
+    if(opt) p.value=opt.value;
+  }
+  const d=document.getElementById('oDesc');
+  if(d && !d.value) d.value='Legaliza '+s.numero+' · '+(s.alcance||'');
+}
+
+/* Los servicios que están en la calle y todavía no se legalizaron. Es el precio
+   de comprometer al autorizar: si nadie los cierra, la plata queda trabada. */
+async function cargarServiciosEnCalle(){
+  const c=document.getElementById('servCalle');
+  if(!c) return;
+  try{
+    const d=await rpc('co_servicios_pendientes',{p_empresa_id:EMPRESA_ID}) || [];
+    if(!d.length){ c.innerHTML='<div class="muted">No hay órdenes de servicio abiertas.</div>'; return; }
+    c.innerHTML='<div style="overflow-x:auto"><table style="font-size:13px"><thead><tr>'
+      +'<th>Orden</th><th>Proveedor</th><th>Alcance</th><th class="num">Autorizado</th>'
+      +'<th>Cómo va</th><th></th></tr></thead><tbody>'
+      +d.map(s=>'<tr>'
+        +'<td><b>'+esc(s.numero)+'</b><div class="muted" style="font-size:12px">'+esc(s.centro||'')+'</div></td>'
+        +'<td>'+esc(s.proveedor)+'</td>'
+        +'<td>'+esc(s.alcance||'—')
+          +(s.desde||s.hasta?'<div class="muted" style="font-size:12px">'
+            +esc(s.desde||'')+' → '+esc(s.hasta||'')+'</div>':'')+'</td>'
+        +'<td class="num">'+cop(s.valor)+'</td>'
+        +'<td><span class="pill'+(/trabada|venció/.test(s.aviso)?' amber':'')+'">'
+          +esc(s.aviso)+'</span></td>'
+        +'<td>'+(s.ejecutado_en
+           ? '<span class="muted" style="font-size:12px">terminó el '+esc(s.ejecutado_en)+'</span>'
+           : '<button class="btn ok" style="padding:5px 10px;font-size:12.5px" '
+             +'onclick="marcarEjecutado('+s.orden_id+')">Terminó</button>')+'</td>'
+      +'</tr>').join('')
+      +'</tbody></table></div>';
+  }catch(e){
+    c.innerHTML='<div class="nota">No pude traer los servicios: '+esc(e.message)
+      +' — ¿corriste <b>co_53</b>?</div>';
+  }
+}
+
+async function marcarEjecutado(id){
+  try{
+    const r=await rpc('co_servicio_ejecutado',{p_orden_id:id, p_cuando:null});
+    aviso((Array.isArray(r)?r[0]:r).mensaje||'Listo.', true);
+    cargarServiciosEnCalle(); cargarServiciosPendientes();
+  }catch(e){ aviso(e.message); }
+}
+
 function abiertaCambio(){
   const ab=document.getElementById('oAbierta').checked;
   document.getElementById('oVigencia').classList.toggle('hide', !ab);
@@ -886,6 +1014,8 @@ async function guardarOrden(){
   if(!g('oCond')) falta.push('condición de pago');
   if(!g('oDest')) falta.push('destinatario');
   if(!g('oDesc').trim()) falta.push('descripción');
+  if(g('oTipo')==='servicio' && !g('oAlcance').trim())
+    falta.push('el alcance del servicio — es lo que el proveedor queda autorizado a hacer');
   if(!lins.length) falta.push('al menos una línea');
   lins.forEach((l,i)=>{ if(!l.categoria_id||!l.centro_costo_id||!l.descripcion||l.cantidad<=0||l.valor_unitario<0) falta.push('línea '+(i+1)+' incompleta'); });
   if(falta.length){ aviso('Falta: '+falta.join(', ')); window.scrollTo(0,0); return; }
@@ -905,7 +1035,13 @@ async function guardarOrden(){
       nota:g('oNota').trim()||null,
       es_abierta:document.getElementById('oAbierta').checked,
       vigente_desde:g('oDesde')||null,
-      vigente_hasta:g('oHasta')||null
+      vigente_hasta:g('oHasta')||null,
+      tipo:g('oTipo'),
+      alcance:g('oAlcance').trim()||null,
+      servicio_desde:g('oSDesde')||null,
+      servicio_hasta:g('oSHasta')||null,
+      servicio_lugar:g('oSLugar').trim()||null,
+      legaliza_a:(g('oTipo')==='compra' && g('oLegaliza')) ? Number(g('oLegaliza')) : null
     })});
     const oid=o[0].id;
     await api('co_orden_linea',{method:'POST',body:JSON.stringify(lins.map(l=>({
@@ -919,7 +1055,8 @@ async function guardarOrden(){
     })))});
     aviso('Orden '+g('oNum')+' guardada con '+lins.length+' línea'+(lins.length>1?'s':'')+'.',true);
     document.getElementById('lineas').innerHTML='';
-    ['oDesc','oPlazo','oTelRec','oNota'].forEach(i=>document.getElementById(i).value='');
+    ['oDesc','oPlazo','oTelRec','oNota','oAlcance','oSLugar'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('oLegaliza').value='';
     addLinea();
     try{ const px=await rpc('co_siguiente_orden',{p_empresa_id:EMPRESA_ID}); if(px) document.getElementById('oNum').value=px; }catch(_){}
     cargarPorComprar();
@@ -2642,15 +2779,19 @@ function traerLineas(){
   aviso(ids.length+(ids.length===1?' línea traída.':' líneas traídas.'),true);
 }
 async function cargarOrdenes(){
+  cargarServiciosEnCalle();
   const c=document.getElementById('ordLista'); c.innerHTML='<div class="muted">Cargando…</div>';
   try{
-    const o=await api('co_orden?select=id,numero,fecha_emision,descripcion,estado,co_proveedor(nombre,correo),co_orden_linea(valor_neto)&order=fecha_emision.desc&limit=200');
+    const o=await api('co_orden?select=id,numero,fecha_emision,descripcion,estado,tipo,es_abierta,co_proveedor(nombre,correo),co_orden_linea(valor_neto)&order=fecha_emision.desc&limit=200');
     if(!o.length){ c.innerHTML='<div class="card muted">Todavía no hay órdenes cargadas.</div>'; return; }
     c.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Proveedor</th>'
       +'<th>Descripción</th><th>Estado</th><th class="num">Total</th><th></th></tr></thead><tbody>'
       +o.map(r=>{const t=(r.co_orden_linea||[]).reduce((a,l)=>a+Number(l.valor_neto||0),0);
         const pv=r.co_proveedor||{}, enviada=r.estado==='enviada';
-        return '<tr><td><b>'+esc(r.numero)+'</b></td><td>'+esc(r.fecha_emision)+'</td>'
+        return '<tr><td><b>'+esc(r.numero)+'</b>'
+        +(r.tipo==='servicio'?' <span class="pill amber">servicio</span>':'')
+        +(r.es_abierta?' <span class="pill amber">abierta</span>':'')
+        +'</td><td>'+esc(r.fecha_emision)+'</td>'
         +'<td>'+esc(pv.nombre||'')+(pv.correo?'':'<div class="muted">sin correo cargado</div>')+'</td>'
         +'<td>'+esc(r.descripcion)+'</td>'
         +'<td><span class="pill '+(enviada?'':'amber')+'">'+esc(r.estado||'')+'</span></td>'
@@ -2962,12 +3103,14 @@ async function verOrden(id){
         +'</div>'
         +'<div style="text-align:center">'
           +'<div style="font-weight:800;font-size:14px">'+esc(FORMATO.codigo||'FT-COM-003')+'</div>'
-          +'<div style="font-weight:700">Orden de compra</div>'
+          +'<div style="font-weight:700">'
+            +(d.tipo==='servicio'?'Orden de servicio':'Orden de compra')+'</div>'
           +'<div>Versión: '+esc(FORMATO.version==null?'—':String(FORMATO.version).padStart(3,'0'))+'</div>'
           +'<div>Fecha: '+esc(FORMATO.fecha_version||'—')+'</div>'
         +'</div>'
         +'<div style="text-align:center">'
-          +'<div style="font-size:11px;letter-spacing:.4px">N° ORDEN DE COMPRA</div>'
+          +'<div style="font-size:11px;letter-spacing:.4px">N° '
+            +(d.tipo==='servicio'?'ORDEN DE SERVICIO':'ORDEN DE COMPRA')+'</div>'
           +'<div style="font-size:22px;font-weight:800;margin-top:3px">'+esc(d.numero)+'</div>'
         +'</div>'
       +'</div>'
@@ -2994,6 +3137,14 @@ async function verOrden(id){
         /* Sin "en la práctica N días": ese dato es para analizar adentro, no
            para que lo lea el proveedor. Lo pidió Marcelo en la reunión. */
         +campoPO('Forma de Pago', d.forma_pago)
+        +(d.tipo==='servicio'
+          ? campoPO('Alcance del servicio', d.alcance, 'sin alcance definido', true)
+            + campoPO('Ejecuta desde', d.servicio_desde ? fechaLarga(d.servicio_desde) : null, 'sin fecha')
+            + campoPO('Ejecuta hasta', d.servicio_hasta ? fechaLarga(d.servicio_hasta) : null, 'sin fecha')
+            + campoPO('Lugar de ejecución', d.servicio_lugar)
+            + (d.legalizada_por ? campoPO('Legalizada por', d.legalizada_por, null, true) : '')
+          : (d.legaliza_numero
+             ? campoPO('Legaliza la orden de servicio', d.legaliza_numero, null, true) : ''))
       +'</div>'
 
       +'<div style="overflow-x:auto"><table class="poitems"><thead><tr>'
@@ -3016,8 +3167,17 @@ async function verOrden(id){
       +'</tbody></table></div>'
 
       +(d.nota?'<div class="ponota"><b>Nota:</b> '+esc(d.nota)+'</div>':'')
-      +'<div class="polegal">La entrega de los bienes y/o servicios deberá estar acompañada '
-      +'de la remisión firmada como soporte del recibido, requisito indispensable para su aceptación.</div>'
+      /* El texto legal no puede ser el mismo: una orden de servicio autoriza a
+         empezar, no acepta una entrega. */
+      +'<div class="polegal">'
+      +(d.tipo==='servicio'
+        ? 'La presente orden autoriza la ejecución del servicio descrito, en el alcance, plazo y '
+          +'lugar indicados. Cualquier trabajo adicional requiere autorización previa por escrito. '
+          +'Terminado el servicio, Total QC S.A.S. emitirá la orden de compra correspondiente con '
+          +'el valor definitivo, contra la cual deberá facturarse.'
+        : 'La entrega de los bienes y/o servicios deberá estar acompañada de la remisión firmada '
+          +'como soporte del recibido, requisito indispensable para su aceptación.')
+      +'</div>'
 
       +'<div class="pototales">'
         +'<div><span>SubTOTAL</span><span>'+cop(d.subtotal)+'</span></div>'

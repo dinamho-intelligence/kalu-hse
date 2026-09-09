@@ -208,7 +208,14 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     <div id="kpisImpuestos" class="kpis"></div>
     <div id="tablaImpuestos"></div>
 
-    <h4>Ventas (Facturación a clientes)</h4>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h4 style="margin:0">Ventas (Facturación a clientes)</h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btnIva"  onclick="toggleIva()"  style="font-size:12px;padding:6px 11px"></button>
+        <button class="btn" id="btnRete" onclick="toggleRete()" style="font-size:12px;padding:6px 11px"></button>
+      </div>
+    </div>
+    <div id="baseVentas" class="s" style="color:var(--tx3);font-size:11px;margin:4px 0 8px"></div>
     <div id="kpisFacturado" class="kpis">
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
@@ -604,7 +611,7 @@ async function cargarTodo(){
   try{
     var anio = new Date().getFullYear();
     var res = await Promise.all([
-      sbGetAll('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera'),
+      sbGetAll('biz_factura?select=numero_factura,cliente,valor_total_factura,estado,fecha_factura,fecha_vencimiento,fecha_pago,cartera,total_bruto,valor_iva,retefuente,reteica,rete_iva'),
       sbGetAll('biz_movimiento_tesoreria?select=valor,clasificacion_texto,origen_hoja'),
       sbGetAll('biz_compra_factura?select=po,proveedor,categoria_proveedor,valor_neto,estado_oc,estado_factura,saldo_factura,mes_compra'),
       sbRpc('biz_cierre_mensual',{p_empresa_id:EMPRESA_ID,p_anio:anio}),
@@ -643,6 +650,42 @@ async function cargarTodo(){
 function sum(arr,f){ return arr.reduce(function(a,r){ var v=f(r); return a+(typeof v==='number'&&!isNaN(v)?v:0); },0); }
 function num(v){ var n=Number(v); return isNaN(n)?0:n; }
 let excluirCarteraJefes = true; // arranca excluida, como lo pide Cielo por defecto
+
+/* ---------- Las dos perillas de la línea de facturación ----------
+   Pedido de Marcelo: «dos botones, uno con o sin IVA y otro con o sin
+   retenciones, en la línea de facturación».
+
+   Una factura tiene tres pisos y cada uno contesta una pregunta distinta:
+
+     total_bruto ................. lo que TQC vendió. El ingreso de verdad.
+     + IVA ....................... lo que dice el papel de la factura.
+     − retenciones ............... lo que el cliente efectivamente gira.
+
+   Con las dos perillas se llega a los cuatro pisos posibles, y el pie de la
+   banda dice siempre cuál se está mirando — sin eso, dos personas comparan
+   números distintos creyendo que hablan de lo mismo.
+
+   Arranca SIN IVA y SIN retenciones descontadas: esa es la base comparable
+   contra gastos, la que se usa para el margen. El IVA se cobra para la DIAN y
+   las retenciones son anticipo de impuesto: ninguno de los dos cambia lo que
+   la empresa ganó, solo cuándo y cuánta plata se mueve.
+
+   Ojo: esto toca SOLO la banda de Ventas. Cobranza y Cartera siguen con
+   valor_total_factura porque ahí la pregunta es de caja —cuánta plata entra—
+   y ahí sí manda lo que el cliente gira. */
+let conIva = false, reteDescontada = false;
+function toggleIva(){  conIva = !conIva;  pintarKpis(); }
+function toggleRete(){ reteDescontada = !reteDescontada; pintarKpis(); }
+function baseFactura(r){
+  var v = num(r.total_bruto);
+  if(conIva) v += num(r.valor_iva);
+  if(reteDescontada) v -= (num(r.retefuente) + num(r.reteica) + num(r.rete_iva));
+  return v;
+}
+function etiquetaBase(){
+  return (conIva ? 'Con IVA' : 'Sin IVA')
+       + ' · ' + (reteDescontada ? 'retenciones descontadas' : 'sin descontar retenciones');
+}
 function toggleCarteraJefes(){
   excluirCarteraJefes = !excluirCarteraJefes;
   pintarKpis();
@@ -670,19 +713,36 @@ function pintarKpis(){
 
   /* ---------- Ventas ---------- */
   var facturasValidas = FACTURAS.filter(function(r){ return estadoLimpio(r.estado).toLowerCase() !== 'anulado'; });
-  var facturadoAnio  = sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, inicioAnioStr, hoyStr);}), function(r){return r.valor_total_factura;});
-  var facturadoMesAnt= sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, ma.desde, ma.hasta);}), function(r){return r.valor_total_factura;});
+  var facturadoAnio  = sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, inicioAnioStr, hoyStr);}), baseFactura);
+  var facturadoMesAnt= sum(facturasValidas.filter(function(r){return enRango(r.fecha_factura, ma.desde, ma.hasta);}), baseFactura);
 
   /* Mes en curso, igual que Compras. Sin esto, entre el 1 y el 30 la pantalla
      solo sabe decir cuánto se facturó el mes pasado — que es el dato que menos
      sirve un martes 8. */
   var inicioMesStr = ymd(new Date(anio, hoy.getMonth(), 1));
   var facturasMes  = facturasValidas.filter(function(r){ return enRango(r.fecha_factura, inicioMesStr, hoyStr); });
-  var facturadoMes = sum(facturasMes, function(r){ return r.valor_total_factura; });
+  var facturadoMes = sum(facturasMes, baseFactura);
   var mesNom = hoy.toLocaleDateString('es-CO',{month:'long',year:'numeric'});
 
+  /* Si la ETL no trajo total_bruto para alguna factura, esa factura suma cero
+     acá y el total queda corto sin que se note. Se avisa en vez de rellenarlo
+     con valor_total_factura, que es otra base y mezclarlas sería peor. */
+  var sinBase = facturasValidas.filter(function(r){ return r.total_bruto === null || r.total_bruto === undefined; }).length;
+
+  var bIva = document.getElementById('btnIva');
+  if(bIva) bIva.textContent = conIva ? 'IVA: incluido ↺' : 'IVA: excluido ↺';
+  var bRet = document.getElementById('btnRete');
+  if(bRet) bRet.textContent = reteDescontada ? 'Retenciones: descontadas ↺' : 'Retenciones: sin descontar ↺';
+  var elBase = document.getElementById('baseVentas');
+  if(elBase) elBase.innerHTML = 'Midiendo <b style="color:var(--tx2)">'+etiquetaBase()+'</b> · '
+    + (conIva && reteDescontada ? 'lo que el cliente efectivamente gira'
+      : conIva ? 'lo que dice el papel de la factura'
+      : reteDescontada ? 'la venta menos el anticipo de impuesto que retuvo el cliente'
+      : 'el ingreso real de la empresa, comparable contra gastos')
+    + (sinBase>0 ? ' · <b style="color:'+AMBER+'">⚠️ '+fmt(sinBase)+' factura(s) sin base cargada</b> — cuentan como cero en esta banda' : '');
+
   document.getElementById('kpisFacturado').innerHTML=[
-    kpi(fmtCOP(facturadoAnio),'','Año '+anio+' a la fecha','Del '+inicioAnioStr+' al '+hoyStr+' · excluye anuladas'),
+    kpi(fmtCOP(facturadoAnio),'','Año '+anio+' a la fecha','Del '+inicioAnioStr+' al '+hoyStr+' · excluye anuladas · '+etiquetaBase()),
     kpi(fmtCOP(facturadoMesAnt),'','Último mes cerrado · '+ma.etiqueta,'Del '+ma.desde+' al '+ma.hasta),
     kpi(fmtCOP(facturadoMes),'','Mes en curso · '+mesNom+'<span class="tagparcial">parcial</span>',
         'Del '+inicioMesStr+' al '+hoyStr+' · '+facturasMes.length+' factura'+(facturasMes.length===1?'':'s')

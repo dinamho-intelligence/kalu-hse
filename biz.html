@@ -190,6 +190,10 @@ table.dl tr:hover td{background:rgba(255,255,255,.02)}
     <h4>Cobranza (lo que entra)</h4>
     <div id="kpisCobranza" class="kpis"></div>
 
+    <h4>Impuestos (lo que se le debe a la DIAN)</h4>
+    <div id="kpisImpuestos" class="kpis"></div>
+    <div id="tablaImpuestos"></div>
+
     <h4>Ventas (Facturación a clientes)</h4>
     <div id="kpisFacturado" class="kpis">
       <div class="kpi"><div class="n">—</div><div class="l">Cargando…</div></div>
@@ -558,6 +562,7 @@ function salir(){ try{ if(_idleT)clearTimeout(_idleT); }catch(e){} TOKEN=null; c
    biz_compra_factura (hoja "Control Fac - OC") y de las funciones que aplican
    las reglas confirmadas por Cielo y Dania el 03/09/2026. */
 let FACTURAS=[], MOVS=[], COMPRAS_F=[], CIERRE=[], CARTERA_PAGAR=[], COBERTURA=null, ULTIMA_PANTALLA=null;
+let IMPUESTOS=[], IMPUESTOS_ERR=null;
 /* Quién está usando la app. Se resuelve una vez al cargar y se le pasa a KALU en
    cada pregunta: la identidad es contexto, no algo que él tenga que averiguar.
    El padrón guarda "Apellidos Nombres" ("Barreto Acosta Cielo Karime"), así que
@@ -591,12 +596,21 @@ async function cargarTodo(){
       sbRpc('biz_cierre_mensual',{p_empresa_id:EMPRESA_ID,p_anio:anio}),
       sbRpc('biz_cartera_por_pagar',{p_empresa_id:EMPRESA_ID}),
       sbRpc('biz_compras_cobertura',{p_empresa_id:EMPRESA_ID}),
-      sbRpc('biz_quien_soy',{})
+      sbRpc('biz_quien_soy',{}),
+      /* Este va con catch propio a propósito. Si la función todavía no está
+         creada en la base, un rechazo acá tumbaría el Promise.all entero y la
+         pantalla quedaría en blanco por una banda que recién se agrega. Pero el
+         error NO se traga en silencio: se guarda y la banda lo muestra con el
+         nombre de la migración que falta. */
+      sbRpc('biz_impuestos_estado',{p_empresa_id:EMPRESA_ID,p_anio:anio})
+        .catch(function(e){ return {error:e.message}; })
     ]);
     FACTURAS=res[0]; MOVS=res[1]; COMPRAS_F=res[2];
     CIERRE=res[3]||[]; CARTERA_PAGAR=res[4]||[];
     COBERTURA=(res[5]&&res[5][0])||null;
     YO=(res[6]&&res[6][0])||null;
+    IMPUESTOS = Array.isArray(res[7]) ? res[7] : [];
+    IMPUESTOS_ERR = Array.isArray(res[7]) ? null : ((res[7]&&res[7].error)||'respuesta inesperada');
     if(YO) YO.trato=tratoDe(YO);
     ULTIMA_PANTALLA = new Date();
     document.getElementById('errorGlobal').innerHTML='';
@@ -690,6 +704,8 @@ function pintarKpis(){
         vencido.length+' factura'+(vencido.length===1?'':'s')+' que ya pasó su vencimiento', ROJO)
   ].join('');
 
+  pintarImpuestos();
+
   /* ---------- Compras (mes calendario, desde biz_cierre_mensual) ---------- */
   var cerrados = CIERRE.filter(function(m){return m.estado==='cerrado';});
   var enCurso  = CIERRE.filter(function(m){return m.estado==='en curso';});
@@ -747,6 +763,101 @@ function pintarKpis(){
       '<b>'+COBERTURA.pct_con_centro_costo+'%</b> con centro de costo · '+
       'última orden emitida el <b>'+esc(COBERTURA.ultima_compra||'—')+'</b>';
   } else { cob.textContent=''; }
+}
+/* ---------- Impuestos: causado, pagado y saldo ----------
+   Pedido de Marcelo: «los datos de impuestos, IVA a pagar, IVA pagado,
+   retenciones etc., pero cada detalle con el pagado y la cartera o deuda a la
+   fecha». IVA bimestral, decisión suya.
+
+   Tres cosas que esta banda NO hace, a propósito:
+
+   1. No reparte el pago por tipo de impuesto. Tesorería clasifica el giro como
+      «Impuestos» y no dice si fue IVA, retefuente o ICA. Mostrar «IVA pagado»
+      con un reparto inventado sería una mentira prolija: se muestra el pago
+      entero y el saldo contra la deuda total.
+   2. No escribe cero donde no hay dato. Si el bimestre no tiene movimientos de
+      tesorería cargados, la función devuelve null y acá dice «sin dato» — que
+      es distinto de «no se pagó».
+   3. No mezcla lo que nos retienen con lo que debemos. Las retenciones que los
+      clientes le practican a TQC son plata A FAVOR: se cruzan contra la renta.
+      Van en verde y aparte. */
+function pintarImpuestos(){
+  var elK = document.getElementById('kpisImpuestos');
+  var elT = document.getElementById('tablaImpuestos');
+  if(!elK || !elT) return;
+  if(!IMPUESTOS.length){
+    elK.innerHTML = kpi('—','','Impuestos',
+      IMPUESTOS_ERR ? ('No se pudo leer biz_impuestos_estado: '+esc(IMPUESTOS_ERR)+' — falta correr biz_21 en la base')
+                    : 'La función respondió sin filas', AMBER);
+    elT.innerHTML = ''; return;
+  }
+  var hoy = new Date();
+  var bimActual = Math.ceil((hoy.getMonth()+1)/2);
+  var hasta = IMPUESTOS.filter(function(r){ return num(r.orden_) <= bimActual; });
+
+  var ivaPagar   = sum(hasta,function(r){return r.iva_a_pagar;});
+  var retPract   = sum(hasta,function(r){return r.ret_practicada;});
+  var deuda      = sum(hasta,function(r){return r.deuda_causada;});
+  var aFavor     = sum(hasta,function(r){return r.a_favor;});
+  var conDato    = hasta.filter(function(r){ return r.pagado_dian !== null && r.pagado_dian !== undefined; });
+  var sinDato    = hasta.filter(function(r){ return r.pagado_dian === null || r.pagado_dian === undefined; });
+  var pagado     = sum(conDato,function(r){return r.pagado_dian;});
+  /* El saldo solo se puede calcular sobre los bimestres que TIENEN pago
+     cargado. Restarle cero a los otros haría aparecer una deuda que quizá ya
+     se pagó y nadie registró. */
+  var deudaConDato = sum(conDato,function(r){return r.deuda_causada;});
+  var saldo      = deudaConDato - pagado;
+  var sinIva     = hasta.reduce(function(a,r){ return a+num(r.facturas_sin_iva); },0);
+
+  var etiqBim = 'Bimestre 1 al '+bimActual+' de '+hoy.getFullYear();
+  elK.innerHTML = [
+    kpi(fmtCOP(ivaPagar),'','IVA a pagar (causado)',
+        etiqBim+' · generado menos descontable', AMBER),
+    kpi(fmtCOP(retPract),'','Retención practicada a proveedores',
+        'ReteFuente + ReteICA + ReteIVA que TQC descontó y le debe consignar a la DIAN', AMBER),
+    conDato.length
+      ? kpi(fmtCOP(pagado),'','Pagado a la DIAN',
+            'Giros de tesorería clasificados como impuestos'
+            + (sinDato.length ? ' · '+sinDato.length+' bimestre'+(sinDato.length===1?'':'s')+' sin dato' : ''), VERDE)
+      : kpi('sin dato','','Pagado a la DIAN','No hay movimientos de tesorería cargados en el período', AMBER),
+    conDato.length
+      ? kpi(fmtCOP(saldo),'','Saldo estimado',
+            'Deuda de los bimestres con pago cargado ('+fmtCOP(deudaConDato)+') menos lo pagado', ROJO, true)
+      : kpi('sin dato','','Saldo estimado','Sin lo pagado no hay saldo posible', AMBER),
+    kpi(fmtCOP(aFavor),'','A favor: nos retuvieron',
+        'Lo que los clientes le descontaron a TQC. No es deuda: se cruza contra la renta', VERDE)
+  ].join('');
+
+  var filas = hasta.map(function(r){
+    var sinD = (r.pagado_dian === null || r.pagado_dian === undefined);
+    return '<tr>'
+      + '<td><b>'+esc(r.periodo)+'</b><div class="s" style="color:var(--tx3)">'+esc(r.desde)+' al '+esc(r.hasta)+'</div></td>'
+      + '<td style="text-align:right">'+fmtCOP(num(r.iva_generado))+'</td>'
+      + '<td style="text-align:right">'+fmtCOP(num(r.iva_descontable))+'</td>'
+      + '<td style="text-align:right"><b>'+fmtCOP(num(r.iva_a_pagar))+'</b></td>'
+      + '<td style="text-align:right">'+fmtCOP(num(r.ret_practicada))+'</td>'
+      + '<td style="text-align:right"><b>'+fmtCOP(num(r.deuda_causada))+'</b></td>'
+      + '<td style="text-align:right">'+(sinD?'<span style="color:'+AMBER+'">sin dato</span>':fmtCOP(num(r.pagado_dian)))+'</td>'
+      + '<td style="text-align:right">'+(sinD?'<span style="color:var(--tx3)">—</span>':'<b style="color:'+(num(r.saldo)>0?ROJO:VERDE)+'">'+fmtCOP(num(r.saldo))+'</b>')+'</td>'
+      + '<td style="text-align:right;color:'+VERDE+'">'+fmtCOP(num(r.a_favor))+'</td>'
+      + '<td style="color:var(--tx3);font-size:11px">'+esc(r.clases_pago||'')+'</td>'
+      + '</tr>';
+  }).join('');
+
+  elT.innerHTML =
+    '<div class="sec" style="padding:12px;overflow-x:auto">'
+    + '<table class="dl" style="width:100%;min-width:900px">'
+    + '<thead><tr><th>Bimestre</th><th style="text-align:right">IVA generado</th>'
+    + '<th style="text-align:right">IVA descontable</th><th style="text-align:right">IVA a pagar</th>'
+    + '<th style="text-align:right">Retención practicada</th><th style="text-align:right">Deuda causada</th>'
+    + '<th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th>'
+    + '<th style="text-align:right">A favor</th><th>Qué se contó como pago</th></tr></thead>'
+    + '<tbody>'+filas+'</tbody></table>'
+    + '<div class="s" style="color:var(--tx3);margin-top:10px;line-height:1.6">'
+    + 'El pago <b>no se reparte por tipo de impuesto</b>: Tesorería clasifica el giro como «Impuestos» y no dice si fue IVA, retefuente o ICA. '
+    + 'Las retenciones que le practican a TQC (avisos y tableros, timbre y bomberil) <b>no están en la base</b>: son $2.292.804 de $728.992.882 en 2026, el 0,3 %. '
+    + (sinIva>0 ? '<br><b style="color:'+AMBER+'">⚠️ '+fmt(sinIva)+' factura(s) del período sin IVA cargado</b> — el IVA generado está incompleto.' : '')
+    + '</div></div>';
 }
 function kpi(n,unidad,label,sub,col,parcial){
   return '<div class="kpi'+(parcial?' parcial':'')+'"><div class="n" style="color:'+(col||'#eef2f6')+'">'+n+(unidad?'<span style="font-size:13px;font-weight:600;color:#9fabb8"> '+unidad+'</span>':'')+'</div><div class="l">'+label+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>';

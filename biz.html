@@ -27,6 +27,20 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",R
 .kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;letter-spacing:.4px;text-transform:uppercase}
 .kpi .s{font-size:11px;color:var(--tx3);margin-top:5px}
 .kpi.parcial{border-style:dashed;border-color:var(--line2)}
+/* Tarjeta de impuesto: un impuesto por tarjeta, con sus renglones adentro.
+   Pedido de Marcelo: «no tres tarjetas para el IVA, los tres datos en una sola». */
+.timps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:6px}
+@media(max-width:1100px){.timps{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.timps{grid-template-columns:1fr}}
+.timp{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;display:flex;flex-direction:column}
+.timp h5{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px}
+.timp .r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0}
+.timp .r .k{font-size:11px;color:var(--tx3)}
+.timp .r .v{font-size:14px;font-weight:700;color:var(--tx2);white-space:nowrap}
+.timp .r.big{border-top:1px solid var(--line);margin-top:6px;padding-top:9px}
+.timp .r.big .k{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.4px}
+.timp .r.big .v{font-size:21px;font-weight:800}
+.timp .pie{font-size:10px;color:var(--tx3);margin-top:auto;padding-top:10px;line-height:1.5}
 .tagparcial{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#0b0e13;background:var(--amber);border-radius:3px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 .sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
 .sec h2{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
@@ -785,77 +799,83 @@ function pintarImpuestos(){
   var elK = document.getElementById('kpisImpuestos');
   var elT = document.getElementById('tablaImpuestos');
   if(!elK || !elT) return;
+  elK.innerHTML = '';
   if(!IMPUESTOS.length){
-    elK.innerHTML = kpi('—','','Impuestos',
-      IMPUESTOS_ERR ? ('No se pudo leer biz_impuestos_estado: '+esc(IMPUESTOS_ERR)+' — falta correr biz_21 en la base')
-                    : 'La función respondió sin filas', AMBER);
-    elT.innerHTML = ''; return;
+    elT.innerHTML = '<div class="sec"><div class="err" style="color:'+AMBER+'">'
+      + (IMPUESTOS_ERR ? 'No se pudo leer biz_impuestos_estado: '+esc(IMPUESTOS_ERR)+' — falta correr biz_21 en la base'
+                       : 'La función respondió sin filas')+'</div></div>';
+    return;
   }
   var hoy = new Date();
   var bimActual = Math.ceil((hoy.getMonth()+1)/2);
-  var hasta = IMPUESTOS.filter(function(r){ return num(r.orden_) <= bimActual; });
+  var R = IMPUESTOS.filter(function(r){ return num(r.orden_) <= bimActual; });
 
-  var ivaPagar   = sum(hasta,function(r){return r.iva_a_pagar;});
-  var retPract   = sum(hasta,function(r){return r.ret_practicada;});
-  var deuda      = sum(hasta,function(r){return r.deuda_causada;});
-  var aFavor     = sum(hasta,function(r){return r.a_favor;});
-  var conDato    = hasta.filter(function(r){ return r.pagado_dian !== null && r.pagado_dian !== undefined; });
-  var sinDato    = hasta.filter(function(r){ return r.pagado_dian === null || r.pagado_dian === undefined; });
-  var pagado     = sum(conDato,function(r){return r.pagado_dian;});
-  /* El saldo solo se puede calcular sobre los bimestres que TIENEN pago
-     cargado. Restarle cero a los otros haría aparecer una deuda que quizá ya
-     se pagó y nadie registró. */
-  var deudaConDato = sum(conDato,function(r){return r.deuda_causada;});
-  var saldo      = deudaConDato - pagado;
-  var sinIva     = hasta.reduce(function(a,r){ return a+num(r.facturas_sin_iva); },0);
+  var ivaGen  = sum(R,function(r){return r.iva_generado;});
+  var ivaDes  = sum(R,function(r){return r.iva_descontable;});
+  var ivaPag  = sum(R,function(r){return r.iva_a_pagar;});
+  var retPra  = sum(R,function(r){return r.ret_practicada;});
+  var deuda   = sum(R,function(r){return r.deuda_causada;});
+  var aFavor  = sum(R,function(r){return r.a_favor;});
 
-  var etiqBim = 'Bimestre 1 al '+bimActual+' de '+hoy.getFullYear();
-  elK.innerHTML = [
-    kpi(fmtCOP(ivaPagar),'','IVA a pagar (causado)',
-        etiqBim+' · generado menos descontable', AMBER),
-    kpi(fmtCOP(retPract),'','Retención practicada a proveedores',
-        'ReteFuente + ReteICA + ReteIVA que TQC descontó y le debe consignar a la DIAN', AMBER),
-    conDato.length
-      ? kpi(fmtCOP(pagado),'','Pagado a la DIAN',
-            'Giros de tesorería clasificados como impuestos'
-            + (sinDato.length ? ' · '+sinDato.length+' bimestre'+(sinDato.length===1?'':'s')+' sin dato' : ''), VERDE)
-      : kpi('sin dato','','Pagado a la DIAN','No hay movimientos de tesorería cargados en el período', AMBER),
-    conDato.length
-      ? kpi(fmtCOP(saldo),'','Saldo estimado',
-            'Deuda de los bimestres con pago cargado ('+fmtCOP(deudaConDato)+') menos lo pagado', ROJO, true)
-      : kpi('sin dato','','Saldo estimado','Sin lo pagado no hay saldo posible', AMBER),
-    kpi(fmtCOP(aFavor),'','A favor: nos retuvieron',
-        'Lo que los clientes le descontaron a TQC. No es deuda: se cruza contra la renta', VERDE)
-  ].join('');
+  /* El pago solo se puede contrastar contra los bimestres que TIENEN
+     movimientos de tesorería cargados. Restarle cero a los otros haría
+     aparecer una deuda que quizá ya se pagó y nadie clasificó. */
+  var conDato = R.filter(function(r){ return r.pagado_dian !== null && r.pagado_dian !== undefined; });
+  var sinDato = R.filter(function(r){ return r.pagado_dian === null || r.pagado_dian === undefined; });
+  var pagado  = sum(conDato,function(r){return r.pagado_dian;});
+  var deudaCD = sum(conDato,function(r){return r.deuda_causada;});
+  var saldo   = deudaCD - pagado;
+  var sinIva  = R.reduce(function(a,r){ return a+num(r.facturas_sin_iva); },0);
+  var per     = 'Bimestre 1 al '+bimActual+' de '+hoy.getFullYear();
 
-  var filas = hasta.map(function(r){
-    var sinD = (r.pagado_dian === null || r.pagado_dian === undefined);
-    return '<tr>'
-      + '<td><b>'+esc(r.periodo)+'</b><div class="s" style="color:var(--tx3)">'+esc(r.desde)+' al '+esc(r.hasta)+'</div></td>'
-      + '<td style="text-align:right">'+fmtCOP(num(r.iva_generado))+'</td>'
-      + '<td style="text-align:right">'+fmtCOP(num(r.iva_descontable))+'</td>'
-      + '<td style="text-align:right"><b>'+fmtCOP(num(r.iva_a_pagar))+'</b></td>'
-      + '<td style="text-align:right">'+fmtCOP(num(r.ret_practicada))+'</td>'
-      + '<td style="text-align:right"><b>'+fmtCOP(num(r.deuda_causada))+'</b></td>'
-      + '<td style="text-align:right">'+(sinD?'<span style="color:'+AMBER+'">sin dato</span>':fmtCOP(num(r.pagado_dian)))+'</td>'
-      + '<td style="text-align:right">'+(sinD?'<span style="color:var(--tx3)">—</span>':'<b style="color:'+(num(r.saldo)>0?ROJO:VERDE)+'">'+fmtCOP(num(r.saldo))+'</b>')+'</td>'
-      + '<td style="text-align:right;color:'+VERDE+'">'+fmtCOP(num(r.a_favor))+'</td>'
-      + '<td style="color:var(--tx3);font-size:11px">'+esc(r.clases_pago||'')+'</td>'
-      + '</tr>';
-  }).join('');
+  function fila(k,v,color,big){
+    return '<div class="r'+(big?' big':'')+'"><span class="k">'+k+'</span>'
+         + '<span class="v"'+(color?' style="color:'+color+'"':'')+'>'+v+'</span></div>';
+  }
+  function tarjeta(titulo,filas,pie){
+    return '<div class="timp"><h5>'+titulo+'</h5>'+filas+(pie?'<div class="pie">'+pie+'</div>':'')+'</div>';
+  }
+
+  var cards = [];
+
+  cards.push(tarjeta('IVA · declaración bimestral',
+      fila('Generado (cobrado a clientes)', fmtCOP(ivaGen))
+    + fila('Descontable (pagado a proveedores)', '− '+fmtCOP(ivaDes))
+    + fila('A pagar', fmtCOP(ivaPag), AMBER, true),
+      per + '. Generado menos descontable. <b>Falta restarle el reteIVA que nos '
+          + 'retuvieron</b> — pendiente de que Dania lo confirme.'));
+
+  cards.push(tarjeta('Retención practicada a proveedores',
+      fila('ReteFuente', fmtCOP(sum(R,function(r){return r.ret_fuente;})))
+    + fila('ReteICA',    fmtCOP(sum(R,function(r){return r.ret_ica;})))
+    + fila('ReteIVA',    fmtCOP(sum(R,function(r){return r.ret_iva;})))
+    + fila('A consignar a la DIAN', fmtCOP(retPra), AMBER, true),
+      'Lo que TQC le descontó a sus proveedores al pagarles. No es gasto ni '
+    + 'ingreso: es plata de terceros que está en la cuenta de TQC.'));
+
+  cards.push(tarjeta('Pagado a la DIAN y saldo',
+      fila('Deuda causada (IVA + retención)', fmtCOP(deuda))
+    + fila('Pagado', conDato.length ? fmtCOP(pagado) : 'sin dato', conDato.length?VERDE:AMBER)
+    + fila('Saldo', conDato.length ? fmtCOP(saldo) : 'sin dato', conDato.length?ROJO:AMBER, true),
+      'Tesorería clasifica el giro como «Impuestos» y <b>no dice qué impuesto pagó</b>: '
+    + 'por eso el pago va entero acá y no repartido entre las otras tarjetas. '
+    + (conDato.length
+        ? 'Saldo calculado sobre '+conDato.length+' bimestre(s) con pagos cargados ('+fmtCOP(deudaCD)+' de deuda)'
+          + (sinDato.length ? ' · '+sinDato.length+' sin dato' : '') + '.'
+        : 'No hay movimientos de tesorería cargados en el período.')));
+
+  cards.push(tarjeta('A favor: lo que nos retuvieron',
+      fila('ReteFuente · cruza contra renta', fmtCOP(sum(R,function(r){return r.fav_fuente;})))
+    + fila('ReteICA · cruza contra el ICA',   fmtCOP(sum(R,function(r){return r.fav_ica;})))
+    + fila('ReteIVA · cruza contra este IVA', fmtCOP(sum(R,function(r){return r.fav_iva;})))
+    + fila('Anticipo en manos de la DIAN', fmtCOP(aFavor), VERDE, true),
+      '<b>No es deuda.</b> El cliente paga menos y le gira esa tajada a la DIAN a '
+    + 'nombre de TQC: queda anotada a favor y se usa como pago ya hecho al declarar.'));
 
   elT.innerHTML =
-    '<div class="sec" style="padding:12px;overflow-x:auto">'
-    + '<table class="dl" style="width:100%;min-width:900px">'
-    + '<thead><tr><th>Bimestre</th><th style="text-align:right">IVA generado</th>'
-    + '<th style="text-align:right">IVA descontable</th><th style="text-align:right">IVA a pagar</th>'
-    + '<th style="text-align:right">Retención practicada</th><th style="text-align:right">Deuda causada</th>'
-    + '<th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th>'
-    + '<th style="text-align:right">A favor</th><th>Qué se contó como pago</th></tr></thead>'
-    + '<tbody>'+filas+'</tbody></table>'
-    + '<div class="s" style="color:var(--tx3);margin-top:10px;line-height:1.6">'
-    + 'El pago <b>no se reparte por tipo de impuesto</b>: Tesorería clasifica el giro como «Impuestos» y no dice si fue IVA, retefuente o ICA. '
-    + 'Las retenciones que le practican a TQC (avisos y tableros, timbre y bomberil) <b>no están en la base</b>: son $2.292.804 de $728.992.882 en 2026, el 0,3 %. '
+      '<div class="timps">'+cards.join('')+'</div>'
+    + '<div class="sec" style="padding:12px"><div class="s" style="color:var(--tx3);line-height:1.6">'
+    + 'Avisos y tableros, timbre y bomberil <b>no están en la base</b>: $2.292.804 de $728.992.882 en 2026, el 0,3 %.'
     + (sinIva>0 ? '<br><b style="color:'+AMBER+'">⚠️ '+fmt(sinIva)+' factura(s) del período sin IVA cargado</b> — el IVA generado está incompleto.' : '')
     + '</div></div>';
 }

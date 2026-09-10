@@ -38,6 +38,9 @@
   .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
   .kpi .n{font-size:26px;font-weight:800;color:var(--nar);line-height:1}
   .kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;text-transform:uppercase;letter-spacing:.4px}
+  .kpi .sub{font-size:10px;color:var(--tx3);margin-top:5px;font-weight:600}
+  .mesbig{font-size:22px;font-weight:800;color:var(--tx);margin:8px 0 2px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .mesbig .acum{font-size:12px;font-weight:500;color:var(--tx3)}
   h2.sec{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--tx2);margin:26px 0 12px}
   h2.sec span{color:var(--nar)}
   .pat{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--nar);border-radius:12px;padding:16px 18px;margin-bottom:14px}
@@ -236,7 +239,11 @@ function render(){
   window._patHeur=patrones;
   window.PAYLOAD=buildPayload(ins,RISK);
   var html='';
-  html+='<div class="kpis">'+kpi(TAR.length,'Tarjetas')+kpi(ins.length,'Inseguras')+kpi(ATS.length,'ATS')+kpi(INV.length,'Investigaciones')+'</div>';
+  var _TM=_tendenciaMensual(); var _cur=_TM.length?_TM[_TM.length-1]:{ym:'',tot:0,ins:0,ev:0};
+  var _ymNow=_cur.ym||new Date().toISOString().slice(0,7);
+  var _atsMes=ATS.filter(function(a){return (fISO(a.creado||a.fecha)||'').slice(0,7)===_ymNow;}).length;
+  html+='<div class="mesbig">📅 '+(_cur.ym?(_mesLabel(_cur.ym)+' '+_cur.ym.slice(0,4)):'Este mes')+'<span class="acum">Acumulado desde '+esc(meta.inicio||'—')+' · '+meta.dias+' días</span></div>';
+  html+='<div class="kpis">'+kpi(_cur.tot,'Tarjetas del mes','acum. '+TAR.length)+kpi(_cur.ins,'Inseguras del mes','acum. '+ins.length)+kpi(_atsMes,'ATS del mes','acum. '+ATS.length)+kpi(_cur.ev,'Investigaciones del mes','acum. '+INV.length)+'</div>';
   if(meta.base){ html+='<div class="disclaimer" style="border-left:3px solid var(--cy);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">📅 <b style="color:var(--tx)">Primer período en KALU</b> — los datos arrancan el '+esc(meta.inicio||'—')+' ('+meta.dias+' días de operación). No hay base de comparación previa: lo que se ve NO es "deterioro", es la línea base en construcción.</div>'; }
   window._TEND=_tendenciaMensual();
   html+=tendenciaHTML(window._TEND);
@@ -255,7 +262,7 @@ function render(){
   html+='<div class="disclaimer" style="margin-top:20px">Análisis preliminar por coincidencia de lugar, categoría y palabras clave. KALU orienta; el veredicto final lo pone el HSE.</div>';
   $('out').innerHTML=html;
 }
-function kpi(n,l){ return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+function kpi(n,l,sub){ return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+l+'</div>'+((sub!=null&&sub!=='')?'<div class="sub">'+sub+'</div>':'')+'</div>'; }
 function patCard(p,i){
   var memo='PATRÓN DETECTADO — '+p.ti+'\n'
     +'Evidencia: '+p.evid+'\n'

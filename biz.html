@@ -898,12 +898,14 @@ function pintarImpuestos(){
 
   var cards = [];
 
+  var ivaRet = sum(R,function(r){return r.iva_retenido;});
   cards.push(tarjeta('IVA · declaración bimestral',
       fila('Generado (cobrado a clientes)', fmtCOP(ivaGen))
     + fila('Descontable (pagado a proveedores)', '− '+fmtCOP(ivaDes))
+    + fila('ReteIVA que ya nos retuvieron', '− '+fmtCOP(ivaRet))
     + fila('A pagar', fmtCOP(ivaPag), AMBER, true),
-      per + '. Generado menos descontable. <b>Falta restarle el reteIVA que nos '
-          + 'retuvieron</b> — pendiente de que Dania lo confirme.'));
+      per + '. El reteIVA es IVA de TQC que el cliente ya le giró a la DIAN: '
+          + 'al declarar, la empresa pone solo la diferencia.'));
 
   cards.push(tarjeta('Retención practicada a proveedores',
       fila('ReteFuente', fmtCOP(sum(R,function(r){return r.ret_fuente;})))
@@ -927,7 +929,7 @@ function pintarImpuestos(){
   cards.push(tarjeta('A favor: lo que nos retuvieron',
       fila('ReteFuente · cruza contra renta', fmtCOP(sum(R,function(r){return r.fav_fuente;})))
     + fila('ReteICA · cruza contra el ICA',   fmtCOP(sum(R,function(r){return r.fav_ica;})))
-    + fila('ReteIVA · cruza contra este IVA', fmtCOP(sum(R,function(r){return r.fav_iva;})))
+    + fila('ReteIVA · ya restado del IVA a pagar', fmtCOP(sum(R,function(r){return r.fav_iva;})))
     + fila('Anticipo en manos de la DIAN', fmtCOP(aFavor), VERDE, true),
       '<b>No es deuda.</b> El cliente paga menos y le gira esa tajada a la DIAN a '
     + 'nombre de TQC: queda anotada a favor y se usa como pago ya hecho al declarar.'));

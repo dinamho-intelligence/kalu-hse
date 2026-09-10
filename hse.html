@@ -38,6 +38,9 @@
   .kpi .n{font-size:30px;font-weight:800;color:var(--nar);line-height:1;}
   .kpi .l{font-size:11px;color:var(--tx2);margin-top:6px;letter-spacing:.4px;text-transform:uppercase;}
   .kpi.cy .n{color:var(--cy);} .kpi.gr .n{color:var(--verde);} .kpi.am .n{color:var(--amber);}
+  .kpi .ksub{font-size:10px;color:var(--tx3);margin-top:6px;font-weight:600;}
+  .kpimes{grid-column:1/-1;font-size:15px;font-weight:800;color:var(--tx);margin:2px 0 -2px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .kpimes span{font-size:11px;font-weight:500;color:var(--tx3);}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   @media(max-width:820px){.grid{grid-template-columns:1fr;}}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;}
@@ -1331,17 +1334,22 @@ function tarTallyBy(rows,key){
 }
 function renderTar(){
   const rows=tarFiltered();
-  const seg=rows.filter(function(t){return (t.clase||'')==='seguro';}).length;
-  const ins=rows.filter(function(t){return (t.clase||'')==='inseguro';}).length;
-  const cats=new Set(rows.map(function(t){return t.categoria;}).filter(Boolean)).size;
-  const lugs=new Set(rows.map(function(t){return t.lugar;}).filter(Boolean)).size;
-  document.getElementById('tarKpis').innerHTML=[
-    ['',rows.length,'Tarjetas',''],
-    ['seg',seg,'Seguras','gr'],
-    ['ins',ins,'Inseguras','am'],
-    ['cat',cats,'Categorías','cy'],
-    ['lug',lugs,'Lugares','']
-  ].map(function(k){return '<div class="kpi '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[2]+'</div></div>';}).join('');
+  var _MESN=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var _now=new Date(), _ym=_now.toISOString().slice(0,7);
+  var _mesTxt=_MESN[_now.getMonth()]+' '+_now.getFullYear();
+  var mrows=rows.filter(function(t){return tarDate(t).slice(0,7)===_ym;});
+  function _seg(a){return a.filter(function(t){return (t.clase||'')==='seguro';}).length;}
+  function _ins(a){return a.filter(function(t){return (t.clase||'')==='inseguro';}).length;}
+  function _cat(a){return new Set(a.map(function(t){return t.categoria;}).filter(Boolean)).size;}
+  function _lug(a){return new Set(a.map(function(t){return t.lugar;}).filter(Boolean)).size;}
+  var _cards=[
+    ['',mrows.length,'Tarjetas',rows.length,''],
+    ['seg',_seg(mrows),'Seguras',_seg(rows),'gr'],
+    ['ins',_ins(mrows),'Inseguras',_ins(rows),'am'],
+    ['cat',_cat(mrows),'Categorías',_cat(rows),'cy'],
+    ['lug',_lug(mrows),'Lugares',_lug(rows),'']
+  ].map(function(k){return '<div class="kpi '+k[4]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[2]+'</div><div class="ksub">acum. '+k[3]+'</div></div>';}).join('');
+  document.getElementById('tarKpis').innerHTML='<div class="kpimes">📅 '+_mesTxt+' <span>· en grande el mes · abajo el acumulado</span></div>'+_cards;
   var sm=segMetrics();
   document.getElementById('tarSeg').innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +'<span class="sem sem-none">Inseguras <b>'+sm.total+'</b></span>'

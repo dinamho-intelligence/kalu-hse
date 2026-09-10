@@ -273,7 +273,10 @@ function render(){
   window.PAYLOAD=buildPayload(ins,RISK);
   var html='';
   html+=_selWin();
-  html+='<div class="mesbig">📅 '+esc(_winLabel(WIN))+'<span class="acum">Acumulado histórico: '+TAR_ALL.length+' tarjetas'+(_iniAll?(' desde '+esc(_iniAll)+' · '+_diasAll+' días'):'')+'</span></div>';
+  var _winTit=_winLabel(WIN);
+  if(WIN==='mes'){ _winTit='Este mes · '+cap(_MESLARGO[hoy().getMonth()])+' '+hoy().getFullYear(); }
+  else if(WIN==='mespasado'){ _winTit='Mes pasado · '+_mesPasado().etiqueta; }
+  html+='<div class="mesbig">📅 '+esc(_winTit)+'<span class="acum">Acumulado histórico: '+TAR_ALL.length+' tarjetas'+(_iniAll?(' desde '+esc(_iniAll)+' · '+_diasAll+' días'):'')+'</span></div>';
   html+='<div class="kpis">'+kpi(TAR.length,'Tarjetas','acum. '+TAR_ALL.length)+kpi(ins.length,'Inseguras','acum. '+insAllArr.length)+kpi(ATS.length,'ATS','acum. '+ATS_ALL.length)+kpi(INV.length,'Investigaciones','acum. '+INV_ALL.length)+'</div>';
   if(_baseAll){ html+='<div class="disclaimer" style="border-left:3px solid var(--cy);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">📅 <b style="color:var(--tx)">Primer período en KALU</b> — los datos arrancan el '+esc(_iniAll||'—')+' ('+_diasAll+' días de operación). No hay base de comparación previa: lo que se ve NO es "deterioro", es la línea base en construcción.</div>'; }
   if(WIN!=='todo' && !TAR.length && !ATS.length && !INV.length){ html+='<div class="disclaimer" style="border-left:3px solid var(--amber);padding:9px 12px;background:var(--panel);border-radius:8px;margin-bottom:10px;color:var(--tx2)">No hay registros en <b style="color:var(--tx)">'+esc(_winLabel(WIN))+'</b>. Probá con un período más amplio arriba 🗓️.</div>'; }
@@ -624,6 +627,8 @@ function _ymd(d){ var m=d.getMonth()+1,day=d.getDate(); return d.getFullYear()+'
 function _fmtCorta(d){ return d.getDate()+' '+_MES[d.getMonth()]; }
 function _isoWeekNum(d){ var dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); var day=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-day+3); var ft=new Date(Date.UTC(dt.getUTCFullYear(),0,4)); var w=1+Math.round(((dt-ft)/86400000-3+((ft.getUTCDay()+6)%7))/7); return {year:dt.getUTCFullYear(),week:w}; }
 function _semanaPasada(){ var t=hoy(); var dow=(t.getDay()+6)%7; var thisMon=new Date(t); thisMon.setDate(t.getDate()-dow); var lastMon=new Date(thisMon); lastMon.setDate(thisMon.getDate()-7); var lastSun=new Date(thisMon); lastSun.setDate(thisMon.getDate()-1); var wk=_isoWeekNum(lastMon); var ww=(wk.week<10?'0'+wk.week:''+wk.week); var rango=(lastMon.getMonth()===lastSun.getMonth())?(lastMon.getDate()+'–'+_fmtCorta(lastSun)):(_fmtCorta(lastMon)+'–'+_fmtCorta(lastSun)); return {desde:_ymd(lastMon),hasta:_ymd(lastSun),clave:'sem-'+wk.year+'-W'+ww,etiqueta:'Semana '+wk.week+' · '+rango+' '+lastSun.getFullYear()}; }
+var _MESLARGO=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function _mesPasado(){ var t=hoy(); var pm=new Date(t.getFullYear(),t.getMonth()-1,1); var pend=new Date(t.getFullYear(),t.getMonth(),0); var mm=pm.getMonth()+1; var ym=pm.getFullYear()+'-'+(mm<10?'0'+mm:''+mm); return {desde:_ymd(pm),hasta:_ymd(pend),clave:'mes-'+ym,etiqueta:cap(_MESLARGO[pm.getMonth()])+' '+pm.getFullYear(),ym:ym}; }
 function _tendenciaMensual(){
   var M={};
   TAR.forEach(function(t){ var s=fISO(t.creado||t.fecha); if(!s) return; var ym=s.slice(0,7); var o=M[ym]||(M[ym]={ym:ym,tot:0,ins:0,seg:0,cerr:0,ev:0}); o.tot++; var cl=(t.clase||''); if(cl==='inseguro'){ o.ins++; if((t.estado||'')==='cerrada') o.cerr++; } else if(cl==='seguro'){ o.seg++; } });
@@ -658,18 +663,18 @@ async function cargarRegistro(){
 function _linkInforme(id){ return location.origin+location.pathname+'?informe='+id; }
 function pintarRegistro(){
   var reg=$('reg'); if(!reg) return;
-  var sp=_semanaPasada();
-  var ya=INFORMES.filter(function(x){return x.tipo==='semanal';}).filter(function(x){return x.clave===sp.clave;})[0];
+  var mp=_mesPasado();
+  var ya=INFORMES.filter(function(x){return x.tipo==='mensual';}).filter(function(x){return x.clave===mp.clave;})[0];
   var h='';
   if(ya){
     h+='<div style="background:rgba(37,194,110,.1);border:1px solid rgba(37,194,110,.4);border-left:4px solid var(--verde);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
-      +'<div style="flex:1;min-width:200px"><b style="color:#4FD98B">✅ El informe semanal ya está creado</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(ya.etiqueta||sp.etiqueta)+' · guardado el '+fISO(ya.creado_at)+(ya.creado_nombre?(' por '+esc(ya.creado_nombre)):'')+'</div></div>'
+      +'<div style="flex:1;min-width:200px"><b style="color:#4FD98B">✅ El informe de '+esc(ya.etiqueta||mp.etiqueta)+' ya está creado</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">guardado el '+fISO(ya.creado_at)+(ya.creado_nombre?(' por '+esc(ya.creado_nombre)):'')+'</div></div>'
       +'<button class="mini" style="background:rgba(37,194,110,.15);border-color:var(--verde);color:#4FD98B;margin:0" onclick="openInforme(\''+ya.id+'\')">Ver informe</button>'
       +'<button class="mini" style="margin:0" onclick="copiarLink(this,\''+_linkInforme(ya.id)+'\')">🔗 Copiar link</button></div>';
   } else {
     h+='<div style="background:rgba(232,147,12,.1);border:1px solid rgba(232,147,12,.4);border-left:4px solid var(--amber);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
-      +'<div style="flex:1;min-width:200px"><b style="color:#F0B04A">📅 Falta el informe de la semana pasada</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+esc(sp.etiqueta)+(PUEDEIA?' — generalo una vez y queda guardado, con su link, para todos.':' — lo genera un gerente o admin (o llega automático).')+'</div></div>'
-      +(PUEDEIA?'<button class="mini" id="btnSem" style="background:rgba(232,147,12,.15);border-color:var(--amber);color:#F0B04A;margin:0" onclick="generarSemanal()">Generar y guardar</button>':'')+'</div>';
+      +'<div style="flex:1;min-width:200px"><b style="color:#F0B04A">📅 Falta el informe de '+esc(mp.etiqueta)+'</b><div style="font-size:12px;color:var(--tx2);margin-top:2px">'+(PUEDEIA?'Se genera con los datos de ese mes y queda guardado, con su link, para todos.':' Lo genera un gerente o admin (o llega automático).')+'</div></div>'
+      +(PUEDEIA?'<button class="mini" id="btnMes" style="background:rgba(232,147,12,.15);border-color:var(--amber);color:#F0B04A;margin:0" onclick="generarMensual()">Generar y guardar</button>':'')+'</div>';
   }
   if(INFORMES.length){
     h+='<details style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px"><summary style="cursor:pointer;font-size:12px;color:var(--tx2);font-weight:700">📁 Informes guardados ('+INFORMES.length+')</summary><div style="margin-top:6px">';
@@ -700,13 +705,30 @@ async function generarSemanal(){
   }catch(e){ alert('No se pudo generar/guardar el informe: '+((e&&e.message)||e)); }
   finally{ if(b){ b.disabled=false; b.textContent='Generar y guardar'; } }
 }
+async function generarMensual(){
+  var b=$('btnMes'); if(b){ b.disabled=true; b.textContent='Generando…'; }
+  var _winPrev=WIN;
+  try{
+    if(!TAR_ALL.length){ await analizar(); }
+    if(!TAR_ALL.length) throw new Error('No hay datos para analizar.');
+    WIN='mespasado'; aplicarVentana();
+    if(!TAR.length && !ATS.length && !INV.length){ throw new Error('No hay registros en '+_mesPasado().etiqueta+' para generar el informe.'); }
+    if(!window.PAYLOAD) throw new Error('No se pudo armar el análisis del mes.');
+    if(b) b.textContent='KALU IA…'; window._IA=null; var d=await fetchIA(); window._IA=d; renderIA(d);
+    await guardarInforme('mensual');
+    await cargarRegistro();
+    alert('✅ Informe de '+_mesPasado().etiqueta+' guardado. Ya podés compartir el link desde el listado.');
+  }catch(e){ alert('No se pudo generar/guardar el informe: '+((e&&e.message)||e)); }
+  finally{ if(WIN!==_winPrev){ WIN=_winPrev; aplicarVentana(); } if(b){ b.disabled=false; b.textContent='Generar y guardar'; } }
+}
 async function guardarInforme(tipo){
   if(!MYEMP){ throw new Error('Tu perfil no tiene empresa asignada.'); }
   var ins=TAR.filter(function(t){return (t.clase||'')==='inseguro';}).length;
   var idx=(window._RISK||[]).map(function(r){return r.indice;});
   var resumen={tarjetas:TAR.length,inseguras:ins,ats:ATS.length,investigaciones:INV.length,pct_cierre:(_positivo().pct_cierre||0),indice_max:(idx.length?Math.max.apply(null,idx):0)};
   var rec;
-  if(tipo==='semanal'){ var sp=_semanaPasada(); rec={empresa_id:MYEMP,tipo:'semanal',periodo_desde:sp.desde,periodo_hasta:sp.hasta,clave:sp.clave,etiqueta:sp.etiqueta}; }
+  if(tipo==='mensual'){ var mp=_mesPasado(); rec={empresa_id:MYEMP,tipo:'mensual',periodo_desde:mp.desde,periodo_hasta:mp.hasta,clave:mp.clave,etiqueta:mp.etiqueta}; }
+  else if(tipo==='semanal'){ var sp=_semanaPasada(); rec={empresa_id:MYEMP,tipo:'semanal',periodo_desde:sp.desde,periodo_hasta:sp.hasta,clave:sp.clave,etiqueta:sp.etiqueta}; }
   else { var n=hoy(); rec={empresa_id:MYEMP,tipo:'manual',periodo_desde:_ymd(n),periodo_hasta:_ymd(n),clave:'man-'+Date.now(),etiqueta:'Informe manual · '+_fmtCorta(n)+' '+n.getFullYear()}; }
   rec.resumen=resumen; rec.payload=Object.assign({}, window.PAYLOAD||{}, {_branding:window.BRAND||null}); rec.ia=window._IA||null; rec.snap_html=($('out')?$('out').innerHTML:''); rec.creado_nombre=MYNAME;
   await sbPost('informes_hse?on_conflict=empresa_id,clave',rec,'return=representation,resolution=merge-duplicates');

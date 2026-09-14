@@ -127,6 +127,9 @@
 
 <a class="volver" href="index.html">← Volver al inicio</a>
 
+<!-- Configuración compartida de KALU (misma que usa el capacitador): define window.KALU -->
+<script src="config.js"></script>
+
 <script>
 /* =====================================================================
    SALA · paso 1: ENTRAR
@@ -139,26 +142,19 @@
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
-   CONFIGURACIÓN — falta UNA sola cosa
+   CONFIGURACIÓN
    ---------------------------------------------------------------------
-   La dirección ya está puesta: sale de `SB_REF` del propio capacitador.
-
-   Falta la clave pública. En tus otras pantallas viaja así:
-
-       window.KALU = { SB_URL: '…', SB_KEY: '…' };
-
-   Buscá ese renglón en la página que carga el capacitador y copiá el
-   valor de `SB_KEY` acá abajo. Es la clave pública —la que ya viaja en
-   el navegador de cualquiera que abra tu aplicación—, NO la de servicio.
-
-   Y si preferís no pegar nada: esta pantalla también toma `window.KALU`
-   si existe. Alcanza con incluir antes el mismo script de configuración
-   que usan las demás páginas.
+   Toma la config de `window.KALU` (config.js, cargado arriba) — mismo
+   origen que el capacitador y las demás pantallas. Los valores de acá
+   abajo son sólo un respaldo por si config.js no estuviera: es la clave
+   PÚBLICA (la que ya viaja en el navegador de cualquiera que abra la
+   app), NO la de servicio. El día que cambies de proyecto, tocás
+   config.js y esta pantalla lo toma sola.
 --------------------------------------------------------------------- */
 var SUPABASE_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
-var SUPABASE_ANON = "PEGAR_ACA_LA_CLAVE_PUBLICA";
+var SUPABASE_ANON = "sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl";
 
-// Si la página ya trae la configuración de KALU, se usa ésa y listo.
+// Si la página trae la configuración de KALU, esa manda (fuente única).
 if (window.KALU && window.KALU.SB_KEY) {
   SUPABASE_URL  = window.KALU.SB_URL || SUPABASE_URL;
   SUPABASE_ANON = window.KALU.SB_KEY;
@@ -304,10 +300,10 @@ function latir() {
    Arranque
 --------------------------------------------------------------------- */
 (function () {
-  if (SUPABASE_ANON.indexOf('PEGAR') === 0) {
+  if (!SUPABASE_ANON || SUPABASE_ANON.indexOf('PEGAR') === 0) {
     mal('Falta configurar la pantalla',
-        'Hay que pegar la clave pública arriba del archivo.',
-        'Es el valor de SB_KEY que ya usan tus otras pantallas.');
+        'No se encontró la clave pública (config.js no cargó).',
+        'Subí config.js junto a esta página, o pegá el valor de SB_KEY arriba del archivo.');
     return;
   }
   if (!TOKEN) {

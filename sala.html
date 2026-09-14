@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sala de capacitación · KALU</title>
+<style>
+  :root{
+    --bg:#0E1014; --card:#171A21; --linea:#252A34;
+    --tx:#E8EAEE; --muted:#8A909C;
+    --ok:#3DBE8B; --ok2:#1E7A57;
+    --alerta:#E4A14B; --mal:#D9534F;
+    --acc:#4C8DFF;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    min-height:100%;}
+  body{padding:20px 16px 32px;max-width:520px;margin:0 auto;}
+
+  .marca{font-size:13px;letter-spacing:.14em;color:var(--muted);
+    text-transform:uppercase;margin-bottom:22px;text-align:center}
+  .marca b{color:var(--tx);letter-spacing:.18em}
+
+  .card{background:var(--card);border:1px solid var(--linea);
+    border-radius:14px;padding:20px;margin-bottom:14px}
+
+  h1{font-size:21px;line-height:1.3;margin:0 0 6px}
+  h2{font-size:15px;margin:0 0 14px;color:var(--muted);font-weight:500}
+  p{line-height:1.55;margin:0 0 12px}
+  .chico{font-size:13px;color:var(--muted);line-height:1.5}
+
+  /* Botonazos: se tocan con guante y con el sol de frente. */
+  .opt{display:block;width:100%;text-align:left;cursor:pointer;
+    background:#1D212A;color:var(--tx);border:1px solid var(--linea);
+    border-radius:12px;padding:18px 16px;margin-bottom:12px;
+    font-size:17px;font-weight:600;font-family:inherit;
+    transition:border-color .12s, background .12s}
+  .opt:active{background:#232834}
+  .opt[aria-pressed="true"]{border-color:var(--acc);background:#1B2432}
+  .opt small{display:block;font-size:13px;font-weight:400;
+    color:var(--muted);margin-top:5px;line-height:1.45}
+  .opt:disabled{opacity:.5;cursor:default}
+
+  .sello{display:inline-block;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-weight:600;letter-spacing:.02em}
+  .sello.ok{background:rgba(61,190,139,.14);color:var(--ok)}
+  .sello.esp{background:rgba(228,161,75,.14);color:var(--alerta)}
+  .sello.no{background:rgba(217,83,79,.14);color:var(--mal)}
+
+  .dato{display:flex;justify-content:space-between;gap:14px;
+    padding:11px 0;border-bottom:1px solid var(--linea);font-size:14px}
+  .dato:last-child{border-bottom:0}
+  .dato span:first-child{color:var(--muted)}
+  .dato span:last-child{text-align:right;font-weight:600}
+
+  .aviso{border-left:3px solid var(--linea);padding:2px 0 2px 12px;
+    margin:16px 0 0;color:var(--muted);font-size:12.5px;line-height:1.5}
+
+  .volver{display:block;text-align:center;color:var(--muted);
+    font-size:13px;margin-top:20px;text-decoration:none}
+
+  .punto{display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--ok);margin-right:7px;vertical-align:1px}
+  .punto.gris{background:var(--muted)}
+
+  @keyframes lat{0%,100%{opacity:1}50%{opacity:.35}}
+  .latiendo{animation:lat 2.4s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<div class="marca">Sala de capacitación · <b>KALU</b></div>
+
+<!-- ================= cargando ================= -->
+<div class="card" id="pCarga">
+  <p><span class="punto gris latiendo"></span>Abriendo tu enlace…</p>
+</div>
+
+<!-- ================= elegir modo ================= -->
+<div class="card" id="pModo" hidden>
+  <h1 id="mTitulo">—</h1>
+  <h2 id="mSub">—</h2>
+  <p class="chico" style="margin-bottom:18px">Antes de entrar, decinos desde dónde vas a seguir la capacitación.</p>
+
+  <button class="opt" id="bSalon" type="button" aria-pressed="false">
+    Estoy en el salón
+    <small>Kalu habla por la pantalla del salón. Tu teléfono queda en silencio
+    para que no se escuche el eco, pero lo usás igual para preguntar y para rendir.</small>
+  </button>
+
+  <button class="opt" id="bDist" type="button" aria-pressed="false">
+    Estoy a distancia
+    <small>Kalu te habla por tu teléfono. Conviene tener auriculares.</small>
+  </button>
+
+  <p class="aviso">Esta sala registra tu asistencia y tu tiempo de atención.
+  No afecta tu nota — queda como registro de la capacitación.</p>
+</div>
+
+<!-- ================= adentro ================= -->
+<div class="card" id="pDentro" hidden>
+  <span class="sello ok" id="dSello">Estás adentro</span>
+  <h1 style="margin-top:12px" id="dHola">—</h1>
+  <p class="chico" id="dTexto">—</p>
+
+  <div style="margin-top:18px">
+    <div class="dato"><span>Capacitación</span><span id="dCurso">—</span></div>
+    <div class="dato"><span>Cómo la seguís</span><span id="dModo">—</span></div>
+    <div class="dato"><span>Duración prevista</span><span id="dHoras">—</span></div>
+    <div class="dato"><span>Tu asistencia</span><span id="dAsis">Registrada</span></div>
+  </div>
+
+  <p class="aviso" id="dPie">
+    Si se te corta internet, volvé a abrir este mismo enlace: tu asistencia ya
+    quedó registrada y no la perdés.
+  </p>
+</div>
+
+<!-- ================= algo pasó ================= -->
+<div class="card" id="pMal" hidden>
+  <span class="sello no" id="xSello">No se pudo entrar</span>
+  <h1 style="margin-top:12px" id="xTitulo">—</h1>
+  <p id="xTexto">—</p>
+  <p class="chico" id="xDetalle" hidden></p>
+</div>
+
+<a class="volver" href="index.html">← Volver al inicio</a>
+
+<script>
+/* =====================================================================
+   SALA · paso 1: ENTRAR
+
+   Esta pantalla NO pide usuario ni contraseña, a propósito: la abre gente
+   que no tiene cuenta en la plataforma. El enlace es la credencial.
+
+   Por eso sólo puede llamar a dos funciones —entrar y latido—, que
+   devuelven nada más que los datos de esa persona y de esa charla.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   PEGAR ACÁ LOS DOS VALORES QUE YA ESTÁN EN TU APLICACIÓN
+   ---------------------------------------------------------------------
+   Son los mismos dos que figuran arriba de todo en el archivo que ya usás
+   (el de la aplicación). Copiá y pegá tal cual, entre las comillas.
+   La segunda clave es la pública —la que ya viaja en el navegador—, no
+   la de servicio.
+--------------------------------------------------------------------- */
+var SUPABASE_URL  = "PEGAR_ACA_LA_URL";
+var SUPABASE_ANON = "PEGAR_ACA_LA_CLAVE_PUBLICA";
+
+/* ------------------------------------------------------------------ */
+
+var $ = function (id) { return document.getElementById(id); };
+
+function ver(cual) {
+  ['pCarga','pModo','pDentro','pMal'].forEach(function (p) {
+    $(p).hidden = (p !== cual);
+  });
+}
+
+/* Un error se MUESTRA, no se esconde. Nada de pantallas girando. */
+function mal(titulo, texto, detalle) {
+  $('xTitulo').textContent = titulo;
+  $('xTexto').textContent  = texto;
+  if (detalle) { $('xDetalle').textContent = detalle; $('xDetalle').hidden = false; }
+  ver('pMal');
+}
+
+function elToken() {
+  var p = new URLSearchParams(location.search);
+  return (p.get('t') || p.get('token') || '').trim();
+}
+
+async function rpc(fn, cuerpo) {
+  var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON,
+      'Authorization': 'Bearer ' + SUPABASE_ANON,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(cuerpo)
+  });
+  var txt = await r.text();
+  var dato = null;
+  try { dato = txt ? JSON.parse(txt) : null; } catch (e) {}
+  if (!r.ok) {
+    var e = new Error((dato && (dato.message || dato.hint)) || ('HTTP ' + r.status));
+    e.http = r.status;
+    throw e;
+  }
+  return dato;
+}
+
+/* ---------------------------------------------------------------------
+   Entrar
+--------------------------------------------------------------------- */
+var TOKEN = elToken();
+var yaMandando = false;
+
+async function entrar(modo) {
+  if (yaMandando) return;              // doble toque no manda dos veces
+  yaMandando = true;
+  $('bSalon').disabled = true;
+  $('bDist').disabled  = true;
+  $(modo === 'salon' ? 'bSalon' : 'bDist').setAttribute('aria-pressed', 'true');
+
+  try {
+    var r = await rpc('cap_sala_entrar', { p_token: TOKEN, p_modo: modo });
+
+    if (!r || r.entro !== true) {
+      var motivo = r && r.motivo;
+      if (motivo === 'tarde') {
+        $('xSello').className = 'sello esp';
+        $('xSello').textContent = 'Llegaste tarde';
+        mal('La puerta ya se cerró',
+            (r && r.aviso) || 'La capacitación arrancó y la sala no admite más gente.',
+            'Hablá con Talento Humano para que te reprogramen.');
+      } else {
+        mal('Este enlace ya no está activo',
+            (r && r.aviso) || 'Puede que la capacitación ya haya terminado.',
+            'Si creés que es un error, escribile a quien te lo mandó.');
+      }
+      return;
+    }
+
+    pintarDentro(r, modo);
+    latir();
+
+  } catch (e) {
+    // Se vuelve a habilitar: un problema de conexión no puede dejar a
+    // alguien sin poder entrar a su propia capacitación.
+    yaMandando = false;
+    $('bSalon').disabled = false;
+    $('bDist').disabled  = false;
+    $('bSalon').setAttribute('aria-pressed', 'false');
+    $('bDist').setAttribute('aria-pressed', 'false');
+    mal('No se pudo conectar',
+        'Revisá que tengas señal y volvé a tocar el botón.',
+        e.message || '');
+    // El botón de reintentar es la pantalla anterior: se vuelve sola.
+    setTimeout(function () { if (!yaMandando) ver('pModo'); }, 2600);
+  }
+}
+
+function pintarDentro(r, modo) {
+  var nom = (r.nombre || '').split(' ');
+  $('dHola').textContent = 'Hola, ' + (nom[0] || '') + '.';
+  $('dTexto').textContent = (r.reconecto === true)
+    ? 'Volviste a entrar. Tu asistencia seguía registrada, no perdiste nada.'
+    : 'Ya quedaste anotado. En un momento arranca.';
+  $('dCurso').textContent = (r.codigo ? r.codigo + ' · ' : '') + (r.titulo || '');
+  $('dModo').textContent  = (modo === 'salon') ? 'En el salón' : 'A distancia';
+  $('dHoras').textContent = r.horas ? (r.horas + ' h') : 'Sin definir';
+
+  if (modo === 'salon') {
+    $('dPie').textContent = 'Kalu va a hablar por la pantalla del salón, así que tu '
+      + 'teléfono queda en silencio. Usalo para preguntar y para rendir. '
+      + 'Si se te corta internet, volvé a abrir este mismo enlace.';
+  }
+  ver('pDentro');
+}
+
+/* ---------------------------------------------------------------------
+   El latido — para distinguir al que se fue del que se quedó sin señal
+--------------------------------------------------------------------- */
+function latir() {
+  var fallos = 0;
+  setInterval(async function () {
+    try {
+      await rpc('cap_sala_latido', { p_token: TOKEN });
+      fallos = 0;
+      $('dSello').className = 'sello ok';
+      $('dSello').textContent = 'Estás adentro';
+    } catch (e) {
+      fallos++;
+      // Recién al segundo fallo se avisa: un tropiezo suelto no es una
+      // caída, y un cartel que aparece y desaparece asusta al pedo.
+      if (fallos >= 2) {
+        $('dSello').className = 'sello esp';
+        $('dSello').textContent = 'Sin señal — seguís anotado';
+      }
+    }
+  }, 30000);
+}
+
+/* ---------------------------------------------------------------------
+   Arranque
+--------------------------------------------------------------------- */
+(function () {
+  if (SUPABASE_URL.indexOf('PEGAR') === 0 || SUPABASE_ANON.indexOf('PEGAR') === 0) {
+    mal('Falta configurar la pantalla',
+        'Hay que pegar la dirección y la clave pública arriba del archivo.',
+        'Son los dos mismos valores que ya están en el archivo de la aplicación.');
+    return;
+  }
+  if (!TOKEN) {
+    mal('Falta el enlace completo',
+        'Esta pantalla se abre con el enlace personal que te llegó por correo.',
+        'Buscá el correo de la invitación y tocá el enlace de ahí.');
+    return;
+  }
+  $('mTitulo').textContent = 'Capacitación';
+  $('mSub').textContent    = 'Tu enlace es personal: no lo reenvíes.';
+  ver('pModo');
+})();
+
+$('bSalon').addEventListener('click', function () { entrar('salon'); });
+$('bDist').addEventListener('click',  function () { entrar('distancia'); });
+</script>
+</body>
+</html>

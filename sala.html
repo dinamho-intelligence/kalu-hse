@@ -139,15 +139,30 @@
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
-   PEGAR ACÁ LOS DOS VALORES QUE YA ESTÁN EN TU APLICACIÓN
+   CONFIGURACIÓN — falta UNA sola cosa
    ---------------------------------------------------------------------
-   Son los mismos dos que figuran arriba de todo en el archivo que ya usás
-   (el de la aplicación). Copiá y pegá tal cual, entre las comillas.
-   La segunda clave es la pública —la que ya viaja en el navegador—, no
-   la de servicio.
+   La dirección ya está puesta: sale de `SB_REF` del propio capacitador.
+
+   Falta la clave pública. En tus otras pantallas viaja así:
+
+       window.KALU = { SB_URL: '…', SB_KEY: '…' };
+
+   Buscá ese renglón en la página que carga el capacitador y copiá el
+   valor de `SB_KEY` acá abajo. Es la clave pública —la que ya viaja en
+   el navegador de cualquiera que abra tu aplicación—, NO la de servicio.
+
+   Y si preferís no pegar nada: esta pantalla también toma `window.KALU`
+   si existe. Alcanza con incluir antes el mismo script de configuración
+   que usan las demás páginas.
 --------------------------------------------------------------------- */
-var SUPABASE_URL  = "PEGAR_ACA_LA_URL";
+var SUPABASE_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
 var SUPABASE_ANON = "PEGAR_ACA_LA_CLAVE_PUBLICA";
+
+// Si la página ya trae la configuración de KALU, se usa ésa y listo.
+if (window.KALU && window.KALU.SB_KEY) {
+  SUPABASE_URL  = window.KALU.SB_URL || SUPABASE_URL;
+  SUPABASE_ANON = window.KALU.SB_KEY;
+}
 
 /* ------------------------------------------------------------------ */
 
@@ -289,10 +304,10 @@ function latir() {
    Arranque
 --------------------------------------------------------------------- */
 (function () {
-  if (SUPABASE_URL.indexOf('PEGAR') === 0 || SUPABASE_ANON.indexOf('PEGAR') === 0) {
+  if (SUPABASE_ANON.indexOf('PEGAR') === 0) {
     mal('Falta configurar la pantalla',
-        'Hay que pegar la dirección y la clave pública arriba del archivo.',
-        'Son los dos mismos valores que ya están en el archivo de la aplicación.');
+        'Hay que pegar la clave pública arriba del archivo.',
+        'Es el valor de SB_KEY que ya usan tus otras pantallas.');
     return;
   }
   if (!TOKEN) {

@@ -451,8 +451,24 @@ function pintarBloque(b) {
   }
   else if (t === 'imagen') {
     d.className = 'bloque';
+    // La nota YA está en pantalla como párrafo, así que el texto
+    // alternativo va vacío: si no, al fallar la imagen el navegador lo
+    // escribe otra vez y el mismo párrafo sale dos veces seguidas.
     if (b.nota) { var p = document.createElement('p'); p.textContent = b.nota; d.appendChild(p); }
-    if (b.url)  { var im = document.createElement('img'); im.src = b.url; im.alt = b.nota || ''; d.appendChild(im); }
+    if (b.url) {
+      var im = document.createElement('img');
+      im.src = b.url; im.alt = '';
+      im.onerror = function () {
+        // Un error se muestra, no se esconde: la narración está hablando
+        // de algo que no está, y quien escucha merece saber por qué.
+        this.remove();
+        var x = document.createElement('p');
+        x.className = 'chico';
+        x.textContent = 'La imagen de este bloque no se pudo cargar.';
+        d.appendChild(x);
+      };
+      d.appendChild(im);
+    }
   }
   else { d.className = 'bloque'; d.textContent = b.texto || b.nota || ''; }
 
@@ -483,7 +499,23 @@ function avisoCharla(txt) {
   $('cPie').textContent = txt; $('cPie').hidden = false;
 }
 
+/* El silencio entre bloques. No es un detalle de cortesía: un título
+   necesita aire antes del cuerpo, un aviso necesita aterrizar, y una
+   imagen necesita que la miren sin que le hablen encima. Sin esto, la
+   charla sale de corrido y suena a alguien leyendo. */
+var tPausa = null;
+function frenarPausa() { if (tPausa) { clearTimeout(tPausa); tPausa = null; } }
+
+function esperar(i, ms) {
+  frenarPausa();
+  tPausa = setTimeout(function () {
+    tPausa = null;
+    if (iPaso === i && !pausado) irA(i + 1);
+  }, Math.max(ms || 0, 250));
+}
+
 async function irA(i) {
+  frenarPausa();
   if (i >= PASOS.length) return terminar();
   iPaso = i;
   pausado = false;
@@ -500,7 +532,7 @@ async function irA(i) {
     // Un bloque sin nada que decir se muestra y sigue solo. No se queda
     // esperando un audio que no existe.
     estado('', false);
-    setTimeout(function () { if (iPaso === i && !pausado) irA(i + 1); }, 4500);
+    esperar(i, Math.max(b.pausa_ms || 0, 3500));
     return;
   }
 
@@ -541,7 +573,11 @@ async function empezarCharla() {
   AUDIO.src = SILENCIO;
   try { await AUDIO.play(); } catch (e) {}
   AUDIO.addEventListener('ended', function () {
-    if (!pausado && iPaso >= 0 && iPaso < PASOS.length) irA(iPaso + 1);
+    if (pausado || iPaso < 0 || iPaso >= PASOS.length) return;
+    // Terminó de hablar: se apaga la onda y empieza el silencio de ese
+    // bloque. Recién después pasa al siguiente.
+    estado('', false);
+    esperar(iPaso, (PASOS[iPaso] && PASOS[iPaso].pausa_ms) || 500);
   });
 
   try {
@@ -580,7 +616,7 @@ $('cPausa').addEventListener('click', function () {
     irA(0); return;
   }
   pausado = !pausado;
-  if (pausado) { try { AUDIO.pause(); } catch (e) {}
+  if (pausado) { frenarPausa(); try { AUDIO.pause(); } catch (e) {}
                  $('cPausa').textContent = '▶ Seguir'; estado('En pausa', false); }
   else { $('cPausa').textContent = '⏸ Pausar';
          if (AUDIO && AUDIO.src && AUDIO.paused && AUDIO.currentTime > 0) {
@@ -591,6 +627,7 @@ $('cPausa').addEventListener('click', function () {
 
 $('cSalta').addEventListener('click', function () {
   if (iPaso >= PASOS.length) { ver('pDentro'); return; }
+  frenarPausa();
   try { AUDIO.pause(); } catch (e) {}
   irA(iPaso + 1);
 });

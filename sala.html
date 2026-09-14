@@ -66,6 +66,40 @@
 
   @keyframes lat{0%,100%{opacity:1}50%{opacity:.35}}
   .latiendo{animation:lat 2.4s ease-in-out infinite}
+
+  /* ---- la charla ---- */
+  .barra{height:3px;background:#222733;border-radius:2px;overflow:hidden;margin:0 0 16px}
+  .barra i{display:block;height:100%;background:var(--ok);width:0;transition:width .4s}
+  .paso{font-size:12px;color:var(--muted);letter-spacing:.06em;
+    text-transform:uppercase;margin-bottom:12px}
+
+  /* El texto de la charla es lo que se lee mientras Kalu habla: grande,
+     con aire, y sin que haya que agrandar con los dedos. */
+  .bloque{font-size:19px;line-height:1.6;margin:0 0 6px}
+  .bloque.tit{font-size:23px;font-weight:700;line-height:1.35}
+  .bloque.avi{border-left:3px solid var(--alerta);padding-left:13px;
+    font-size:17px;color:#F0D9B5}
+  .bloque ul{margin:6px 0 0;padding-left:20px}
+  .bloque li{margin-bottom:9px;font-size:18px;line-height:1.5}
+  .bloque img{max-width:100%;border-radius:10px;margin-top:8px}
+  .hr{height:1px;background:var(--linea);margin:22px 0}
+
+  .mandos{display:flex;gap:10px;margin-top:22px}
+  .mandos button{flex:1;background:#1D212A;color:var(--tx);
+    border:1px solid var(--linea);border-radius:11px;padding:14px 10px;
+    font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+  .mandos button:active{background:#232834}
+  .mandos button.chico{flex:0 0 auto;padding:14px 18px;font-weight:400;color:var(--muted)}
+
+  .hablando{display:flex;align-items:center;gap:8px;font-size:13px;
+    color:var(--muted);margin-bottom:14px;min-height:18px}
+  .onda{display:inline-flex;gap:3px;align-items:flex-end;height:14px}
+  .onda i{width:3px;background:var(--ok);border-radius:2px;height:4px;
+    animation:on .9s ease-in-out infinite}
+  .onda i:nth-child(2){animation-delay:.15s}
+  .onda i:nth-child(3){animation-delay:.3s}
+  .onda i:nth-child(4){animation-delay:.45s}
+  @keyframes on{0%,100%{height:4px}50%{height:14px}}
 </style>
 </head>
 <body>
@@ -115,6 +149,26 @@
     Si se te corta internet, volvé a abrir este mismo enlace: tu asistencia ya
     quedó registrada y no la perdés.
   </p>
+
+  <div class="hr"></div>
+  <button class="opt" id="bEscuchar" type="button" style="margin-bottom:0">
+    ▶ Escuchar la charla
+    <small id="bEscucharPie">Kalu la dicta en voz alta, bloque por bloque.</small>
+  </button>
+</div>
+
+<!-- ================= la charla ================= -->
+<div class="card" id="pCharla" hidden>
+  <div class="barra"><i id="cBarra"></i></div>
+  <div class="paso" id="cPaso">—</div>
+  <div class="hablando" id="cEstado"></div>
+  <div id="cBloque"></div>
+
+  <div class="mandos">
+    <button type="button" id="cPausa">⏸ Pausar</button>
+    <button type="button" id="cSalta" class="chico">Siguiente ⏭</button>
+  </div>
+  <p class="aviso" id="cPie" hidden></p>
 </div>
 
 <!-- ================= algo pasó ================= -->
@@ -126,9 +180,6 @@
 </div>
 
 <a class="volver" href="index.html">← Volver al inicio</a>
-
-<!-- Configuración compartida de KALU (misma que usa el capacitador): define window.KALU -->
-<script src="config.js"></script>
 
 <script>
 /* =====================================================================
@@ -142,19 +193,26 @@
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
-   CONFIGURACIÓN
+   CONFIGURACIÓN — falta UNA sola cosa
    ---------------------------------------------------------------------
-   Toma la config de `window.KALU` (config.js, cargado arriba) — mismo
-   origen que el capacitador y las demás pantallas. Los valores de acá
-   abajo son sólo un respaldo por si config.js no estuviera: es la clave
-   PÚBLICA (la que ya viaja en el navegador de cualquiera que abra la
-   app), NO la de servicio. El día que cambies de proyecto, tocás
-   config.js y esta pantalla lo toma sola.
+   La dirección ya está puesta: sale de `SB_REF` del propio capacitador.
+
+   Falta la clave pública. En tus otras pantallas viaja así:
+
+       window.KALU = { SB_URL: '…', SB_KEY: '…' };
+
+   Buscá ese renglón en la página que carga el capacitador y copiá el
+   valor de `SB_KEY` acá abajo. Es la clave pública —la que ya viaja en
+   el navegador de cualquiera que abra tu aplicación—, NO la de servicio.
+
+   Y si preferís no pegar nada: esta pantalla también toma `window.KALU`
+   si existe. Alcanza con incluir antes el mismo script de configuración
+   que usan las demás páginas.
 --------------------------------------------------------------------- */
 var SUPABASE_URL  = "https://nignqeipzlemwfrwmpip.supabase.co";
-var SUPABASE_ANON = "sb_publishable_7ni9tHH8H180SiFTEmXB_w_Qzmw_cXl";
+var SUPABASE_ANON = "PEGAR_ACA_LA_CLAVE_PUBLICA";
 
-// Si la página trae la configuración de KALU, esa manda (fuente única).
+// Si la página ya trae la configuración de KALU, se usa ésa y listo.
 if (window.KALU && window.KALU.SB_KEY) {
   SUPABASE_URL  = window.KALU.SB_URL || SUPABASE_URL;
   SUPABASE_ANON = window.KALU.SB_KEY;
@@ -165,7 +223,7 @@ if (window.KALU && window.KALU.SB_KEY) {
 var $ = function (id) { return document.getElementById(id); };
 
 function ver(cual) {
-  ['pCarga','pModo','pDentro','pMal'].forEach(function (p) {
+  ['pCarga','pModo','pDentro','pCharla','pMal'].forEach(function (p) {
     $(p).hidden = (p !== cual);
   });
 }
@@ -296,14 +354,214 @@ function latir() {
   }, 30000);
 }
 
+/* =====================================================================
+   LA CHARLA — Kalu la dicta bloque por bloque
+
+   Dos decisiones que hacen la diferencia entre que esto se escuche o no:
+
+   · SE ADELANTA EL AUDIO DEL BLOQUE SIGUIENTE mientras suena el actual.
+     Sin eso hay dos o tres segundos de silencio entre bloque y bloque,
+     y sobre dieciséis bloques eso solo alcanza para que alguien diga
+     «cansa» cuando lo que cansa es la espera, no la voz.
+
+   · NO HAY VOZ DEL NAVEGADOR. Si el servicio falla, queda el texto en
+     pantalla y se avisa. KALU tiene una sola voz en todos los módulos;
+     una voz distinta no es un respaldo, es otra Kalu.
+   ===================================================================== */
+var KALU_TTS = 'https://dnmintell.app.n8n.cloud/webhook/kalu-hse-tts';
+
+var PASOS = [], iPaso = -1, AUDIO = null, pausado = false;
+var cache = {};          // índice → URL del audio ya traído
+var pidiendo = {};       // índice → promesa en vuelo, para no pedir dos veces
+
+/* Un pedacito de silencio. Sirve para destrabar el audio en el mismo
+   toque del botón: iOS sólo deja sonar algo si viene de un gesto, y para
+   cuando llega el mp3 de la red ese gesto ya venció. */
+var SILENCIO = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAIA+AAABAAgAZGF0YQAAAAA=';
+
+async function traerAudio(i) {
+  if (cache[i]) return cache[i];
+  if (pidiendo[i]) return pidiendo[i];
+  var txt = PASOS[i] && PASOS[i].para_leer;
+  if (!txt) return null;
+
+  pidiendo[i] = (async function () {
+    var r = await fetch(KALU_TTS, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: String(txt).slice(0, 4000) })
+    });
+    if (!r.ok) throw new Error('La voz no contestó (' + r.status + ')');
+    var b = await r.blob();
+    if (!b || b.size < 200) throw new Error('La voz llegó vacía');
+    cache[i] = URL.createObjectURL(b);
+    return cache[i];
+  })();
+
+  try { return await pidiendo[i]; }
+  finally { delete pidiendo[i]; }
+}
+
+function pintarBloque(b) {
+  var d = document.createElement('div');
+  var t = b.tipo;
+
+  if (t === 'titulo')      { d.className = 'bloque tit'; d.textContent = b.texto || ''; }
+  else if (t === 'aviso')  { d.className = 'bloque avi'; d.textContent = b.texto || ''; }
+  else if (t === 'lista') {
+    d.className = 'bloque';
+    var ul = document.createElement('ul');
+    String(b.texto || '').split('|').forEach(function (x) {
+      x = x.trim(); if (!x) return;
+      var li = document.createElement('li'); li.textContent = x; ul.appendChild(li);
+    });
+    d.appendChild(ul);
+  }
+  else if (t === 'imagen') {
+    d.className = 'bloque';
+    if (b.nota) { var p = document.createElement('p'); p.textContent = b.nota; d.appendChild(p); }
+    if (b.url)  { var im = document.createElement('img'); im.src = b.url; im.alt = b.nota || ''; d.appendChild(im); }
+  }
+  else { d.className = 'bloque'; d.textContent = b.texto || b.nota || ''; }
+
+  $('cBloque').innerHTML = '';
+  $('cBloque').appendChild(d);
+}
+
+function estado(txt, sonando) {
+  $('cEstado').innerHTML = '';
+  if (sonando) {
+    var o = document.createElement('span'); o.className = 'onda';
+    o.innerHTML = '<i></i><i></i><i></i><i></i>';
+    $('cEstado').appendChild(o);
+  }
+  $('cEstado').appendChild(document.createTextNode(txt || ''));
+}
+
+function avisoCharla(txt) {
+  if (!txt) { $('cPie').hidden = true; return; }
+  $('cPie').textContent = txt; $('cPie').hidden = false;
+}
+
+async function irA(i) {
+  if (i >= PASOS.length) return terminar();
+  iPaso = i;
+  pausado = false;
+  $('cPausa').textContent = '⏸ Pausar';
+
+  var b = PASOS[i];
+  pintarBloque(b);
+  $('cPaso').textContent = 'Bloque ' + (i + 1) + ' de ' + PASOS.length;
+  $('cBarra').style.width = Math.round(((i + 1) / PASOS.length) * 100) + '%';
+  avisoCharla(null);
+  window.scrollTo(0, 0);
+
+  if (!b.para_leer) {
+    // Un bloque sin nada que decir se muestra y sigue solo. No se queda
+    // esperando un audio que no existe.
+    estado('', false);
+    setTimeout(function () { if (iPaso === i && !pausado) irA(i + 1); }, 4500);
+    return;
+  }
+
+  estado('Kalu está hablando…', true);
+  try {
+    var url = await traerAudio(i);
+    if (iPaso !== i) return;                 // se adelantó a otro bloque
+    AUDIO.src = url;
+    await AUDIO.play();
+    traerAudio(i + 1).catch(function () {}); // el siguiente, mientras suena éste
+  } catch (e) {
+    estado('', false);
+    avisoCharla('No se pudo traer la voz de Kalu. El texto está en pantalla — '
+      + 'tocá «Siguiente» para continuar. (' + (e.message || 'sin detalle') + ')');
+  }
+}
+
+function terminar() {
+  iPaso = PASOS.length;
+  $('cPaso').textContent = 'Terminó la charla';
+  $('cBarra').style.width = '100%';
+  estado('', false);
+  $('cBloque').innerHTML = '';
+  var d = document.createElement('div');
+  d.className = 'bloque tit';
+  d.textContent = 'Eso fue todo. Gracias por escuchar.';
+  $('cBloque').appendChild(d);
+  $('cPausa').textContent = '↺ Escuchar de nuevo';
+  $('cSalta').textContent = 'Volver';
+}
+
+async function empezarCharla() {
+  $('bEscuchar').disabled = true;
+  $('bEscucharPie').textContent = 'Buscando la charla…';
+
+  // Destrabar el audio DENTRO del toque, antes de cualquier espera.
+  AUDIO = new Audio();
+  AUDIO.src = SILENCIO;
+  try { await AUDIO.play(); } catch (e) {}
+  AUDIO.addEventListener('ended', function () {
+    if (!pausado && iPaso >= 0 && iPaso < PASOS.length) irA(iPaso + 1);
+  });
+
+  try {
+    var g = await rpc('cap_sala_guion', { p_token: TOKEN });
+    if (!g || g.hay !== true) {
+      $('bEscuchar').disabled = false;
+      $('bEscucharPie').textContent = (g && g.aviso) || 'La charla no está disponible.';
+      return;
+    }
+    // Los separadores no son un paso: son una línea, y quedarse cuatro
+    // segundos mirando una línea es raro.
+    PASOS = (g.bloques || []).filter(function (b) { return b.tipo !== 'separador'; });
+    if (!PASOS.length) {
+      $('bEscuchar').disabled = false;
+      $('bEscucharPie').textContent = 'Esta capacitación todavía no tiene contenido cargado.';
+      return;
+    }
+    // Se devuelve a su estado ANTES de entrar a la charla: si no, al
+    // volver a la sala el botón queda apagado para siempre y parece roto.
+    $('bEscuchar').disabled = false;
+    $('bEscucharPie').textContent = 'Kalu la dicta en voz alta, bloque por bloque.';
+    ver('pCharla');
+    irA(0);
+  } catch (e) {
+    $('bEscuchar').disabled = false;
+    $('bEscucharPie').textContent = 'No se pudo cargar: ' + (e.message || '');
+  }
+}
+
+$('bEscuchar').addEventListener('click', empezarCharla);
+
+$('cPausa').addEventListener('click', function () {
+  if (iPaso >= PASOS.length) {            // terminó: volver a empezar
+    $('cPausa').textContent = '⏸ Pausar';
+    $('cSalta').textContent = 'Siguiente ⏭';
+    irA(0); return;
+  }
+  pausado = !pausado;
+  if (pausado) { try { AUDIO.pause(); } catch (e) {}
+                 $('cPausa').textContent = '▶ Seguir'; estado('En pausa', false); }
+  else { $('cPausa').textContent = '⏸ Pausar';
+         if (AUDIO && AUDIO.src && AUDIO.paused && AUDIO.currentTime > 0) {
+           estado('Kalu está hablando…', true);
+           AUDIO.play().catch(function () {});
+         } else { irA(iPaso); } }
+});
+
+$('cSalta').addEventListener('click', function () {
+  if (iPaso >= PASOS.length) { ver('pDentro'); return; }
+  try { AUDIO.pause(); } catch (e) {}
+  irA(iPaso + 1);
+});
+
 /* ---------------------------------------------------------------------
    Arranque
 --------------------------------------------------------------------- */
 (function () {
-  if (!SUPABASE_ANON || SUPABASE_ANON.indexOf('PEGAR') === 0) {
+  if (SUPABASE_ANON.indexOf('PEGAR') === 0) {
     mal('Falta configurar la pantalla',
-        'No se encontró la clave pública (config.js no cargó).',
-        'Subí config.js junto a esta página, o pegá el valor de SB_KEY arriba del archivo.');
+        'Hay que pegar la clave pública arriba del archivo.',
+        'Es el valor de SB_KEY que ya usan tus otras pantallas.');
     return;
   }
   if (!TOKEN) {

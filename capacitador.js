@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '72';
+const KC_VER = '73';
 
 let sb = null;
 
@@ -563,6 +563,14 @@ const CSS = `
   border:1px dashed var(--kc-rule);border-radius:8px}
 .kc-im-ac{display:flex;gap:9px;align-items:center;margin:0 0 8px}
 .kc-im-ac label{margin:0;cursor:pointer}
+.kc-nar{margin:9px 0 0;padding:9px 10px 2px;border-radius:7px;
+  background:rgba(76,141,255,.055);border:1px solid rgba(76,141,255,.20)}
+.kc-nar-t{display:flex;align-items:center;gap:8px;margin-bottom:6px;
+  font-family:var(--kc-fm);font-size:10px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--kc-ink3)}
+.kc-nar-t>span:first-child{color:var(--kc-ac);font-weight:600;margin-right:auto}
+.kc-nar input[type=number]{width:74px;margin:0;padding:3px 6px;font-size:12px}
+.kc-nar textarea{margin-bottom:8px}
 .kc-enl{max-height:320px;overflow:auto;border:1px solid var(--kc-rule);border-radius:8px}
 .kc-enl-f{display:flex;gap:10px;align-items:center;padding:9px 11px;
   border-bottom:1px solid var(--kc-rule)}
@@ -882,6 +890,9 @@ const _voz = (function () {
 function _textoDe(bloques) {
   return (bloques || []).map(function (b) {
     if (b.tipo === 'separador') return '';
+    // LA NARRACIÓN MANDA. Si está escrita, es lo que Kalu dice; el texto
+    // de la lámina es el respaldo, no la fuente. Al revés suena a lectora.
+    if (b.narracion && String(b.narracion).trim()) return String(b.narracion).trim();
     if (b.tipo === 'imagen')    return b.nota || '';
     if (b.tipo === 'lista')     return String(b.texto || '').split('|').join('. ');
     return [b.texto, b.nota].filter(Boolean).join('. ');
@@ -3578,6 +3589,14 @@ async function generador(sel, opt) {
   const TIPOS = [['titulo','Título'],['texto','Párrafo'],['lista','Lista'],
                  ['aviso','Aviso destacado'],['imagen','Imagen'],['separador','Separador']];
 
+  /* El silencio que va DESPUÉS de cada tipo de bloque, en milisegundos.
+     Son los mismos valores que usa la sala, escritos una sola vez: un
+     título pide aire antes del cuerpo, una imagen pide que la miren sin
+     que le hablen encima, y un aviso pide un momento para aterrizar.
+     El número cargado a mano en el bloque le gana a estos. */
+  const PAUSA_POR_TIPO = { titulo:900, imagen:4000, aviso:1200, lista:700,
+                           texto:500, separador:0 };
+
   async function traer(id) {
     D = await rpc('cap_generacion_datos', { p_id: id || null });
     if (D.uno && D.uno.resultado) R = JSON.parse(JSON.stringify(D.uno.resultado));
@@ -3808,8 +3827,10 @@ async function generador(sel, opt) {
     // El mismo silencio que usa la sala, por tipo de bloque. Un título
     // pide aire antes del cuerpo; una imagen pide que la miren sin que
     // le hablen encima.
-    const PAUSA = { titulo:900, imagen:4000, aviso:1200, lista:700 };
-    const pausaDe = b => (b && PAUSA[b.tipo]) || 500;
+    // El número del bloque manda; si no hay, el de su tipo.
+    const pausaDe = b => !b ? 500
+      : (b.pausa_ms != null ? b.pausa_ms : (PAUSA_POR_TIPO[b.tipo] != null
+                                             ? PAUSA_POR_TIPO[b.tipo] : 500));
 
     const frenar = () => { if (tP) { clearTimeout(tP); tP = null; } };
 
@@ -4140,12 +4161,36 @@ async function generador(sel, opt) {
                    : 'Texto del bloque'}">${esc(b.texto || '')}</textarea>
                <input type="text" class="bx2" placeholder="Nota al pie (opcional)"
                  value="${esc(b.nota || '')}">`}
+          ${b.tipo === 'separador' ? '' : `
+          <div class="kc-nar">
+            <div class="kc-nar-t">
+              <span>🔊 Lo que Kalu DICE</span>
+              <span class="kc-cd">silencio después</span>
+              <input type="number" class="bpau" min="0" max="20000" step="100"
+                placeholder="${PAUSA_POR_TIPO[b.tipo] || 500}"
+                value="${b.pausa_ms == null ? '' : b.pausa_ms}">
+              <span class="kc-cd">ms</span>
+            </div>
+            <textarea class="bnar" rows="3"
+              placeholder="No repitas la lámina: contá por qué importa. Ej: «Son cinco cosas, y todas están en la sección nueve…» · Si lo dejás vacío, Kalu lee la lámina tal cual.">${
+              esc(b.narracion || '')}</textarea>
+          </div>`}
         </div>`).join('');
       el.querySelectorAll('#kcbl .kc-bl').forEach(d => {
         const i = +d.dataset.i;
         d.querySelector('.bt').onchange = e => { R.bloques[i].tipo = e.target.value; pintarB(); };
         const t1 = d.querySelector('.bx1'); if (t1) t1.oninput = e => R.bloques[i].texto = e.target.value;
         const t2 = d.querySelector('.bx2'); if (t2) t2.oninput = e => R.bloques[i].nota = e.target.value;
+
+        const tn = d.querySelector('.bnar');
+        if (tn) tn.oninput = e => R.bloques[i].narracion = e.target.value;
+        const tp = d.querySelector('.bpau');
+        if (tp) tp.oninput = e => {
+          const v = e.target.value.trim();
+          // Vacío significa «usá el valor por defecto de este tipo», que
+          // no es lo mismo que cero. Cero es «seguí de una».
+          R.bloques[i].pausa_ms = v === '' ? null : Math.max(0, +v || 0);
+        };
 
         const fi = d.querySelector('.bimg');
         if (fi) fi.onchange = async e => {

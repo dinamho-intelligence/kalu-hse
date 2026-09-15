@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '73';
+const KC_VER = '74';
 
 let sb = null;
 
@@ -811,6 +811,15 @@ const CSS = `
      mudo y que parezca que la voz no anda.
    ================================================================= */
 const KC_TTS = 'https://dnmintell.app.n8n.cloud/webhook/kalu-hse-tts';
+
+/* Kalu escribiendo el guion hablado. La pantalla le manda las láminas
+   ya aprobadas y recibe lo que hay que DECIR sobre cada una.
+
+   Dos cosas que este webhook NO hace, a propósito:
+   · no guarda nada — lo que vuelve queda en el borrador hasta que la
+     persona lo lee y aprieta Guardar;
+   · no toca el contenido — las láminas vuelven tal cual fueron. */
+const KC_NARRAR = 'https://dnmintell.app.n8n.cloud/webhook/kalu-capacitador-narrar';
 
 const _voz = (function () {
   let prendida = false, ficha = 0, sonando = null, bloqueado = false, vel = 1;
@@ -3953,6 +3962,49 @@ async function generador(sel, opt) {
     window.scrollTo(0, 0);
   }
 
+  /* --------------------------------------- Kalu escribe lo que se dice
+
+     Hasta acá, el recuadro «Lo que Kalu DICE» era un campo en blanco:
+     alguien tenía que sentarse a escribir treinta narraciones a mano, y
+     eso es exactamente el trabajo que no queremos que exista.
+
+     Este botón se lo pide a Kalu. Tres reglas, y ninguna es de estilo:
+
+     · NO PISA NADA. Sólo llena los recuadros vacíos. Lo que alguien
+       escribió a mano gana siempre, incluso si la respuesta de Kalu
+       llega después. Un botón que borra trabajo ajeno se usa una vez.
+
+     · NO GUARDA. Lo que vuelve queda en pantalla para leerlo. Guardar
+       sigue siendo un acto de una persona, no un efecto secundario.
+
+     · NO TOCA LAS LÁMINAS. El contenido —lo que se afirma y qué norma
+       lo respalda— ya lo revisó alguien técnico. Esto escribe cómo se
+       dice, no qué se dice. Son dos revisiones distintas y se hacen por
+       separado a propósito.
+
+     Va por tandas porque una respuesta larga se corta por la mitad sin
+     avisar, y media narración cargada en silencio es peor que ninguna:
+     nadie revisa lo que cree que ya está hecho. Si una tanda falla, se
+     dice cuántas entraron y cuántas no. */
+  const TANDA = 12;
+
+  function sinNarrar() {
+    return R.bloques
+      .map((b, i) => ({ b, orden: i + 1 }))
+      .filter(x => x.b.tipo !== 'separador' && !String(x.b.narracion || '').trim())
+      .map(x => x.orden);
+  }
+
+  function contarNar() {
+    const c = el.querySelector('#kcnarn');
+    if (!c || !R || !R.bloques) return;
+    const total = R.bloques.filter(b => b.tipo !== 'separador').length;
+    const n = sinNarrar().length;
+    c.textContent = !total ? ''
+      : n ? ('falta lo que dice en ' + n + ' de ' + total)
+          : ('las ' + total + ' ya tienen lo que dice');
+  }
+
   /* -------------------------------------------------------- revisión */
   function vRevisar() {
     parar();
@@ -3976,8 +4028,11 @@ async function generador(sel, opt) {
               g.resultado.advertencias.map(esc).join(' · ')}</div></div></div>` : ''}
       <p class="kc-nota" style="text-align:left;margin:0 0 6px">Leelo completo antes de publicar.
         Lo que quede acá es lo que va a leer la gente y lo que se le va a evaluar.</p>
-      <div style="margin:0 0 4px"><button class="kc-mini p" id="kcprev">
-        👁 Ver cómo lo va a ver la gente</button></div>
+      <div style="margin:0 0 4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="kc-mini p" id="kcprev">👁 Ver cómo lo va a ver la gente</button>
+        <button class="kc-mini" id="kcnar">✨ Que Kalu escriba lo que dice</button>
+        <span class="kc-cd" id="kcnarn"></span>
+      </div>
 
       <div class="kc-secc">Contenido<button class="kc-mini" id="kcaddb"
         style="margin-left:auto;order:3">+ Bloque</button></div>
@@ -4007,6 +4062,90 @@ async function generador(sel, opt) {
       pintarP();
     };
     el.querySelector('#kcprev').onclick = () => vPrevia();
+    async function narrar(btn) {
+      const g = D.uno || {};
+      const faltan = sinNarrar();
+      if (!faltan.length)
+        return toast('Todas las láminas ya tienen escrito lo que Kalu dice. ' +
+                     'Si querés que reescriba alguna, borrá ese recuadro primero.');
+
+      const s = (typeof sesion === 'function') ? sesion() : null;
+      if (!s || !s.token || s.vencida)
+        return alert('Tu sesión venció. Salí y entrá de nuevo a KALU, y volvé a intentar.');
+
+      if (!confirm('Kalu va a escribir lo que se DICE sobre ' + faltan.length +
+                   (faltan.length === 1 ? ' lámina.' : ' láminas.') +
+                   '\n\nNo toca el texto de las láminas, y no pisa lo que ya esté escrito.' +
+                   '\n\nCuando termine, leelo. Todavía no se guarda nada.'))
+        return;
+
+      btn.disabled = true;
+
+      /* Se le manda la charla ENTERA como contexto, no sólo lo que falta:
+         si no sabe qué se dijo dos láminas antes, engancha todos los
+         títulos igual y vuelve a sonar a máquina. */
+      const todos = R.bloques.map((b, i) => ({
+        orden: i + 1, tipo: b.tipo, texto: b.texto || '',
+        nota: b.nota || '', narracion: b.narracion || ''
+      }));
+
+      let hechos = 0;
+      const avisos = [];
+      try {
+        for (let k = 0; k < faltan.length; k += TANDA) {
+          const pedidos = faltan.slice(k, k + TANDA);
+          btn.textContent = 'Kalu escribiendo… ' + hechos + ' de ' + faltan.length;
+
+          const r = await fetch(KC_NARRAR, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: s.token, titulo: g.titulo || '', objetivo: g.objetivo || '',
+              bloques: todos, pedidos
+            })
+          });
+
+          let d = null;
+          try { d = await r.json(); } catch (e) {}
+          if (!d)
+            throw new Error('El flujo de n8n no contestó nada. Fijate que ' +
+                            '«KALU Capacitador - Narrar» esté activado.');
+          if (!d.ok) throw new Error(d.mensaje || 'No se pudo, y no dijo por qué.');
+
+          (d.bloques || []).forEach(x => {
+            const i = Number(x.orden) - 1;
+            const b = R.bloques[i];
+            if (!b) return;
+            // Lo escrito a mano gana. Si alguien llenó ese recuadro
+            // mientras la tanda viajaba, la respuesta se descarta.
+            if (String(b.narracion || '').trim()) return;
+            if (x.narracion) { b.narracion = x.narracion; hechos++; }
+            if (x.pausa_ms != null) b.pausa_ms = x.pausa_ms;
+            if (todos[i]) todos[i].narracion = b.narracion || '';
+          });
+          (d.avisos || []).forEach(a => avisos.push(String(a)));
+        }
+
+        pintarB();
+        toast('Kalu escribió ' + hechos + ' de ' + faltan.length +
+              '. Leelo antes de guardar — todavía no se guardó nada.');
+        if (avisos.length)
+          alert('Kalu vio esto en el contenido y no lo cambió, sólo lo avisa:\n\n· ' +
+                avisos.join('\n· '));
+      } catch (e) {
+        // Si entró una parte, se pinta igual: esconder lo que sí llegó
+        // obligaría a pedirlo de nuevo y a pagarlo dos veces.
+        if (hechos) pintarB();
+        alert('Kalu escribió ' + hechos + ' de ' + faltan.length + ' y se cortó.\n\n' +
+              e.message + '\n\nLo que entró quedó en pantalla. Podés darle de nuevo: ' +
+              'sólo va a pedir las que siguen vacías.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Que Kalu escriba lo que dice';
+        contarNar();
+      }
+    }
+
+    el.querySelector('#kcnar').onclick = e => narrar(e.currentTarget);
     el.querySelector('#kcguardar').onclick = () => guardar(false);
     el.querySelector('#kcpub').onclick = () => {
       const mal = validar();
@@ -4183,7 +4322,7 @@ async function generador(sel, opt) {
         const t2 = d.querySelector('.bx2'); if (t2) t2.oninput = e => R.bloques[i].nota = e.target.value;
 
         const tn = d.querySelector('.bnar');
-        if (tn) tn.oninput = e => R.bloques[i].narracion = e.target.value;
+        if (tn) tn.oninput = e => { R.bloques[i].narracion = e.target.value; contarNar(); };
         const tp = d.querySelector('.bpau');
         if (tp) tp.oninput = e => {
           const v = e.target.value.trim();
@@ -4215,6 +4354,10 @@ async function generador(sel, opt) {
           [R.bloques[i+1], R.bloques[i]] = [R.bloques[i], R.bloques[i+1]]; pintarB(); } };
         d.querySelector('.bx').onclick = () => { R.bloques.splice(i,1); pintarB(); };
       });
+      // El contador de «cuántas láminas están sin narrar» se recalcula
+      // cada vez que se repintan los bloques, no sólo al abrir: si alguien
+      // escribe una a mano, el número tiene que bajar solo.
+      contarNar();
     }
 
     function pintarP() {

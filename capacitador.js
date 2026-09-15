@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '75';
+const KC_VER = '76';
 
 let sb = null;
 
@@ -3606,9 +3606,22 @@ async function generador(sel, opt) {
   const PAUSA_POR_TIPO = { titulo:900, imagen:4000, aviso:1200, lista:700,
                            texto:500, separador:0 };
 
+  /* Las que ya están publicadas y tienen contenido. Se pide aparte, con
+     su propia función, para no tocar `cap_generacion_datos`, que ya está
+     viva y anda. Si todavía no se corrió cap_85, esto falla y el resto de
+     la pantalla sigue funcionando igual — pero el error se muestra, no se
+     esconde: una sección que desaparece sin decir nada es peor que un
+     mensaje feo. */
+  let PUB = [], PUB_ERR = null;
+  async function traerPub() {
+    try { PUB = (await rpc('cap_publicadas')) || []; PUB_ERR = null; }
+    catch (e) { PUB = []; PUB_ERR = e.message || 'no se pudo leer'; }
+  }
+
   async function traer(id) {
     D = await rpc('cap_generacion_datos', { p_id: id || null });
     if (D.uno && D.uno.resultado) R = JSON.parse(JSON.stringify(D.uno.resultado));
+    if (!id) await traerPub();
   }
   function toast(t) {
     const x = document.createElement('div');
@@ -3654,12 +3667,60 @@ async function generador(sel, opt) {
             ? '<span class="kc-tag n">Esperando</span>' : ''}
         </div>`).join('') + '</div>'
         : '<p class="kc-vacio">Todavía no armaste ninguna.</p>'}
+
+      <div class="kc-secc" style="margin-top:28px">Ya publicadas</div>
+      <p class="kc-nota" style="text-align:left;margin:0 0 10px">Las que ya tienen contenido
+        cargado. Abrirlas no cambia nada: se copia lo publicado a un borrador, lo corregís,
+        y recién al publicar reemplaza.</p>
+      ${PUB_ERR
+        ? `<p class="kc-vacio" style="color:var(--kc-cr)">No pude leer las publicadas: ${
+            esc(PUB_ERR)}</p>`
+        : PUB.length ? '<div class="kc-gen">' + PUB.map(c => `
+        <div class="kc-gi">
+          <div class="n"><b>${esc(c.codigo)} · ${esc(c.titulo)}</b>
+            <span>${c.bloques} bloques y ${c.preguntas} preguntas · versión ${
+              esc(String(c.version))}${
+              c.bloques
+                ? ' · ' + (c.con_narracion >= c.bloques
+                    ? 'con lo que Kalu dice'
+                    : c.con_narracion
+                      ? 'falta lo que Kalu dice en ' + (c.bloques - c.con_narracion)
+                      : 'sin lo que Kalu dice')
+                : ''}</span>
+            ${c.editando
+              ? `<span style="color:var(--kc-ac)">La tiene abierta ${
+                  esc(c.editando.quien)} desde el ${
+                  fecha(String(c.editando.desde || '').slice(0, 10))}</span>` : ''}
+            ${c.en_curso
+              ? `<span style="color:var(--kc-ink2)">${c.en_curso} persona(s) la están haciendo ahora</span>`
+              : ''}</div>
+          <button class="kc-mini${c.editando ? '' : ' p'}" data-ed="${c.id}">${
+            c.editando ? 'Ir al borrador' : '✏️ Abrir para editar'}</button>
+        </div>`).join('') + '</div>'
+        : '<p class="kc-vacio">Todavía no hay ninguna publicada con contenido.</p>'}
     </div>`;
 
     const v = el.querySelector('#kcv'); if (v) v.onclick = () => { parar(); opt.volver(); };
     const n = el.querySelector('#kcnueva'); if (n) n.onclick = vNueva;
     el.querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
       abierto = b.dataset.rev; await traer(abierto); vRevisar();
+    });
+    /* Abrir una publicada para editarla. Lo que hace es copiar lo que está
+       publicado a un borrador; de ahí en adelante es el mismo camino que ya
+       está probado, con el botón de narración y la vista previa incluidos.
+       El aviso que devuelve la función se muestra SIEMPRE: puede estar
+       diciendo que la tiene abierta otra persona, o que hay gente a mitad
+       de camino que va a volver al principio. */
+    el.querySelectorAll('[data-ed]').forEach(b => b.onclick = async () => {
+      const t = b.textContent;
+      b.disabled = true; b.textContent = 'Abriendo…';
+      try {
+        const r = await rpc('cap_editar_publicada', { p_catalogo: b.dataset.ed });
+        if (r && r.aviso) alert(r.aviso);
+        abierto = r.id; await traer(abierto); vRevisar();
+      } catch (e) {
+        b.disabled = false; b.textContent = t; alert(e.message);
+      }
     });
     el.querySelectorAll('[data-rei]').forEach(b => b.onclick = async () => {
       b.disabled = true;

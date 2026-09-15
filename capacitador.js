@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '74';
+const KC_VER = '75';
 
 let sb = null;
 
@@ -4090,7 +4090,7 @@ async function generador(sel, opt) {
       }));
 
       let hechos = 0;
-      const avisos = [];
+      const avisos = [], copiaron = [];
       try {
         for (let k = 0; k < faltan.length; k += TANDA) {
           const pedidos = faltan.slice(k, k + TANDA);
@@ -4123,11 +4123,27 @@ async function generador(sel, opt) {
             if (todos[i]) todos[i].narracion = b.narracion || '';
           });
           (d.avisos || []).forEach(a => avisos.push(String(a)));
+          (d.copiaron || []).forEach(o => copiaron.push(Number(o)));
         }
 
         pintarB();
         toast('Kalu escribió ' + hechos + ' de ' + faltan.length +
               '. Leelo antes de guardar — todavía no se guardó nada.');
+
+        /* Un bloque donde Kalu copió la lámina NO se carga: queda vacío.
+           Y como el botón sólo pide los vacíos, darle de nuevo reintenta
+           exactamente ésos. Se dice cuáles, porque un número que baja sin
+           explicación parece un error del programa. */
+        if (copiaron.length)
+          alert('En ' + (copiaron.length === 1 ? 'el bloque ' : 'los bloques ') +
+                copiaron.join(', ') + ' Kalu terminó diciendo lo mismo que ' +
+                'está escrito en la lámina, así que no lo cargué: en la sala eso ' +
+                'suena a lectora y la gente deja de escuchar.\n\n' +
+                'Quedaron vacíos. Dale de nuevo al botón y sólo va a reintentar ésos.\n\n' +
+                'Si vuelve a pasar en el mismo bloque, esa lámina probablemente ya ' +
+                'dice todo lo que había para decir: conviene acortarla, o escribir ' +
+                'la narración a mano.');
+
         if (avisos.length)
           alert('Kalu vio esto en el contenido y no lo cambió, sólo lo avisa:\n\n· ' +
                 avisos.join('\n· '));

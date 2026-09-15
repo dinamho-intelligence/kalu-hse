@@ -563,6 +563,28 @@ const CSS = `
   border:1px dashed var(--kc-rule);border-radius:8px}
 .kc-im-ac{display:flex;gap:9px;align-items:center;margin:0 0 8px}
 .kc-im-ac label{margin:0;cursor:pointer}
+.kc-enl{max-height:320px;overflow:auto;border:1px solid var(--kc-rule);border-radius:8px}
+.kc-enl-f{display:flex;gap:10px;align-items:center;padding:9px 11px;
+  border-bottom:1px solid var(--kc-rule)}
+.kc-enl-f:last-child{border-bottom:0}
+.kc-enl-n{flex:1;min-width:0;font-size:14px;line-height:1.3}
+.kc-enl-n span{display:block;font-size:12px;color:var(--kc-ink3)}
+.kc-pbar{height:3px;background:var(--kc-rule);border-radius:2px;overflow:hidden;margin:0 0 7px}
+.kc-pbar i{display:block;height:100%;background:var(--kc-ok);width:0;transition:width .35s}
+.kc-pasos{display:flex;gap:3px;flex-wrap:wrap;margin:0 0 10px}
+.kc-pso{flex:1 1 10px;min-width:10px;height:14px;padding:0;border:0;border-radius:3px;
+  background:var(--kc-rule);cursor:pointer;transition:background .15s}
+.kc-pso.vis{background:var(--kc-ok);opacity:.45}
+.kc-pso.act{background:var(--kc-ac)}
+.kc-hab{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--kc-ink3);
+  min-height:17px;margin:0 0 8px}
+.kc-onda{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
+.kc-onda i{width:3px;background:var(--kc-ok);border-radius:2px;height:3px;
+  animation:kcon .9s ease-in-out infinite}
+.kc-onda i:nth-child(2){animation-delay:.15s}
+.kc-onda i:nth-child(3){animation-delay:.3s}
+@keyframes kcon{0%,100%{height:3px}50%{height:12px}}
+.kc-velrow{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:12px 0 0}
 .kc-op2{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .kc-op2 input[type=radio]{width:17px;height:17px;margin:0;flex:0 0 auto;accent-color:var(--kc-ok)}
 .kc-op2 input[type=text]{margin:0;flex:1}
@@ -783,7 +805,7 @@ const CSS = `
 const KC_TTS = 'https://dnmintell.app.n8n.cloud/webhook/kalu-hse-tts';
 
 const _voz = (function () {
-  let prendida = false, ficha = 0, sonando = null, bloqueado = false;
+  let prendida = false, ficha = 0, sonando = null, bloqueado = false, vel = 1;
   try { prendida = localStorage.getItem('kalu_voz') !== '0'; } catch (e) {}
 
   function parar() {
@@ -801,7 +823,7 @@ const _voz = (function () {
     } catch (e) {}
   }
 
-  async function decir(txt) {
+  async function decir(txt, alTerminar) {
     if (!prendida) return;
     txt = String(txt || '').trim();
     if (!txt) return;
@@ -818,8 +840,17 @@ const _voz = (function () {
       if (!b || b.size < 200) throw new Error('vacio');
       const url = URL.createObjectURL(b);
       const a = new Audio(url);
+      // La velocidad se cambia en el navegador, no en el servicio de voz:
+      // el webhook sólo recibe texto. Sirve para revisar una charla larga
+      // sin escucharla entera a ritmo normal.
+      a.playbackRate = vel;
       sonando = a;
-      a.addEventListener('ended', () => { try { URL.revokeObjectURL(url); } catch (e) {} });
+      a.addEventListener('ended', () => {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+        // Avisar que terminó es lo que permite encadenar bloques solos.
+        // Sólo si nadie se adelantó a otra pantalla mientras tanto.
+        if (mia === ficha && typeof alTerminar === 'function') alTerminar();
+      });
       await a.play();
       bloqueado = false;
     } catch (e) {
@@ -832,6 +863,8 @@ const _voz = (function () {
 
   return {
     decir, parar,
+    velocidad(v) { vel = v; try { if (sonando) sonando.playbackRate = v; } catch (e) {} return vel; },
+    get vel() { return vel; },
     get prendida() { return prendida; },
     get bloqueado() { return bloqueado; },
     alternar() {
@@ -2341,6 +2374,9 @@ async function admin(sel) {
           e.fecha && !e.cancelado && e.fecha <= hoyS
             ? `<button class="kc-mini${e.ejecutado ? '' : ' p'}" data-e="lista" data-i="${e.id}">${
                 e.ejecutado ? 'Ver lista' : 'Pasar lista'}</button>` : ''}${
+          e.ejecutado || e.cancelado || !e.fecha ? '' : `
+          <button class="kc-mini p" data-e="sala" data-i="${e.id}"
+            title="Abrir la sala en vivo: cada convocado recibe un enlace propio">🔊 Sala en vivo</button>` }${
           e.ejecutado ? '' : `
           <button class="kc-mini" data-e="editar" data-i="${e.id}">Editar</button>
           <button class="kc-mini" data-e="mover" data-i="${e.id}">Mover</button>
@@ -2821,10 +2857,100 @@ async function admin(sel) {
   }
 
   /* --------- cronograma --------- */
+  /* ------------------------------------------------------------------
+     Abrir la sala de una jornada y repartir los enlaces
+  ------------------------------------------------------------------ */
+  function dlgSala(id, e) {
+    const base = (location.origin && location.origin !== 'null')
+      ? location.origin + '/sala.html'
+      : 'https://getkalu.com/sala.html';
+
+    const d = abrir(`<h3>Sala en vivo</h3>
+      <p><b>${esc(e.codigo || '')} · ${esc(e.titulo || '')}</b>${
+        e.fecha ? ' · ' + esc(e.fecha) : ''}</p>
+      <p>Se acuña <b>un enlace por cada convocado</b>. Con ese enlace entra desde el
+         celular sin cuenta ni contraseña, elige si está en el salón o a distancia,
+         y su asistencia queda registrada al entrar.</p>
+      <label for="kcpuerta">Minutos para entrar antes de que se cierre la puerta</label>
+      <input type="number" id="kcpuerta" value="5" min="0" max="120">
+      <p class="kc-nota" style="text-align:left">Después de ese rato no entra nadie nuevo.
+         El que ya entró y se queda sin señal vuelve cuando quiera: su asistencia no se
+         pierde.</p>`, () => {}, 'Abrir la sala');
+
+    d.querySelector('#kck').onclick = async () => {
+      const b = d.querySelector('#kck');
+      b.disabled = true; b.textContent = 'Abriendo…';
+      try {
+        const mins = +d.querySelector('#kcpuerta').value;
+        const r = await rpc('cap_sala_abrir', {
+          p_evento: id, p_arranca: null,
+          p_minutos_puerta: isNaN(mins) ? 5 : mins });
+        pintarEnlaces(d, r, base);
+      } catch (err) {
+        b.disabled = false; b.textContent = 'Abrir la sala';
+        // El motivo se muestra tal cual: si dice que no sos el responsable,
+        // eso es lo que hay que arreglar, y esconderlo no lo arregla.
+        alert(err.message);
+      }
+    };
+  }
+
+  function pintarEnlaces(d, r, base) {
+    const gente = (r && r.convocados) || [];
+    const url = t => base + '?t=' + t;
+
+    d.querySelector('.kc-dlg').innerHTML = `
+      <h3>La sala está abierta</h3>
+      <p><b>${esc(r.codigo || '')} · ${esc(r.titulo || '')}</b> · ${gente.length} convocado(s)</p>
+      <p class="kc-nota" style="text-align:left;margin:0 0 12px">Cada enlace es de una sola
+        persona y muere cuando la sala cierra. <b>Se manda a su correo, no se reenvía:</b>
+        el que lo recibe entra con el nombre del otro.</p>
+      <div class="kc-enl">${gente.map((p, i) => `
+        <div class="kc-enl-f">
+          <div class="kc-enl-n">${esc(p.persona || '')}${
+            p.correo ? `<span>${esc(p.correo)}</span>` : '<span>sin correo</span>'}</div>
+          <button class="kc-mini" data-cop="${i}">Copiar</button>
+        </div>`).join('') || '<p class="kc-p">Esta jornada no tiene gente convocada.</p>'}</div>
+      <div class="kc-row" style="margin-top:16px">
+        <button class="kc-b2" id="kctodos">Copiar los ${gente.length}</button>
+        <button class="kc-btn" id="kcfin">Listo</button>
+      </div>`;
+
+    const copiar = async (txt, btn, ok) => {
+      try { await navigator.clipboard.writeText(txt); btn.textContent = ok; }
+      catch (e) { btn.textContent = 'No se pudo copiar'; }
+      setTimeout(() => { btn.textContent = btn.dataset.txt; }, 2200);
+    };
+    d.querySelectorAll('[data-cop]').forEach(b => {
+      b.dataset.txt = 'Copiar';
+      b.onclick = () => copiar(url(gente[+b.dataset.cop].token), b, '✓ Copiado');
+    });
+    const t = d.querySelector('#kctodos');
+    if (t) { t.dataset.txt = t.textContent;
+      t.onclick = () => copiar(gente.map(p =>
+        (p.persona || '') + '\t' + (p.correo || '') + '\t' + url(p.token)).join('\n'),
+        t, '✓ Copiados'); }
+    d.querySelector('#kcfin').onclick = () => { d.close(); d.remove(); };
+  }
+
   function dlgEv(accion, id) {
     const e = (CRO.eventos||[]).find(x => x.id === id);
 
-    if (accion === 'lista') {
+    /* LA SALA EN VIVO.
+       Hasta hoy una sala se abría corriendo SQL a mano. Eso no es un
+       camino: quien dicta una charla no va a entrar a la base.
+
+       Dos cosas que el diálogo dice en voz alta porque definen todo lo
+       demás:
+         · CADA CONVOCADO RECIBE UN ENLACE PROPIO. No es un enlace de la
+           sala: es el de esa persona. Reenviarlo es prestarle la
+           asistencia a otro.
+         · LA ABRE EL RESPONSABLE de la jornada. Si el que aprieta no lo
+           es, la base lo frena y dice por qué — acá no se disimula. */
+    if (accion === 'sala') {
+      return dlgSala(id, e);
+
+    } else if (accion === 'lista') {
       dlgLista(id, e);
 
     /* LA LISTA DE ASISTENCIA DE UNA JORNADA.
@@ -3673,33 +3799,58 @@ async function generador(sel, opt) {
      del trabajador. No es «parecido a» lo que va a ver: es lo mismo.
   ------------------------------------------------------------------ */
   function vPrevia() {
-    parar();
-    const g = D.uno || {};
-    const bl = (R.bloques || []), pr = (R.preguntas || []);
+    parar(); _voz.parar();
+    const g  = D.uno || {};
+    const bl = (R.bloques || []).filter(b => b.tipo !== 'separador');
+    const pr = (R.preguntas || []);
+    let i = 0, corriendo = false, tP = null;
+
+    // El mismo silencio que usa la sala, por tipo de bloque. Un título
+    // pide aire antes del cuerpo; una imagen pide que la miren sin que
+    // le hablen encima.
+    const PAUSA = { titulo:900, imagen:4000, aviso:1200, lista:700 };
+    const pausaDe = b => (b && PAUSA[b.tipo]) || 500;
+
+    const frenar = () => { if (tP) { clearTimeout(tP); tP = null; } };
 
     el.innerHTML = `<div class="kc-wide" style="max-width:720px">
       <div style="padding:22px 0 12px">
         <button class="kc-mini" id="kcvolver">← Volver al borrador</button></div>
 
       <div class="kc-cent"><div class="b">👁</div><div>
-        <div class="kc-tt" style="font-size:15px">Así lo va a ver la gente</div>
+        <div class="kc-tt" style="font-size:15px">Así se va a ver y oír en la sala</div>
         <div style="font-size:13px;color:var(--kc-ink2)">Nada de esto está publicado.
           Podés volver y corregir lo que quieras.</div></div></div>
 
-      <h1 style="font-size:24px;font-weight:700;margin:20px 0 4px">${
+      <h1 style="font-size:22px;font-weight:700;margin:18px 0 12px">${
         esc(g.codigo ? g.codigo + ' · ' : '')}${esc(g.titulo || '')}</h1>
-      <p class="kc-nota" style="text-align:left;margin:0 0 20px">${bl.length} bloque(s) ·
-        ${pr.length} pregunta(s)${g.horas ? ' · ' + g.horas + ' h' : ''}</p>
 
-      ${bl.length ? bl.map(dibujarBloque).join('')
-                  : '<p class="kc-p">Todavía no hay contenido.</p>'}
+      <div class="kc-pbar" id="kcpbar"><i></i></div>
+      <div class="kc-pasos" id="kcpasos"></div>
 
-      <div class="kc-secc" style="margin-top:26px">La evaluación</div>
+      <div class="kc-cd" id="kcpaso" style="margin:4px 0 6px">—</div>
+      <div class="kc-hab" id="kchab"></div>
+      <div id="kcbloque" style="min-height:120px"></div>
+
+      <div class="kc-row" style="max-width:100%;margin-top:18px">
+        <button class="kc-b2" id="kcant">◀ Anterior</button>
+        <button class="kc-btn" id="kcplay">▶ Reproducir</button>
+        <button class="kc-b2" id="kcsig">Siguiente ▶</button>
+      </div>
+
+      <div class="kc-velrow">
+        <button class="kc-mini" id="kcvoz">🔊 Con voz</button>
+        <span class="kc-cd">Velocidad</span>
+        ${[0.75,1,1.25,1.5].map(v =>
+          `<button class="kc-mini vel" data-v="${v}">${v}×</button>`).join('')}
+      </div>
+
+      <div class="kc-secc" style="margin-top:28px">La evaluación</div>
       <p class="kc-nota" style="text-align:left;margin:0 0 12px">Acá la respuesta correcta
         va marcada para que la revises. La gente no la ve marcada.</p>
-      ${pr.map((q, i) => `
+      ${pr.map((q, n) => `
         <div class="kc-bl">
-          <div class="kc-cd">PREGUNTA ${i+1}</div>
+          <div class="kc-cd">PREGUNTA ${n+1}</div>
           <p class="kc-p" style="margin:6px 0 10px"><b>${esc(q.enunciado || '')}</b></p>
           <ul class="kc-ul">${(q.opciones || []).map(o =>
             `<li${o.correcta ? ' style="color:var(--kc-ok);font-weight:600"' : ''}>${
@@ -3712,8 +3863,72 @@ async function generador(sel, opt) {
         <button class="kc-btn" id="kcvolver2">← Volver al borrador</button></div>
     </div>`;
 
-    el.querySelector('#kcvolver').onclick  = () => vRevisar();
-    el.querySelector('#kcvolver2').onclick = () => vRevisar();
+    // La barra de pasos: cada bloque es un tramo, y se puede saltar a
+    // cualquiera. En una charla de veinte bloques, revisar el catorce no
+    // puede obligar a escuchar los trece anteriores.
+    const barra = el.querySelector('#kcpasos');
+    barra.innerHTML = bl.map((b, n) =>
+      `<button class="kc-pso" data-n="${n}" title="Bloque ${n+1} · ${esc(b.tipo)}"></button>`).join('');
+
+    function pintar() {
+      const b = bl[i];
+      el.querySelector('#kcpaso').textContent = bl.length
+        ? `BLOQUE ${i+1} DE ${bl.length} · ${String(b.tipo).toUpperCase()}` : 'SIN CONTENIDO';
+      el.querySelector('#kcbloque').innerHTML = b ? dibujarBloque(b) : '';
+      el.querySelector('#kcpbar').firstElementChild.style.width =
+        bl.length ? Math.round(((i+1)/bl.length)*100) + '%' : '0';
+      barra.querySelectorAll('.kc-pso').forEach((x, n) =>
+        x.className = 'kc-pso' + (n === i ? ' act' : n < i ? ' vis' : ''));
+      el.querySelector('#kcplay').textContent = corriendo ? '⏸ Pausar' : '▶ Reproducir';
+    }
+
+    function hablando(si) {
+      el.querySelector('#kchab').innerHTML = si
+        ? '<span class="kc-onda"><i></i><i></i><i></i></span> Kalu está hablando…' : '';
+    }
+
+    function irA(n, seguir) {
+      frenar(); _voz.parar();
+      if (n >= bl.length) { corriendo = false; hablando(false); pintar(); return; }
+      i = Math.max(0, n); corriendo = !!seguir; pintar();
+      if (!seguir) { hablando(false); return; }
+      const b = bl[i], txt = _textoDe([b]);
+      if (!txt || !_voz.prendida) {
+        hablando(false);
+        tP = setTimeout(() => { if (corriendo) irA(i+1, true); }, pausaDe(b));
+        return;
+      }
+      hablando(true);
+      _voz.decir(txt, () => {
+        hablando(false);
+        tP = setTimeout(() => { if (corriendo) irA(i+1, true); }, pausaDe(b));
+      });
+    }
+
+    el.querySelector('#kcvolver').onclick  = () => { frenar(); _voz.parar(); vRevisar(); };
+    el.querySelector('#kcvolver2').onclick = () => { frenar(); _voz.parar(); vRevisar(); };
+    el.querySelector('#kcant').onclick = () => irA(i-1, corriendo);
+    el.querySelector('#kcsig').onclick = () => irA(i+1, corriendo);
+    el.querySelector('#kcplay').onclick = () => {
+      if (corriendo) { corriendo = false; frenar(); _voz.parar(); hablando(false); pintar(); }
+      else irA(i, true);
+    };
+    barra.querySelectorAll('.kc-pso').forEach(x =>
+      x.onclick = () => irA(+x.dataset.n, corriendo));
+
+    const bv = el.querySelector('#kcvoz');
+    const pintarVoz = () => bv.textContent = _voz.prendida ? '🔊 Con voz' : '🔇 En silencio';
+    bv.onclick = () => { _voz.alternar(); pintarVoz();
+      if (!_voz.prendida) { hablando(false); } };
+    pintarVoz();
+
+    const pintarVel = () => el.querySelectorAll('.vel').forEach(x =>
+      x.className = 'kc-mini vel' + (+x.dataset.v === _voz.vel ? ' p' : ''));
+    el.querySelectorAll('.vel').forEach(x =>
+      x.onclick = () => { _voz.velocidad(+x.dataset.v); pintarVel(); });
+    pintarVel();
+
+    pintar();
     window.scrollTo(0, 0);
   }
 

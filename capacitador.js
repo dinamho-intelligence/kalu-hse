@@ -1358,6 +1358,31 @@ async function pasaporte(sel, opt) {
 /* =================================================================
    CURSO — autoestudio
    ================================================================= */
+/* ---------------------------------------------------------------------
+   CÓMO SE DIBUJA UN BLOQUE — una sola vez, para las tres pantallas
+
+   Lo usan el curso que hace el trabajador, la vista del gestor y la
+   vista previa del borrador. Estaba escrito dos veces y la vista previa
+   iba a ser la tercera: tres copias del mismo dibujo se desincronizan
+   solas, y el día que pase, la previa va a mostrar algo distinto de lo
+   que la gente ve. Una previa que miente es peor que no tenerla.
+--------------------------------------------------------------------- */
+function dibujarBloque(b) {
+  if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
+  if (b.tipo === 'aviso')  return `<div class="kc-avi">${esc(b.texto)}</div>` +
+    (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+  if (b.tipo === 'lista')  return '<ul class="kc-ul">' + String(b.texto||'').split('|').map(x => {
+      const m = x.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\s—\s(.*)$/);
+      return `<li>${m ? '<b>'+esc(m[1])+'</b> — '+esc(m[2]) : esc(x)}</li>`;
+    }).join('') + '</ul>' + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+  if (b.tipo === 'imagen') return (b.url
+      ? `<img src="${esc(b.url)}" alt="" style="width:100%;border-radius:8px;margin-bottom:8px">`
+      : `<div class="kc-avi">Falta la imagen de este bloque.</div>`) +
+    (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+  if (b.tipo === 'separador') return '<hr style="border:none;border-top:1px solid var(--kc-rule);margin:20px 0">';
+  return `<p class="kc-p">${esc(b.texto)}</p>` + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
+}
+
 async function curso(sel, catalogoId, opt) {
   estilos(); const el = nodo(sel); if (!el) return;
   cargando(el, 'Abriendo el curso…');
@@ -1404,19 +1429,7 @@ async function curso(sel, catalogoId, opt) {
     s.textContent = guardando ? 'guardando…' : (C.guardado_en ? 'guardado' : '');
   }
 
-  function bloque(b) {
-    if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
-    if (b.tipo === 'aviso')  return `<div class="kc-avi">${esc(b.texto)}</div>` +
-      (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
-    if (b.tipo === 'lista')  return '<ul class="kc-ul">' + b.texto.split('|').map(x => {
-        const m = x.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\s—\s(.*)$/);
-        return `<li>${m ? '<b>'+esc(m[1])+'</b> — '+esc(m[2]) : esc(x)}</li>`;
-      }).join('') + '</ul>' + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
-    if (b.tipo === 'imagen') return `<img src="${esc(b.url)}" alt="${esc(b.nota||'')}"
-      style="width:100%;border-radius:8px;margin-bottom:14px">`;
-    if (b.tipo === 'separador') return '<hr style="border:none;border-top:1px solid var(--kc-rule);margin:20px 0">';
-    return `<p class="kc-p">${esc(b.texto)}</p>` + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
-  }
+  function bloque(b) { return dibujarBloque(b); }
 
   function pintar() {
     el.className = 'kc';
@@ -3648,6 +3661,62 @@ async function generador(sel, opt) {
     }
   }
 
+  /* --------------------------------------------------------- previa
+     Ver la capacitación ANTES de publicarla.
+
+     Hasta hoy el único modo de saber cómo quedaba era publicarla — y
+     publicar no es una prueba, es un acto: desde ese momento la gente
+     que la tenga pendiente la hace y lo que responda cuenta. Nadie
+     debería tener que publicar para ver si quedó bien.
+
+     Dibuja con `dibujarBloque`, la misma función que usa la pantalla
+     del trabajador. No es «parecido a» lo que va a ver: es lo mismo.
+  ------------------------------------------------------------------ */
+  function vPrevia() {
+    parar();
+    const g = D.uno || {};
+    const bl = (R.bloques || []), pr = (R.preguntas || []);
+
+    el.innerHTML = `<div class="kc-wide" style="max-width:720px">
+      <div style="padding:22px 0 12px">
+        <button class="kc-mini" id="kcvolver">← Volver al borrador</button></div>
+
+      <div class="kc-cent"><div class="b">👁</div><div>
+        <div class="kc-tt" style="font-size:15px">Así lo va a ver la gente</div>
+        <div style="font-size:13px;color:var(--kc-ink2)">Nada de esto está publicado.
+          Podés volver y corregir lo que quieras.</div></div></div>
+
+      <h1 style="font-size:24px;font-weight:700;margin:20px 0 4px">${
+        esc(g.codigo ? g.codigo + ' · ' : '')}${esc(g.titulo || '')}</h1>
+      <p class="kc-nota" style="text-align:left;margin:0 0 20px">${bl.length} bloque(s) ·
+        ${pr.length} pregunta(s)${g.horas ? ' · ' + g.horas + ' h' : ''}</p>
+
+      ${bl.length ? bl.map(dibujarBloque).join('')
+                  : '<p class="kc-p">Todavía no hay contenido.</p>'}
+
+      <div class="kc-secc" style="margin-top:26px">La evaluación</div>
+      <p class="kc-nota" style="text-align:left;margin:0 0 12px">Acá la respuesta correcta
+        va marcada para que la revises. La gente no la ve marcada.</p>
+      ${pr.map((q, i) => `
+        <div class="kc-bl">
+          <div class="kc-cd">PREGUNTA ${i+1}</div>
+          <p class="kc-p" style="margin:6px 0 10px"><b>${esc(q.enunciado || '')}</b></p>
+          <ul class="kc-ul">${(q.opciones || []).map(o =>
+            `<li${o.correcta ? ' style="color:var(--kc-ok);font-weight:600"' : ''}>${
+              o.correcta ? '✓ ' : '· '}${esc(o.texto || '')}</li>`).join('')}</ul>
+          ${q.explicacion ? `<p class="kc-pie">Al corregir se muestra: ${
+            esc(q.explicacion)}</p>` : ''}
+        </div>`).join('') || '<p class="kc-p">Todavía no hay preguntas.</p>'}
+
+      <div style="margin:26px 0 40px">
+        <button class="kc-btn" id="kcvolver2">← Volver al borrador</button></div>
+    </div>`;
+
+    el.querySelector('#kcvolver').onclick  = () => vRevisar();
+    el.querySelector('#kcvolver2').onclick = () => vRevisar();
+    window.scrollTo(0, 0);
+  }
+
   /* -------------------------------------------------------- revisión */
   function vRevisar() {
     parar();
@@ -3671,6 +3740,8 @@ async function generador(sel, opt) {
               g.resultado.advertencias.map(esc).join(' · ')}</div></div></div>` : ''}
       <p class="kc-nota" style="text-align:left;margin:0 0 6px">Leelo completo antes de publicar.
         Lo que quede acá es lo que va a leer la gente y lo que se le va a evaluar.</p>
+      <div style="margin:0 0 4px"><button class="kc-mini p" id="kcprev">
+        👁 Ver cómo lo va a ver la gente</button></div>
 
       <div class="kc-secc">Contenido<button class="kc-mini" id="kcaddb"
         style="margin-left:auto;order:3">+ Bloque</button></div>
@@ -3699,6 +3770,7 @@ async function generador(sel, opt) {
       R.preguntas.push({ enunciado:'', opciones:[{texto:'',correcta:true},{texto:'',correcta:false}] });
       pintarP();
     };
+    el.querySelector('#kcprev').onclick = () => vPrevia();
     el.querySelector('#kcguardar').onclick = () => guardar(false);
     el.querySelector('#kcpub').onclick = () => {
       const mal = validar();
@@ -4810,19 +4882,7 @@ async function verCurso(sel, catalogoId, opt) {
 
   // mismo dibujo que usa el trabajador, para que lo que se ve acá sea
   // exactamente lo que va a ver él
-  function bloque(b) {
-    if (b.tipo === 'titulo') return `<h2 class="kc-h2">${esc(b.texto)}</h2>`;
-    if (b.tipo === 'aviso')  return `<div class="kc-avi">${esc(b.texto)}</div>` +
-      (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
-    if (b.tipo === 'lista')  return '<ul class="kc-ul">' + String(b.texto||'').split('|').map(x => {
-        const m = x.match(/^([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\s—\s(.*)$/);
-        return `<li>${m ? '<b>'+esc(m[1])+'</b> — '+esc(m[2]) : esc(x)}</li>`;
-      }).join('') + '</ul>' + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
-    if (b.tipo === 'imagen') return `<img src="${esc(b.url)}" alt="${esc(b.nota||'')}"
-      style="width:100%;border-radius:8px;margin-bottom:14px">`;
-    if (b.tipo === 'separador') return '<hr style="border:none;border-top:1px solid var(--kc-rule);margin:20px 0">';
-    return `<p class="kc-p">${esc(b.texto)}</p>` + (b.nota ? `<p class="kc-pie">${esc(b.nota)}</p>` : '');
-  }
+  function bloque(b) { return dibujarBloque(b); }
 
   const c = V.capacitacion || {}, a = V.alcance || {};
   const avisos = V.avisos || [], cont = V.contenido || [], preg = V.preguntas || [];

@@ -32,7 +32,7 @@
    sin abrir nada, que lo que está arriba es lo que se subió — el error
    más común del módulo es subir el JS y olvidarse del ?v=, y entonces
    el navegador sigue usando la copia vieja sin avisar. */
-const KC_VER = '71';
+const KC_VER = '72';
 
 let sb = null;
 
@@ -557,6 +557,12 @@ const CSS = `
  border-radius:7px;background:var(--kc-card2);color:var(--kc-ink);resize:vertical}
 .kc-op2 input[type=text]{margin:0}
 .kc-bl textarea:last-child,.kc-bl input:last-child{margin-bottom:0}
+.kc-im{margin:0 0 8px;border-radius:8px;overflow:hidden;background:var(--kc-bg2,#0f1116)}
+.kc-im img{display:block;width:100%;max-height:260px;object-fit:contain}
+.kc-im-no{padding:26px 12px;text-align:center;font-size:12.5px;color:var(--kc-ink3);
+  border:1px dashed var(--kc-rule);border-radius:8px}
+.kc-im-ac{display:flex;gap:9px;align-items:center;margin:0 0 8px}
+.kc-im-ac label{margin:0;cursor:pointer}
 .kc-op2{display:flex;gap:8px;align-items:center;margin-bottom:6px}
 .kc-op2 input[type=radio]{width:17px;height:17px;margin:0;flex:0 0 auto;accent-color:var(--kc-ok)}
 .kc-op2 input[type=text]{margin:0;flex:1}
@@ -3431,7 +3437,7 @@ async function generador(sel, opt) {
                   borrador:'Borrador listo para revisar', publicada:'Publicada',
                   error:'Falló', anulada:'Anulada' };
   const TIPOS = [['titulo','Título'],['texto','Párrafo'],['lista','Lista'],
-                 ['aviso','Aviso destacado'],['separador','Separador']];
+                 ['aviso','Aviso destacado'],['imagen','Imagen'],['separador','Separador']];
 
   async function traer(id) {
     D = await rpc('cap_generacion_datos', { p_id: id || null });
@@ -3705,8 +3711,20 @@ async function generador(sel, opt) {
 
     function validar() {
       if (!R.bloques.length) return 'No puede quedar sin contenido.';
-      if (R.bloques.some(b => !String(b.texto || '').trim() && b.tipo !== 'separador'))
-        return 'Hay un bloque vacío.';
+      for (let i = 0; i < R.bloques.length; i++) {
+        const b = R.bloques[i];
+        if (b.tipo === 'separador') continue;
+        // Un bloque de imagen sin imagen no es un bloque vacío: es un
+        // marco mudo en el medio de la charla, con Kalu hablando de algo
+        // que no está. Se dice cuál es, no «hay un bloque vacío».
+        if (b.tipo === 'imagen') {
+          if (!String(b.url || '').trim())
+            return 'El bloque ' + (i+1) + ' es una imagen y no tiene imagen cargada.';
+          continue;
+        }
+        if (!String(b.texto || '').trim())
+          return 'El bloque ' + (i+1) + ' está vacío.';
+      }
       if (!R.preguntas.length) return 'No puede quedar sin preguntas.';
       for (let i = 0; i < R.preguntas.length; i++) {
         const q = R.preguntas[i];
@@ -3734,6 +3752,75 @@ async function generador(sel, opt) {
       } catch (e) { b1.disabled = b2.disabled = false; alert(e.message); }
     }
 
+    /* ---------------------------------------------------------------
+       Subir una imagen de la capacitación
+
+       Va al depósito `material`, NO a `documentos`. Son dos cosas
+       distintas y hasta ahora estaban juntas:
+
+         · `documentos` es privado y se abre con enlace firmado. Ahí
+           viven las listas firmadas, los certificados, los soportes.
+           Llevan datos de personas.
+         · `material` es de lectura abierta. Ahí van las fotos y los
+           diagramas de una charla, porque **tiene que poder verlos
+           quien está en la sala, que no está logueado**. Una diapositiva
+           que sólo ve el que tiene cuenta no es una diapositiva.
+
+       La primera carpeta de la ruta es el `empresa_id`: es lo que la
+       política del depósito comprueba para que una empresa no pueda
+       escribir en la carpeta de otra.
+    --------------------------------------------------------------- */
+    async function subirImagen(file) {
+      if (!/^image\//.test(file.type || ''))
+        throw new Error('Eso no es una imagen.');
+
+      const f = await achicar(file);
+      const ext = f.type === 'image/jpeg' ? 'jpg'
+                : (file.name.split('.').pop() || 'png').toLowerCase()
+                    .replace(/[^a-z0-9]/g, '').slice(0, 5) || 'png';
+      const ruta = (D.empresa_id || 'empresa') + '/capacitador/material/' +
+        iso().replace(/-/g, '') + '-' + Math.random().toString(16).slice(2, 10) + '.' + ext;
+
+      const st = sb && sb.storage;
+      if (!st) throw new Error('No se puede subir desde acá.');
+      const { error: e } = await st.from('material')
+        .upload(ruta, f, { upsert: false, contentType: f.type || undefined });
+      if (e) throw new Error('No se pudo subir: ' + e.message);
+
+      const { data } = st.from('material').getPublicUrl(ruta);
+      if (!data || !data.publicUrl)
+        throw new Error('Se subió, pero no se pudo armar la dirección. Avisá.');
+      return data.publicUrl;
+    }
+
+    /* Una foto de celular pesa diez megas y la va a abrir alguien con
+       media barra de señal en un pozo. Se achica acá, antes de subirla,
+       para que nadie tenga que acordarse de hacerlo. Lo chico se sube
+       tal cual: un diagrama con texto se arruina si se recomprime. */
+    function achicar(file) {
+      return new Promise(resolve => {
+        if (file.size <= 1.5 * 1024 * 1024) return resolve(file);
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          try {
+            const max = 1600;
+            const k = Math.min(1, max / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            c.toBlob(b => {
+              URL.revokeObjectURL(url);
+              // Si achicar no ayudó, se sube el original: nunca empeorarlo.
+              resolve(b && b.size < file.size ? b : file);
+            }, 'image/jpeg', 0.9);
+          } catch (e) { URL.revokeObjectURL(url); resolve(file); }
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+      });
+    }
+
     function pintarB() {
       el.querySelector('#kcbl').innerHTML = R.bloques.map((b, i) => `
         <div class="kc-bl" data-i="${i}">
@@ -3746,6 +3833,20 @@ async function generador(sel, opt) {
               <button class="kc-mini bx">✕</button></div>
           </div>
           ${b.tipo === 'separador' ? ''
+            : b.tipo === 'imagen'
+            ? `<div class="kc-im">
+                 ${b.url
+                   ? `<img src="${esc(b.url)}" alt="">`
+                   : `<div class="kc-im-no">Todavía no hay imagen</div>`}
+               </div>
+               <div class="kc-im-ac">
+                 <label class="kc-mini p">${b.url ? 'Cambiar imagen' : '↑ Subir imagen'}
+                   <input type="file" class="bimg" accept="image/*" hidden></label>
+                 <span class="kc-cd bimgest">${b.url ? 'Cargada' : 'Falta la imagen'}</span>
+               </div>
+               <input type="text" class="bx2"
+                 placeholder="Lo que Kalu dice mientras se ve — no la dirección del archivo"
+                 value="${esc(b.nota || '')}">`
             : `<textarea class="bx1" rows="${b.tipo==='titulo'?1:3}"
                  placeholder="${b.tipo==='lista'
                    ? 'CASCO — protege de golpes|GAFAS — protege de proyección'
@@ -3758,6 +3859,24 @@ async function generador(sel, opt) {
         d.querySelector('.bt').onchange = e => { R.bloques[i].tipo = e.target.value; pintarB(); };
         const t1 = d.querySelector('.bx1'); if (t1) t1.oninput = e => R.bloques[i].texto = e.target.value;
         const t2 = d.querySelector('.bx2'); if (t2) t2.oninput = e => R.bloques[i].nota = e.target.value;
+
+        const fi = d.querySelector('.bimg');
+        if (fi) fi.onchange = async e => {
+          const f = e.target.files && e.target.files[0];
+          if (!f) return;
+          const est = d.querySelector('.bimgest');
+          est.textContent = 'Subiendo…';
+          try {
+            R.bloques[i].url = await subirImagen(f);
+            pintarB();
+          } catch (err) {
+            // Un error se muestra, no se esconde: si la subida falla y la
+            // pantalla no dice nada, se publica una capacitación con un
+            // bloque de imagen vacío y nadie se entera hasta la sala.
+            est.textContent = err.message;
+            est.style.color = 'var(--kc-cr)';
+          }
+        };
         d.querySelector('.bu').onclick = () => { if (i > 0) {
           [R.bloques[i-1], R.bloques[i]] = [R.bloques[i], R.bloques[i-1]]; pintarB(); } };
         d.querySelector('.bd').onclick = () => { if (i < R.bloques.length-1) {

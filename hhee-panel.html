@@ -541,12 +541,20 @@ function verDia(diso){
     +'<button class="btn sec mini" onclick="cerrarDia()">✕</button></div>';
   // Cuadrilla
   h+='<h2 style="margin:14px 0 6px">Cuadrilla del día</h2>';
-  h+= cu.length? cu.map(function(c){var p=PMAP[c.persona_id]||{};
+  if(!cu.length){ h+='<p class="who">Nadie asignado a cuadrilla este día.</p>'; }
+  else {
+    var tmapD={}; TURNOS.forEach(function(t){tmapD[t.id]=t;});
+    var filaC=function(c){ var p=PMAP[c.persona_id]||{};
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
         +'<span class="dchip" style="background:'+colorPersona(c.persona_id)+'"></span>'
-        +'<span style="flex:1"><b>'+esc(p.nombre||"—")+'</b> · '+esc(turnoNom(c.turno_id))+' <span class="who">('+fmtFecha(c.fecha_desde)+'→'+fmtFecha(c.fecha_hasta)+')</span></span>'
-        +'<button class="btn no mini" onclick="borrarCuadrilla(\''+c.id+'\')">Borrar</button></div>';
-    }).join(""):'<p class="who">Nadie asignado a cuadrilla este día.</p>';
+        +'<span style="flex:1"><b>'+esc(p.nombre||"—")+'</b> <span class="who">('+fmtFecha(c.fecha_desde)+'→'+fmtFecha(c.fecha_hasta)+')</span></span>'
+        +'<button class="btn no mini" onclick="borrarCuadrilla(\''+c.id+'\')">Borrar</button></div>'; };
+    var grupo=function(tipo,titulo){ var rs=cu.filter(function(c){ var t=tmapD[c.turno_id]; return t&&t.tipo===tipo; });
+      return '<div style="margin-bottom:6px"><div class="who" style="font-weight:700;margin:4px 0">'+titulo+' ('+rs.length+')</div>'+(rs.length?rs.map(filaC).join(""):'<p class="who" style="margin:2px 0">—</p>')+'</div>'; };
+    h+=grupo("dia","🌅 Turno mañana")+grupo("noche","🌙 Turno noche");
+    var otros=cu.filter(function(c){ var t=tmapD[c.turno_id]; return !t; });
+    if(otros.length) h+='<div class="who" style="font-weight:700;margin:4px 0">Sin turno</div>'+otros.map(filaC).join("");
+  }
   // Autorizaciones
   h+='<h2 style="margin:16px 0 6px">Autorizaciones</h2>';
   h+= au.length? '<table><tr><th>Persona</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+au.map(function(a){

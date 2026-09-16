@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horas Extra · Panel — KALU</title>
+<style>
+  :root{
+    --bg:#0E1014; --bg2:#171A21; --bg3:#1D212A; --line:#252A34;
+    --tx:#E8EAEE; --tx2:#95A0AD; --tx3:#5E6873;
+    --orange:#F28C00; --orange2:#FF9F1C; --cy:#00D4FF;
+    --ok:#3DBE8B; --amber:#E4A14B; --mal:#D9534F; --glow:rgba(242,140,0,.28);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{max-width:1040px;margin:0 auto;padding:16px 16px 48px}
+  a{color:var(--cy)}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .brand{font-size:12px;letter-spacing:.16em;color:var(--tx2);text-transform:uppercase}
+  .brand b{color:var(--orange);letter-spacing:.2em}
+  .who{font-size:13px;color:var(--tx2)}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .tab{background:none;border:none;color:var(--tx2);font-family:inherit;font-size:14px;font-weight:600;padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent}
+  .tab.on{color:var(--orange);border-bottom-color:var(--orange)}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  h1{font-size:19px;margin:0 0 2px}
+  h2{font-size:14px;color:var(--tx2);font-weight:500;margin:0 0 14px}
+  label{display:block;font-size:12px;color:var(--tx2);margin:12px 0 5px;font-weight:600}
+  input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:11px 12px;color:var(--tx);font-size:15px;font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--glow)}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:720px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .btn{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn.sec{background:var(--bg3);color:var(--tx);border:1px solid var(--line)}
+  .btn.mini{padding:6px 11px;font-size:12.5px;border-radius:8px}
+  .btn.ok{background:rgba(61,190,139,.16);color:var(--ok);border:1px solid var(--ok)}
+  .btn.no{background:rgba(217,83,79,.14);color:var(--mal);border:1px solid var(--mal)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--tx3);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:8px 8px;border-bottom:1px solid var(--line)}
+  td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  .chip{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap;display:inline-block}
+  .chip.reportado{background:rgba(0,212,255,.12);color:var(--cy)}
+  .chip.autorizado{background:rgba(61,190,139,.14);color:var(--ok)}
+  .chip.no_autorizado{background:rgba(228,161,75,.15);color:var(--amber)}
+  .chip.rechazado{background:rgba(217,83,79,.14);color:var(--mal)}
+  .chip.cerrado{background:rgba(149,160,173,.15);color:var(--tx2)}
+  .flag{color:var(--amber);font-size:11.5px}
+  .msg{font-size:13px;margin-top:10px;min-height:1px}
+  .msg.err{color:#ff8a82}.msg.ok{color:#4fd98b}
+  .load{color:var(--tx2);padding:16px;text-align:center}
+  .bar{height:22px;border-radius:6px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:#0c0c0c;font-weight:700;overflow:hidden;white-space:nowrap}
+  .volver{display:block;text-align:center;color:var(--tx2);font-size:13px;margin-top:16px;text-decoration:none}
+  .hide{display:none}
+  .tot{font-weight:800;color:var(--orange2)}
+  .pill{display:inline-block;background:var(--bg3);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--tx2);margin-left:6px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">KALU · <b>HORAS EXTRA</b> · Panel</div>
+  <div class="who" id="who">—</div>
+</div>
+
+<div id="vCarga" class="card"><div class="load">Abriendo…</div></div>
+<div id="vBloqueo" class="card hide"><h1 id="bTit">—</h1><p id="bTxt" class="who">—</p><a class="volver" href="index.html">← Volver al inicio</a></div>
+
+<div id="app" class="hide">
+  <div class="tabs">
+    <button class="tab on" data-t="conc" onclick="tab('conc')">🗂️ Conciliación</button>
+    <button class="tab" data-t="aut" onclick="tab('aut')">✅ Autorizaciones</button>
+    <button class="tab" data-t="alm" onclick="tab('alm')">🗓️ Almanaque</button>
+    <button class="tab" data-t="cie" onclick="tab('cie')">📄 Cierre</button>
+  </div>
+
+  <!-- ===== Conciliación ===== -->
+  <section id="tab_conc">
+    <div class="card">
+      <h1>Conciliación</h1>
+      <h2>Revisá los reportes y aprobá o rechazá. Lo marcado ⚠ llegó sin autorización cargada.</h2>
+      <div class="grid g4">
+        <div><label>Desde</label><input type="date" id="cDesde"></div>
+        <div><label>Hasta</label><input type="date" id="cHasta"></div>
+        <div><label>Estado</label><select id="cEstado">
+          <option value="reportado">Pendientes (enviados)</option>
+          <option value="">Todos</option>
+          <option value="autorizado">Autorizados</option>
+          <option value="no_autorizado">Sin autorizar</option>
+          <option value="rechazado">Rechazados</option>
+          <option value="cerrado">Cerrados</option>
+        </select></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="cargarConc()">Buscar</button></div>
+      </div>
+      <div id="concMsg" class="msg"></div>
+    </div>
+    <div class="card"><div id="concList"><div class="load">—</div></div></div>
+  </section>
+
+  <!-- ===== Autorizaciones ===== -->
+  <section id="tab_aut" class="hide">
+    <div class="card">
+      <h1>Autorizar horas extra</h1>
+      <h2>Cargá las autorizaciones (del correo del cliente o internas). Con esto los reportes dejan de salir ⚠.</h2>
+      <div class="grid g3">
+        <div><label>Fecha</label><input type="date" id="aFecha"></div>
+        <div><label>Persona (opcional)</label><select id="aPersona"><option value="">— Toda la cuadrilla —</option></select></div>
+        <div><label>Horas autorizadas (opcional)</label><input type="number" step="0.5" id="aHoras" placeholder="Ej. 3"></div>
+      </div>
+      <div class="grid g3">
+        <div><label>Tipo</label><select id="aTipo"><option value="cliente">Cliente</option><option value="interno">Interno</option></select></div>
+        <div><label>Cliente / nota</label><input id="aCliente" placeholder="Ej. Baker Hughes"></div>
+        <div><label>Foto del correo (opcional)</label><input type="file" id="aFoto" accept="image/*"></div>
+      </div>
+      <button class="btn" id="aBtn" onclick="guardarAut()" style="margin-top:16px">Guardar autorización</button>
+      <div id="autMsg" class="msg"></div>
+    </div>
+    <div class="card"><h2 style="margin-bottom:10px">Autorizaciones recientes</h2><div id="autList"><div class="load">—</div></div></div>
+  </section>
+
+  <!-- ===== Almanaque ===== -->
+  <section id="tab_alm" class="hide">
+    <div class="card">
+      <h1>Almanaque de cuadrilla</h1>
+      <h2>Asigná el turno de cada persona por rango de días. El color es para ubicarte rápido.</h2>
+      <div class="grid g3">
+        <div><label>Persona</label><select id="mPersona"></select></div>
+        <div><label>Turno</label><select id="mTurno"></select></div>
+        <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px"></div>
+      </div>
+      <div class="grid g3">
+        <div><label>Desde</label><input type="date" id="mDesde"></div>
+        <div><label>Hasta</label><input type="date" id="mHasta"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" id="mBtn" onclick="guardarCuadrilla()">Asignar</button></div>
+      </div>
+      <div id="almMsg" class="msg"></div>
+    </div>
+    <div class="card"><h2 style="margin-bottom:10px">Asignaciones (próximas y recientes)</h2><div id="almList"><div class="load">—</div></div></div>
+  </section>
+
+  <!-- ===== Cierre ===== -->
+  <section id="tab_cie" class="hide">
+    <div class="card">
+      <h1>Cierre de período</h1>
+      <h2>Calculá los totales por persona y generá el FHA-95. El corte por defecto es del 21 al 20.</h2>
+      <div class="grid g4">
+        <div><label>Desde</label><input type="date" id="kDesde"></div>
+        <div><label>Hasta</label><input type="date" id="kHasta"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="calcularCierre()">Calcular</button></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn sec" id="kCerrar" onclick="cerrarPeriodo()">Cerrar período</button></div>
+      </div>
+      <div id="cieMsg" class="msg"></div>
+    </div>
+    <div class="card"><div id="cieList"><div class="load">Elegí el rango y tocá Calcular.</div></div></div>
+  </section>
+
+  <a class="volver" href="index.html">← Volver al inicio</a>
+</div>
+
+<script src="he_motor.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+var SB_URL="https://nignqeipzlemwfrwmpip.supabase.co";
+var SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
+var SB_REF="nignqeipzlemwfrwmpip", SESS_KEY="sb-"+SB_REF+"-auth-token";
+var SB_TOKEN=null, MY_UID=null, EMP=null, NOMBRE="", ES_SUPER=false;
+var PERSONAS=[], PMAP={}, TURNOS=[], EMP_NOMBRE="", BRANDING={};
+var $=function(id){return document.getElementById(id);};
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+function setMsg(id,t,c){ var m=$(id); if(m){ m.textContent=t||""; m.className="msg "+(c||""); } }
+function fmtFecha(iso){ if(!iso)return"—"; var p=String(iso).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0].slice(2); }
+
+/* ---- sesión / token ---- */
+function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
+function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
+async function sbFetch(path, opts){
+  opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
+  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
+  var res=await fetch(SB_URL+path, opts);
+  var txt=await res.text(); var data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
+  if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
+  return data;
+}
+async function asegurarToken(){
+  var s=readSession(); if(!s||!s.access_token) return false;
+  var now=Math.floor(Date.now()/1000);
+  if(s.expires_at && s.expires_at<now+60){
+    try{ var d=await sbFetch("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:JSON.stringify({refresh_token:s.refresh_token})});
+      if(!d||!d.access_token) return false; saveSession(d); SB_TOKEN=d.access_token; return true; }catch(_){ return false; }
+  }
+  SB_TOKEN=s.access_token; return true;
+}
+
+/* ---- boot ---- */
+(async function(){
+  if(!(await asegurarToken())){ return bloqueo("Entrá primero","Esta consola usa tu cuenta de KALU.<br><a href='ingreso.html'>Ir a ingresar →</a>"); }
+  try{
+    var u=await sbFetch("/auth/v1/user",{}); MY_UID=u.id;
+    var perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado,acceso_consola");
+    if(!perf||!perf.length){ return bloqueo("Sin perfil","Tu usuario no tiene perfil. Contactá a tu administrador."); }
+    var p=perf[0];
+    if(p.estado && p.estado!=="activo"){ return bloqueo("Cuenta "+p.estado,"Contactá a tu administrador."); }
+    var gestor = p.es_super || ["hse","supervisor","admin"].indexOf(p.rol)>=0 || p.acceso_consola;
+    if(!gestor){ return bloqueo("Sin acceso","Este panel es para gestores. Si tenés que gestionar horas extra, pedí acceso a tu administrador."); }
+    EMP=p.empresa_id; NOMBRE=p.nombre||""; ES_SUPER=!!p.es_super;
+    $("who").textContent=NOMBRE+" · gestor";
+    try{ var e=await sbFetch("/rest/v1/empresas?id=eq."+EMP+"&select=razon_social,branding"); if(e&&e[0]){ EMP_NOMBRE=e[0].razon_social||""; BRANDING=e[0].branding||{}; } }catch(_){}
+    PERSONAS=await sbFetch("/rest/v1/personas?empresa_id=eq."+EMP+"&vigente=eq.true&order=nombre&select=id,nombre,cedula,cargo");
+    PERSONAS.forEach(function(x){ PMAP[x.id]=x; });
+    try{ TURNOS=await sbFetch("/rest/v1/he_turnos?empresa_id=eq."+EMP+"&activo=eq.true&select=id,nombre,tipo"); }catch(_){ TURNOS=[]; }
+    poblarSelects(); defaultsFechas();
+    $("vCarga").classList.add("hide"); $("app").classList.remove("hide");
+    cargarConc();
+  }catch(e){ bloqueo("No se pudo abrir",(e&&e.message)||"Probá de nuevo."); }
+})();
+function bloqueo(t,html){ $("vCarga").classList.add("hide"); $("bTit").textContent=t; $("bTxt").innerHTML=html; $("vBloqueo").classList.remove("hide"); }
+
+function optPersonas(sel, incTodos){
+  var o=(incTodos?'<option value="">— Toda la cuadrilla —</option>':'');
+  o+=PERSONAS.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+(p.cargo?(' · '+esc(p.cargo)):'')+'</option>';}).join("");
+  sel.innerHTML=o;
+}
+function poblarSelects(){
+  optPersonas($("aPersona"),true); optPersonas($("mPersona"),false);
+  $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
+}
+function defaultsFechas(){
+  var hoy=new Date(); var y=hoy.getFullYear(), m=hoy.getMonth();
+  // período por defecto: 21 del mes anterior → 20 de este mes
+  var desde=new Date(y,m-1,21), hasta=new Date(y,m,20);
+  var iso=function(d){return d.toISOString().slice(0,10);};
+  ["cDesde","kDesde"].forEach(function(id){$(id).value=iso(desde);});
+  ["cHasta","kHasta"].forEach(function(id){$(id).value=iso(hasta);});
+  $("aFecha").value=iso(hoy); $("mDesde").value=iso(hoy); $("mHasta").value=iso(hoy);
+}
+function tab(t){
+  ["conc","aut","alm","cie"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
+    document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
+  if(t==="aut") cargarAut(); if(t==="alm") cargarAlm();
+}
+
+/* ============ CONCILIACIÓN ============ */
+async function cargarConc(){
+  var box=$("concList"); box.innerHTML='<div class="load">Cargando…</div>'; setMsg("concMsg","");
+  if(!(await asegurarToken())) return bloqueo("Sesión vencida","Entrá de nuevo.<br><a href='ingreso.html'>Ir a ingresar →</a>");
+  var d=$("cDesde").value, h=$("cHasta").value, est=$("cEstado").value;
+  var q="/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&order=fecha.desc,creado_at.desc&select=id,persona_id,fecha,hora_inicio,hora_fin,lugar,justificacion,categorias,estado,fuera_de_plan,es_jornada_ordinaria,motivo";
+  if(est) q+="&estado=eq."+est;
+  try{
+    var rows=await sbFetch(q);
+    if(!rows.length){ box.innerHTML='<p class="who">No hay reportes con ese filtro.</p>'; return; }
+    var html='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th><th></th></tr>';
+    rows.forEach(function(r){
+      var per=PMAP[r.persona_id]||{}; var tot=heTotalHoras(r.categorias||{});
+      var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
+      var hor=(r.es_jornada_ordinaria?"🌙 cuadrilla":((r.hora_inicio||"?")+"–"+(r.hora_fin||"?")));
+      html+='<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per.nombre||"—")+'<br><span class="who">'+esc(per.cargo||"")+'</span></td>'
+        +'<td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+' h)</span>'
+        +(r.fuera_de_plan?'<br><span class="flag">⚠ sin autorización</span>':'')
+        +(r.justificacion?'<br><span class="who">'+esc(r.justificacion)+'</span>':'')
+        +(r.motivo?'<br><span class="flag">rechazo: '+esc(r.motivo)+'</span>':'')+'</td>'
+        +'<td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td>'
+        +'<td style="white-space:nowrap">'+(["reportado","no_autorizado"].indexOf(r.estado)>=0
+            ?('<button class="btn mini ok" onclick="aprobar(\''+r.id+'\')">Aprobar</button> <button class="btn mini no" onclick="rechazar(\''+r.id+'\')">Rechazar</button>')
+            :'')+'</td></tr>';
+    });
+    box.innerHTML=html+'</table>';
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+function etiq(e){ return {reportado:"Enviado",autorizado:"Autorizado",no_autorizado:"Sin autorizar",rechazado:"Rechazado",cerrado:"Cerrado"}[e]||e; }
+async function aprobar(id){
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); cargarConc(); }
+  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
+}
+async function rechazar(id){
+  var mot=prompt("Motivo del rechazo (obligatorio):"); if(mot==null) return;
+  mot=mot.trim(); if(!mot){ setMsg("concMsg","El rechazo necesita un motivo.","err"); return; }
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"rechazado",aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:mot})}); cargarConc(); }
+  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al rechazar","err"); }
+}
+
+/* ============ AUTORIZACIONES ============ */
+async function subirFoto(file){
+  var ext=(file.name.split(".").pop()||"jpg").toLowerCase();
+  var path=EMP+"/hhee/"+Date.now()+"_"+Math.random().toString(16).slice(2)+"."+ext;
+  var res=await fetch(SB_URL+"/storage/v1/object/evidencias/"+path,{method:"POST",headers:{apikey:SB_ANON,Authorization:"Bearer "+SB_TOKEN,"Content-Type":file.type||"application/octet-stream","x-upsert":"true"},body:file});
+  if(!res.ok) throw new Error("No se pudo subir la foto ("+res.status+")");
+  return SB_URL+"/storage/v1/object/public/evidencias/"+path;
+}
+async function guardarAut(){
+  var f=$("aFecha").value; if(!f){ setMsg("autMsg","Poné la fecha.","err"); return; }
+  var b=$("aBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("autMsg","");
+  try{
+    if(!(await asegurarToken())) return;
+    var foto=null, file=$("aFoto").files[0];
+    if(file){ foto=await subirFoto(file); }
+    var reg={ empresa_id:EMP, fecha:f, persona_id:$("aPersona").value||null,
+      horas:$("aHoras").value?parseFloat($("aHoras").value):null,
+      es_interno:$("aTipo").value==="interno", nota:$("aCliente").value.trim()||null,
+      foto_correo_url:foto, creado_por:MY_UID };
+    await sbFetch("/rest/v1/he_autorizacion",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+    setMsg("autMsg","✓ Autorización guardada.","ok"); $("aHoras").value=""; $("aCliente").value=""; $("aFoto").value="";
+    cargarAut();
+  }catch(e){ setMsg("autMsg",(e&&e.message)||"No se pudo guardar.","err"); }
+  finally{ b.disabled=false; b.textContent="Guardar autorización"; }
+}
+async function cargarAut(){
+  var box=$("autList"); box.innerHTML='<div class="load">Cargando…</div>';
+  if(!(await asegurarToken())) return;
+  try{
+    var rows=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&order=fecha.desc,creado_at.desc&limit=30&select=fecha,persona_id,horas,es_interno,nota,foto_correo_url");
+    if(!rows.length){ box.innerHTML='<p class="who">Todavía no hay autorizaciones.</p>'; return; }
+    box.innerHTML='<table><tr><th>Fecha</th><th>Persona</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+rows.map(function(r){
+      var per=r.persona_id?(PMAP[r.persona_id]||{}).nombre:"Toda la cuadrilla";
+      return '<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per||"—")+'</td><td>'+(r.horas!=null?r.horas:"—")+'</td>'
+        +'<td>'+(r.es_interno?'Interno':'Cliente')+'</td><td>'+esc(r.nota||"—")+'</td>'
+        +'<td>'+(r.foto_correo_url?'<a href="'+esc(r.foto_correo_url)+'" target="_blank">ver</a>':'—')+'</td></tr>';
+    }).join("")+'</table>';
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+
+/* ============ ALMANAQUE ============ */
+async function guardarCuadrilla(){
+  var pid=$("mPersona").value, tid=$("mTurno").value, d1=$("mDesde").value, d2=$("mHasta").value;
+  if(!pid||!d1||!d2){ setMsg("almMsg","Completá persona y fechas.","err"); return; }
+  if(d1>d2){ setMsg("almMsg","El 'desde' no puede ser mayor al 'hasta'.","err"); return; }
+  var b=$("mBtn"); b.disabled=true; b.textContent="Asignando…"; setMsg("almMsg","");
+  try{
+    if(!(await asegurarToken())) return;
+    var reg={ empresa_id:EMP, persona_id:pid, turno_id:tid||null, fecha_desde:d1, fecha_hasta:d2, color:$("mColor").value, creado_por:MY_UID };
+    await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+    setMsg("almMsg","✓ Asignación guardada.","ok"); cargarAlm();
+  }catch(e){ setMsg("almMsg",(e&&e.message)||"No se pudo guardar.","err"); }
+  finally{ b.disabled=false; b.textContent="Asignar"; }
+}
+async function cargarAlm(){
+  var box=$("almList"); box.innerHTML='<div class="load">Cargando…</div>';
+  if(!(await asegurarToken())) return;
+  try{
+    var hace=new Date(); hace.setDate(hace.getDate()-30); var desde=hace.toISOString().slice(0,10);
+    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+desde+"&order=fecha_desde.desc&select=persona_id,turno_id,fecha_desde,fecha_hasta,color");
+    if(!rows.length){ box.innerHTML='<p class="who">Sin asignaciones en los últimos 30 días.</p>'; return; }
+    var tmap={}; TURNOS.forEach(function(t){tmap[t.id]=t.nombre;});
+    box.innerHTML=rows.map(function(r){
+      var per=(PMAP[r.persona_id]||{}).nombre||"—";
+      return '<div style="margin-bottom:8px"><div class="bar" style="background:'+esc(r.color||"#F28C00")+'">'+esc(per)+' · '+esc(tmap[r.turno_id]||"turno")+'</div>'
+        +'<div class="who" style="margin-top:2px">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</div></div>';
+    }).join("");
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+
+/* ============ CIERRE ============ */
+var CIERRE_DATA=null;
+async function calcularCierre(){
+  var box=$("cieList"); box.innerHTML='<div class="load">Calculando…</div>'; setMsg("cieMsg","");
+  if(!(await asegurarToken())) return;
+  var d=$("kDesde").value, h=$("kHasta").value;
+  try{
+    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=id,persona_id,fecha,hora_inicio,hora_fin,lugar,justificacion,categorias,estado,es_jornada_ordinaria");
+    var pend=rows.filter(function(r){return r.estado==="reportado"||r.estado==="no_autorizado";}).length;
+    var buenos=rows.filter(function(r){return r.estado==="autorizado"||r.estado==="cerrado";});
+    var byP={};
+    buenos.forEach(function(r){ (byP[r.persona_id]=byP[r.persona_id]||[]).push(r); });
+    var ids=Object.keys(byP);
+    if(!ids.length){ box.innerHTML='<p class="who">No hay reportes autorizados en el rango. '+(pend?('Hay '+pend+' pendientes de conciliar.'):'')+'</p>'; CIERRE_DATA=null; return; }
+    CIERRE_DATA={desde:d,hasta:h,byP:byP};
+    var html=(pend?('<p class="flag">⚠ Hay '+pend+' reporte(s) sin conciliar en el rango — no entran al cierre hasta aprobarlos.</p>'):'');
+    html+='<table><tr><th>Persona</th><th>HED</th><th>HEN</th><th>DOMD</th><th>DOMN</th><th>HEFD</th><th>HEFN</th><th>RNOCT</th><th>Total</th><th></th></tr>';
+    ids.forEach(function(pid){
+      var tot=heSumar(byP[pid].map(function(r){return r.categorias||{};}));
+      var per=PMAP[pid]||{};
+      html+='<tr><td>'+esc(per.nombre||"—")+'</td>'+["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"].map(function(k){return '<td>'+(tot[k]||0)+'</td>';}).join("")
+        +'<td class="tot">'+heTotalHoras(tot)+'</td><td><button class="btn mini" onclick="pdfFHA(\''+pid+'\')">FHA-95</button></td></tr>';
+    });
+    box.innerHTML=html+'</table>';
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo calcular ('+esc(e.message)+').</p>'; }
+}
+function pdfFHA(pid){
+  if(!CIERRE_DATA||!CIERRE_DATA.byP[pid]) return;
+  var per=PMAP[pid]||{}, rows=CIERRE_DATA.byP[pid];
+  var jsPDF=window.jspdf.jsPDF; var doc=new jsPDF({unit:"pt",format:"a4"});
+  var W=doc.internal.pageSize.getWidth();
+  doc.setFontSize(15); doc.setTextColor(180,30,30);
+  doc.text("Formato individual de horas extras y auxilios extralegales", W/2, 46, {align:"center"});
+  doc.setFontSize(9); doc.setTextColor(120);
+  doc.text("A.FR009 · Versión 002 · "+(EMP_NOMBRE||""), W/2, 62, {align:"center"});
+  doc.setTextColor(20); doc.setFontSize(10);
+  doc.text("Nombre: "+(per.nombre||""), 40, 92);
+  doc.text("Identificación: "+(per.cedula||""), 40, 108);
+  doc.text("Cargo: "+(per.cargo||""), 40, 124);
+  doc.text("Período: "+fmtFecha(CIERRE_DATA.desde)+"  a  "+fmtFecha(CIERRE_DATA.hasta), 40, 140);
+  var body=rows.slice().sort(function(a,b){return a.fecha<b.fecha?-1:1;}).map(function(r){
+    var c=r.categorias||{};
+    return [ fmtFecha(r.fecha), r.lugar||"", (r.es_jornada_ordinaria?"cuadrilla":((r.hora_inicio||"")+"–"+(r.hora_fin||""))),
+      c.HED||"", c.HEN||"", c.DOMD||"", c.DOMN||"", c.RNOCT||"", r.justificacion||"" ];
+  });
+  var tot=heSumar(rows.map(function(r){return r.categorias||{};}));
+  body.push([{content:"TOTAL",styles:{fontStyle:"bold"}},"","",tot.HED||0,tot.HEN||0,tot.DOMD||0,tot.DOMN||0,tot.RNOCT||0,""]);
+  doc.autoTable({ startY:154, head:[["Fecha","Lugar","Horario","HED","HEN","DOMD","DOMN","RNOCT","Justificación"]], body:body,
+    styles:{fontSize:8,cellPadding:3}, headStyles:{fillColor:[40,40,40]}, columnStyles:{8:{cellWidth:120}} });
+  var y=doc.lastAutoTable.finalY+18; doc.setFontSize(7.5); doc.setTextColor(120);
+  doc.text("HED: extra diurna (06–19h) · HEN: extra nocturna (19–06h) · DOMD/DOMN: recargo dominical/festivo diurno/nocturno · RNOCT: recargo nocturno.", 40, y, {maxWidth:W-80});
+  doc.save("FHA-95_"+(per.nombre||"persona").replace(/\s+/g,"_")+".pdf");
+}
+async function cerrarPeriodo(){
+  if(!CIERRE_DATA){ setMsg("cieMsg","Primero calculá el período.","err"); return; }
+  if(!confirm("¿Cerrar el período "+fmtFecha(CIERRE_DATA.desde)+" a "+fmtFecha(CIERRE_DATA.hasta)+"? Los reportes autorizados quedan como 'cerrado'.")) return;
+  if(!(await asegurarToken())) return;
+  setMsg("cieMsg","Cerrando…","");
+  try{
+    var ids=Object.keys(CIERRE_DATA.byP), cierres=[];
+    for(var i=0;i<ids.length;i++){ var pid=ids[i]; var rows=CIERRE_DATA.byP[pid];
+      var tot=heSumar(rows.map(function(r){return r.categorias||{};}));
+      cierres.push({empresa_id:EMP,persona_id:pid,periodo_desde:CIERRE_DATA.desde,periodo_hasta:CIERRE_DATA.hasta,totales:tot,aprobado_por:MY_UID,aprobado_at:new Date().toISOString()});
+      var rids=rows.filter(function(r){return r.estado==="autorizado";}).map(function(r){return r.id;});
+      if(rids.length){ await sbFetch("/rest/v1/he_reporte?id=in.("+rids.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"cerrado"})}); }
+    }
+    await sbFetch("/rest/v1/he_cierre",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(cierres)});
+    setMsg("cieMsg","✓ Período cerrado ("+ids.length+" persona(s)).","ok"); calcularCierre();
+  }catch(e){ setMsg("cieMsg",(e&&e.message)||"No se pudo cerrar.","err"); }
+}
+</script>
+</body>
+</html>

@@ -74,11 +74,15 @@
 <!-- ============ cargando ============ -->
 <div class="card" id="vCarga"><div class="load">Abriendo…</div></div>
 
-<!-- ============ hay que entrar ============ -->
+<!-- ============ ingreso por cédula ============ -->
 <div class="card hide" id="vLogin">
-  <h1>Entrá para reportar</h1>
-  <p class="chico">Esta pantalla usa tu cuenta de KALU. Ingresá con tu usuario y volvé.</p>
-  <button class="btn" onclick="location.href='ingreso.html'">Ir a ingresar →</button>
+  <h1>Ingresá tu cédula</h1>
+  <p class="chico">Escribí tu número de cédula para reportar tus horas. No necesitás usuario ni contraseña.</p>
+  <label>Cédula</label>
+  <input type="tel" inputmode="numeric" id="lCed" placeholder="Ej. 1030526516" autocomplete="off"
+         onkeydown="if(event.key==='Enter')identificar()">
+  <button class="btn" id="lBtn" onclick="identificar()">Entrar →</button>
+  <div class="msg" id="lMsg"></div>
   <a class="volver" href="index.html">← Volver al inicio</a>
 </div>
 
@@ -94,6 +98,7 @@
   <div class="card">
     <h1 id="hHola">—</h1>
     <h2 id="hCargo">—</h2>
+    <a class="volver" style="text-align:right;margin:-6px 0 10px" href="javascript:void(0)" onclick="salir()">No soy yo · cambiar cédula</a>
     <button class="big" onclick="abrirSalida()">🚪 Reportar salida
       <small>Marcá a qué hora saliste. KALU sabe tu turno y calcula tus horas y de qué tipo.</small></button>
     <button class="big" onclick="abrir('extra')">➕ Reportar hora extra (manual)
@@ -172,71 +177,61 @@ function heTotalHoras(c){var s=0;for(var k in c){s+=(c[k]||0);}return Math.round
 /* ===================== Config KALU ===================== */
 var SB_URL="https://nignqeipzlemwfrwmpip.supabase.co";
 var SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
-var SB_REF="nignqeipzlemwfrwmpip", SESS_KEY="sb-"+SB_REF+"-auth-token";
-var SB_TOKEN=null, MY_UID=null;
-var EMP=null, PERSONA=null, NOMBRE="", CARGO="", ES_SUPER=false, MODULOS=[];
+var SB_TOKEN=null;   /* ingreso por cédula: usamos siempre la anon key */
+var EMP=null, PERSONA=null, NOMBRE="", CARGO="";
 var TURNOS=[], TURNO_NOCHE=null, FESTIVOS=new Set();
 var $=function(id){return document.getElementById(id);};
 function ver(id){ ["vCarga","vLogin","vBloqueo","vHome","vSalida","vExtra","vNoct"].forEach(function(v){ $(v).classList.toggle("hide", v!==id); }); }
 function setMsg(id,t,c){ var m=$(id); m.textContent=t||""; m.className="msg "+(c||""); }
 
-/* ===================== Sesión / token ===================== */
-function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
-function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
+/* ===================== HTTP + cédula recordada ===================== */
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
-  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
+  opts.headers["Authorization"]="Bearer "+(SB_TOKEN||SB_ANON);
   var res=await fetch(SB_URL+path, opts);
   var txt=await res.text(); var data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
   if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
   return data;
 }
-/* Renueva el token ANTES de cada consulta si está por vencer (convención UI KALU). */
-async function asegurarToken(){
-  var s=readSession(); if(!s||!s.access_token) return false;
-  var now=Math.floor(Date.now()/1000);
-  if(s.expires_at && s.expires_at < now+60){
-    try{
-      var d=await sbFetch("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:JSON.stringify({refresh_token:s.refresh_token})});
-      if(!d||!d.access_token){ return false; }
-      saveSession(d); SB_TOKEN=d.access_token; return true;
-    }catch(_){ return false; }
-  }
-  SB_TOKEN=s.access_token; return true;
-}
+async function sbRpc(fn, args){ return await sbFetch("/rest/v1/rpc/"+fn, {method:"POST", body:JSON.stringify(args||{})}); }
+var CED_KEY="hhee-ced";
+function recordarCed(c){ try{ localStorage.setItem(CED_KEY,c); }catch(_){} }
+function cedGuardada(){ try{ return localStorage.getItem(CED_KEY)||""; }catch(_){ return ""; } }
+function olvidarCed(){ try{ localStorage.removeItem(CED_KEY); }catch(_){} }
 
-/* ===================== Boot ===================== */
+/* ===================== Boot (ingreso por cédula) ===================== */
 (async function boot(){
-  var ok=await asegurarToken();
-  if(!ok){ ver("vLogin"); return; }
-  try{
-    var u=await sbFetch("/auth/v1/user",{}); MY_UID=u.id;
-    var perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado,cedula");
-    if(!perf||!perf.length){ return bloqueo("Tu usuario no tiene perfil","Contactá a tu administrador para que te asigne un perfil."); }
-    var p=perf[0];
-    if(p.estado && p.estado!=="activo"){ return bloqueo("Tu cuenta está "+p.estado, "Contactá a tu administrador."); }
-    EMP=p.empresa_id; NOMBRE=p.nombre||""; CARGO=p.rol||""; ES_SUPER=!!p.es_super;
-    /* módulo habilitado para la empresa (super pasa igual para poder probar) */
-    try{
-      var emp=await sbFetch("/rest/v1/empresas?id=eq."+EMP+"&select=modulos");
-      MODULOS=(emp&&emp[0]&&Array.isArray(emp[0].modulos))?emp[0].modulos:[];
-    }catch(_){}
-    if(MODULOS.indexOf("hhee")<0 && !ES_SUPER){
-      return bloqueo("Horas Extra no está habilitado","Tu empresa todavía no tiene el módulo de Horas Extra. Avisá a Dinamho.");
-    }
-    /* persona (padrón) por cédula */
-    if(!p.cedula){ return bloqueo("Falta tu cédula en el perfil","No podemos identificarte en el padrón. Avisá a tu supervisor."); }
-    var ced=String(p.cedula).replace(/\D/g,"");
-    var per=await sbFetch("/rest/v1/personas?empresa_id=eq."+EMP+"&cedula=eq."+encodeURIComponent(ced)+"&select=id,nombre,cargo,vigente&limit=1");
-    if(!per||!per.length){ return bloqueo("No estás en el padrón","Tu cédula no figura en el padrón de la empresa. Avisá a tu supervisor."); }
-    PERSONA=per[0].id; NOMBRE=per[0].nombre||NOMBRE; CARGO=per[0].cargo||CARGO;
-    /* turnos + festivos (para el motor) */
-    try{ TURNOS=await sbFetch("/rest/v1/he_turnos?empresa_id=eq."+EMP+"&activo=eq.true&select=id,nombre,tipo,horarios"); }catch(_){ TURNOS=[]; }
-    TURNO_NOCHE=(TURNOS||[]).filter(function(t){return t.tipo==="noche";})[0]||null;
-    try{ var fs=await sbFetch("/rest/v1/he_festivos?select=fecha"); (fs||[]).forEach(function(x){ FESTIVOS.add(x.fecha); }); }catch(_){}
-    entrarHome();
-  }catch(e){ bloqueo("No se pudo abrir", (e&&e.message)||"Probá de nuevo con señal."); }
+  var c=cedGuardada();
+  if(!c){ ver("vLogin"); return; }
+  await ingresarCon(c, true);
 })();
+
+async function ingresarCon(ced, silencioso){
+  ced=String(ced||"").replace(/\D/g,"");
+  if(!ced){ ver("vLogin"); return; }
+  var b=$("lBtn");
+  if(!silencioso){ if(b){ b.disabled=true; b.textContent="Entrando…"; } setMsg("lMsg",""); }
+  ver("vCarga");
+  try{
+    var d=await sbRpc("hhee_login",{p_ced:ced});
+    if(!d||!d.ok){
+      olvidarCed(); ver("vLogin"); if($("lCed")) $("lCed").value=ced;
+      setMsg("lMsg",(d&&d.error)||"No pudimos identificarte.","err"); return;
+    }
+    EMP=d.empresa.id; PERSONA=d.persona.id; NOMBRE=d.persona.nombre||""; CARGO=d.persona.cargo||"";
+    TURNOS=d.turnos||[]; TURNO_NOCHE=(TURNOS||[]).filter(function(t){return t.tipo==="noche";})[0]||null;
+    FESTIVOS=new Set(d.festivos||[]);
+    recordarCed(ced);
+    entrarHome();
+  }catch(e){
+    ver("vLogin"); if($("lCed")) $("lCed").value=ced;
+    setMsg("lMsg",(e&&e.message)||"No se pudo conectar. Probá con señal.","err");
+  }finally{
+    if(!silencioso && b){ b.disabled=false; b.textContent="Entrar →"; }
+  }
+}
+function identificar(){ ingresarCon($("lCed").value, false); }
+function salir(){ olvidarCed(); PERSONA=null; EMP=null; if($("lCed")) $("lCed").value=""; setMsg("lMsg",""); ver("vLogin"); }
 
 function bloqueo(tit,txt){ $("bTit").textContent=tit; $("bTxt").textContent=txt; ver("vBloqueo"); }
 function entrarHome(){
@@ -253,9 +248,9 @@ function horarioLinea(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "�
 function misMesNav(n){ if(!MIS_MES) return; MIS_MES=new Date(MIS_MES.getFullYear(),MIS_MES.getMonth()+n,1); pintarMis(); }
 async function cargarMisReportes(){
   var box=$("hLista"); box.innerHTML='<div class="load">Cargando…</div>';
-  if(!(await asegurarToken())){ ver("vLogin"); return; }
+  if(!PERSONA){ ver("vLogin"); return; }
   try{
-    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&order=fecha.desc,creado_at.desc&limit=400&select=id,fecha,hora_inicio,hora_fin,lugar,categorias,estado,fuera_de_plan,justificacion,motivo,es_jornada_ordinaria");
+    var rows=await sbRpc("hhee_mis_reportes",{p_persona:PERSONA,p_emp:EMP});
     MIS=rows||[];
     if(!MIS.length){ box.innerHTML='<p class="chico">Todavía no cargaste ningún reporte.</p>'; return; }
     var f0=String(MIS[0].fecha).slice(0,7); MIS_MES=new Date(f0+"-01T00:00:00"); // arranca en el mes del último reporte
@@ -331,18 +326,15 @@ async function enviarExtra(){
   if(heTotalHoras(c)<=0){ setMsg("eMsg","El horario da 0 horas. Revisá.","err"); return; }
   var b=$("eBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("eMsg","");
   try{
-    if(!(await asegurarToken())){ ver("vLogin"); return; }
+    if(!PERSONA){ ver("vLogin"); return; }
     var fuera=await esFueraDePlan(f);
+    var p={ fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null, justificacion:just||null,
+      tipo_dia:tipoDia(f), es_jornada_ordinaria:false, categorias:c, fuera_de_plan:fuera };
     if(EDIT_ID){
-      var upd={ fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null, justificacion:just||null, tipo_dia:tipoDia(f),
-        es_jornada_ordinaria:false, categorias:c, estado:"reportado", fuera_de_plan:fuera, motivo:null };
-      await sbFetch("/rest/v1/he_reporte?id=eq."+EDIT_ID,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(upd)});
+      await sbRpc("hhee_corregir",{p_id:EDIT_ID,p_persona:PERSONA,p:p});
       setMsg("eMsg","✓ Reenviado corregido.","ok");
     } else {
-      var reg={ empresa_id:EMP, persona_id:PERSONA, fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null,
-        justificacion:just||null, tipo_dia:tipoDia(f), es_jornada_ordinaria:false, categorias:c,
-        estado:"reportado", fuera_de_plan:fuera, origen:"app" };
-      await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+      await sbRpc("hhee_reportar",{p_persona:PERSONA,p_emp:EMP,p:p});
       setMsg("eMsg","✓ Reporte enviado.","ok");
     }
     EDIT_ID=null;
@@ -351,7 +343,7 @@ async function enviarExtra(){
   finally{ b.disabled=false; b.textContent="Enviar reporte"; }
 }
 async function esFueraDePlan(fecha){
-  try{ var a=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&fecha=eq."+fecha+"&select=id&limit=1"); return !(a&&a.length); }
+  try{ return !(await sbRpc("hhee_autorizada",{p_persona:PERSONA,p_emp:EMP,p_fecha:fecha})); }
   catch(_){ return true; }
 }
 
@@ -367,15 +359,9 @@ async function abrirSalida(){
   $("sSub").textContent="Marcá a qué hora saliste.";
   ver("vSalida");
   try{
-    if(await asegurarToken()){
-      var iso=$("sFecha").value;
-      var cu=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&fecha_desde=lte."+iso+"&fecha_hasta=gte."+iso+"&select=turno_id,fecha_desde,fecha_hasta");
-      if(cu&&cu.length){
-        // gana la asignación más específica (menor rango de días) por si ese día hay una excepción
-        cu.sort(function(a,b){ return (new Date(a.fecha_hasta)-new Date(a.fecha_desde))-(new Date(b.fecha_hasta)-new Date(b.fecha_desde)); });
-        if(cu[0].turno_id){ $("sTurno").value=cu[0].turno_id; $("sSub").textContent="Tu turno de hoy ya está en el almanaque. Confirmá la hora de salida."; }
-      }
-    }
+    var iso=$("sFecha").value;
+    var cu=await sbRpc("hhee_cuadrilla_dia",{p_persona:PERSONA,p_emp:EMP,p_dia:iso});
+    if(cu&&cu.turno_id){ $("sTurno").value=cu.turno_id; $("sSub").textContent="Tu turno de hoy ya está en el almanaque. Confirmá la hora de salida."; }
   }catch(_){}
   previewSalida();
 }
@@ -412,12 +398,12 @@ async function enviarSalida(){
   if(heTotalHoras(r.cats)<=0){ setMsg("sMsg","No hay horas para reportar (saliste en horario).","err"); return; }
   var b=$("sBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("sMsg","");
   try{
-    if(!(await asegurarToken())){ ver("vLogin"); return; }
+    if(!PERSONA){ ver("vLogin"); return; }
     var fuera=await esFueraDePlan(iso);
-    var reg={ empresa_id:EMP, persona_id:PERSONA, fecha:iso, hora_inicio:r.ini, hora_fin:exit, lugar:null,
-      justificacion:$("sJust").value.trim()||"Salida de turno", tipo_dia:tipoDia(iso), es_jornada_ordinaria:r.ord,
-      categorias:r.cats, estado:"reportado", fuera_de_plan:fuera, origen:"app" };
-    await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+    var p={ fecha:iso, hora_inicio:r.ini, hora_fin:exit, lugar:null,
+      justificacion:$("sJust").value.trim()||"Salida de turno", tipo_dia:tipoDia(iso),
+      es_jornada_ordinaria:r.ord, categorias:r.cats, fuera_de_plan:fuera };
+    await sbRpc("hhee_reportar",{p_persona:PERSONA,p_emp:EMP,p:p});
     setMsg("sMsg","✓ Salida reportada.","ok");
     setTimeout(function(){ volverHome(); cargarMisReportes(); }, 700);
   }catch(e){ setMsg("sMsg",(e&&e.message)||"No se pudo enviar.","err"); }
@@ -465,16 +451,16 @@ async function enviarNoct(){
   if(!r.filas.length){ setMsg("nMsg","El rango no genera recargo nocturno. Revisá las fechas.","err"); return; }
   var b=$("nBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("nMsg","");
   try{
-    if(!(await asegurarToken())){ ver("vLogin"); return; }
-    var regs=[];
+    if(!PERSONA){ ver("vLogin"); return; }
+    var n=0;
     for(var k=0;k<r.filas.length;k++){ var fila=r.filas[k];
       var fuera=await esFueraDePlan(fila.fecha);
-      regs.push({ empresa_id:EMP, persona_id:PERSONA, fecha:fila.fecha, hora_inicio:null, hora_fin:null,
+      await sbRpc("hhee_reportar",{p_persona:PERSONA,p_emp:EMP,p:{ fecha:fila.fecha, hora_inicio:null, hora_fin:null,
         lugar:null, justificacion:"Cuadrilla nocturna", tipo_dia:tipoDia(fila.fecha),
-        es_jornada_ordinaria:true, categorias:fila.cat, estado:"reportado", fuera_de_plan:fuera, origen:"app" });
+        es_jornada_ordinaria:true, categorias:fila.cat, fuera_de_plan:fuera }});
+      n++;
     }
-    await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(regs)});
-    setMsg("nMsg","✓ Recargo enviado ("+regs.length+" día(s)).","ok");
+    setMsg("nMsg","✓ Recargo enviado ("+n+" día(s)).","ok");
     setTimeout(function(){ volverHome(); cargarMisReportes(); }, 800);
   }catch(e){ setMsg("nMsg",(e&&e.message)||"No se pudo enviar.","err"); }
   finally{ b.disabled=false; b.textContent="Enviar reporte"; }

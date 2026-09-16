@@ -61,7 +61,10 @@
   .calcell.empty{background:transparent;border:none;cursor:default}
   .calcell.hoy{border-color:var(--cy)}
   .calcell.sel{border-color:var(--orange);box-shadow:0 0 0 2px var(--glow)}
-  .calcell.warn{background:rgba(228,161,75,.10)}
+  .calcell.warn{box-shadow:inset 3px 0 0 var(--amber)}
+  .calcell.dom{background:rgba(217,83,79,.10)}
+  .calcell.fest{background:rgba(178,84,242,.15)}
+  .calnum .ff{font-size:9px;color:var(--mal);font-weight:700;margin-left:3px}
   .calcell:hover:not(.empty){border-color:var(--tx3)}
   .calnum{font-size:11px;color:var(--tx2);font-weight:700}
   .caldots{display:flex;flex-wrap:wrap;gap:3px}
@@ -149,23 +152,26 @@
   <!-- ===== Cuadrillas (armar) ===== -->
   <section id="tab_cuad" class="hide">
     <div class="card">
-      <h1>Armar cuadrillas</h1>
-      <h2>Asigná a cada persona su turno por rango de días. Con esto, en la app del trabajador el turno le aparece solo — si un día cambia, reporta manual sin salir de la cuadrilla.</h2>
+      <h1>Armar cuadrilla</h1>
+      <h2>Elegí el turno, marcá las personas y el rango de días. Cada persona conserva su color. En la app del trabajador el turno le aparece solo.</h2>
       <div class="grid g3">
-        <div><label>Persona</label><select id="mPersona" onchange="colorAuto()"></select></div>
         <div><label>Turno</label><select id="mTurno"></select></div>
-        <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px">
-          <div id="swatches" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
-          <div class="who" style="margin-top:3px">se asigna solo por persona (o elegí uno)</div></div>
-      </div>
-      <div class="grid g3">
         <div><label>Desde</label><input type="date" id="mDesde"></div>
         <div><label>Hasta</label><input type="date" id="mHasta"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" id="mBtn" onclick="guardarCuadrilla()">Asignar</button></div>
       </div>
+      <label>Personas</label>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <button class="btn sec mini" type="button" onclick="marcarTodos(true)">Marcar todos</button>
+        <button class="btn sec mini" type="button" onclick="marcarTodos(false)">Ninguno</button>
+      </div>
+      <div id="personChecks" style="max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
+      <button class="btn" id="mBtn" onclick="guardarCuadrillas()" style="margin-top:14px">Asignar a la cuadrilla</button>
       <div id="almMsg" class="msg"></div>
     </div>
-    <div class="card"><h2 style="margin-bottom:10px">Asignaciones activas y próximas</h2><div id="cuadList"><div class="load">—</div></div></div>
+    <div class="grid g2">
+      <div class="card"><h2 style="margin-bottom:10px">🌅 Turno mañana</h2><div id="cuadDia"><div class="load">—</div></div></div>
+      <div class="card"><h2 style="margin-bottom:10px">🌙 Turno noche</h2><div id="cuadNoche"><div class="load">—</div></div></div>
+    </div>
   </section>
 
   <!-- ===== Almanaque (calendario) ===== -->
@@ -184,6 +190,8 @@
       <div id="leyendaCal" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px"></div>
       <div class="who" style="margin-top:8px">
         <span class="calb rep">🕒 reportes</span> &nbsp; <span class="calb aut">✅ autorizaciones</span> &nbsp; <span class="calb warn">⚠ sin autorizar</span>
+        &nbsp;·&nbsp; <span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:rgba(217,83,79,.35);vertical-align:-1px"></span> domingo
+        &nbsp; <span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:rgba(178,84,242,.4);vertical-align:-1px"></span> festivo
       </div>
     </div>
     <div class="card" id="diaDetalle" style="display:none"></div>
@@ -242,7 +250,7 @@ var SB_URL="https://nignqeipzlemwfrwmpip.supabase.co";
 var SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
 var SB_REF="nignqeipzlemwfrwmpip", SESS_KEY="sb-"+SB_REF+"-auth-token";
 var SB_TOKEN=null, MY_UID=null, EMP=null, NOMBRE="", ES_SUPER=false;
-var PERSONAS=[], PMAP={}, TURNOS=[], EMP_NOMBRE="", BRANDING={};
+var PERSONAS=[], PMAP={}, TURNOS=[], EMP_NOMBRE="", BRANDING={}, FEST=new Set();
 var $=function(id){return document.getElementById(id);};
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 function setMsg(id,t,c){ var m=$(id); if(m){ m.textContent=t||""; m.className="msg "+(c||""); } }
@@ -287,6 +295,7 @@ async function asegurarToken(){
     PERSONAS=await sbFetch("/rest/v1/personas?empresa_id=eq."+EMP+"&vigente=eq.true&order=nombre&select=id,nombre,cedula,cargo");
     PERSONAS.forEach(function(x){ PMAP[x.id]=x; });
     try{ TURNOS=await sbFetch("/rest/v1/he_turnos?empresa_id=eq."+EMP+"&activo=eq.true&select=id,nombre,tipo"); }catch(_){ TURNOS=[]; }
+    try{ var fs=await sbFetch("/rest/v1/he_festivos?select=fecha"); FEST=new Set((fs||[]).map(function(x){return String(x.fecha).slice(0,10);})); }catch(_){}
     poblarSelects(); defaultsFechas();
     $("vCarga").classList.add("hide"); $("app").classList.remove("hide");
     cargarConc();
@@ -300,27 +309,38 @@ function optPersonas(sel, incTodos){
   sel.innerHTML=o;
 }
 function poblarSelects(){
-  optPersonas($("aPersona"),true); optPersonas($("mPersona"),false);
+  optPersonas($("aPersona"),true);
   $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
-  var sw=$("swatches"); if(sw){ sw.innerHTML=PALETA.map(function(c){return '<span onclick="$(\'mColor\').value=\''+c+'\'" title="'+c+'" style="width:22px;height:22px;border-radius:6px;background:'+c+';cursor:pointer;border:1px solid rgba(0,0,0,.3)"></span>';}).join(""); }
-  colorAuto();
+  renderPersonChecks();
 }
+function renderPersonChecks(){
+  var box=$("personChecks"); if(!box) return;
+  box.innerHTML=PERSONAS.map(function(p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
+    +'<input type="checkbox" class="pchk" value="'+p.id+'" style="width:auto;flex:none">'
+    +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
+    +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }).join("");
+}
+function marcarTodos(v){ Array.prototype.forEach.call(document.querySelectorAll('#personChecks .pchk'),function(c){c.checked=v;}); }
 async function cargarCuad(){
-  var box=$("cuadList"); box.innerHTML='<div class="load">Cargando…</div>';
+  var bd=$("cuadDia"), bn=$("cuadNoche");
+  if(bd) bd.innerHTML='<div class="load">…</div>'; if(bn) bn.innerHTML='<div class="load">…</div>';
   if(!(await asegurarToken())) return;
   try{
-    var hace=new Date(); hace.setDate(hace.getDate()-14); var desde=isoD(hace);
-    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+desde+"&order=fecha_desde.desc&select=id,persona_id,turno_id,fecha_desde,fecha_hasta");
-    if(!rows.length){ box.innerHTML='<p class="who">Sin cuadrillas activas o próximas. Armá una arriba.</p>'; return; }
-    box.innerHTML=rows.map(function(r){
-      var per=(PMAP[r.persona_id]||{}).nombre||"—", col=colorPersona(r.persona_id);
-      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">'
-        +'<span class="dchip" style="background:'+col+'"></span>'
-        +'<span style="flex:1"><b>'+esc(per)+'</b> · '+esc(turnoNom(r.turno_id))+'</span>'
-        +'<span class="who">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</span>'
-        +'<button class="btn no mini" onclick="borrarCuadrilla(\''+r.id+'\')">Borrar</button></div>';
-    }).join("");
-  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+    var hoy=isoD(new Date());
+    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+hoy+"&order=fecha_desde.asc&select=id,persona_id,turno_id,fecha_desde,fecha_hasta");
+    var tmap={}; TURNOS.forEach(function(t){tmap[t.id]=t;});
+    function pintar(box,tipo){
+      if(!box) return;
+      var rs=(rows||[]).filter(function(r){ var t=tmap[r.turno_id]; return t && t.tipo===tipo; });
+      if(!rs.length){ box.innerHTML='<p class="who">Nadie asignado.</p>'; return; }
+      box.innerHTML=rs.map(function(r){ var per=(PMAP[r.persona_id]||{}).nombre||"—";
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
+          +'<span class="dchip" style="background:'+colorPersona(r.persona_id)+'"></span>'
+          +'<span style="flex:1">'+esc(per)+'<br><span class="who">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</span></span>'
+          +'<button class="btn no mini" onclick="borrarCuadrilla(\''+r.id+'\')">✕</button></div>'; }).join("");
+    }
+    pintar(bd,"dia"); pintar(bn,"noche");
+  }catch(e){ if(bd) bd.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
 }
 function defaultsFechas(){
   var hoy=new Date(); var y=hoy.getFullYear(), m=hoy.getMonth();
@@ -340,7 +360,6 @@ function tab(t){
 /* Color fijo por persona (determinístico) para distinguir en el almanaque */
 var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];
 function colorPersona(pid){ if(!pid) return "#888"; var h=0,s=String(pid); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return PALETA[h%PALETA.length]; }
-function colorAuto(){ var pid=$("mPersona").value; if(pid) $("mColor").value=colorPersona(pid); }
 
 /* ============ CONCILIACIÓN ============ */
 async function cargarConc(){
@@ -425,18 +444,21 @@ async function cargarAut(){
 }
 
 /* ============ ALMANAQUE ============ */
-async function guardarCuadrilla(){
-  var pid=$("mPersona").value, tid=$("mTurno").value, d1=$("mDesde").value, d2=$("mHasta").value;
-  if(!pid||!d1||!d2){ setMsg("almMsg","Completá persona y fechas.","err"); return; }
-  if(d1>d2){ setMsg("almMsg","El 'desde' no puede ser mayor al 'hasta'.","err"); return; }
+async function guardarCuadrillas(){
+  var tid=$("mTurno").value, d1=$("mDesde").value, d2=$("mHasta").value;
+  var sel=Array.prototype.map.call(document.querySelectorAll('#personChecks .pchk:checked'),function(c){return c.value;});
+  if(!tid){ setMsg("almMsg","Elegí el turno.","err"); return; }
+  if(!sel.length){ setMsg("almMsg","Marcá al menos una persona.","err"); return; }
+  if(!d1||!d2||d1>d2){ setMsg("almMsg","Revisá las fechas (desde/hasta).","err"); return; }
   var b=$("mBtn"); b.disabled=true; b.textContent="Asignando…"; setMsg("almMsg","");
   try{
     if(!(await asegurarToken())) return;
-    var reg={ empresa_id:EMP, persona_id:pid, turno_id:tid||null, fecha_desde:d1, fecha_hasta:d2, color:$("mColor").value, creado_por:MY_UID };
-    await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
-    setMsg("almMsg","✓ Asignación guardada.","ok"); cargarCuad();
-  }catch(e){ setMsg("almMsg",(e&&e.message)||"No se pudo guardar.","err"); }
-  finally{ b.disabled=false; b.textContent="Asignar"; }
+    var regs=sel.map(function(pid){ return { empresa_id:EMP, persona_id:pid, turno_id:tid, fecha_desde:d1, fecha_hasta:d2, color:colorPersona(pid), creado_por:MY_UID }; });
+    await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(regs)});
+    setMsg("almMsg","✓ "+regs.length+" persona(s) asignada(s) a "+turnoNom(tid)+".","ok");
+    marcarTodos(false); cargarCuad(); renderMes();
+  }catch(e){ setMsg("almMsg",(e&&e.message)||"No se pudo asignar.","err"); }
+  finally{ b.disabled=false; b.textContent="Asignar a la cuadrilla"; }
 }
 var ALM_MES=null, ALM_SEL=null, ALM_CACHE={cuad:[],reps:[],auts:[]};
 var _MESN=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -472,13 +494,14 @@ function pintarCal(y,mo){
     var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
     var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
     var sinAut=rp.filter(pendiente).length;
+    var dd=new Date(y,mo,day).getDay(), esDom=dd===0, esFest=FEST.has(diso);
     var dots=cu.slice(0,8).map(function(c){return '<span class="caldot" style="background:'+colorPersona(c.persona_id)+'" title="'+esc((PMAP[c.persona_id]||{}).nombre||"")+'"></span>';}).join("");
     var badges='';
     if(rp.length) badges+='<span class="calb rep">🕒'+rp.length+'</span>';
     if(au.length) badges+='<span class="calb aut">✅'+au.length+'</span>';
     if(sinAut)    badges+='<span class="calb warn">⚠'+sinAut+'</span>';
-    h+='<div class="calcell'+(diso===hoy?" hoy":"")+(diso===ALM_SEL?" sel":"")+(sinAut?" warn":"")+'" onclick="verDia(\''+diso+'\')">'
-      +'<div class="calnum">'+day+'</div>'
+    h+='<div class="calcell'+(diso===hoy?" hoy":"")+(diso===ALM_SEL?" sel":"")+(sinAut?" warn":"")+(esFest?" fest":(esDom?" dom":""))+'"'+(esFest?' title="Festivo"':(esDom?' title="Domingo"':''))+' onclick="verDia(\''+diso+'\')">'
+      +'<div class="calnum">'+day+(esFest?'<span class="ff">FER</span>':(esDom?'<span class="ff">DOM</span>':''))+'</div>'
       +(dots?'<div class="caldots">'+dots+'</div>':'')
       +'<div class="calbadges">'+badges+'</div></div>';
   }
@@ -648,6 +671,7 @@ async function cargarEst(){
     html+='</div>';
     html+='<div class="card"><h2 style="margin-bottom:8px">Detalle por persona y categoría</h2><div style="overflow-x:auto"><table><tr><th>Persona</th>'+CATS7.map(function(k){return '<th>'+k+'</th>';}).join("")+'<th>Total</th></tr>';
     pids.forEach(function(p){ html+='<tr><td>'+esc((PMAP[p]||{}).nombre||"—")+'</td>'+CATS7.map(function(k){return '<td>'+(perP[p][k]?r1(perP[p][k]):"")+'</td>';}).join("")+'<td class="tot">'+r1(perP[p].tot)+'</td></tr>'; });
+    html+='<tr style="border-top:2px solid var(--nar)"><td class="tot">TOTAL</td>'+CATS7.map(function(k){return '<td class="tot">'+r1(perC[k])+'</td>';}).join("")+'<td class="tot">'+r1(totalH)+'</td></tr>';
     html+='</table></div></div>';
     out.innerHTML=html;
   }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }

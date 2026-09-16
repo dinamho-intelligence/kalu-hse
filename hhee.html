@@ -57,6 +57,14 @@
   .volver{display:block;text-align:center;color:var(--tx2);font-size:13px;margin-top:18px;text-decoration:none}
   .hide{display:none}
   .flag{font-size:12px;color:var(--amber);margin-top:6px}
+  .hh{color:var(--tx2);font-size:13px}
+  .resbox{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .rsline{display:flex;flex-wrap:wrap;gap:8px}
+  .rsum{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--tx2)}
+  .rsum b{color:var(--tx);font-size:13px}
+  .rsum.big{font-size:13px;padding:6px 12px}
+  .rsum.big b{color:var(--orange2);font-size:15px}
+  .rsum.cy b{color:var(--cy)}
   .load{color:var(--tx2);text-align:center;padding:20px}
 </style>
 </head>
@@ -89,9 +97,7 @@
     <button class="big" onclick="abrirSalida()">🚪 Reportar salida
       <small>Marcá a qué hora saliste. KALU sabe tu turno y calcula tus horas y de qué tipo.</small></button>
     <button class="big" onclick="abrir('extra')">➕ Reportar hora extra (manual)
-      <small>Para casos especiales: cargás vos de qué hora a qué hora.</small></button>
-    <button class="big" onclick="abrir('noct')">🌙 Recargo nocturno por rango
-      <small>Cuadrilla de noche: cargá varios días juntos.</small></button>
+      <small>Para casos especiales: cargás vos de qué hora a qué hora. El recargo nocturno de tu turno sale solo al reportar la salida.</small></button>
   </div>
   <div class="card">
     <h2 style="margin-bottom:10px">Mis últimos reportes</h2>
@@ -241,21 +247,44 @@ function entrarHome(){
 function volverHome(){ ver("vHome"); }
 
 /* ===================== Home: mis reportes ===================== */
+var MIS=[], EDIT_ID=null;
+function horarioLinea(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "🌙 cuadrilla"; if(!r.hora_inicio && !r.hora_fin) return "—"; return (r.hora_inicio||"?")+"–"+(r.hora_fin||"?"); }
 async function cargarMisReportes(){
   var box=$("hLista"); box.innerHTML='<div class="load">Cargando…</div>';
   if(!(await asegurarToken())){ ver("vLogin"); return; }
   try{
-    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&order=fecha.desc,creado_at.desc&limit=15&select=fecha,hora_inicio,hora_fin,categorias,estado,fuera_de_plan,justificacion");
-    if(!rows||!rows.length){ box.innerHTML='<p class="chico">Todavía no cargaste ningún reporte.</p>'; return; }
-    box.innerHTML=rows.map(function(r){
+    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&order=fecha.desc,creado_at.desc&limit=100&select=id,fecha,hora_inicio,hora_fin,lugar,categorias,estado,fuera_de_plan,justificacion,motivo,es_jornada_ordinaria");
+    MIS=rows||[];
+    if(!MIS.length){ box.innerHTML='<p class="chico">Todavía no cargaste ningún reporte.</p>'; return; }
+    // resumen por categoría (#8)
+    var CATS=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"], sum={}; CATS.forEach(function(k){sum[k]=0;});
+    MIS.forEach(function(r){ var c=r.categorias||{}; CATS.forEach(function(k){ sum[k]+=(c[k]||0); }); });
+    var hHombre=sum.HED+sum.HEN+sum.DOMD+sum.DOMN+sum.HEFD+sum.HEFN;
+    var chips=CATS.filter(function(k){return sum[k];}).map(function(k){return '<span class="rsum">'+k+' <b>'+Math.round(sum[k]*100)/100+'</b></span>';}).join("");
+    var resumen='<div class="resbox"><div class="chico" style="margin-bottom:6px">Resumen de tus horas cargadas</div>'
+      +'<div class="rsline"><span class="rsum big">Horas hombre <b>'+(Math.round(hHombre*100)/100)+'</b></span>'
+      +'<span class="rsum big cy">Recargo nocturno <b>'+(Math.round(sum.RNOCT*100)/100)+'</b></span></div>'
+      +(chips?'<div class="rsline" style="margin-top:6px">'+chips+'</div>':'')+'</div>';
+    var lista=MIS.map(function(r){
       var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
-      return '<div class="rep"><div class="d"><b>'+fmtFecha(r.fecha)+'</b> · '+tot+' h'
+      return '<div class="rep"><div class="d"><b>'+fmtFecha(r.fecha)+'</b> · '+tot+' h · <span class="hh">'+esc(horarioLinea(r))+'</span>'
         +'<br><small>'+esc(cats)+'</small>'
         +(r.fuera_de_plan?'<div class="flag">⚠ fuera de lo planificado</div>':'')
+        +(r.estado==="rechazado"?'<div class="flag" style="color:#ff8a82">✕ Rechazado'+(r.motivo?': '+esc(r.motivo):'')+'</div><button class="btn mini" style="margin-top:6px;padding:7px 12px" onclick="corregir(\''+r.id+'\')">✎ Corregir y reenviar</button>':'')
         +'</div><span class="chip '+r.estado+'">'+etiqEstado(r.estado)+'</span></div>';
     }).join("");
+    box.innerHTML=resumen+lista;
   }catch(e){ box.innerHTML='<p class="chico" style="color:#ff8a82">No se pudieron cargar tus reportes ('+esc(e.message)+').</p>'; }
+}
+function corregir(id){
+  var r=MIS.filter(function(x){return x.id===id;})[0]; if(!r) return;
+  EDIT_ID=id;
+  $("eFecha").value=String(r.fecha).slice(0,10);
+  $("eIni").value=r.hora_inicio||""; $("eFin").value=r.hora_fin||"";
+  $("eLugar").value=r.lugar||""; $("eJust").value=r.justificacion||"";
+  setMsg("eMsg", r.motivo?("Rechazado: "+r.motivo+". Corregí y reenviá."):"Corregí y reenviá.", "err");
+  $("eBtn").textContent="Reenviar corregido"; previewExtra(); ver("vExtra");
 }
 function etiqEstado(e){ return {reportado:"Enviado",autorizado:"Autorizado",no_autorizado:"Sin autorizar",rechazado:"Rechazado",cerrado:"Cerrado"}[e]||e; }
 function fmtFecha(iso){ if(!iso)return"—"; var p=String(iso).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0].slice(2); }
@@ -264,7 +293,7 @@ function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){retur
 /* ===================== Abrir formularios ===================== */
 function abrir(cual){
   var hoy=new Date().toISOString().slice(0,10);
-  if(cual==="extra"){ $("eFecha").value=hoy; $("eIni").value=""; $("eFin").value=""; $("eLugar").value=""; $("eJust").value=""; setMsg("eMsg",""); previewExtra(); ver("vExtra"); }
+  if(cual==="extra"){ EDIT_ID=null; $("eBtn").textContent="Enviar reporte"; $("eFecha").value=hoy; $("eIni").value=""; $("eFin").value=""; $("eLugar").value=""; $("eJust").value=""; setMsg("eMsg",""); previewExtra(); ver("vExtra"); }
   else { $("nDesde").value=hoy; $("nHasta").value=hoy; setMsg("nMsg",""); previewNoct(); ver("vNoct"); }
 }
 ["eFecha","eIni","eFin"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewExtra(); }); });
@@ -292,11 +321,19 @@ async function enviarExtra(){
   try{
     if(!(await asegurarToken())){ ver("vLogin"); return; }
     var fuera=await esFueraDePlan(f);
-    var reg={ empresa_id:EMP, persona_id:PERSONA, fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null,
-      justificacion:just||null, tipo_dia:tipoDia(f), es_jornada_ordinaria:false, categorias:c,
-      estado:"reportado", fuera_de_plan:fuera, origen:"app" };
-    await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
-    setMsg("eMsg","✓ Reporte enviado.","ok");
+    if(EDIT_ID){
+      var upd={ fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null, justificacion:just||null, tipo_dia:tipoDia(f),
+        es_jornada_ordinaria:false, categorias:c, estado:"reportado", fuera_de_plan:fuera, motivo:null };
+      await sbFetch("/rest/v1/he_reporte?id=eq."+EDIT_ID,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(upd)});
+      setMsg("eMsg","✓ Reenviado corregido.","ok");
+    } else {
+      var reg={ empresa_id:EMP, persona_id:PERSONA, fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null,
+        justificacion:just||null, tipo_dia:tipoDia(f), es_jornada_ordinaria:false, categorias:c,
+        estado:"reportado", fuera_de_plan:fuera, origen:"app" };
+      await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+      setMsg("eMsg","✓ Reporte enviado.","ok");
+    }
+    EDIT_ID=null;
     setTimeout(function(){ volverHome(); cargarMisReportes(); }, 700);
   }catch(e){ setMsg("eMsg",(e&&e.message)||"No se pudo enviar.","err"); }
   finally{ b.disabled=false; b.textContent="Enviar reporte"; }

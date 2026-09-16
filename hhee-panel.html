@@ -650,7 +650,8 @@ var CATS7=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"];
 var CATLBL={HED:"Extra diurna",HEN:"Extra nocturna",DOMD:"Recargo dom/fest",DOMN:"Recargo dom/fest noct.",HEFD:"Extra dom/fest",HEFN:"Extra dom/fest noct.",RNOCT:"Recargo nocturno"};
 var _MESN2=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 function r1(x){ return Math.round(x*10)/10; }
-var EST_ROWS=[], EST_F={persona:null,cat:null,mes:null};
+var EST_ROWS=[], EST_F={persona:null,cat:null,mes:null}, EST_HIST=true;
+function estHist(){ EST_HIST=!EST_HIST; renderEst(); }
 async function cargarEst(){
   var out=$("estOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("estMsg","");
   if(!(await asegurarToken())) return;
@@ -669,7 +670,8 @@ function estQuitar(k){ if(k){ EST_F[k]=null; } else { EST_F={persona:null,cat:nu
 function _lblF(k,v){ if(k==="persona")return (PMAP[v]||{}).nombre||"persona"; if(k==="cat")return CATLBL[v]; return _MESN2[parseInt(v.slice(5,7),10)-1]+" "+v.slice(0,4); }
 function _fchip(k){ return '<span style="display:inline-block;background:var(--bg2);border:1px solid var(--nar);border-radius:999px;padding:2px 6px 2px 10px;margin-right:6px;font-size:12px">'+esc(_lblF(k,EST_F[k]))+' <a onclick="estQuitar(\''+k+'\')" style="cursor:pointer;color:var(--mal);font-weight:700;margin-left:2px">✕</a></span>'; }
 function renderEst(){
-  var rows=EST_ROWS, F=EST_F, val=function(r,k){ return (r.categorias||{})[k]||0; };
+  var F=EST_F, val=function(r,k){ return (r.categorias||{})[k]||0; };
+  var rows = EST_HIST ? EST_ROWS : EST_ROWS.filter(function(r){ return r.origen!=="historico"; });
   function pasa(r,excl){
     if(F.persona && excl!=="persona" && r.persona_id!==F.persona) return false;
     if(F.mes && excl!=="mes" && String(r.fecha).slice(0,7)!==F.mes) return false;
@@ -692,29 +694,27 @@ function renderEst(){
   rows.forEach(function(r){ if(!pasa(r,"mes"))return; var ym=String(r.fecha).slice(0,7); if(!perM[ym])perM[ym]=0; cM.forEach(function(k){ perM[ym]+=val(r,k); }); });
   var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
   // tiles + días (aplica TODOS los filtros)
-  var cT=(F.cat)?[F.cat]:CATS7, npL={}, npH={}, exL=0,exH=0, dfL=0,dfH=0, rnL=0,rnH=0, dias=[];
+  var cT=(F.cat)?[F.cat]:CATS7, np={}, extras=0, domfest=0, rnoct=0, dias=[];
   rows.forEach(function(r){
     if(F.persona&&r.persona_id!==F.persona)return;
     if(F.mes&&String(r.fecha).slice(0,7)!==F.mes)return;
     if(F.cat&&!(val(r,F.cat)>0))return;
-    var hist=(r.origen==="historico"), rt=0;
+    np[r.persona_id]=1; var rt=0;
     cT.forEach(function(k){var v=val(r,k); rt+=v;
-      if(k==="RNOCT"){ if(hist)rnH+=v; else rnL+=v; }
-      else if(k==="DOMD"||k==="DOMN"){ if(hist)dfH+=v; else dfL+=v; }
-      else { if(hist)exH+=v; else exL+=v; } });
-    if(hist) npH[r.persona_id]=1; else npL[r.persona_id]=1;
+      if(k==="RNOCT") rnoct+=v; else if(k==="DOMD"||k==="DOMN") domfest+=v; else extras+=v; });
     dias.push({r:r,tot:rt});
   });
-  var hhL=exL+dfL, hhH=exH+dfH; // horas hombre: en vivo / histórico. RNOCT NO cuenta como hora hombre.
+  var horasHombre=extras+domfest; // RNOCT NO cuenta como hora hombre (solo pago)
   var anyF=F.persona||F.cat||F.mes;
   var html="";
+  html+='<div style="margin-bottom:10px"><button class="btn '+(EST_HIST?"":"sec")+' mini" onclick="estHist()">'+(EST_HIST?"✓ Histórico importado incluido":"Histórico importado excluido")+'</button> <span class="who">tocá para '+(EST_HIST?"excluirlo y ver solo lo cargado en vivo":"incluirlo")+'</span></div>';
   if(anyF){ html+='<div class="estfiltro"><b>Filtros:</b> '+(F.persona?_fchip("persona"):"")+(F.cat?_fchip("cat"):"")+(F.mes?_fchip("mes"):"")+'<button class="btn sec mini" onclick="estQuitar()">quitar todo</button></div>'; }
   html+='<div class="card"><div class="tiles">'
-    +'<div class="tile"><div class="n">'+r1(hhL)+'</div><div class="l">Horas hombre</div><div class="tsub">históricos importados: '+r1(hhH)+'</div></div>'
-    +'<div class="tile"><div class="n">'+r1(exL)+'</div><div class="l">Horas extra</div><div class="tsub">históricos importados: '+r1(exH)+'</div></div>'
-    +'<div class="tile"><div class="n">'+r1(dfL)+'</div><div class="l">Recargo dom/fest</div><div class="tsub">históricos importados: '+r1(dfH)+'</div></div>'
-    +'<div class="tile"><div class="n">'+Object.keys(npL).length+'</div><div class="l">Personas (en vivo)</div><div class="tsub">históricas: '+Object.keys(npH).length+'</div></div>'
-    +'<div class="tile" style="border-color:rgba(0,212,255,.4)"><div class="n" style="color:var(--cy)">'+r1(rnL)+'</div><div class="l">Recargo nocturno · solo pago, no hora hombre</div><div class="tsub">históricos importados: '+r1(rnH)+'</div></div></div></div>';
+    +'<div class="tile"><div class="n">'+r1(horasHombre)+'</div><div class="l">Horas hombre</div></div>'
+    +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
+    +'<div class="tile"><div class="n">'+r1(domfest)+'</div><div class="l">Recargo dom/fest</div></div>'
+    +'<div class="tile"><div class="n">'+Object.keys(np).length+'</div><div class="l">Personas</div></div>'
+    +'<div class="tile" style="border-color:rgba(0,212,255,.4)"><div class="n" style="color:var(--cy)">'+r1(rnoct)+'</div><div class="l">Recargo nocturno · solo pago, no hora hombre</div></div></div></div>';
   html+='<div class="card"><h2 style="margin-bottom:8px">Horas hombre por persona <span class="who">(sin recargo nocturno · clic para filtrar)</span></h2>';
   pids.forEach(function(p){ var col=colorPersona(p),tot=barP(perP[p]),selc=(F.persona===p)?" sel":"";
     html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'persona\',\''+p+'\')"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });

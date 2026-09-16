@@ -70,6 +70,17 @@
   .calb.rep{color:var(--cy)}.calb.warn{color:var(--amber)}.calb.aut{color:var(--ok)}
   .dchip{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.3)}
   @media(max-width:720px){.calcell{min-height:58px}.caldow{font-size:9px}}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 4px}
+  @media(max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}}
+  .tile{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .tile .n{font-size:22px;font-weight:800;color:var(--orange2)}
+  .tile .l{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .hbar{display:flex;align-items:center;gap:8px;margin:6px 0}
+  .hbar .nm{width:160px;font-size:12.5px;color:var(--tx);flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hbar .track{flex:1;background:var(--bg);border-radius:6px;height:18px;overflow:hidden}
+  .hbar .fill{height:100%;border-radius:6px;min-width:2px}
+  .hbar .v{width:58px;text-align:right;font-size:12.5px;font-weight:700;color:var(--orange2);flex:none}
+  @media(max-width:720px){.hbar .nm{width:100px}}
 </style>
 </head>
 <body>
@@ -88,6 +99,7 @@
     <button class="tab" data-t="cuad" onclick="tab('cuad')">👥 Cuadrillas</button>
     <button class="tab" data-t="alm" onclick="tab('alm')">🗓️ Almanaque</button>
     <button class="tab" data-t="cie" onclick="tab('cie')">📄 Cierre</button>
+    <button class="tab" data-t="est" onclick="tab('est')">📊 Estadísticas</button>
   </div>
 
   <!-- ===== Conciliación ===== -->
@@ -142,7 +154,9 @@
       <div class="grid g3">
         <div><label>Persona</label><select id="mPersona" onchange="colorAuto()"></select></div>
         <div><label>Turno</label><select id="mTurno"></select></div>
-        <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px"><div class="who" style="margin-top:3px">se asigna solo por persona</div></div>
+        <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px">
+          <div id="swatches" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="who" style="margin-top:3px">se asigna solo por persona (o elegí uno)</div></div>
       </div>
       <div class="grid g3">
         <div><label>Desde</label><input type="date" id="mDesde"></div>
@@ -191,6 +205,22 @@
     <div class="card"><div id="cieList"><div class="load">Elegí el rango y tocá Calcular.</div></div></div>
   </section>
 
+  <!-- ===== Estadísticas ===== -->
+  <section id="tab_est" class="hide">
+    <div class="card">
+      <h1>Estadísticas</h1>
+      <h2>Horas por persona, por categoría y por mes. Por defecto cuenta lo autorizado y cerrado.</h2>
+      <div class="grid g4">
+        <div><label>Desde</label><input type="date" id="eDesde"></div>
+        <div><label>Hasta</label><input type="date" id="eHasta"></div>
+        <div><label>Incluir</label><select id="eInc"><option value="ok">Autorizadas + cerradas</option><option value="all">Todas</option></select></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="cargarEst()">Calcular</button></div>
+      </div>
+      <div id="estMsg" class="msg"></div>
+    </div>
+    <div id="estOut"><div class="load">Elegí el rango y tocá Calcular.</div></div>
+  </section>
+
   <a class="volver" href="index.html">← Volver al inicio</a>
 </div>
 
@@ -217,6 +247,7 @@ var $=function(id){return document.getElementById(id);};
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 function setMsg(id,t,c){ var m=$(id); if(m){ m.textContent=t||""; m.className="msg "+(c||""); } }
 function fmtFecha(iso){ if(!iso)return"—"; var p=String(iso).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0].slice(2); }
+function horarioTxt(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "🌙 cuadrilla"; if(!r.hora_inicio && !r.hora_fin) return "—"; return (r.hora_inicio||"?")+"–"+(r.hora_fin||"?"); }
 
 /* ---- sesión / token ---- */
 function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
@@ -271,6 +302,7 @@ function optPersonas(sel, incTodos){
 function poblarSelects(){
   optPersonas($("aPersona"),true); optPersonas($("mPersona"),false);
   $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
+  var sw=$("swatches"); if(sw){ sw.innerHTML=PALETA.map(function(c){return '<span onclick="$(\'mColor\').value=\''+c+'\'" title="'+c+'" style="width:22px;height:22px;border-radius:6px;background:'+c+';cursor:pointer;border:1px solid rgba(0,0,0,.3)"></span>';}).join(""); }
   colorAuto();
 }
 async function cargarCuad(){
@@ -298,11 +330,12 @@ function defaultsFechas(){
   ["cDesde","kDesde"].forEach(function(id){$(id).value=iso(desde);});
   ["cHasta","kHasta"].forEach(function(id){$(id).value=iso(hasta);});
   $("aFecha").value=iso(hoy); $("mDesde").value=iso(hoy); $("mHasta").value=iso(hoy);
+  $("eDesde").value=y+"-01-01"; $("eHasta").value=iso(hoy);
 }
 function tab(t){
-  ["conc","aut","cuad","alm","cie"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
+  ["conc","aut","cuad","alm","cie","est"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
     document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
-  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes();
+  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst();
 }
 /* Color fijo por persona (determinístico) para distinguir en el almanaque */
 var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];
@@ -323,7 +356,7 @@ async function cargarConc(){
     rows.forEach(function(r){
       var per=PMAP[r.persona_id]||{}; var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
-      var hor=(r.es_jornada_ordinaria?"🌙 cuadrilla":((r.hora_inicio||"?")+"–"+(r.hora_fin||"?")));
+      var hor=horarioTxt(r);
       html+='<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per.nombre||"—")+'<br><span class="who">'+esc(per.cargo||"")+'</span></td>'
         +'<td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+' h)</span>'
         +(r.fuera_de_plan?'<br><span class="flag">⚠ sin autorización</span>':'')
@@ -484,7 +517,7 @@ function verDia(diso){
   h+= rp.length? '<table><tr><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th></tr>'+rp.map(function(r){
       var per=(PMAP[r.persona_id]||{}).nombre||"—"; var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
-      var hor=r.es_jornada_ordinaria?"🌙 cuadrilla":((r.hora_inicio||"?")+"–"+(r.hora_fin||"?"));
+      var hor=horarioTxt(r);
       return '<tr><td>'+esc(per)+'</td><td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+'h)</span>'+(r.fuera_de_plan?' <span class="flag">⚠</span>':'')+'</td><td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td></tr>';
     }).join("")+'</table>':'<p class="who">Sin reportes este día.</p>';
   box.innerHTML=h;
@@ -569,6 +602,55 @@ async function cerrarPeriodo(){
     await sbFetch("/rest/v1/he_cierre",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(cierres)});
     setMsg("cieMsg","✓ Período cerrado ("+ids.length+" persona(s)).","ok"); calcularCierre();
   }catch(e){ setMsg("cieMsg",(e&&e.message)||"No se pudo cerrar.","err"); }
+}
+
+/* ============ ESTADÍSTICAS ============ */
+var CATS7=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"];
+var CATLBL={HED:"Extra diurna",HEN:"Extra nocturna",DOMD:"Recargo dom/fest",DOMN:"Recargo dom/fest noct.",HEFD:"Extra dom/fest",HEFN:"Extra dom/fest noct.",RNOCT:"Recargo nocturno"};
+var _MESN2=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function r1(x){ return Math.round(x*10)/10; }
+async function cargarEst(){
+  var out=$("estOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("estMsg","");
+  if(!(await asegurarToken())) return;
+  var d=$("eDesde").value, h=$("eHasta").value, inc=$("eInc").value;
+  var q="/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=persona_id,fecha,categorias,estado";
+  if(inc==="ok") q+="&estado=in.(autorizado,cerrado)";
+  try{
+    var rows=await sbFetch(q);
+    if(!rows||!rows.length){ out.innerHTML='<div class="card"><p class="who">No hay datos en ese rango.</p></div>'; return; }
+    var perP={}, perC={}, perM={}, totalH=0;
+    CATS7.forEach(function(k){ perC[k]=0; });
+    rows.forEach(function(r){
+      var c=r.categorias||{}, pid=r.persona_id, ym=String(r.fecha).slice(0,7);
+      if(!perP[pid]) perP[pid]={tot:0}; if(!perM[ym]) perM[ym]=0;
+      CATS7.forEach(function(k){ var v=c[k]||0; perP[pid][k]=(perP[pid][k]||0)+v; perP[pid].tot+=v; perC[k]+=v; perM[ym]+=v; totalH+=v; });
+    });
+    var pids=Object.keys(perP).sort(function(a,b){return perP[b].tot-perP[a].tot;});
+    var extras=perC.HED+perC.HEN+perC.HEFD+perC.HEFN, recargos=perC.RNOCT+perC.DOMD+perC.DOMN;
+    var maxP=Math.max.apply(null,pids.map(function(p){return perP[p].tot;}).concat([1]));
+    var maxC=Math.max.apply(null,CATS7.map(function(k){return perC[k];}).concat([1]));
+    var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
+    var html='<div class="card"><div class="tiles">'
+      +'<div class="tile"><div class="n">'+r1(totalH)+'</div><div class="l">Horas totales</div></div>'
+      +'<div class="tile"><div class="n">'+pids.length+'</div><div class="l">Personas</div></div>'
+      +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
+      +'<div class="tile"><div class="n">'+r1(recargos)+'</div><div class="l">Recargos</div></div></div></div>';
+    html+='<div class="card"><h2 style="margin-bottom:8px">Horas por persona</h2>';
+    pids.forEach(function(p){ var col=colorPersona(p),tot=perP[p].tot;
+      html+='<div class="hbar"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });
+    html+='</div>';
+    html+='<div class="card"><h2 style="margin-bottom:8px">Por categoría</h2>';
+    CATS7.forEach(function(k){ html+='<div class="hbar"><span class="nm">'+CATLBL[k]+'</span><span class="track"><span class="fill" style="width:'+(perC[k]/maxC*100)+'%;background:var(--orange)"></span></span><span class="v">'+r1(perC[k])+' h</span></div>'; });
+    html+='</div>';
+    html+='<div class="card"><h2 style="margin-bottom:8px">Por mes</h2>';
+    yms.forEach(function(m){ var lbl=_MESN2[parseInt(m.slice(5,7),10)-1]+" "+m.slice(0,4);
+      html+='<div class="hbar"><span class="nm">'+lbl+'</span><span class="track"><span class="fill" style="width:'+(perM[m]/maxM*100)+'%;background:var(--cy)"></span></span><span class="v">'+r1(perM[m])+' h</span></div>'; });
+    html+='</div>';
+    html+='<div class="card"><h2 style="margin-bottom:8px">Detalle por persona y categoría</h2><div style="overflow-x:auto"><table><tr><th>Persona</th>'+CATS7.map(function(k){return '<th>'+k+'</th>';}).join("")+'<th>Total</th></tr>';
+    pids.forEach(function(p){ html+='<tr><td>'+esc((PMAP[p]||{}).nombre||"—")+'</td>'+CATS7.map(function(k){return '<td>'+(perP[p][k]?r1(perP[p][k]):"")+'</td>';}).join("")+'<td class="tot">'+r1(perP[p].tot)+'</td></tr>'; });
+    html+='</table></div></div>';
+    out.innerHTML=html;
+  }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }
 }
 </script>
 </body>

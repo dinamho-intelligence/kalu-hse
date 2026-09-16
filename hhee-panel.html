@@ -55,6 +55,21 @@
   .hide{display:none}
   .tot{font-weight:800;color:var(--orange2)}
   .pill{display:inline-block;background:var(--bg3);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--tx2);margin-left:6px}
+  .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .caldow{font-size:10px;color:var(--tx3);text-transform:uppercase;text-align:center;padding:3px 0;font-weight:700}
+  .calcell{min-height:76px;background:var(--bg3);border:1px solid var(--line);border-radius:9px;padding:5px;cursor:pointer;display:flex;flex-direction:column;gap:3px}
+  .calcell.empty{background:transparent;border:none;cursor:default}
+  .calcell.hoy{border-color:var(--cy)}
+  .calcell.sel{border-color:var(--orange);box-shadow:0 0 0 2px var(--glow)}
+  .calcell.warn{background:rgba(228,161,75,.10)}
+  .calcell:hover:not(.empty){border-color:var(--tx3)}
+  .calnum{font-size:11px;color:var(--tx2);font-weight:700}
+  .caldots{display:flex;flex-wrap:wrap;gap:3px}
+  .caldot{width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.3)}
+  .calbadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;font-size:10px;font-weight:700}
+  .calb.rep{color:var(--cy)}.calb.warn{color:var(--amber)}.calb.aut{color:var(--ok)}
+  .dchip{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.3)}
+  @media(max-width:720px){.calcell{min-height:58px}.caldow{font-size:9px}}
 </style>
 </head>
 <body>
@@ -121,9 +136,24 @@
   <!-- ===== Almanaque ===== -->
   <section id="tab_alm" class="hide">
     <div class="card">
-      <h1>Almanaque de cuadrilla</h1>
-      <h2>Asigná el turno de cada persona por rango de días. El color es para ubicarte rápido.</h2>
-      <div class="grid g3">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <h1 style="margin:0">Almanaque de cuadrilla</h1>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn sec mini" onclick="mesNav(-1)">‹</button>
+          <b id="mesLbl" style="min-width:150px;text-align:center;display:inline-block">—</b>
+          <button class="btn sec mini" onclick="mesNav(1)">›</button>
+        </div>
+      </div>
+      <h2 style="margin:8px 0 4px">Tocá un día para ver cuadrilla, autorizaciones y reportes. Los días con ⚠ tienen horas sin autorizar.</h2>
+      <div id="cal"><div class="load">—</div></div>
+      <div class="who" style="margin-top:10px">
+        <span class="calb rep">🕒 reportes</span> &nbsp; <span class="calb aut">✅ autorizaciones</span> &nbsp; <span class="calb warn">⚠ sin autorizar</span> &nbsp;·&nbsp; los puntitos = cuadrilla del día
+      </div>
+    </div>
+    <div class="card" id="diaDetalle" style="display:none"></div>
+    <details class="card">
+      <summary style="cursor:pointer;font-weight:700;color:var(--tx)">➕ Asignar cuadrilla / turno</summary>
+      <div class="grid g3" style="margin-top:12px">
         <div><label>Persona</label><select id="mPersona"></select></div>
         <div><label>Turno</label><select id="mTurno"></select></div>
         <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px"></div>
@@ -134,8 +164,7 @@
         <div style="display:flex;align-items:flex-end"><button class="btn" id="mBtn" onclick="guardarCuadrilla()">Asignar</button></div>
       </div>
       <div id="almMsg" class="msg"></div>
-    </div>
-    <div class="card"><h2 style="margin-bottom:10px">Asignaciones (próximas y recientes)</h2><div id="almList"><div class="load">—</div></div></div>
+    </details>
   </section>
 
   <!-- ===== Cierre ===== -->
@@ -247,7 +276,7 @@ function defaultsFechas(){
 function tab(t){
   ["conc","aut","alm","cie"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
     document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
-  if(t==="aut") cargarAut(); if(t==="alm") cargarAlm();
+  if(t==="aut") cargarAut(); if(t==="alm") renderMes();
 }
 
 /* ============ CONCILIACIÓN ============ */
@@ -342,24 +371,98 @@ async function guardarCuadrilla(){
     if(!(await asegurarToken())) return;
     var reg={ empresa_id:EMP, persona_id:pid, turno_id:tid||null, fecha_desde:d1, fecha_hasta:d2, color:$("mColor").value, creado_por:MY_UID };
     await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
-    setMsg("almMsg","✓ Asignación guardada.","ok"); cargarAlm();
+    setMsg("almMsg","✓ Asignación guardada.","ok"); renderMes();
   }catch(e){ setMsg("almMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Asignar"; }
 }
-async function cargarAlm(){
-  var box=$("almList"); box.innerHTML='<div class="load">Cargando…</div>';
+var ALM_MES=null, ALM_SEL=null, ALM_CACHE={cuad:[],reps:[],auts:[]};
+var _MESN=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function isoD(d){ var m=d.getMonth()+1,dd=d.getDate(); return d.getFullYear()+"-"+(m<10?"0"+m:m)+"-"+(dd<10?"0"+dd:dd); }
+function turnoNom(id){ var t=TURNOS.filter(function(x){return x.id===id;})[0]; return t?t.nombre:"turno"; }
+function pendiente(r){ return (r.estado==="reportado"||r.estado==="no_autorizado")||r.fuera_de_plan; }
+function mesNav(n){ if(!ALM_MES){ var d=new Date(); ALM_MES=new Date(d.getFullYear(),d.getMonth(),1); } ALM_MES=new Date(ALM_MES.getFullYear(),ALM_MES.getMonth()+n,1); ALM_SEL=null; $("diaDetalle").style.display="none"; renderMes(); }
+async function renderMes(){
+  if(!ALM_MES){ var d=new Date(); ALM_MES=new Date(d.getFullYear(),d.getMonth(),1); }
+  var y=ALM_MES.getFullYear(), mo=ALM_MES.getMonth();
+  $("mesLbl").textContent=_MESN[mo]+" "+y;
+  var ini=new Date(y,mo,1), fin=new Date(y,mo+1,0), isoIni=isoD(ini), isoFin=isoD(fin);
+  $("cal").innerHTML='<div class="load">Cargando…</div>';
   if(!(await asegurarToken())) return;
   try{
-    var hace=new Date(); hace.setDate(hace.getDate()-30); var desde=hace.toISOString().slice(0,10);
-    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+desde+"&order=fecha_desde.desc&select=persona_id,turno_id,fecha_desde,fecha_hasta,color");
-    if(!rows.length){ box.innerHTML='<p class="who">Sin asignaciones en los últimos 30 días.</p>'; return; }
-    var tmap={}; TURNOS.forEach(function(t){tmap[t.id]=t.nombre;});
-    box.innerHTML=rows.map(function(r){
-      var per=(PMAP[r.persona_id]||{}).nombre||"—";
-      return '<div style="margin-bottom:8px"><div class="bar" style="background:'+esc(r.color||"#F28C00")+'">'+esc(per)+' · '+esc(tmap[r.turno_id]||"turno")+'</div>'
-        +'<div class="who" style="margin-top:2px">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</div></div>';
-    }).join("");
-  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+    var cuad=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_desde=lte."+isoFin+"&fecha_hasta=gte."+isoIni+"&select=id,persona_id,turno_id,fecha_desde,fecha_hasta,color");
+    var reps=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+isoIni+"&fecha=lte."+isoFin+"&select=id,persona_id,fecha,categorias,estado,fuera_de_plan,es_jornada_ordinaria,hora_inicio,hora_fin,justificacion,motivo");
+    var auts=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&fecha=gte."+isoIni+"&fecha=lte."+isoFin+"&select=id,persona_id,fecha,horas,es_interno,nota,foto_correo_url");
+    ALM_CACHE={cuad:cuad||[],reps:reps||[],auts:auts||[]};
+    pintarCal(y,mo);
+  }catch(e){ $("cal").innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+function pintarCal(y,mo){
+  var fin=new Date(y,mo+1,0).getDate();
+  var offset=(new Date(y,mo,1).getDay()+6)%7; // lunes=0
+  var hoy=isoD(new Date());
+  var dow=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  var h='<div class="calgrid">'+dow.map(function(d){return '<div class="caldow">'+d+'</div>';}).join("");
+  for(var i=0;i<offset;i++){ h+='<div class="calcell empty"></div>'; }
+  for(var day=1;day<=fin;day++){
+    var diso=isoD(new Date(y,mo,day));
+    var cu=ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;});
+    var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
+    var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
+    var sinAut=rp.filter(pendiente).length;
+    var dots=cu.slice(0,8).map(function(c){return '<span class="caldot" style="background:'+esc(c.color||"#F28C00")+'" title="'+esc((PMAP[c.persona_id]||{}).nombre||"")+'"></span>';}).join("");
+    var badges='';
+    if(rp.length) badges+='<span class="calb rep">🕒'+rp.length+'</span>';
+    if(au.length) badges+='<span class="calb aut">✅'+au.length+'</span>';
+    if(sinAut)    badges+='<span class="calb warn">⚠'+sinAut+'</span>';
+    h+='<div class="calcell'+(diso===hoy?" hoy":"")+(diso===ALM_SEL?" sel":"")+(sinAut?" warn":"")+'" onclick="verDia(\''+diso+'\')">'
+      +'<div class="calnum">'+day+'</div>'
+      +(dots?'<div class="caldots">'+dots+'</div>':'')
+      +'<div class="calbadges">'+badges+'</div></div>';
+  }
+  h+='</div>';
+  $("cal").innerHTML=h;
+}
+function verDia(diso){
+  ALM_SEL=diso;
+  var cu=ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;});
+  var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
+  var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
+  var box=$("diaDetalle"); box.style.display="block";
+  var h='<div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin:0">'+fmtFecha(diso)+'</h1>'
+    +'<button class="btn sec mini" onclick="cerrarDia()">✕</button></div>';
+  // Cuadrilla
+  h+='<h2 style="margin:14px 0 6px">Cuadrilla del día</h2>';
+  h+= cu.length? cu.map(function(c){var p=PMAP[c.persona_id]||{};
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
+        +'<span class="dchip" style="background:'+esc(c.color||"#F28C00")+'"></span>'
+        +'<span style="flex:1"><b>'+esc(p.nombre||"—")+'</b> · '+esc(turnoNom(c.turno_id))+' <span class="who">('+fmtFecha(c.fecha_desde)+'→'+fmtFecha(c.fecha_hasta)+')</span></span>'
+        +'<button class="btn no mini" onclick="borrarCuadrilla(\''+c.id+'\')">Borrar</button></div>';
+    }).join(""):'<p class="who">Nadie asignado a cuadrilla este día.</p>';
+  // Autorizaciones
+  h+='<h2 style="margin:16px 0 6px">Autorizaciones</h2>';
+  h+= au.length? '<table><tr><th>Persona</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+au.map(function(a){
+      var per=a.persona_id?((PMAP[a.persona_id]||{}).nombre||"—"):"Toda la cuadrilla";
+      return '<tr><td>'+esc(per)+'</td><td>'+(a.horas!=null?a.horas:"—")+'</td><td>'+(a.es_interno?"Interno":"Cliente")+'</td><td>'+esc(a.nota||"—")+'</td><td>'+(a.foto_correo_url?'<a href="'+esc(a.foto_correo_url)+'" target="_blank">ver</a>':"—")+'</td></tr>';
+    }).join("")+'</table>':'<p class="who">Sin autorizaciones cargadas este día.</p>';
+  // Reportes
+  h+='<h2 style="margin:16px 0 6px">Reportes del día</h2>';
+  h+= rp.length? '<table><tr><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th></tr>'+rp.map(function(r){
+      var per=(PMAP[r.persona_id]||{}).nombre||"—"; var tot=heTotalHoras(r.categorias||{});
+      var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
+      var hor=r.es_jornada_ordinaria?"🌙 cuadrilla":((r.hora_inicio||"?")+"–"+(r.hora_fin||"?"));
+      return '<tr><td>'+esc(per)+'</td><td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+'h)</span>'+(r.fuera_de_plan?' <span class="flag">⚠</span>':'')+'</td><td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td></tr>';
+    }).join("")+'</table>':'<p class="who">Sin reportes este día.</p>';
+  box.innerHTML=h;
+  pintarCal(ALM_MES.getFullYear(),ALM_MES.getMonth());
+  box.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+function cerrarDia(){ ALM_SEL=null; $("diaDetalle").style.display="none"; pintarCal(ALM_MES.getFullYear(),ALM_MES.getMonth()); }
+async function borrarCuadrilla(id){
+  if(!confirm("¿Borrar esta asignación de cuadrilla?")) return;
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_cuadrilla?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}});
+    var sel=ALM_SEL; await renderMes(); if(sel) verDia(sel);
+  }catch(e){ alert("No se pudo borrar: "+((e&&e.message)||"")); }
 }
 
 /* ============ CIERRE ============ */

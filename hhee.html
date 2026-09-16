@@ -247,25 +247,38 @@ function entrarHome(){
 function volverHome(){ ver("vHome"); }
 
 /* ===================== Home: mis reportes ===================== */
-var MIS=[], EDIT_ID=null;
+var MIS=[], EDIT_ID=null, MIS_MES=null;
+var _MESN_MIS=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 function horarioLinea(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "🌙 cuadrilla"; if(!r.hora_inicio && !r.hora_fin) return "—"; return (r.hora_inicio||"?")+"–"+(r.hora_fin||"?"); }
+function misMesNav(n){ if(!MIS_MES) return; MIS_MES=new Date(MIS_MES.getFullYear(),MIS_MES.getMonth()+n,1); pintarMis(); }
 async function cargarMisReportes(){
   var box=$("hLista"); box.innerHTML='<div class="load">Cargando…</div>';
   if(!(await asegurarToken())){ ver("vLogin"); return; }
   try{
-    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&order=fecha.desc,creado_at.desc&limit=100&select=id,fecha,hora_inicio,hora_fin,lugar,categorias,estado,fuera_de_plan,justificacion,motivo,es_jornada_ordinaria");
+    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&order=fecha.desc,creado_at.desc&limit=400&select=id,fecha,hora_inicio,hora_fin,lugar,categorias,estado,fuera_de_plan,justificacion,motivo,es_jornada_ordinaria");
     MIS=rows||[];
     if(!MIS.length){ box.innerHTML='<p class="chico">Todavía no cargaste ningún reporte.</p>'; return; }
-    // resumen por categoría (#8)
-    var CATS=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"], sum={}; CATS.forEach(function(k){sum[k]=0;});
-    MIS.forEach(function(r){ var c=r.categorias||{}; CATS.forEach(function(k){ sum[k]+=(c[k]||0); }); });
-    var hHombre=sum.HED+sum.HEN+sum.DOMD+sum.DOMN+sum.HEFD+sum.HEFN;
-    var chips=CATS.filter(function(k){return sum[k];}).map(function(k){return '<span class="rsum">'+k+' <b>'+Math.round(sum[k]*100)/100+'</b></span>';}).join("");
-    var resumen='<div class="resbox"><div class="chico" style="margin-bottom:6px">Resumen de tus horas cargadas</div>'
-      +'<div class="rsline"><span class="rsum big">Horas hombre <b>'+(Math.round(hHombre*100)/100)+'</b></span>'
-      +'<span class="rsum big cy">Recargo nocturno <b>'+(Math.round(sum.RNOCT*100)/100)+'</b></span></div>'
-      +(chips?'<div class="rsline" style="margin-top:6px">'+chips+'</div>':'')+'</div>';
-    var lista=MIS.map(function(r){
+    var f0=String(MIS[0].fecha).slice(0,7); MIS_MES=new Date(f0+"-01T00:00:00"); // arranca en el mes del último reporte
+    pintarMis();
+  }catch(e){ box.innerHTML='<p class="chico" style="color:#ff8a82">No se pudieron cargar tus reportes ('+esc(e.message)+').</p>'; }
+}
+function pintarMis(){
+  var box=$("hLista"); var y=MIS_MES.getFullYear(), mo=MIS_MES.getMonth();
+  var ym=y+"-"+("0"+(mo+1)).slice(-2);
+  var mes=MIS.filter(function(r){return String(r.fecha).slice(0,7)===ym;});
+  var nav='<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">'
+    +'<button class="btn sec" style="padding:8px 13px;margin:0" onclick="misMesNav(-1)">‹</button>'
+    +'<b style="min-width:150px;text-align:center">'+_MESN_MIS[mo]+' '+y+'</b>'
+    +'<button class="btn sec" style="padding:8px 13px;margin:0" onclick="misMesNav(1)">›</button></div>';
+  var CATS=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"], sum={}; CATS.forEach(function(k){sum[k]=0;});
+  mes.forEach(function(r){ var c=r.categorias||{}; CATS.forEach(function(k){ sum[k]+=(c[k]||0); }); });
+  var hHombre=sum.HED+sum.HEN+sum.DOMD+sum.DOMN+sum.HEFD+sum.HEFN;
+  var chips=CATS.filter(function(k){return sum[k];}).map(function(k){return '<span class="rsum">'+k+' <b>'+Math.round(sum[k]*100)/100+'</b></span>';}).join("");
+  var resumen='<div class="resbox"><div class="chico" style="margin-bottom:6px">Resumen de '+_MESN_MIS[mo]+' '+y+'</div>'
+    +'<div class="rsline"><span class="rsum big">Horas hombre <b>'+(Math.round(hHombre*100)/100)+'</b></span>'
+    +'<span class="rsum big cy">Recargo nocturno <b>'+(Math.round(sum.RNOCT*100)/100)+'</b></span></div>'
+    +(chips?'<div class="rsline" style="margin-top:6px">'+chips+'</div>':'')+'</div>';
+  var lista= mes.length? mes.map(function(r){
       var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
       return '<div class="rep"><div class="d"><b>'+fmtFecha(r.fecha)+'</b> · '+tot+' h · <span class="hh">'+esc(horarioLinea(r))+'</span>'
@@ -273,9 +286,8 @@ async function cargarMisReportes(){
         +(r.fuera_de_plan?'<div class="flag">⚠ fuera de lo planificado</div>':'')
         +(r.estado==="rechazado"?'<div class="flag" style="color:#ff8a82">✕ Rechazado'+(r.motivo?': '+esc(r.motivo):'')+'</div><button class="btn mini" style="margin-top:6px;padding:7px 12px" onclick="corregir(\''+r.id+'\')">✎ Corregir y reenviar</button>':'')
         +'</div><span class="chip '+r.estado+'">'+etiqEstado(r.estado)+'</span></div>';
-    }).join("");
-    box.innerHTML=resumen+lista;
-  }catch(e){ box.innerHTML='<p class="chico" style="color:#ff8a82">No se pudieron cargar tus reportes ('+esc(e.message)+').</p>'; }
+    }).join("") : '<p class="chico">Sin reportes en '+_MESN_MIS[mo]+'.</p>';
+  box.innerHTML=nav+resumen+lista;
 }
 function corregir(id){
   var r=MIS.filter(function(x){return x.id===id;})[0]; if(!r) return;

@@ -81,7 +81,11 @@
   .hbar{display:flex;align-items:center;gap:8px;margin:6px 0}
   .hbar .nm{width:160px;font-size:12.5px;color:var(--tx);flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hbar .track{flex:1;background:var(--bg);border-radius:6px;height:18px;overflow:hidden}
-  .hbar .fill{height:100%;border-radius:6px;min-width:2px}
+  .hbar .fill{display:block;height:100%;border-radius:6px;min-width:3px}
+  .hbar.clic{cursor:pointer}
+  .hbar.clic:hover .nm{color:var(--orange2)}
+  .hbar.sel .nm{color:var(--orange2);font-weight:800}
+  .estfiltro{display:flex;align-items:center;gap:10px;background:rgba(242,140,0,.1);border:1px solid rgba(242,140,0,.35);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
   .hbar .v{width:58px;text-align:right;font-size:12.5px;font-weight:700;color:var(--orange2);flex:none}
   @media(max-width:720px){.hbar .nm{width:100px}}
 </style>
@@ -632,6 +636,7 @@ var CATS7=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"];
 var CATLBL={HED:"Extra diurna",HEN:"Extra nocturna",DOMD:"Recargo dom/fest",DOMN:"Recargo dom/fest noct.",HEFD:"Extra dom/fest",HEFN:"Extra dom/fest noct.",RNOCT:"Recargo nocturno"};
 var _MESN2=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 function r1(x){ return Math.round(x*10)/10; }
+var EST_ROWS=[], EST_FILTER=null;
 async function cargarEst(){
   var out=$("estOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("estMsg","");
   if(!(await asegurarToken())) return;
@@ -640,41 +645,65 @@ async function cargarEst(){
   if(inc==="ok") q+="&estado=in.(autorizado,cerrado)";
   try{
     var rows=await sbFetch(q);
-    if(!rows||!rows.length){ out.innerHTML='<div class="card"><p class="who">No hay datos en ese rango.</p></div>'; return; }
-    var perP={}, perC={}, perM={}, totalH=0;
-    CATS7.forEach(function(k){ perC[k]=0; });
-    rows.forEach(function(r){
-      var c=r.categorias||{}, pid=r.persona_id, ym=String(r.fecha).slice(0,7);
-      if(!perP[pid]) perP[pid]={tot:0}; if(!perM[ym]) perM[ym]=0;
-      CATS7.forEach(function(k){ var v=c[k]||0; perP[pid][k]=(perP[pid][k]||0)+v; perP[pid].tot+=v; perC[k]+=v; perM[ym]+=v; totalH+=v; });
-    });
-    var pids=Object.keys(perP).sort(function(a,b){return perP[b].tot-perP[a].tot;});
-    var extras=perC.HED+perC.HEN+perC.HEFD+perC.HEFN, recargos=perC.RNOCT+perC.DOMD+perC.DOMN;
-    var maxP=Math.max.apply(null,pids.map(function(p){return perP[p].tot;}).concat([1]));
-    var maxC=Math.max.apply(null,CATS7.map(function(k){return perC[k];}).concat([1]));
-    var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
-    var html='<div class="card"><div class="tiles">'
-      +'<div class="tile"><div class="n">'+r1(totalH)+'</div><div class="l">Horas totales</div></div>'
-      +'<div class="tile"><div class="n">'+pids.length+'</div><div class="l">Personas</div></div>'
-      +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
-      +'<div class="tile"><div class="n">'+r1(recargos)+'</div><div class="l">Recargos</div></div></div></div>';
-    html+='<div class="card"><h2 style="margin-bottom:8px">Horas por persona</h2>';
-    pids.forEach(function(p){ var col=colorPersona(p),tot=perP[p].tot;
-      html+='<div class="hbar"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });
-    html+='</div>';
-    html+='<div class="card"><h2 style="margin-bottom:8px">Por categoría</h2>';
-    CATS7.forEach(function(k){ html+='<div class="hbar"><span class="nm">'+CATLBL[k]+'</span><span class="track"><span class="fill" style="width:'+(perC[k]/maxC*100)+'%;background:var(--orange)"></span></span><span class="v">'+r1(perC[k])+' h</span></div>'; });
-    html+='</div>';
-    html+='<div class="card"><h2 style="margin-bottom:8px">Por mes</h2>';
-    yms.forEach(function(m){ var lbl=_MESN2[parseInt(m.slice(5,7),10)-1]+" "+m.slice(0,4);
-      html+='<div class="hbar"><span class="nm">'+lbl+'</span><span class="track"><span class="fill" style="width:'+(perM[m]/maxM*100)+'%;background:var(--cy)"></span></span><span class="v">'+r1(perM[m])+' h</span></div>'; });
-    html+='</div>';
-    html+='<div class="card"><h2 style="margin-bottom:8px">Detalle por persona y categoría</h2><div style="overflow-x:auto"><table><tr><th>Persona</th>'+CATS7.map(function(k){return '<th>'+k+'</th>';}).join("")+'<th>Total</th></tr>';
-    pids.forEach(function(p){ html+='<tr><td>'+esc((PMAP[p]||{}).nombre||"—")+'</td>'+CATS7.map(function(k){return '<td>'+(perP[p][k]?r1(perP[p][k]):"")+'</td>';}).join("")+'<td class="tot">'+r1(perP[p].tot)+'</td></tr>'; });
-    html+='<tr style="border-top:2px solid var(--nar)"><td class="tot">TOTAL</td>'+CATS7.map(function(k){return '<td class="tot">'+r1(perC[k])+'</td>';}).join("")+'<td class="tot">'+r1(totalH)+'</td></tr>';
-    html+='</table></div></div>';
-    out.innerHTML=html;
+    EST_ROWS=rows||[]; EST_FILTER=null;
+    if(!EST_ROWS.length){ out.innerHTML='<div class="card"><p class="who">No hay datos en ese rango.</p></div>'; return; }
+    renderEst();
   }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }
+}
+function estFiltrar(k,v){ EST_FILTER=(EST_FILTER&&EST_FILTER.k===k&&EST_FILTER.v===v)?null:{k:k,v:v}; renderEst(); }
+function _labelFiltro(f){ if(f.k==="persona")return (PMAP[f.v]||{}).nombre||"persona"; if(f.k==="cat")return CATLBL[f.v]; return _MESN2[parseInt(f.v.slice(5,7),10)-1]+" "+f.v.slice(0,4); }
+function renderEst(){
+  var rows=EST_ROWS, f=EST_FILTER;
+  function pasa(r,dim){ if(!f||f.k===dim) return true; if(f.k==="persona") return r.persona_id===f.v; if(f.k==="mes") return String(r.fecha).slice(0,7)===f.v; return true; }
+  function cats(dim){ return (f&&f.k==="cat"&&dim!=="cat")?[f.v]:CATS7; }
+  var val=function(r,k){ return (r.categorias||{})[k]||0; };
+  // por persona (excluye filtro de persona)
+  var perP={}, cP=cats("persona");
+  rows.forEach(function(r){ if(!pasa(r,"persona"))return; var pid=r.persona_id; if(!perP[pid])perP[pid]={tot:0}; cP.forEach(function(k){var v=val(r,k); perP[pid][k]=(perP[pid][k]||0)+v; perP[pid].tot+=v;}); });
+  var pids=Object.keys(perP).sort(function(a,b){return perP[b].tot-perP[a].tot;});
+  var maxP=Math.max.apply(null,pids.map(function(p){return perP[p].tot;}).concat([1]));
+  // por categoría (excluye filtro de cat)
+  var perC={}; CATS7.forEach(function(k){perC[k]=0;});
+  rows.forEach(function(r){ if(!pasa(r,"cat"))return; CATS7.forEach(function(k){ perC[k]+=val(r,k); }); });
+  var maxC=Math.max.apply(null,CATS7.map(function(k){return perC[k];}).concat([1]));
+  // por mes (excluye filtro de mes)
+  var perM={}, cM=cats("mes");
+  rows.forEach(function(r){ if(!pasa(r,"mes"))return; var ym=String(r.fecha).slice(0,7); if(!perM[ym])perM[ym]=0; cM.forEach(function(k){ perM[ym]+=val(r,k); }); });
+  var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
+  // tiles + tabla: totalmente filtrado
+  var cT=(f&&f.k==="cat")?[f.v]:CATS7, np={}, totalH=0, extras=0, recargos=0, perPT={};
+  rows.forEach(function(r){
+    if(f){ if(f.k==="persona"&&r.persona_id!==f.v)return; if(f.k==="mes"&&String(r.fecha).slice(0,7)!==f.v)return; }
+    np[r.persona_id]=1; if(!perPT[r.persona_id])perPT[r.persona_id]={tot:0};
+    cT.forEach(function(k){ var v=val(r,k); totalH+=v; if(k==="HED"||k==="HEN"||k==="HEFD"||k==="HEFN")extras+=v; else recargos+=v; perPT[r.persona_id][k]=(perPT[r.persona_id][k]||0)+v; perPT[r.persona_id].tot+=v; });
+  });
+  var html="";
+  if(f){ html+='<div class="estfiltro"><b>Filtrando:</b> '+esc(_labelFiltro(f))+' <button class="btn sec mini" onclick="EST_FILTER=null;renderEst()">✕ quitar</button></div>'; }
+  html+='<div class="card"><div class="tiles">'
+    +'<div class="tile"><div class="n">'+r1(totalH)+'</div><div class="l">Horas totales</div></div>'
+    +'<div class="tile"><div class="n">'+Object.keys(np).length+'</div><div class="l">Personas</div></div>'
+    +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
+    +'<div class="tile"><div class="n">'+r1(recargos)+'</div><div class="l">Recargos</div></div></div></div>';
+  html+='<div class="card"><h2 style="margin-bottom:8px">Horas por persona <span class="who">(clic para filtrar)</span></h2>';
+  pids.forEach(function(p){ var col=colorPersona(p),tot=perP[p].tot,selc=(f&&f.k==="persona"&&f.v===p)?" sel":"";
+    html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'persona\',\''+p+'\')"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });
+  html+='</div>';
+  html+='<div class="card"><h2 style="margin-bottom:8px">Por categoría <span class="who">(clic para filtrar)</span></h2>';
+  CATS7.forEach(function(k){ var selc=(f&&f.k==="cat"&&f.v===k)?" sel":"";
+    html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'cat\',\''+k+'\')"><span class="nm">'+CATLBL[k]+'</span><span class="track"><span class="fill" style="width:'+(perC[k]/maxC*100)+'%;background:var(--orange)"></span></span><span class="v">'+r1(perC[k])+' h</span></div>'; });
+  html+='</div>';
+  html+='<div class="card"><h2 style="margin-bottom:8px">Por mes <span class="who">(clic para filtrar)</span></h2>';
+  yms.forEach(function(m){ var lbl=_MESN2[parseInt(m.slice(5,7),10)-1]+" "+m.slice(0,4),selc=(f&&f.k==="mes"&&f.v===m)?" sel":"";
+    html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'mes\',\''+m+'\')"><span class="nm">'+lbl+'</span><span class="track"><span class="fill" style="width:'+(perM[m]/maxM*100)+'%;background:var(--cy)"></span></span><span class="v">'+r1(perM[m])+' h</span></div>'; });
+  html+='</div>';
+  // tabla detalle (según filtro persona/mes; columnas siempre las 7)
+  var tpids=Object.keys(perPT).sort(function(a,b){return perPT[b].tot-perPT[a].tot;});
+  html+='<div class="card"><h2 style="margin-bottom:8px">Detalle por persona y categoría</h2><div style="overflow-x:auto"><table><tr><th>Persona</th>'+CATS7.map(function(k){return '<th>'+k+'</th>';}).join("")+'<th>Total</th></tr>';
+  var colT={}; CATS7.forEach(function(k){colT[k]=0;}); var gT=0;
+  tpids.forEach(function(p){ html+='<tr><td>'+esc((PMAP[p]||{}).nombre||"—")+'</td>'+CATS7.map(function(k){var v=perPT[p][k]||0; colT[k]+=v; return '<td>'+(v?r1(v):"")+'</td>';}).join("")+'<td class="tot">'+r1(perPT[p].tot)+'</td></tr>'; gT+=perPT[p].tot; });
+  html+='<tr style="border-top:2px solid var(--nar)"><td class="tot">TOTAL</td>'+CATS7.map(function(k){return '<td class="tot">'+r1(colT[k])+'</td>';}).join("")+'<td class="tot">'+r1(gT)+'</td></tr>';
+  html+='</table></div></div>';
+  $("estOut").innerHTML=html;
 }
 </script>
 </body>

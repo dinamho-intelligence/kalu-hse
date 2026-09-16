@@ -275,7 +275,7 @@ function pintarMis(){
   var hHombre=sum.HED+sum.HEN+sum.DOMD+sum.DOMN+sum.HEFD+sum.HEFN;
   var chips=CATS.filter(function(k){return sum[k];}).map(function(k){return '<span class="rsum">'+k+' <b>'+Math.round(sum[k]*100)/100+'</b></span>';}).join("");
   var resumen='<div class="resbox"><div class="chico" style="margin-bottom:6px">Resumen de '+_MESN_MIS[mo]+' '+y+'</div>'
-    +'<div class="rsline"><span class="rsum big">Horas hombre <b>'+(Math.round(hHombre*100)/100)+'</b></span>'
+    +'<div class="rsline"><span class="rsum big">Horas extra <b>'+(Math.round(hHombre*100)/100)+'</b></span>'
     +'<span class="rsum big cy">Recargo nocturno <b>'+(Math.round(sum.RNOCT*100)/100)+'</b></span></div>'
     +(chips?'<div class="rsline" style="margin-top:6px">'+chips+'</div>':'')+'</div>';
   var lista= mes.length? mes.map(function(r){
@@ -369,8 +369,12 @@ async function abrirSalida(){
   try{
     if(await asegurarToken()){
       var iso=$("sFecha").value;
-      var cu=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&fecha_desde=lte."+iso+"&fecha_hasta=gte."+iso+"&select=turno_id&limit=1");
-      if(cu&&cu.length&&cu[0].turno_id){ $("sTurno").value=cu[0].turno_id; $("sSub").textContent="Tu turno de hoy ya está en el almanaque. Confirmá la hora de salida."; }
+      var cu=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&fecha_desde=lte."+iso+"&fecha_hasta=gte."+iso+"&select=turno_id,fecha_desde,fecha_hasta");
+      if(cu&&cu.length){
+        // gana la asignación más específica (menor rango de días) por si ese día hay una excepción
+        cu.sort(function(a,b){ return (new Date(a.fecha_hasta)-new Date(a.fecha_desde))-(new Date(b.fecha_hasta)-new Date(b.fecha_desde)); });
+        if(cu[0].turno_id){ $("sTurno").value=cu[0].turno_id; $("sSub").textContent="Tu turno de hoy ya está en el almanaque. Confirmá la hora de salida."; }
+      }
     }
   }catch(_){}
   previewSalida();

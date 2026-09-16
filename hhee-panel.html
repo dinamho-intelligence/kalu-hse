@@ -126,7 +126,7 @@
           <option value="rechazado">Rechazados</option>
           <option value="cerrado">Cerrados</option>
         </select></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="cargarConc()">Buscar</button></div>
+        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="cargarConc()">Buscar</button><button class="btn sec" onclick="exportConc()">⬇ Excel</button></div>
       </div>
       <div id="concMsg" class="msg"></div>
     </div>
@@ -139,11 +139,16 @@
       <h1>Autorizar horas extra</h1>
       <h2>Cargá las autorizaciones (del correo del cliente o internas). Con esto los reportes dejan de salir ⚠.</h2>
       <div class="grid g4">
-        <div><label>Fecha</label><input type="date" id="aFecha"></div>
+        <div><label>Fecha</label><input type="date" id="aFecha" onchange="previewAut()"></div>
+        <div><label>Desde (opcional)</label><input type="time" id="aIni" onchange="previewAut()" oninput="previewAut()"></div>
+        <div><label>Hasta (opcional)</label><input type="time" id="aFin" onchange="previewAut()" oninput="previewAut()"></div>
         <div><label>Horas autorizadas (opcional)</label><input type="number" step="0.5" id="aHoras" placeholder="Ej. 3"></div>
+      </div>
+      <div class="grid g2">
         <div><label>Tipo</label><select id="aTipo"><option value="cliente">Cliente</option><option value="interno">Interno</option></select></div>
         <div><label>Cliente / nota</label><input id="aCliente" placeholder="Ej. Baker Hughes"></div>
       </div>
+      <div id="autPrev" class="who" style="margin-top:6px"></div>
       <label>Personas (un correo puede pedir varias)</label>
       <div style="display:flex;gap:8px;margin-bottom:6px">
         <button class="btn sec mini" type="button" onclick="marcarAut(true)">Marcar todos</button>
@@ -211,11 +216,11 @@
   <section id="tab_cie" class="hide">
     <div class="card">
       <h1>Cierre de período</h1>
-      <h2>Calculá los totales por persona y generá el FHA-95. El corte por defecto es del 21 al 20.</h2>
+      <h2>Calculá los totales por persona y generá el A.FR009. El corte por defecto es del 21 al 20.</h2>
       <div class="grid g4">
         <div><label>Desde</label><input type="date" id="kDesde"></div>
         <div><label>Hasta</label><input type="date" id="kHasta"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="calcularCierre()">Calcular</button></div>
+        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="calcularCierre()">Calcular</button><button class="btn sec" onclick="exportCierre()">⬇ Excel</button></div>
         <div style="display:flex;align-items:flex-end"><button class="btn sec" id="kCerrar" onclick="cerrarPeriodo()">Cerrar período</button></div>
       </div>
       <div id="cieMsg" class="msg"></div>
@@ -232,7 +237,7 @@
         <div><label>Desde</label><input type="date" id="eDesde"></div>
         <div><label>Hasta</label><input type="date" id="eHasta"></div>
         <div><label>Incluir</label><select id="eInc"><option value="ok">Autorizadas + cerradas</option><option value="all">Todas</option></select></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="cargarEst()">Calcular</button></div>
+        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="cargarEst()">Calcular</button><button class="btn sec" onclick="exportEst()">⬇ Excel</button></div>
       </div>
       <div id="estMsg" class="msg"></div>
     </div>
@@ -253,6 +258,7 @@ function heCategorizar(rep,festivos,cfg){cfg=cfg||HE_CFG;var cats={HED:0,HEN:0,D
 function heSumar(lista){var t={HED:0,HEN:0,DOMD:0,DOMN:0,HEFD:0,HEFN:0,RNOCT:0};(lista||[]).forEach(function(c){for(var k in t){t[k]+=(c[k]||0);}});for(var k in t){t[k]=Math.round(t[k]*100)/100;}return t;}
 function heTotalHoras(c){var s=0;for(var k in c){s+=(c[k]||0);}return Math.round(s*100)/100;}
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
@@ -388,6 +394,7 @@ async function cargarConc(){
   if(est) q+="&estado=eq."+est;
   try{
     var rows=await sbFetch(q);
+    CONC_ROWS=rows||[];
     if(!rows.length){ box.innerHTML='<p class="who">No hay reportes con ese filtro.</p>'; return; }
     var html='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th><th></th></tr>';
     rows.forEach(function(r){
@@ -429,6 +436,14 @@ async function subirFoto(file){
   if(!res.ok) throw new Error("No se pudo subir la foto ("+res.status+")");
   return SB_URL+"/storage/v1/object/public/evidencias/"+path;
 }
+function previewAut(){
+  var f=$("aFecha").value, i=$("aIni").value, fin=$("aFin").value, box=$("autPrev");
+  if(!box) return;
+  if(!f||!i||!fin){ box.innerHTML=""; return; }
+  var c=heCategorizar({fecha:f,horaInicio:i,horaFin:fin,esJornadaOrdinaria:false}, FEST);
+  var parts=CATS7.filter(function(k){return c[k];}).map(function(k){return CATLBL[k]+" "+c[k]+" h";});
+  box.innerHTML= parts.length? 'Sería: <b style="color:var(--tx)">'+parts.join(" · ")+'</b>' : "Ese horario da 0 h.";
+}
 async function guardarAut(){
   var f=$("aFecha").value; if(!f){ setMsg("autMsg","Poné la fecha.","err"); return; }
   var b=$("aBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("autMsg","");
@@ -437,11 +452,12 @@ async function guardarAut(){
     var foto=null, file=$("aFoto").files[0];
     if(file){ foto=await subirFoto(file); }
     var sel=Array.prototype.map.call(document.querySelectorAll('#autPersonChecks .achk:checked'),function(c){return c.value;});
-    var base={ empresa_id:EMP, fecha:f, horas:$("aHoras").value?parseFloat($("aHoras").value):null,
+    var base={ empresa_id:EMP, fecha:f, hora_inicio:$("aIni").value||null, hora_fin:$("aFin").value||null,
+      horas:$("aHoras").value?parseFloat($("aHoras").value):null,
       es_interno:$("aTipo").value==="interno", nota:$("aCliente").value.trim()||null, foto_correo_url:foto, creado_por:MY_UID };
     var regs = sel.length ? sel.map(function(pid){ return Object.assign({persona_id:pid}, base); }) : [Object.assign({persona_id:null}, base)];
     await sbFetch("/rest/v1/he_autorizacion",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(regs)});
-    setMsg("autMsg","✓ "+regs.length+" autorización(es) guardada(s).","ok"); $("aHoras").value=""; $("aCliente").value=""; $("aFoto").value=""; marcarAut(false);
+    setMsg("autMsg","✓ "+regs.length+" autorización(es) guardada(s).","ok"); $("aHoras").value=""; $("aCliente").value=""; $("aFoto").value=""; $("aIni").value=""; $("aFin").value=""; $("autPrev").innerHTML=""; marcarAut(false);
     cargarAut();
   }catch(e){ setMsg("autMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Guardar autorización"; }
@@ -450,11 +466,12 @@ async function cargarAut(){
   var box=$("autList"); box.innerHTML='<div class="load">Cargando…</div>';
   if(!(await asegurarToken())) return;
   try{
-    var rows=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&order=fecha.desc,creado_at.desc&limit=30&select=fecha,persona_id,horas,es_interno,nota,foto_correo_url");
+    var rows=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&order=fecha.desc,creado_at.desc&limit=30&select=fecha,persona_id,hora_inicio,hora_fin,horas,es_interno,nota,foto_correo_url");
     if(!rows.length){ box.innerHTML='<p class="who">Todavía no hay autorizaciones.</p>'; return; }
-    box.innerHTML='<table><tr><th>Fecha</th><th>Persona</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+rows.map(function(r){
+    box.innerHTML='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+rows.map(function(r){
       var per=r.persona_id?(PMAP[r.persona_id]||{}).nombre:"Toda la cuadrilla";
-      return '<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per||"—")+'</td><td>'+(r.horas!=null?r.horas:"—")+'</td>'
+      var hor=(r.hora_inicio&&r.hora_fin)?(r.hora_inicio+"–"+r.hora_fin):"—";
+      return '<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per||"—")+'</td><td>'+esc(hor)+'</td><td>'+(r.horas!=null?r.horas:"—")+'</td>'
         +'<td>'+(r.es_interno?'Interno':'Cliente')+'</td><td>'+esc(r.nota||"—")+'</td>'
         +'<td>'+(r.foto_correo_url?'<a href="'+esc(r.foto_correo_url)+'" target="_blank">ver</a>':'—')+'</td></tr>';
     }).join("")+'</table>';
@@ -482,6 +499,9 @@ var ALM_MES=null, ALM_SEL=null, ALM_CACHE={cuad:[],reps:[],auts:[]};
 var _MESN=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 function isoD(d){ var m=d.getMonth()+1,dd=d.getDate(); return d.getFullYear()+"-"+(m<10?"0"+m:m)+"-"+(dd<10?"0"+dd:dd); }
 function turnoNom(id){ var t=TURNOS.filter(function(x){return x.id===id;})[0]; return t?t.nombre:"turno"; }
+/* excepción de un día: si una persona tiene 2 asignaciones que cubren el día, gana la más específica (menor rango) */
+function _spanC(c){ return (new Date(c.fecha_hasta)-new Date(c.fecha_desde)); }
+function efectivas(cuList){ var by={}; cuList.forEach(function(c){ var e=by[c.persona_id]; if(!e || _spanC(c)<_spanC(e)) by[c.persona_id]=c; }); return Object.keys(by).map(function(k){return by[k];}); }
 function pendiente(r){ return (r.estado==="reportado"||r.estado==="no_autorizado")||r.fuera_de_plan; }
 function mesNav(n){ if(!ALM_MES){ var d=new Date(); ALM_MES=new Date(d.getFullYear(),d.getMonth(),1); } ALM_MES=new Date(ALM_MES.getFullYear(),ALM_MES.getMonth()+n,1); ALM_SEL=null; $("diaDetalle").style.display="none"; renderMes(); }
 async function renderMes(){
@@ -508,7 +528,7 @@ function pintarCal(y,mo){
   for(var i=0;i<offset;i++){ h+='<div class="calcell empty"></div>'; }
   for(var day=1;day<=fin;day++){
     var diso=isoD(new Date(y,mo,day));
-    var cu=ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;});
+    var cu=efectivas(ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;}));
     var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
     var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
     var sinAut=rp.filter(pendiente).length;
@@ -533,7 +553,7 @@ function pintarCal(y,mo){
 }
 function verDia(diso){
   ALM_SEL=diso;
-  var cu=ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;});
+  var cu=efectivas(ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;}));
   var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
   var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
   var box=$("diaDetalle"); box.style.display="block";
@@ -596,14 +616,15 @@ async function calcularCierre(){
     buenos.forEach(function(r){ (byP[r.persona_id]=byP[r.persona_id]||[]).push(r); });
     var ids=Object.keys(byP);
     if(!ids.length){ box.innerHTML='<p class="who">No hay reportes autorizados en el rango. '+(pend?('Hay '+pend+' pendientes de conciliar.'):'')+'</p>'; CIERRE_DATA=null; return; }
-    CIERRE_DATA={desde:d,hasta:h,byP:byP};
+    CIERRE_DATA={desde:d,hasta:h,byP:byP,corr:{}};
+    try{ var cz=await sbFetch("/rest/v1/he_cierre?empresa_id=eq."+EMP+"&periodo_desde=eq."+d+"&periodo_hasta=eq."+h+"&select=persona_id,correlativo"); (cz||[]).forEach(function(z){ if(z.correlativo!=null) CIERRE_DATA.corr[z.persona_id]=z.correlativo; }); }catch(_){}
     var html=(pend?('<p class="flag">⚠ Hay '+pend+' reporte(s) sin conciliar en el rango — no entran al cierre hasta aprobarlos.</p>'):'');
     html+='<table><tr><th>Persona</th><th>HED</th><th>HEN</th><th>DOMD</th><th>DOMN</th><th>HEFD</th><th>HEFN</th><th>RNOCT</th><th>Total</th><th></th></tr>';
     ids.forEach(function(pid){
       var tot=heSumar(byP[pid].map(function(r){return r.categorias||{};}));
-      var per=PMAP[pid]||{};
+      var per=PMAP[pid]||{}; var cc=CIERRE_DATA.corr[pid];
       html+='<tr><td>'+esc(per.nombre||"—")+'</td>'+["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"].map(function(k){return '<td>'+(tot[k]||0)+'</td>';}).join("")
-        +'<td class="tot">'+heTotalHoras(tot)+'</td><td><button class="btn mini" onclick="pdfFHA(\''+pid+'\')">FHA-95</button></td></tr>';
+        +'<td class="tot">'+heTotalHoras(tot)+'</td><td><button class="btn mini" onclick="pdfFHA(\''+pid+'\')">A.FR009'+(cc!=null?(' N°'+cc):'')+'</button></td></tr>';
     });
     box.innerHTML=html+'</table>';
   }catch(e){ box.innerHTML='<p class="msg err">No se pudo calcular ('+esc(e.message)+').</p>'; }
@@ -616,7 +637,8 @@ function pdfFHA(pid){
   doc.setFontSize(15); doc.setTextColor(180,30,30);
   doc.text("Formato individual de horas extras y auxilios extralegales", W/2, 46, {align:"center"});
   doc.setFontSize(9); doc.setTextColor(120);
-  doc.text("A.FR009 · Versión 002 · "+(EMP_NOMBRE||""), W/2, 62, {align:"center"});
+  var cc=(CIERRE_DATA.corr&&CIERRE_DATA.corr[pid]!=null)?("A.FR009 N° "+CIERRE_DATA.corr[pid]):"A.FR009 · BORRADOR (sin correlativo hasta cerrar el período)";
+  doc.text(cc+" · Versión 002 · "+(EMP_NOMBRE||""), W/2, 62, {align:"center"});
   doc.setTextColor(20); doc.setFontSize(10);
   doc.text("Nombre: "+(per.nombre||""), 40, 92);
   doc.text("Identificación: "+(per.cedula||""), 40, 108);
@@ -633,7 +655,8 @@ function pdfFHA(pid){
     styles:{fontSize:8,cellPadding:3}, headStyles:{fillColor:[40,40,40]}, columnStyles:{8:{cellWidth:120}} });
   var y=doc.lastAutoTable.finalY+18; doc.setFontSize(7.5); doc.setTextColor(120);
   doc.text("HED: extra diurna (06–19h) · HEN: extra nocturna (19–06h) · DOMD/DOMN: recargo dominical/festivo diurno/nocturno · RNOCT: recargo nocturno.", 40, y, {maxWidth:W-80});
-  doc.save("FHA-95_"+(per.nombre||"persona").replace(/\s+/g,"_")+".pdf");
+  var cnum=(CIERRE_DATA.corr&&CIERRE_DATA.corr[pid]!=null)?("AFR009-"+CIERRE_DATA.corr[pid]+"_"):"";
+  doc.save("A.FR009_"+cnum+(per.nombre||"persona").replace(/\s+/g,"_")+".pdf");
 }
 async function cerrarPeriodo(){
   if(!CIERRE_DATA){ setMsg("cieMsg","Primero calculá el período.","err"); return; }
@@ -642,14 +665,18 @@ async function cerrarPeriodo(){
   setMsg("cieMsg","Cerrando…","");
   try{
     var ids=Object.keys(CIERRE_DATA.byP), cierres=[];
+    // correlativo de auditoría: siguiente número por empresa
+    var mx=0; try{ var last=await sbFetch("/rest/v1/he_cierre?empresa_id=eq."+EMP+"&correlativo=not.is.null&order=correlativo.desc&limit=1&select=correlativo"); if(last&&last[0]&&last[0].correlativo) mx=last[0].correlativo; }catch(_){}
+    // reemplazar cierres previos de este mismo período (re-cierre)
+    try{ await sbFetch("/rest/v1/he_cierre?empresa_id=eq."+EMP+"&periodo_desde=eq."+CIERRE_DATA.desde+"&periodo_hasta=eq."+CIERRE_DATA.hasta,{method:"DELETE",headers:{Prefer:"return=minimal"}}); }catch(_){}
     for(var i=0;i<ids.length;i++){ var pid=ids[i]; var rows=CIERRE_DATA.byP[pid];
       var tot=heSumar(rows.map(function(r){return r.categorias||{};}));
-      cierres.push({empresa_id:EMP,persona_id:pid,periodo_desde:CIERRE_DATA.desde,periodo_hasta:CIERRE_DATA.hasta,totales:tot,aprobado_por:MY_UID,aprobado_at:new Date().toISOString()});
+      cierres.push({empresa_id:EMP,persona_id:pid,periodo_desde:CIERRE_DATA.desde,periodo_hasta:CIERRE_DATA.hasta,totales:tot,correlativo:(++mx),aprobado_por:MY_UID,aprobado_at:new Date().toISOString()});
       var rids=rows.filter(function(r){return r.estado==="autorizado";}).map(function(r){return r.id;});
       if(rids.length){ await sbFetch("/rest/v1/he_reporte?id=in.("+rids.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"cerrado"})}); }
     }
     await sbFetch("/rest/v1/he_cierre",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(cierres)});
-    setMsg("cieMsg","✓ Período cerrado ("+ids.length+" persona(s)).","ok"); calcularCierre();
+    setMsg("cieMsg","✓ Período cerrado ("+ids.length+" persona(s)). Correlativos A.FR009 asignados.","ok"); calcularCierre();
   }catch(e){ setMsg("cieMsg",(e&&e.message)||"No se pudo cerrar.","err"); }
 }
 
@@ -745,7 +772,53 @@ function renderEst(){
   } else {
     html+='<div class="card"><p class="who">Tocá una persona, una categoría o un mes (podés combinar) para ver acá el detalle día por día.</p></div>';
   }
+  EST_SNAP={perP:perP, pids:pids, dias:dias, filtros:{persona:F.persona,cat:F.cat,mes:F.mes,hist:EST_HIST}};
   $("estOut").innerHTML=html;
+}
+
+/* ============ EXPORTAR A EXCEL ============ */
+var CONC_ROWS=[], EST_SNAP=null;
+function _hoy(){ return isoD(new Date()); }
+function exportXLSX(nombre, sheets){
+  if(typeof XLSX==="undefined"){ alert("No cargó la librería de Excel. Reintentá con conexión."); return; }
+  var wb=XLSX.utils.book_new();
+  sheets.forEach(function(s){ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.aoa), s.name.slice(0,31)); });
+  XLSX.writeFile(wb, nombre);
+}
+function exportConc(){
+  if(!CONC_ROWS.length){ alert("Primero buscá reportes."); return; }
+  var head=["Fecha","Persona","Cargo","Horario","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Total","Estado","Fuera de plan","Justificación","Motivo rechazo"];
+  var aoa=[head];
+  CONC_ROWS.forEach(function(r){ var p=PMAP[r.persona_id]||{}, c=r.categorias||{};
+    aoa.push([fmtFecha(r.fecha), p.nombre||"", p.cargo||"", horarioTxt(r),
+      c.HED||"",c.HEN||"",c.DOMD||"",c.DOMN||"",c.HEFD||"",c.HEFN||"",c.RNOCT||"",
+      heTotalHoras(c), etiq(r.estado), r.fuera_de_plan?"Sí":"", r.justificacion||"", r.motivo||""]); });
+  exportXLSX("KALU_conciliacion_"+_hoy()+".xlsx",[{name:"Conciliación",aoa:aoa}]);
+}
+function exportEst(){
+  if(!EST_SNAP){ alert("Primero calculá las estadísticas."); return; }
+  var perP=EST_SNAP.perP, pids=EST_SNAP.pids;
+  var h1=["Persona","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Horas hombre"];
+  var s1=[h1]; pids.forEach(function(p){ var o=perP[p]; var hh=(o.tot||0)-(o.RNOCT||0);
+    s1.push([(PMAP[p]||{}).nombre||"", o.HED||"",o.HEN||"",o.DOMD||"",o.DOMN||"",o.HEFD||"",o.HEFN||"",o.RNOCT||"", Math.round(hh*100)/100]); });
+  var sheets=[{name:"Por persona",aoa:s1}];
+  if(EST_SNAP.dias && EST_SNAP.dias.length){
+    var h2=["Fecha","Persona","Horario","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Total","Estado","Justificación"];
+    var s2=[h2]; EST_SNAP.dias.forEach(function(x){ var r=x.r,c=r.categorias||{};
+      s2.push([fmtFecha(r.fecha),(PMAP[r.persona_id]||{}).nombre||"",horarioTxt(r),
+        c.HED||"",c.HEN||"",c.DOMD||"",c.DOMN||"",c.HEFD||"",c.HEFN||"",c.RNOCT||"", r1(x.tot), etiq(r.estado), r.justificacion||""]); });
+    sheets.push({name:"Días",aoa:s2});
+  }
+  exportXLSX("KALU_estadisticas_"+_hoy()+".xlsx",sheets);
+}
+function exportCierre(){
+  if(!CIERRE_DATA){ alert("Primero calculá el período."); return; }
+  var head=["Persona","Identificación","Cargo","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Horas hombre","N° A.FR009"];
+  var aoa=[head]; var ids=Object.keys(CIERRE_DATA.byP);
+  ids.forEach(function(pid){ var per=PMAP[pid]||{}, tot=heSumar(CIERRE_DATA.byP[pid].map(function(r){return r.categorias||{};}));
+    var hh=(heTotalHoras(tot))-(tot.RNOCT||0);
+    aoa.push([per.nombre||"", per.cedula||"", per.cargo||"", tot.HED||"",tot.HEN||"",tot.DOMD||"",tot.DOMN||"",tot.HEFD||"",tot.HEFN||"",tot.RNOCT||"", Math.round(hh*100)/100, (CIERRE_DATA.corr&&CIERRE_DATA.corr[pid])||""]); });
+  exportXLSX("KALU_cierre_"+fmtFecha(CIERRE_DATA.desde)+"_"+fmtFecha(CIERRE_DATA.hasta)+".xlsx",[{name:"Cierre",aoa:aoa}]);
 }
 </script>
 </body>

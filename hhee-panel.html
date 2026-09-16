@@ -679,8 +679,9 @@ function renderEst(){
   // por persona (aplica mes+cat)
   var perP={}, cP=catset("persona");
   rows.forEach(function(r){ if(!pasa(r,"persona"))return; var pid=r.persona_id; if(!perP[pid])perP[pid]={tot:0}; cP.forEach(function(k){var v=val(r,k);perP[pid][k]=(perP[pid][k]||0)+v;perP[pid].tot+=v;}); });
-  var pids=Object.keys(perP).sort(function(a,b){return perP[b].tot-perP[a].tot;});
-  var maxP=Math.max.apply(null,pids.map(function(p){return perP[p].tot;}).concat([1]));
+  var barP=function(o){ return F.cat ? (o.tot||0) : ((o.tot||0)-(o.RNOCT||0)); }; // horas hombre salvo que filtres una categoría
+  var pids=Object.keys(perP).sort(function(a,b){return barP(perP[b])-barP(perP[a]);});
+  var maxP=Math.max.apply(null,pids.map(function(p){return barP(perP[p]);}).concat([1]));
   // por categoría (aplica persona+mes)
   var perC={}; CATS7.forEach(function(k){perC[k]=0;});
   rows.forEach(function(r){ if(!pasa(r,"cat"))return; CATS7.forEach(function(k){ perC[k]+=val(r,k); }); });
@@ -690,25 +691,28 @@ function renderEst(){
   rows.forEach(function(r){ if(!pasa(r,"mes"))return; var ym=String(r.fecha).slice(0,7); if(!perM[ym])perM[ym]=0; cM.forEach(function(k){ perM[ym]+=val(r,k); }); });
   var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
   // tiles + días (aplica TODOS los filtros)
-  var cT=(F.cat)?[F.cat]:CATS7, np={}, totalH=0, extras=0, recargos=0, dias=[];
+  var cT=(F.cat)?[F.cat]:CATS7, np={}, extras=0, domfest=0, rnoct=0, dias=[];
   rows.forEach(function(r){
     if(F.persona&&r.persona_id!==F.persona)return;
     if(F.mes&&String(r.fecha).slice(0,7)!==F.mes)return;
     if(F.cat&&!(val(r,F.cat)>0))return;
     np[r.persona_id]=1; var rt=0;
-    cT.forEach(function(k){var v=val(r,k); totalH+=v; rt+=v; if(k==="HED"||k==="HEN"||k==="HEFD"||k==="HEFN")extras+=v; else recargos+=v;});
+    cT.forEach(function(k){var v=val(r,k); rt+=v;
+      if(k==="RNOCT") rnoct+=v; else if(k==="DOMD"||k==="DOMN") domfest+=v; else extras+=v; });
     dias.push({r:r,tot:rt});
   });
+  var horasHombre=extras+domfest; // RNOCT NO cuenta como hora hombre (solo pago)
   var anyF=F.persona||F.cat||F.mes;
   var html="";
   if(anyF){ html+='<div class="estfiltro"><b>Filtros:</b> '+(F.persona?_fchip("persona"):"")+(F.cat?_fchip("cat"):"")+(F.mes?_fchip("mes"):"")+'<button class="btn sec mini" onclick="estQuitar()">quitar todo</button></div>'; }
   html+='<div class="card"><div class="tiles">'
-    +'<div class="tile"><div class="n">'+r1(totalH)+'</div><div class="l">Horas totales</div></div>'
-    +'<div class="tile"><div class="n">'+Object.keys(np).length+'</div><div class="l">Personas</div></div>'
+    +'<div class="tile"><div class="n">'+r1(horasHombre)+'</div><div class="l">Horas hombre</div></div>'
     +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
-    +'<div class="tile"><div class="n">'+r1(recargos)+'</div><div class="l">Recargos</div></div></div></div>';
-  html+='<div class="card"><h2 style="margin-bottom:8px">Horas por persona <span class="who">(clic para filtrar)</span></h2>';
-  pids.forEach(function(p){ var col=colorPersona(p),tot=perP[p].tot,selc=(F.persona===p)?" sel":"";
+    +'<div class="tile"><div class="n">'+r1(domfest)+'</div><div class="l">Recargo dom/fest</div></div>'
+    +'<div class="tile"><div class="n">'+Object.keys(np).length+'</div><div class="l">Personas</div></div>'
+    +'<div class="tile" style="border-color:rgba(0,212,255,.4)"><div class="n" style="color:var(--cy)">'+r1(rnoct)+'</div><div class="l">Recargo nocturno · solo pago, no hora hombre</div></div></div></div>';
+  html+='<div class="card"><h2 style="margin-bottom:8px">Horas hombre por persona <span class="who">(sin recargo nocturno · clic para filtrar)</span></h2>';
+  pids.forEach(function(p){ var col=colorPersona(p),tot=barP(perP[p]),selc=(F.persona===p)?" sel":"";
     html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'persona\',\''+p+'\')"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });
   html+='</div>';
   html+='<div class="card"><h2 style="margin-bottom:8px">Por categoría <span class="who">(clic para filtrar)</span></h2>';

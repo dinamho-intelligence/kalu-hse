@@ -108,6 +108,7 @@
     <button class="tab" data-t="alm" onclick="tab('alm')">🗓️ Almanaque</button>
     <button class="tab" data-t="cie" onclick="tab('cie')">📄 Cierre</button>
     <button class="tab" data-t="est" onclick="tab('est')">📊 Estadísticas</button>
+    <button class="tab" data-t="jor" onclick="tab('jor')">🧮 Jornada</button>
   </div>
 
   <!-- ===== Conciliación ===== -->
@@ -150,9 +151,10 @@
       </div>
       <div id="autPrev" class="who" style="margin-top:6px"></div>
       <label>Personas (un correo puede pedir varias)</label>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
+      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
         <button class="btn sec mini" type="button" onclick="marcarAut(true)">Marcar todos</button>
         <button class="btn sec mini" type="button" onclick="marcarAut(false)">Ninguno</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" id="aSoloBase" style="width:auto" onchange="renderAutChecks()"> Solo base del cliente</label>
       </div>
       <div id="autPersonChecks" style="max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
       <div class="who" style="margin-top:4px">Sin marcar a nadie = aplica a toda la cuadrilla.</div>
@@ -175,9 +177,10 @@
         <div><label>Hasta</label><input type="date" id="mHasta"></div>
       </div>
       <label>Personas</label>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
+      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
         <button class="btn sec mini" type="button" onclick="marcarTodos(true)">Marcar todos</button>
         <button class="btn sec mini" type="button" onclick="marcarTodos(false)">Ninguno</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" id="mSoloBase" style="width:auto" onchange="renderPersonChecks()"> Solo base del cliente</label>
       </div>
       <div id="personChecks" style="max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
       <button class="btn" id="mBtn" onclick="guardarCuadrillas()" style="margin-top:14px">Asignar a la cuadrilla</button>
@@ -187,6 +190,13 @@
       <div class="card"><h2 style="margin-bottom:10px">🌅 Turno mañana</h2><div id="cuadDia"><div class="load">—</div></div></div>
       <div class="card"><h2 style="margin-bottom:10px">🌙 Turno noche</h2><div id="cuadNoche"><div class="load">—</div></div></div>
     </div>
+    <details class="card">
+      <summary style="cursor:pointer;font-weight:700;color:var(--tx)">🏷️ Base del cliente — marcar quién está registrado</summary>
+      <p class="who" style="margin:8px 0">El cliente solo pide personas de su base. Marcá quiénes están (los administrativos quedan afuera). Con esto podés filtrar arriba y en Autorizaciones.</p>
+      <div id="baseChecks" style="max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
+      <button class="btn" id="baseBtn" onclick="guardarBase()" style="margin-top:12px">Guardar base del cliente</button>
+      <div id="baseMsg" class="msg"></div>
+    </details>
   </section>
 
   <!-- ===== Almanaque (calendario) ===== -->
@@ -244,6 +254,37 @@
     <div id="estOut"><div class="load">Elegí el rango y tocá Calcular.</div></div>
   </section>
 
+  <!-- ===== Jornada y ausencias ===== -->
+  <section id="tab_jor" class="hide">
+    <div class="card">
+      <h1>Jornada y ausencias</h1>
+      <h2>Jornada normal ≈42 h/sem (del horario del turno). <b>Horas efectivas = normales + extras − ausencias.</b> El recargo nocturno va aparte (solo pago).</h2>
+      <div class="grid g4">
+        <div><label>Desde</label><input type="date" id="jDesde"></div>
+        <div><label>Hasta</label><input type="date" id="jHasta"></div>
+        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="calcularJornada()">Calcular</button><button class="btn sec" onclick="exportJor()">⬇ Excel</button></div>
+        <div></div>
+      </div>
+      <div id="jorMsg" class="msg"></div>
+    </div>
+    <div id="jorOut"><div class="load">Elegí el período y tocá Calcular.</div></div>
+    <div class="card">
+      <h2 style="margin-bottom:10px">Cargar permiso / vacaciones</h2>
+      <div class="grid g4">
+        <div><label>Persona</label><select id="auPersona"></select></div>
+        <div><label>Tipo</label><select id="auTipo"><option value="permiso">Permiso</option><option value="vacaciones">Vacaciones</option><option value="licencia">Licencia</option><option value="incapacidad">Incapacidad</option></select></div>
+        <div><label>Desde</label><input type="date" id="auDesde"></div>
+        <div><label>Hasta</label><input type="date" id="auHasta"></div>
+      </div>
+      <div class="grid g2">
+        <div><label>Motivo (opcional)</label><input id="auMotivo" placeholder="Ej. cita médica"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" id="auBtn" onclick="guardarAusencia()">Guardar ausencia</button></div>
+      </div>
+      <div id="auMsg" class="msg"></div>
+      <div id="auList" style="margin-top:12px"><div class="load">—</div></div>
+    </div>
+  </section>
+
   <a class="volver" href="index.html">← Volver al inicio</a>
 </div>
 
@@ -266,7 +307,7 @@ var SB_URL="https://nignqeipzlemwfrwmpip.supabase.co";
 var SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
 var SB_REF="nignqeipzlemwfrwmpip", SESS_KEY="sb-"+SB_REF+"-auth-token";
 var SB_TOKEN=null, MY_UID=null, EMP=null, NOMBRE="", ES_SUPER=false;
-var PERSONAS=[], PMAP={}, TURNOS=[], EMP_NOMBRE="", BRANDING={}, FEST=new Set();
+var PERSONAS=[], PMAP={}, TURNOS=[], EMP_NOMBRE="", BRANDING={}, FEST=new Set(), BASE=new Set();
 var $=function(id){return document.getElementById(id);};
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 function setMsg(id,t,c){ var m=$(id); if(m){ m.textContent=t||""; m.className="msg "+(c||""); } }
@@ -310,8 +351,9 @@ async function asegurarToken(){
     try{ var e=await sbFetch("/rest/v1/empresas?id=eq."+EMP+"&select=razon_social,branding"); if(e&&e[0]){ EMP_NOMBRE=e[0].razon_social||""; BRANDING=e[0].branding||{}; } }catch(_){}
     PERSONAS=await sbFetch("/rest/v1/personas?empresa_id=eq."+EMP+"&vigente=eq.true&order=nombre&select=id,nombre,cedula,cargo");
     PERSONAS.forEach(function(x){ PMAP[x.id]=x; });
-    try{ TURNOS=await sbFetch("/rest/v1/he_turnos?empresa_id=eq."+EMP+"&activo=eq.true&select=id,nombre,tipo"); }catch(_){ TURNOS=[]; }
+    try{ TURNOS=await sbFetch("/rest/v1/he_turnos?empresa_id=eq."+EMP+"&activo=eq.true&select=id,nombre,tipo,horarios"); }catch(_){ TURNOS=[]; }
     try{ var fs=await sbFetch("/rest/v1/he_festivos?select=fecha"); FEST=new Set((fs||[]).map(function(x){return String(x.fecha).slice(0,10);})); }catch(_){}
+    try{ var bc=await sbFetch("/rest/v1/he_base_cliente?empresa_id=eq."+EMP+"&select=persona_id"); BASE=new Set((bc||[]).map(function(x){return x.persona_id;})); }catch(_){}
     poblarSelects(); defaultsFechas();
     $("vCarga").classList.add("hide"); $("app").classList.remove("hide");
     cargarConc();
@@ -328,23 +370,45 @@ function poblarSelects(){
   renderAutChecks();
   $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
   renderPersonChecks();
+  renderBaseChecks();
 }
+function _persListaFiltrada(soloBase){ return soloBase?PERSONAS.filter(function(p){return BASE.has(p.id);}):PERSONAS; }
+function _chkRow(cls,p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
+  +'<input type="checkbox" class="'+cls+'" value="'+p.id+'" style="width:auto;flex:none">'
+  +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
+  +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }
 function renderAutChecks(){
   var box=$("autPersonChecks"); if(!box) return;
-  box.innerHTML=PERSONAS.map(function(p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
-    +'<input type="checkbox" class="achk" value="'+p.id+'" style="width:auto;flex:none">'
-    +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
-    +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }).join("");
+  var lst=_persListaFiltrada($("aSoloBase")&&$("aSoloBase").checked);
+  box.innerHTML=lst.length?lst.map(function(p){return _chkRow("achk",p);}).join(""):'<p class="who" style="margin:4px">Nadie en la base del cliente todavía.</p>';
 }
 function marcarAut(v){ Array.prototype.forEach.call(document.querySelectorAll('#autPersonChecks .achk'),function(c){c.checked=v;}); }
 function renderPersonChecks(){
   var box=$("personChecks"); if(!box) return;
+  var lst=_persListaFiltrada($("mSoloBase")&&$("mSoloBase").checked);
+  box.innerHTML=lst.length?lst.map(function(p){return _chkRow("pchk",p);}).join(""):'<p class="who" style="margin:4px">Nadie en la base del cliente todavía.</p>';
+}
+function marcarTodos(v){ Array.prototype.forEach.call(document.querySelectorAll('#personChecks .pchk'),function(c){c.checked=v;}); }
+function renderBaseChecks(){
+  var box=$("baseChecks"); if(!box) return;
   box.innerHTML=PERSONAS.map(function(p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
-    +'<input type="checkbox" class="pchk" value="'+p.id+'" style="width:auto;flex:none">'
+    +'<input type="checkbox" class="bchk" value="'+p.id+'" '+(BASE.has(p.id)?'checked':'')+' style="width:auto;flex:none">'
     +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
     +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }).join("");
 }
-function marcarTodos(v){ Array.prototype.forEach.call(document.querySelectorAll('#personChecks .pchk'),function(c){c.checked=v;}); }
+async function guardarBase(){
+  var b=$("baseBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("baseMsg","");
+  try{
+    if(!(await asegurarToken())) return;
+    var sel=Array.prototype.map.call(document.querySelectorAll('#baseChecks .bchk:checked'),function(c){return c.value;});
+    await sbFetch("/rest/v1/he_base_cliente?empresa_id=eq."+EMP,{method:"DELETE",headers:{Prefer:"return=minimal"}});
+    if(sel.length){ await sbFetch("/rest/v1/he_base_cliente",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(sel.map(function(pid){return {empresa_id:EMP,persona_id:pid};}))}); }
+    BASE=new Set(sel);
+    setMsg("baseMsg","✓ Base del cliente guardada ("+sel.length+").","ok");
+    renderPersonChecks(); renderAutChecks();
+  }catch(e){ setMsg("baseMsg",(e&&e.message)||"No se pudo guardar.","err"); }
+  finally{ b.disabled=false; b.textContent="Guardar base del cliente"; }
+}
 async function cargarCuad(){
   var bd=$("cuadDia"), bn=$("cuadNoche");
   if(bd) bd.innerHTML='<div class="load">…</div>'; if(bn) bn.innerHTML='<div class="load">…</div>';
@@ -377,9 +441,9 @@ function defaultsFechas(){
   $("eDesde").value=y+"-01-01"; $("eHasta").value=iso(hoy);
 }
 function tab(t){
-  ["conc","aut","cuad","alm","cie","est"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
+  ["conc","aut","cuad","alm","cie","est","jor"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
     document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
-  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst();
+  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst(); if(t==="jor") cargarJor();
 }
 /* Color fijo por persona (determinístico) para distinguir en el almanaque */
 var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];
@@ -819,6 +883,90 @@ function exportCierre(){
     var hh=(heTotalHoras(tot))-(tot.RNOCT||0);
     aoa.push([per.nombre||"", per.cedula||"", per.cargo||"", tot.HED||"",tot.HEN||"",tot.DOMD||"",tot.DOMN||"",tot.HEFD||"",tot.HEFN||"",tot.RNOCT||"", Math.round(hh*100)/100, (CIERRE_DATA.corr&&CIERRE_DATA.corr[pid])||""]); });
   exportXLSX("KALU_cierre_"+fmtFecha(CIERRE_DATA.desde)+"_"+fmtFecha(CIERRE_DATA.hasta)+".xlsx",[{name:"Cierre",aoa:aoa}]);
+}
+
+/* ============ JORNADA Y AUSENCIAS (#6) ============ */
+var JOR_DATA=null;
+function jornadaDiaria(){
+  var t=TURNOS.filter(function(x){return x.tipo==="dia";})[0]||TURNOS[0];
+  function sumSeg(segs){ var s=0; (segs||[]).forEach(function(a){ s+=(_toMin(a[1])-_toMin(a[0]))/60; }); return s; }
+  if(t&&t.horarios){ return {lv:sumSeg(t.horarios["L-V"]), sab:sumSeg(t.horarios["sab"]), dom:sumSeg(t.horarios["dom"])}; }
+  return {lv:7.5, sab:4.5, dom:0};
+}
+function _horasRango(d1,d2,jd){ // horas de jornada esperada entre d1..d2 (descuenta festivos y domingos)
+  if(!d1||!d2||d1>d2) return 0;
+  var cur=new Date(d1+"T00:00:00"), end=new Date(d2+"T00:00:00"), s=0;
+  while(cur<=end){ var iso=isoD(cur), dow=cur.getDay();
+    if(!FEST.has(iso)){ if(dow===6) s+=jd.sab; else if(dow!==0) s+=jd.lv; }
+    cur.setDate(cur.getDate()+1); }
+  return Math.round(s*100)/100;
+}
+async function calcularJornada(){
+  var out=$("jorOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("jorMsg","");
+  if(!(await asegurarToken())) return;
+  var d=$("jDesde").value, h=$("jHasta").value;
+  if(!d||!h||d>h){ setMsg("jorMsg","Revisá el período.","err"); return; }
+  try{
+    var reps=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&estado=in.(autorizado,cerrado)&select=persona_id,categorias");
+    var aus=await sbFetch("/rest/v1/he_ausencia?empresa_id=eq."+EMP+"&fecha_desde=lte."+h+"&fecha_hasta=gte."+d+"&select=persona_id,fecha_desde,fecha_hasta,tipo");
+    var jd=jornadaDiaria(), esp=_horasRango(d,h,jd);
+    var exP={}, rnP={}, ausP={};
+    reps.forEach(function(r){ var c=r.categorias||{}; exP[r.persona_id]=(exP[r.persona_id]||0)+((c.HED||0)+(c.HEN||0)+(c.DOMD||0)+(c.DOMN||0)+(c.HEFD||0)+(c.HEFN||0)); rnP[r.persona_id]=(rnP[r.persona_id]||0)+(c.RNOCT||0); });
+    aus.forEach(function(a){ var dd=(a.fecha_desde>d?a.fecha_desde:d), hh=(a.fecha_hasta<h?a.fecha_hasta:h); ausP[a.persona_id]=(ausP[a.persona_id]||0)+_horasRango(dd,hh,jd); });
+    var rows=PERSONAS.map(function(p){ var au=ausP[p.id]||0, norm=Math.max(0,esp-au), ex=exP[p.id]||0;
+      return {pid:p.id,nombre:p.nombre,esp:esp,aus:Math.round(au*100)/100,norm:Math.round(norm*100)/100,ex:Math.round(ex*100)/100,rn:Math.round((rnP[p.id]||0)*100)/100,efe:Math.round((norm+ex)*100)/100}; });
+    rows.sort(function(a,b){return b.efe-a.efe;});
+    JOR_DATA={desde:d,hasta:h,rows:rows,esp:esp};
+    var html='<div class="card"><h2 style="margin-bottom:8px">Jornada del período · esperada '+esp+' h por persona</h2><div style="overflow-x:auto"><table>'
+      +'<tr><th>Persona</th><th>Jornada esperada</th><th>Ausencias</th><th>Normales</th><th>Extra</th><th>Efectivas</th><th>Rec. noct.</th></tr>';
+    rows.forEach(function(r){ html+='<tr><td>'+esc(r.nombre||"—")+'</td><td>'+r.esp+'</td><td>'+(r.aus||"")+'</td><td>'+r.norm+'</td><td>'+(r.ex||"")+'</td><td class="tot">'+r.efe+'</td><td>'+(r.rn||"")+'</td></tr>'; });
+    html+='</table></div><div class="who" style="margin-top:8px">Normales = jornada esperada − ausencias. Efectivas = normales + extra. El recargo nocturno no entra (solo pago).</div></div>';
+    out.innerHTML=html;
+  }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }
+}
+function exportJor(){
+  if(!JOR_DATA){ alert("Primero calculá la jornada."); return; }
+  var head=["Persona","Jornada esperada","Ausencias","Normales","Extra","Efectivas","Recargo nocturno"];
+  var aoa=[head]; JOR_DATA.rows.forEach(function(r){ aoa.push([r.nombre,r.esp,r.aus,r.norm,r.ex,r.efe,r.rn]); });
+  exportXLSX("KALU_jornada_"+fmtFecha(JOR_DATA.desde)+"_"+fmtFecha(JOR_DATA.hasta)+".xlsx",[{name:"Jornada",aoa:aoa}]);
+}
+async function guardarAusencia(){
+  var pid=$("auPersona").value, tipo=$("auTipo").value, d1=$("auDesde").value, d2=$("auHasta").value;
+  if(!pid||!d1||!d2){ setMsg("auMsg","Completá persona y fechas.","err"); return; }
+  if(d1>d2){ setMsg("auMsg","El 'desde' no puede ser mayor al 'hasta'.","err"); return; }
+  var b=$("auBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("auMsg","");
+  try{
+    if(!(await asegurarToken())) return;
+    var reg={empresa_id:EMP,persona_id:pid,tipo:tipo,fecha_desde:d1,fecha_hasta:d2,motivo:$("auMotivo").value.trim()||null,creado_por:MY_UID};
+    await sbFetch("/rest/v1/he_ausencia",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+    setMsg("auMsg","✓ Ausencia guardada.","ok"); $("auMotivo").value=""; cargarAusList();
+  }catch(e){ setMsg("auMsg",(e&&e.message)||"No se pudo guardar.","err"); }
+  finally{ b.disabled=false; b.textContent="Guardar ausencia"; }
+}
+async function cargarAusList(){
+  var box=$("auList"); if(!box) return; box.innerHTML='<div class="load">…</div>';
+  if(!(await asegurarToken())) return;
+  try{
+    var rows=await sbFetch("/rest/v1/he_ausencia?empresa_id=eq."+EMP+"&order=fecha_desde.desc&limit=40&select=id,persona_id,tipo,fecha_desde,fecha_hasta,motivo");
+    if(!rows.length){ box.innerHTML='<p class="who">Sin permisos/vacaciones cargados.</p>'; return; }
+    box.innerHTML='<table><tr><th>Persona</th><th>Tipo</th><th>Desde</th><th>Hasta</th><th>Motivo</th><th></th></tr>'+rows.map(function(r){
+      return '<tr><td>'+esc((PMAP[r.persona_id]||{}).nombre||"—")+'</td><td>'+esc(r.tipo)+'</td><td>'+fmtFecha(r.fecha_desde)+'</td><td>'+fmtFecha(r.fecha_hasta)+'</td><td>'+esc(r.motivo||"—")+'</td>'
+        +'<td><button class="btn no mini" onclick="borrarAusencia(\''+r.id+'\')">✕</button></td></tr>';
+    }).join("")+'</table>';
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+async function borrarAusencia(id){
+  if(!confirm("¿Borrar esta ausencia?")) return;
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_ausencia?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}}); cargarAusList(); }
+  catch(e){ alert("No se pudo borrar: "+((e&&e.message)||"")); }
+}
+function cargarJor(){
+  if(!$("auPersona").innerHTML){ $("auPersona").innerHTML=PERSONAS.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+'</option>';}).join(""); }
+  var hoy=new Date();
+  if(!$("jDesde").value){ $("jDesde").value=isoD(new Date(hoy.getFullYear(),hoy.getMonth()-1,21)); $("jHasta").value=isoD(new Date(hoy.getFullYear(),hoy.getMonth(),20)); }
+  if(!$("auDesde").value){ $("auDesde").value=isoD(hoy); $("auHasta").value=isoD(hoy); }
+  cargarAusList();
 }
 </script>
 </body>

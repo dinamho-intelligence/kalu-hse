@@ -137,16 +137,21 @@
     <div class="card">
       <h1>Autorizar horas extra</h1>
       <h2>Cargá las autorizaciones (del correo del cliente o internas). Con esto los reportes dejan de salir ⚠.</h2>
-      <div class="grid g3">
+      <div class="grid g4">
         <div><label>Fecha</label><input type="date" id="aFecha"></div>
-        <div><label>Persona (opcional)</label><select id="aPersona"><option value="">— Toda la cuadrilla —</option></select></div>
         <div><label>Horas autorizadas (opcional)</label><input type="number" step="0.5" id="aHoras" placeholder="Ej. 3"></div>
-      </div>
-      <div class="grid g3">
         <div><label>Tipo</label><select id="aTipo"><option value="cliente">Cliente</option><option value="interno">Interno</option></select></div>
         <div><label>Cliente / nota</label><input id="aCliente" placeholder="Ej. Baker Hughes"></div>
-        <div><label>Foto del correo (opcional)</label><input type="file" id="aFoto" accept="image/*"></div>
       </div>
+      <label>Personas (un correo puede pedir varias)</label>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <button class="btn sec mini" type="button" onclick="marcarAut(true)">Marcar todos</button>
+        <button class="btn sec mini" type="button" onclick="marcarAut(false)">Ninguno</button>
+      </div>
+      <div id="autPersonChecks" style="max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
+      <div class="who" style="margin-top:4px">Sin marcar a nadie = aplica a toda la cuadrilla.</div>
+      <label>Foto del correo (opcional)</label>
+      <input type="file" id="aFoto" accept="image/*">
       <button class="btn" id="aBtn" onclick="guardarAut()" style="margin-top:16px">Guardar autorización</button>
       <div id="autMsg" class="msg"></div>
     </div>
@@ -313,10 +318,18 @@ function optPersonas(sel, incTodos){
   sel.innerHTML=o;
 }
 function poblarSelects(){
-  optPersonas($("aPersona"),true);
+  renderAutChecks();
   $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
   renderPersonChecks();
 }
+function renderAutChecks(){
+  var box=$("autPersonChecks"); if(!box) return;
+  box.innerHTML=PERSONAS.map(function(p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
+    +'<input type="checkbox" class="achk" value="'+p.id+'" style="width:auto;flex:none">'
+    +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
+    +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }).join("");
+}
+function marcarAut(v){ Array.prototype.forEach.call(document.querySelectorAll('#autPersonChecks .achk'),function(c){c.checked=v;}); }
 function renderPersonChecks(){
   var box=$("personChecks"); if(!box) return;
   box.innerHTML=PERSONAS.map(function(p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
@@ -422,12 +435,12 @@ async function guardarAut(){
     if(!(await asegurarToken())) return;
     var foto=null, file=$("aFoto").files[0];
     if(file){ foto=await subirFoto(file); }
-    var reg={ empresa_id:EMP, fecha:f, persona_id:$("aPersona").value||null,
-      horas:$("aHoras").value?parseFloat($("aHoras").value):null,
-      es_interno:$("aTipo").value==="interno", nota:$("aCliente").value.trim()||null,
-      foto_correo_url:foto, creado_por:MY_UID };
-    await sbFetch("/rest/v1/he_autorizacion",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
-    setMsg("autMsg","✓ Autorización guardada.","ok"); $("aHoras").value=""; $("aCliente").value=""; $("aFoto").value="";
+    var sel=Array.prototype.map.call(document.querySelectorAll('#autPersonChecks .achk:checked'),function(c){return c.value;});
+    var base={ empresa_id:EMP, fecha:f, horas:$("aHoras").value?parseFloat($("aHoras").value):null,
+      es_interno:$("aTipo").value==="interno", nota:$("aCliente").value.trim()||null, foto_correo_url:foto, creado_por:MY_UID };
+    var regs = sel.length ? sel.map(function(pid){ return Object.assign({persona_id:pid}, base); }) : [Object.assign({persona_id:null}, base)];
+    await sbFetch("/rest/v1/he_autorizacion",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(regs)});
+    setMsg("autMsg","✓ "+regs.length+" autorización(es) guardada(s).","ok"); $("aHoras").value=""; $("aCliente").value=""; $("aFoto").value=""; marcarAut(false);
     cargarAut();
   }catch(e){ setMsg("autMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Guardar autorización"; }
@@ -636,73 +649,86 @@ var CATS7=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"];
 var CATLBL={HED:"Extra diurna",HEN:"Extra nocturna",DOMD:"Recargo dom/fest",DOMN:"Recargo dom/fest noct.",HEFD:"Extra dom/fest",HEFN:"Extra dom/fest noct.",RNOCT:"Recargo nocturno"};
 var _MESN2=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 function r1(x){ return Math.round(x*10)/10; }
-var EST_ROWS=[], EST_FILTER=null;
+var EST_ROWS=[], EST_F={persona:null,cat:null,mes:null};
 async function cargarEst(){
   var out=$("estOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("estMsg","");
   if(!(await asegurarToken())) return;
   var d=$("eDesde").value, h=$("eHasta").value, inc=$("eInc").value;
-  var q="/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=persona_id,fecha,categorias,estado";
+  var q="/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=persona_id,fecha,categorias,estado,justificacion,hora_inicio,hora_fin,es_jornada_ordinaria";
   if(inc==="ok") q+="&estado=in.(autorizado,cerrado)";
   try{
     var rows=await sbFetch(q);
-    EST_ROWS=rows||[]; EST_FILTER=null;
+    EST_ROWS=rows||[]; EST_F={persona:null,cat:null,mes:null};
     if(!EST_ROWS.length){ out.innerHTML='<div class="card"><p class="who">No hay datos en ese rango.</p></div>'; return; }
     renderEst();
   }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }
 }
-function estFiltrar(k,v){ EST_FILTER=(EST_FILTER&&EST_FILTER.k===k&&EST_FILTER.v===v)?null:{k:k,v:v}; renderEst(); }
-function _labelFiltro(f){ if(f.k==="persona")return (PMAP[f.v]||{}).nombre||"persona"; if(f.k==="cat")return CATLBL[f.v]; return _MESN2[parseInt(f.v.slice(5,7),10)-1]+" "+f.v.slice(0,4); }
+function estFiltrar(k,v){ EST_F[k]=(EST_F[k]===v?null:v); renderEst(); }
+function estQuitar(k){ if(k){ EST_F[k]=null; } else { EST_F={persona:null,cat:null,mes:null}; } renderEst(); }
+function _lblF(k,v){ if(k==="persona")return (PMAP[v]||{}).nombre||"persona"; if(k==="cat")return CATLBL[v]; return _MESN2[parseInt(v.slice(5,7),10)-1]+" "+v.slice(0,4); }
+function _fchip(k){ return '<span style="display:inline-block;background:var(--bg2);border:1px solid var(--nar);border-radius:999px;padding:2px 6px 2px 10px;margin-right:6px;font-size:12px">'+esc(_lblF(k,EST_F[k]))+' <a onclick="estQuitar(\''+k+'\')" style="cursor:pointer;color:var(--mal);font-weight:700;margin-left:2px">✕</a></span>'; }
 function renderEst(){
-  var rows=EST_ROWS, f=EST_FILTER;
-  function pasa(r,dim){ if(!f||f.k===dim) return true; if(f.k==="persona") return r.persona_id===f.v; if(f.k==="mes") return String(r.fecha).slice(0,7)===f.v; return true; }
-  function cats(dim){ return (f&&f.k==="cat"&&dim!=="cat")?[f.v]:CATS7; }
-  var val=function(r,k){ return (r.categorias||{})[k]||0; };
-  // por persona (excluye filtro de persona)
-  var perP={}, cP=cats("persona");
-  rows.forEach(function(r){ if(!pasa(r,"persona"))return; var pid=r.persona_id; if(!perP[pid])perP[pid]={tot:0}; cP.forEach(function(k){var v=val(r,k); perP[pid][k]=(perP[pid][k]||0)+v; perP[pid].tot+=v;}); });
+  var rows=EST_ROWS, F=EST_F, val=function(r,k){ return (r.categorias||{})[k]||0; };
+  function pasa(r,excl){
+    if(F.persona && excl!=="persona" && r.persona_id!==F.persona) return false;
+    if(F.mes && excl!=="mes" && String(r.fecha).slice(0,7)!==F.mes) return false;
+    if(F.cat && excl!=="cat" && !(val(r,F.cat)>0)) return false;
+    return true;
+  }
+  function catset(excl){ return (F.cat && excl!=="cat")?[F.cat]:CATS7; }
+  // por persona (aplica mes+cat)
+  var perP={}, cP=catset("persona");
+  rows.forEach(function(r){ if(!pasa(r,"persona"))return; var pid=r.persona_id; if(!perP[pid])perP[pid]={tot:0}; cP.forEach(function(k){var v=val(r,k);perP[pid][k]=(perP[pid][k]||0)+v;perP[pid].tot+=v;}); });
   var pids=Object.keys(perP).sort(function(a,b){return perP[b].tot-perP[a].tot;});
   var maxP=Math.max.apply(null,pids.map(function(p){return perP[p].tot;}).concat([1]));
-  // por categoría (excluye filtro de cat)
+  // por categoría (aplica persona+mes)
   var perC={}; CATS7.forEach(function(k){perC[k]=0;});
   rows.forEach(function(r){ if(!pasa(r,"cat"))return; CATS7.forEach(function(k){ perC[k]+=val(r,k); }); });
   var maxC=Math.max.apply(null,CATS7.map(function(k){return perC[k];}).concat([1]));
-  // por mes (excluye filtro de mes)
-  var perM={}, cM=cats("mes");
+  // por mes (aplica persona+cat)
+  var perM={}, cM=catset("mes");
   rows.forEach(function(r){ if(!pasa(r,"mes"))return; var ym=String(r.fecha).slice(0,7); if(!perM[ym])perM[ym]=0; cM.forEach(function(k){ perM[ym]+=val(r,k); }); });
   var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
-  // tiles + tabla: totalmente filtrado
-  var cT=(f&&f.k==="cat")?[f.v]:CATS7, np={}, totalH=0, extras=0, recargos=0, perPT={};
+  // tiles + días (aplica TODOS los filtros)
+  var cT=(F.cat)?[F.cat]:CATS7, np={}, totalH=0, extras=0, recargos=0, dias=[];
   rows.forEach(function(r){
-    if(f){ if(f.k==="persona"&&r.persona_id!==f.v)return; if(f.k==="mes"&&String(r.fecha).slice(0,7)!==f.v)return; }
-    np[r.persona_id]=1; if(!perPT[r.persona_id])perPT[r.persona_id]={tot:0};
-    cT.forEach(function(k){ var v=val(r,k); totalH+=v; if(k==="HED"||k==="HEN"||k==="HEFD"||k==="HEFN")extras+=v; else recargos+=v; perPT[r.persona_id][k]=(perPT[r.persona_id][k]||0)+v; perPT[r.persona_id].tot+=v; });
+    if(F.persona&&r.persona_id!==F.persona)return;
+    if(F.mes&&String(r.fecha).slice(0,7)!==F.mes)return;
+    if(F.cat&&!(val(r,F.cat)>0))return;
+    np[r.persona_id]=1; var rt=0;
+    cT.forEach(function(k){var v=val(r,k); totalH+=v; rt+=v; if(k==="HED"||k==="HEN"||k==="HEFD"||k==="HEFN")extras+=v; else recargos+=v;});
+    dias.push({r:r,tot:rt});
   });
+  var anyF=F.persona||F.cat||F.mes;
   var html="";
-  if(f){ html+='<div class="estfiltro"><b>Filtrando:</b> '+esc(_labelFiltro(f))+' <button class="btn sec mini" onclick="EST_FILTER=null;renderEst()">✕ quitar</button></div>'; }
+  if(anyF){ html+='<div class="estfiltro"><b>Filtros:</b> '+(F.persona?_fchip("persona"):"")+(F.cat?_fchip("cat"):"")+(F.mes?_fchip("mes"):"")+'<button class="btn sec mini" onclick="estQuitar()">quitar todo</button></div>'; }
   html+='<div class="card"><div class="tiles">'
     +'<div class="tile"><div class="n">'+r1(totalH)+'</div><div class="l">Horas totales</div></div>'
     +'<div class="tile"><div class="n">'+Object.keys(np).length+'</div><div class="l">Personas</div></div>'
     +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
     +'<div class="tile"><div class="n">'+r1(recargos)+'</div><div class="l">Recargos</div></div></div></div>';
   html+='<div class="card"><h2 style="margin-bottom:8px">Horas por persona <span class="who">(clic para filtrar)</span></h2>';
-  pids.forEach(function(p){ var col=colorPersona(p),tot=perP[p].tot,selc=(f&&f.k==="persona"&&f.v===p)?" sel":"";
+  pids.forEach(function(p){ var col=colorPersona(p),tot=perP[p].tot,selc=(F.persona===p)?" sel":"";
     html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'persona\',\''+p+'\')"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });
   html+='</div>';
   html+='<div class="card"><h2 style="margin-bottom:8px">Por categoría <span class="who">(clic para filtrar)</span></h2>';
-  CATS7.forEach(function(k){ var selc=(f&&f.k==="cat"&&f.v===k)?" sel":"";
+  CATS7.forEach(function(k){ var selc=(F.cat===k)?" sel":"";
     html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'cat\',\''+k+'\')"><span class="nm">'+CATLBL[k]+'</span><span class="track"><span class="fill" style="width:'+(perC[k]/maxC*100)+'%;background:var(--orange)"></span></span><span class="v">'+r1(perC[k])+' h</span></div>'; });
   html+='</div>';
   html+='<div class="card"><h2 style="margin-bottom:8px">Por mes <span class="who">(clic para filtrar)</span></h2>';
-  yms.forEach(function(m){ var lbl=_MESN2[parseInt(m.slice(5,7),10)-1]+" "+m.slice(0,4),selc=(f&&f.k==="mes"&&f.v===m)?" sel":"";
+  yms.forEach(function(m){ var lbl=_MESN2[parseInt(m.slice(5,7),10)-1]+" "+m.slice(0,4),selc=(F.mes===m)?" sel":"";
     html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'mes\',\''+m+'\')"><span class="nm">'+lbl+'</span><span class="track"><span class="fill" style="width:'+(perM[m]/maxM*100)+'%;background:var(--cy)"></span></span><span class="v">'+r1(perM[m])+' h</span></div>'; });
   html+='</div>';
-  // tabla detalle (según filtro persona/mes; columnas siempre las 7)
-  var tpids=Object.keys(perPT).sort(function(a,b){return perPT[b].tot-perPT[a].tot;});
-  html+='<div class="card"><h2 style="margin-bottom:8px">Detalle por persona y categoría</h2><div style="overflow-x:auto"><table><tr><th>Persona</th>'+CATS7.map(function(k){return '<th>'+k+'</th>';}).join("")+'<th>Total</th></tr>';
-  var colT={}; CATS7.forEach(function(k){colT[k]=0;}); var gT=0;
-  tpids.forEach(function(p){ html+='<tr><td>'+esc((PMAP[p]||{}).nombre||"—")+'</td>'+CATS7.map(function(k){var v=perPT[p][k]||0; colT[k]+=v; return '<td>'+(v?r1(v):"")+'</td>';}).join("")+'<td class="tot">'+r1(perPT[p].tot)+'</td></tr>'; gT+=perPT[p].tot; });
-  html+='<tr style="border-top:2px solid var(--nar)"><td class="tot">TOTAL</td>'+CATS7.map(function(k){return '<td class="tot">'+r1(colT[k])+'</td>';}).join("")+'<td class="tot">'+r1(gT)+'</td></tr>';
-  html+='</table></div></div>';
+  // días (detalle día por día) — sólo con algún filtro
+  if(anyF){
+    dias.sort(function(a,b){return String(a.r.fecha)<String(b.r.fecha)?1:-1;});
+    html+='<div class="card"><h2 style="margin-bottom:8px">Días con horas ('+dias.length+')</h2><div style="overflow-x:auto"><table><tr><th>Fecha</th>'+(F.persona?'':'<th>Persona</th>')+'<th>Horario</th><th>Cálculo</th><th>Horas</th><th>Estado</th></tr>';
+    dias.forEach(function(x){ var r=x.r; var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
+      html+='<tr><td>'+fmtFecha(r.fecha)+'</td>'+(F.persona?'':'<td>'+esc((PMAP[r.persona_id]||{}).nombre||"—")+'</td>')+'<td>'+esc(horarioTxt(r))+'</td><td>'+esc(cats)+(r.justificacion?'<br><span class="who">'+esc(r.justificacion)+'</span>':'')+'</td><td class="tot">'+r1(x.tot)+'</td><td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td></tr>'; });
+    html+='</table></div></div>';
+  } else {
+    html+='<div class="card"><p class="who">Tocá una persona, una categoría o un mes (podés combinar) para ver acá el detalle día por día.</p></div>';
+  }
   $("estOut").innerHTML=html;
 }
 </script>

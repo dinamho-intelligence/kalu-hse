@@ -86,16 +86,36 @@
   <div class="card">
     <h1 id="hHola">—</h1>
     <h2 id="hCargo">—</h2>
-    <button class="big" onclick="abrir('extra')">➕ Reportar hora extra
-      <small>Cargá de qué hora a qué hora te quedaste. KALU calcula el tipo (diurna, nocturna, dominical…).</small></button>
-    <button class="big" onclick="abrir('noct')">🌙 Reportar recargo nocturno (cuadrilla)
-      <small>Si estuviste en cuadrilla de noche, cargá el rango de días.</small></button>
+    <button class="big" onclick="abrirSalida()">🚪 Reportar salida
+      <small>Marcá a qué hora saliste. KALU sabe tu turno y calcula tus horas y de qué tipo.</small></button>
+    <button class="big" onclick="abrir('extra')">➕ Reportar hora extra (manual)
+      <small>Para casos especiales: cargás vos de qué hora a qué hora.</small></button>
+    <button class="big" onclick="abrir('noct')">🌙 Recargo nocturno por rango
+      <small>Cuadrilla de noche: cargá varios días juntos.</small></button>
   </div>
   <div class="card">
     <h2 style="margin-bottom:10px">Mis últimos reportes</h2>
     <div id="hLista"><div class="load">—</div></div>
   </div>
   <a class="volver" href="index.html">← Volver al inicio</a>
+</div>
+
+<!-- ============ form: reportar salida ============ -->
+<div class="card hide" id="vSalida">
+  <h1>Reportar salida</h1>
+  <h2 id="sSub">Marcá a qué hora saliste.</h2>
+  <label>Turno de hoy</label>
+  <select id="sTurno" onchange="previewSalida()"></select>
+  <label>Fecha</label>
+  <input type="date" id="sFecha">
+  <label>¿A qué hora saliste?</label>
+  <input type="time" id="sHora">
+  <label>Justificación (si te quedaste extra)</label>
+  <textarea id="sJust" placeholder="Ej. videoscopia prioritaria"></textarea>
+  <div class="prev" id="sPrev">—</div>
+  <button class="btn" id="sBtn" onclick="enviarSalida()">Enviar salida</button>
+  <button class="btn sec" onclick="volverHome()">Cancelar</button>
+  <div class="msg" id="sMsg"></div>
 </div>
 
 <!-- ============ form: hora extra ============ -->
@@ -151,7 +171,7 @@ var SB_TOKEN=null, MY_UID=null;
 var EMP=null, PERSONA=null, NOMBRE="", CARGO="", ES_SUPER=false, MODULOS=[];
 var TURNOS=[], TURNO_NOCHE=null, FESTIVOS=new Set();
 var $=function(id){return document.getElementById(id);};
-function ver(id){ ["vCarga","vLogin","vBloqueo","vHome","vExtra","vNoct"].forEach(function(v){ $(v).classList.toggle("hide", v!==id); }); }
+function ver(id){ ["vCarga","vLogin","vBloqueo","vHome","vSalida","vExtra","vNoct"].forEach(function(v){ $(v).classList.toggle("hide", v!==id); }); }
 function setMsg(id,t,c){ var m=$(id); m.textContent=t||""; m.className="msg "+(c||""); }
 
 /* ===================== Sesión / token ===================== */
@@ -249,6 +269,7 @@ function abrir(cual){
 }
 ["eFecha","eIni","eFin"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewExtra(); }); });
 ["nDesde","nHasta"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewNoct(); }); });
+["sFecha","sHora"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewSalida(); }); });
 
 function tipoDia(iso){ var d=new Date(iso+"T00:00:00"); if(FESTIVOS.has(iso)) return "festivo"; if(d.getDay()===0) return "dominical"; return "semanal"; }
 function catResumen(c){ var m={HED:"extra diurna",HEN:"extra nocturna",DOMD:"recargo dominical/festivo",DOMN:"recargo domin./fest. nocturno",HEFD:"extra dominical/festiva",HEFN:"extra domin./fest. nocturna",RNOCT:"recargo nocturno"};
@@ -283,6 +304,71 @@ async function enviarExtra(){
 async function esFueraDePlan(fecha){
   try{ var a=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&fecha=eq."+fecha+"&select=id&limit=1"); return !(a&&a.length); }
   catch(_){ return true; }
+}
+
+/* ===================== Reportar salida (según turno) ===================== */
+function segmentosDe(t, iso){ if(!t||!t.horarios) return []; var d=new Date(iso+"T00:00:00"),w=d.getDay(),h=t.horarios; if(w===0)return h.dom||[]; if(w===6)return h.sab||[]; return h["L-V"]||[]; }
+function turnoSel(){ var id=$("sTurno").value; return TURNOS.filter(function(t){return t.id===id;})[0]||null; }
+async function abrirSalida(){
+  var hoy=new Date();
+  $("sFecha").value=hoy.toISOString().slice(0,10);
+  $("sHora").value=("0"+hoy.getHours()).slice(-2)+":"+("0"+hoy.getMinutes()).slice(-2);
+  $("sJust").value=""; setMsg("sMsg","");
+  $("sTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos configurados)</option>';
+  $("sSub").textContent="Marcá a qué hora saliste.";
+  ver("vSalida");
+  try{
+    if(await asegurarToken()){
+      var iso=$("sFecha").value;
+      var cu=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&persona_id=eq."+PERSONA+"&fecha_desde=lte."+iso+"&fecha_hasta=gte."+iso+"&select=turno_id&limit=1");
+      if(cu&&cu.length&&cu[0].turno_id){ $("sTurno").value=cu[0].turno_id; $("sSub").textContent="Tu turno de hoy ya está en el almanaque. Confirmá la hora de salida."; }
+    }
+  }catch(_){}
+  previewSalida();
+}
+function calcSalida(){
+  var t=turnoSel(), iso=$("sFecha").value, exit=$("sHora").value;
+  var res={cats:{},ini:null,fin:null,exit:exit,ord:true,noturno:false};
+  if(!t||!iso||!exit) return res;
+  var segs=segmentosDe(t,iso); if(!segs.length){ res.noturno=true; return res; }
+  res.ini=segs[0][0]; res.fin=segs[segs.length-1][1];
+  var exitMin=_toMin(exit), endMin=_toMin(res.fin), acc=[];
+  segs.forEach(function(s){
+    var iniMin=_toMin(s[0]), finMin=Math.min(_toMin(s[1]), exitMin);
+    if(finMin>iniMin){
+      var finH=(finMin===_toMin(s[1]))?s[1]:exit;
+      acc.push(heCategorizar({fecha:iso,horaInicio:s[0],horaFin:finH,esJornadaOrdinaria:true},FESTIVOS));
+    }
+  });
+  if(exitMin>endMin){ acc.push(heCategorizar({fecha:iso,horaInicio:res.fin,horaFin:exit,esJornadaOrdinaria:false},FESTIVOS)); res.ord=false; }
+  res.cats=heSumar(acc);
+  return res;
+}
+function previewSalida(){
+  var r=calcSalida();
+  if(r.noturno){ $("sPrev").innerHTML='<span class="z">Ese turno no trabaja este día. Usá "hora extra manual".</span>'; return; }
+  if(!r.fin){ $("sPrev").innerHTML="Elegí turno y hora de salida."; return; }
+  var tot=heTotalHoras(r.cats);
+  if(tot<=0){ $("sPrev").innerHTML='Turno '+esc(r.ini)+'–'+esc(r.fin)+'. Saliste '+esc(r.exit)+' → <b>sin horas para reportar</b> (saliste en horario).'; return; }
+  $("sPrev").innerHTML='Turno '+esc(r.ini)+'–'+esc(r.fin)+'. Saliste '+esc(r.exit)+' → KALU calcula: '+catResumen(r.cats)+' <span class="z">· total '+tot+' h</span>';
+}
+async function enviarSalida(){
+  var r=calcSalida(), iso=$("sFecha").value, exit=$("sHora").value;
+  if(r.noturno){ setMsg("sMsg","Ese turno no trabaja este día. Usá la carga manual.","err"); return; }
+  if(!r.fin){ setMsg("sMsg","Elegí turno y hora de salida.","err"); return; }
+  if(heTotalHoras(r.cats)<=0){ setMsg("sMsg","No hay horas para reportar (saliste en horario).","err"); return; }
+  var b=$("sBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("sMsg","");
+  try{
+    if(!(await asegurarToken())){ ver("vLogin"); return; }
+    var fuera=await esFueraDePlan(iso);
+    var reg={ empresa_id:EMP, persona_id:PERSONA, fecha:iso, hora_inicio:r.ini, hora_fin:exit, lugar:null,
+      justificacion:$("sJust").value.trim()||"Salida de turno", tipo_dia:tipoDia(iso), es_jornada_ordinaria:r.ord,
+      categorias:r.cats, estado:"reportado", fuera_de_plan:fuera, origen:"app" };
+    await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
+    setMsg("sMsg","✓ Salida reportada.","ok");
+    setTimeout(function(){ volverHome(); cargarMisReportes(); }, 700);
+  }catch(e){ setMsg("sMsg",(e&&e.message)||"No se pudo enviar.","err"); }
+  finally{ b.disabled=false; b.textContent="Enviar salida"; }
 }
 
 /* ===================== Preview / envío: recargo nocturno (cuadrilla) ===================== */

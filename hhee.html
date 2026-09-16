@@ -132,8 +132,17 @@
   <div class="msg" id="nMsg"></div>
 </div>
 
-<script src="he_motor.js"></script>
 <script>
+/* ===================== Motor de categorización HHEE (embebido) ===================== */
+var HE_CFG={nocturnoInicio:'19:00',nocturnoFin:'06:00'};
+function _toMin(h){var p=String(h).split(':');return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0);}
+function _overlap(a0,a1,b0,b1){return Math.max(0,Math.min(a1,b1)-Math.max(a0,b0));}
+function _splitDiurnoNocturno(iniMin,finMin,cfg){cfg=cfg||HE_CFG;var dIni=_toMin(cfg.nocturnoFin),dFin=_toMin(cfg.nocturnoInicio);if(finMin<=iniMin)finMin+=1440;var total=finMin-iniMin;var diur=_overlap(iniMin,finMin,dIni,dFin)+_overlap(iniMin,finMin,dIni+1440,dFin+1440);return {diurMin:diur,noctMin:total-diur,totalMin:total};}
+function _esDomFest(fechaISO,festivos){var set=(festivos instanceof Set)?festivos:new Set(festivos||[]);var d=new Date(fechaISO+'T00:00:00');return d.getDay()===0||set.has(fechaISO);}
+function heCategorizar(rep,festivos,cfg){cfg=cfg||HE_CFG;var cats={HED:0,HEN:0,DOMD:0,DOMN:0,HEFD:0,HEFN:0,RNOCT:0};if(!rep||!rep.fecha||!rep.horaInicio||!rep.horaFin)return cats;var sp=_splitDiurnoNocturno(_toMin(rep.horaInicio),_toMin(rep.horaFin),cfg);var diurH=sp.diurMin/60,noctH=sp.noctMin/60;var domFest=_esDomFest(rep.fecha,festivos);var ord=!!rep.esJornadaOrdinaria;if(domFest){if(ord){cats.DOMD=diurH;cats.DOMN=noctH;}else{cats.HEFD=diurH;cats.HEFN=noctH;}}else{if(ord){cats.RNOCT=noctH;}else{cats.HED=diurH;cats.HEN=noctH;}}for(var k in cats){cats[k]=Math.round(cats[k]*100)/100;}return cats;}
+function heSumar(lista){var t={HED:0,HEN:0,DOMD:0,DOMN:0,HEFD:0,HEFN:0,RNOCT:0};(lista||[]).forEach(function(c){for(var k in t){t[k]+=(c[k]||0);}});for(var k in t){t[k]=Math.round(t[k]*100)/100;}return t;}
+function heTotalHoras(c){var s=0;for(var k in c){s+=(c[k]||0);}return Math.round(s*100)/100;}
+
 /* ===================== Config KALU ===================== */
 var SB_URL="https://nignqeipzlemwfrwmpip.supabase.co";
 var SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";

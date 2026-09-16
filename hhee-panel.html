@@ -85,6 +85,7 @@
   <div class="tabs">
     <button class="tab on" data-t="conc" onclick="tab('conc')">🗂️ Conciliación</button>
     <button class="tab" data-t="aut" onclick="tab('aut')">✅ Autorizaciones</button>
+    <button class="tab" data-t="cuad" onclick="tab('cuad')">👥 Cuadrillas</button>
     <button class="tab" data-t="alm" onclick="tab('alm')">🗓️ Almanaque</button>
     <button class="tab" data-t="cie" onclick="tab('cie')">📄 Cierre</button>
   </div>
@@ -133,11 +134,31 @@
     <div class="card"><h2 style="margin-bottom:10px">Autorizaciones recientes</h2><div id="autList"><div class="load">—</div></div></div>
   </section>
 
-  <!-- ===== Almanaque ===== -->
+  <!-- ===== Cuadrillas (armar) ===== -->
+  <section id="tab_cuad" class="hide">
+    <div class="card">
+      <h1>Armar cuadrillas</h1>
+      <h2>Asigná a cada persona su turno por rango de días. Con esto, en la app del trabajador el turno le aparece solo — si un día cambia, reporta manual sin salir de la cuadrilla.</h2>
+      <div class="grid g3">
+        <div><label>Persona</label><select id="mPersona" onchange="colorAuto()"></select></div>
+        <div><label>Turno</label><select id="mTurno"></select></div>
+        <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px"><div class="who" style="margin-top:3px">se asigna solo por persona</div></div>
+      </div>
+      <div class="grid g3">
+        <div><label>Desde</label><input type="date" id="mDesde"></div>
+        <div><label>Hasta</label><input type="date" id="mHasta"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" id="mBtn" onclick="guardarCuadrilla()">Asignar</button></div>
+      </div>
+      <div id="almMsg" class="msg"></div>
+    </div>
+    <div class="card"><h2 style="margin-bottom:10px">Asignaciones activas y próximas</h2><div id="cuadList"><div class="load">—</div></div></div>
+  </section>
+
+  <!-- ===== Almanaque (calendario) ===== -->
   <section id="tab_alm" class="hide">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-        <h1 style="margin:0">Almanaque de cuadrilla</h1>
+        <h1 style="margin:0">Almanaque</h1>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="btn sec mini" onclick="mesNav(-1)">‹</button>
           <b id="mesLbl" style="min-width:150px;text-align:center;display:inline-block">—</b>
@@ -146,25 +167,12 @@
       </div>
       <h2 style="margin:8px 0 4px">Tocá un día para ver cuadrilla, autorizaciones y reportes. Los días con ⚠ tienen horas sin autorizar.</h2>
       <div id="cal"><div class="load">—</div></div>
-      <div class="who" style="margin-top:10px">
-        <span class="calb rep">🕒 reportes</span> &nbsp; <span class="calb aut">✅ autorizaciones</span> &nbsp; <span class="calb warn">⚠ sin autorizar</span> &nbsp;·&nbsp; los puntitos = cuadrilla del día
+      <div id="leyendaCal" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px"></div>
+      <div class="who" style="margin-top:8px">
+        <span class="calb rep">🕒 reportes</span> &nbsp; <span class="calb aut">✅ autorizaciones</span> &nbsp; <span class="calb warn">⚠ sin autorizar</span>
       </div>
     </div>
     <div class="card" id="diaDetalle" style="display:none"></div>
-    <details class="card">
-      <summary style="cursor:pointer;font-weight:700;color:var(--tx)">➕ Asignar cuadrilla / turno</summary>
-      <div class="grid g3" style="margin-top:12px">
-        <div><label>Persona</label><select id="mPersona"></select></div>
-        <div><label>Turno</label><select id="mTurno"></select></div>
-        <div><label>Color</label><input type="color" id="mColor" value="#F28C00" style="height:44px;padding:4px"></div>
-      </div>
-      <div class="grid g3">
-        <div><label>Desde</label><input type="date" id="mDesde"></div>
-        <div><label>Hasta</label><input type="date" id="mHasta"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" id="mBtn" onclick="guardarCuadrilla()">Asignar</button></div>
-      </div>
-      <div id="almMsg" class="msg"></div>
-    </details>
   </section>
 
   <!-- ===== Cierre ===== -->
@@ -263,6 +271,24 @@ function optPersonas(sel, incTodos){
 function poblarSelects(){
   optPersonas($("aPersona"),true); optPersonas($("mPersona"),false);
   $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
+  colorAuto();
+}
+async function cargarCuad(){
+  var box=$("cuadList"); box.innerHTML='<div class="load">Cargando…</div>';
+  if(!(await asegurarToken())) return;
+  try{
+    var hace=new Date(); hace.setDate(hace.getDate()-14); var desde=isoD(hace);
+    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+desde+"&order=fecha_desde.desc&select=id,persona_id,turno_id,fecha_desde,fecha_hasta");
+    if(!rows.length){ box.innerHTML='<p class="who">Sin cuadrillas activas o próximas. Armá una arriba.</p>'; return; }
+    box.innerHTML=rows.map(function(r){
+      var per=(PMAP[r.persona_id]||{}).nombre||"—", col=colorPersona(r.persona_id);
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">'
+        +'<span class="dchip" style="background:'+col+'"></span>'
+        +'<span style="flex:1"><b>'+esc(per)+'</b> · '+esc(turnoNom(r.turno_id))+'</span>'
+        +'<span class="who">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</span>'
+        +'<button class="btn no mini" onclick="borrarCuadrilla(\''+r.id+'\')">Borrar</button></div>';
+    }).join("");
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
 }
 function defaultsFechas(){
   var hoy=new Date(); var y=hoy.getFullYear(), m=hoy.getMonth();
@@ -274,10 +300,14 @@ function defaultsFechas(){
   $("aFecha").value=iso(hoy); $("mDesde").value=iso(hoy); $("mHasta").value=iso(hoy);
 }
 function tab(t){
-  ["conc","aut","alm","cie"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
+  ["conc","aut","cuad","alm","cie"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
     document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
-  if(t==="aut") cargarAut(); if(t==="alm") renderMes();
+  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes();
 }
+/* Color fijo por persona (determinístico) para distinguir en el almanaque */
+var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];
+function colorPersona(pid){ if(!pid) return "#888"; var h=0,s=String(pid); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return PALETA[h%PALETA.length]; }
+function colorAuto(){ var pid=$("mPersona").value; if(pid) $("mColor").value=colorPersona(pid); }
 
 /* ============ CONCILIACIÓN ============ */
 async function cargarConc(){
@@ -371,7 +401,7 @@ async function guardarCuadrilla(){
     if(!(await asegurarToken())) return;
     var reg={ empresa_id:EMP, persona_id:pid, turno_id:tid||null, fecha_desde:d1, fecha_hasta:d2, color:$("mColor").value, creado_por:MY_UID };
     await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
-    setMsg("almMsg","✓ Asignación guardada.","ok"); renderMes();
+    setMsg("almMsg","✓ Asignación guardada.","ok"); cargarCuad();
   }catch(e){ setMsg("almMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Asignar"; }
 }
@@ -409,7 +439,7 @@ function pintarCal(y,mo){
     var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
     var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
     var sinAut=rp.filter(pendiente).length;
-    var dots=cu.slice(0,8).map(function(c){return '<span class="caldot" style="background:'+esc(c.color||"#F28C00")+'" title="'+esc((PMAP[c.persona_id]||{}).nombre||"")+'"></span>';}).join("");
+    var dots=cu.slice(0,8).map(function(c){return '<span class="caldot" style="background:'+colorPersona(c.persona_id)+'" title="'+esc((PMAP[c.persona_id]||{}).nombre||"")+'"></span>';}).join("");
     var badges='';
     if(rp.length) badges+='<span class="calb rep">🕒'+rp.length+'</span>';
     if(au.length) badges+='<span class="calb aut">✅'+au.length+'</span>';
@@ -421,6 +451,11 @@ function pintarCal(y,mo){
   }
   h+='</div>';
   $("cal").innerHTML=h;
+  // leyenda: personas en cuadrilla este mes, con su color
+  var seen={}, leg=[];
+  ALM_CACHE.cuad.forEach(function(c){ if(!seen[c.persona_id]){ seen[c.persona_id]=1; leg.push(c.persona_id); } });
+  var lb=$("leyendaCal");
+  if(lb){ lb.innerHTML = leg.length? leg.map(function(pid){ return '<span class="who"><span class="dchip" style="background:'+colorPersona(pid)+'"></span>'+esc((PMAP[pid]||{}).nombre||"—")+'</span>'; }).join("") : '<span class="who">Sin cuadrillas cargadas este mes.</span>'; }
 }
 function verDia(diso){
   ALM_SEL=diso;
@@ -434,7 +469,7 @@ function verDia(diso){
   h+='<h2 style="margin:14px 0 6px">Cuadrilla del día</h2>';
   h+= cu.length? cu.map(function(c){var p=PMAP[c.persona_id]||{};
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
-        +'<span class="dchip" style="background:'+esc(c.color||"#F28C00")+'"></span>'
+        +'<span class="dchip" style="background:'+colorPersona(c.persona_id)+'"></span>'
         +'<span style="flex:1"><b>'+esc(p.nombre||"—")+'</b> · '+esc(turnoNom(c.turno_id))+' <span class="who">('+fmtFecha(c.fecha_desde)+'→'+fmtFecha(c.fecha_hasta)+')</span></span>'
         +'<button class="btn no mini" onclick="borrarCuadrilla(\''+c.id+'\')">Borrar</button></div>';
     }).join(""):'<p class="who">Nadie asignado a cuadrilla este día.</p>';
@@ -461,7 +496,7 @@ async function borrarCuadrilla(id){
   if(!confirm("¿Borrar esta asignación de cuadrilla?")) return;
   if(!(await asegurarToken())) return;
   try{ await sbFetch("/rest/v1/he_cuadrilla?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}});
-    var sel=ALM_SEL; await renderMes(); if(sel) verDia(sel);
+    var sel=ALM_SEL; await renderMes(); cargarCuad(); if(sel) verDia(sel);
   }catch(e){ alert("No se pudo borrar: "+((e&&e.message)||"")); }
 }
 

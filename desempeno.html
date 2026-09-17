@@ -162,6 +162,7 @@
       <div class="row">
         <div><label>Persona *</label><select id="evPersona"></select></div>
         <div><label>Semanas laboradas</label><input type="number" step="0.5" id="evSem" placeholder="Ej. 4"></div>
+        <div><label>MRB generados (del mes)</label><input type="number" step="1" id="evMrb" placeholder="Ej. 25"></div>
       </div>
       <div class="row">
         <div><label>Período desde *</label><input type="date" id="evDesde"></div>
@@ -299,16 +300,34 @@ async function cargarTablero(){
       sbRpc("dd_rep_list",{p_emp:EMP,p_desde:desde,p_hasta:hasta}),
       sbRpc("dd_evals",{p_emp:EMP,p_desde:desde,p_hasta:hasta})
     ]);
-    pintarTablero(res[0]||[],res[1]||[],res[2]||[],res[3]||[],desde,hasta);
+    LAST_DATA={vids:res[0]||[],mrbs:res[1]||[],reps:res[2]||[],evals:res[3]||[],desde:desde,hasta:hasta};
+    renderTablero();
   }catch(e){ $("tabBody").innerHTML='<div class="empty">No se pudo cargar ('+esc(e.message)+').</div>'; }
 }
+var LAST_DATA=null, SEL_PID=null, SEL_NAME="";
+function renderTablero(){
+  if(!LAST_DATA) return;
+  if(SEL_PID) pintarPersona();
+  else pintarTablero(LAST_DATA.vids,LAST_DATA.mrbs,LAST_DATA.reps,LAST_DATA.evals,LAST_DATA.desde,LAST_DATA.hasta);
+}
+function selectPerson(pid,name){ if(!pid) return; SEL_PID=pid; SEL_NAME=name||""; renderTablero(); try{window.scrollTo(0,0);}catch(_){} }
+function clearPerson(){ SEL_PID=null; SEL_NAME=""; renderTablero(); }
+function filtroBanner(){
+  if(!SEL_PID) return "";
+  return '<div class="card" style="background:rgba(242,140,0,.10);border-color:rgba(242,140,0,.4);display:flex;justify-content:space-between;align-items:center;gap:10px">'
+    +'<div><span class="dot" style="background:'+colorPersona(SEL_PID)+'"></span><b>'+esc(SEL_NAME)+'</b> <span class="chico">— filtro por persona</span></div>'
+    +'<button class="btn sec mini" onclick="clearPerson()">✕ Ver todos</button></div>';
+}
 
+var DESDE_G, HASTA_G, SEMANAS_G, PERS_ARR=[], EVP={}, TOTV=0;
 function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
   destroyCharts();
   var semanas=Math.max(1, Math.round((new Date(hasta)-new Date(desde))/(7*864e5)));
+  DESDE_G=desde; HASTA_G=hasta; SEMANAS_G=semanas;
   var totV=vids.length, totM=mrbs.length, totR=reps.reduce(function(a,r){return a+(+r.cantidad||1);},0);
   var scrap=mrbs.filter(function(m){return /scrap/i.test(m.status||"");}).length;
   var pScrap=totM? Math.round(scrap/totM*100):0;
+  var totMP=(evals||[]).reduce(function(a,e){return a+(+e.mrb_generados||0);},0);
 
   var html=''
    +'<div class="kpis">'
@@ -320,17 +339,25 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
 
   // Desempeño individual (por líder)
   html+='<div class="card"><div class="head"><h3>Desempeño por persona (videoscopías)</h3>'
-      +'<span class="chico">'+semanas+' semanas en el período</span></div>';
+      +'<span class="chico">'+semanas+' semanas · tocá una persona para ver su detalle</span></div>';
   if(!totV){ html+='<div class="empty">Todavía no hay videoscopías cargadas en este período.<br>Cargalas en la pestaña «Capturar» o importá el histórico.</div>'; }
   else{
     html+='<div class="grid2"><div class="cwrap"><canvas id="chPersona"></canvas></div>'
         +'<div class="cwrap"><canvas id="chTipo"></canvas></div></div>'
-        +'<div style="overflow-x:auto;margin-top:12px"><table id="tPersona"></table></div>';
+        +'<div style="overflow-x:auto;margin-top:12px"><table id="tPersona"></table></div>'
+        +'<div id="cruceBox"></div>';
   }
   html+='</div>';
 
+  // MRB por persona (del informe mensual)
+  html+='<div class="card"><div class="head"><h3>MRB por persona</h3>'
+      +'<span class="chico">del informe mensual · '+totMP+' MRB cargados</span></div>';
+  if(!totMP){ html+='<div class="empty">Todavía no cargaste MRB por persona en este período.<br>El Excel de MRB no trae nombre: cargá los «MRB generados» por persona en la pestaña «Competencias».</div>'; }
+  else{ html+='<div class="cwrap"><canvas id="chMrbPersona"></canvas></div>'; }
+  html+='</div>';
+
   // General MRB
-  html+='<div class="card"><h3>MRB — general (sin persona)</h3>';
+  html+='<div class="card"><h3>MRB — general (total, sin persona)</h3>';
   if(!totM){ html+='<div class="empty">Sin MRB en el período. Importá el Excel de MRB para ver estados y tendencia.</div>'; }
   else{ html+='<div class="grid2"><div class="cwrap"><canvas id="chMrbEstado"></canvas></div>'
         +'<div class="cwrap"><canvas id="chMrbMes"></canvas></div></div>'; }
@@ -346,10 +373,72 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
   $("tabBody").innerHTML=html;
 
   if(totV) graficarPersonas(vids, evals, semanas);
+  if(totMP) graficarMrbPersona(evals);
   if(totM) graficarMrb(mrbs);
   if(totR) graficarRep(reps);
 }
 function kpi(n,l,s){ return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+l+'</div><div class="s">'+(s||"")+'</div></div>'; }
+function nombrePersona(pid,texto){ return (pid&&PMAP[pid]?PMAP[pid].nombre:(texto||"—")); }
+// MRB por persona (del informe mensual, dd_evaluacion.mrb_generados)
+function graficarMrbPersona(evals){
+  var byP={};
+  (evals||[]).forEach(function(e){ var m=+e.mrb_generados||0; if(!m) return;
+    byP[e.persona_id]=byP[e.persona_id]||{n:0,nombre:e.persona||nombrePersona(e.persona_id),pid:e.persona_id}; byP[e.persona_id].n+=m; });
+  var arr=Object.keys(byP).map(function(k){return byP[k];}).sort(function(a,b){return b.n-a.n;});
+  if(!arr.length) return;
+  CHARTS.mrbPersona=new Chart($("chMrbPersona"),{type:"bar",data:{labels:arr.map(function(p){return p.nombre;}),
+    datasets:[{label:"MRB generados",data:arr.map(function(p){return p.n;}),
+      backgroundColor:arr.map(function(p){return p.pid?colorPersona(p.pid):"#5E6873";}),borderRadius:4,maxBarThickness:34}]},
+    options:Object.assign(baseOpts("MRB por persona",true),{onClick:function(ev,el){ if(el&&el.length){ var p=arr[el[0].index]; selectPerson(p.pid,p.nombre); } }})});
+}
+// Vista filtrada por persona (cruza con Horas Extra)
+async function pintarPersona(){
+  destroyCharts();
+  var D=LAST_DATA, pid=SEL_PID;
+  var vp=D.vids.filter(function(v){return v.lider_persona_id===pid;});
+  var n=vp.length, tot=D.vids.length;
+  var ev=(D.evals||[]).filter(function(e){return e.persona_id===pid;});
+  var mrb=ev.reduce(function(a,e){return a+(+e.mrb_generados||0);},0);
+  var sem=0; ev.forEach(function(e){ if(e.semanas_laboradas) sem=+e.semanas_laboradas; });
+  var semanas=sem||SEMANAS_G;
+  var byT={}, byMes={}; vp.forEach(function(v){ var t=v.tipo||"(sin tipo)"; byT[t]=(byT[t]||0)+1; var ym=mesClave(v.fecha); if(ym) byMes[ym]=(byMes[ym]||0)+1; });
+  var html=filtroBanner()
+    +'<div class="kpis">'
+    +kpi(n,"Videoscopías","en el período")
+    +kpi(mrb||"—","MRB generados","del informe")
+    +kpi(r2(n/semanas),"Prom. semanal",semanas+" sem")
+    +kpi(Math.round(n/(tot||1)*100)+"%","% participación","del equipo")
+    +'</div>';
+  html+='<div class="card"><h3>Contexto del período — cruzado con Horas Extra</h3><div id="cruceIn"><div class="load">Cargando…</div></div></div>';
+  html+='<div class="card"><h3>Sus videoscopías</h3>';
+  if(!n){ html+='<div class="empty">Sin videoscopías en el período.</div>'; }
+  else{ html+='<div class="grid2"><div class="cwrap"><canvas id="chPTipo"></canvas></div><div class="cwrap"><canvas id="chPMes"></canvas></div></div>'
+      +'<div style="overflow-x:auto;margin-top:12px"><table id="tPSer"></table></div>'; }
+  html+='</div>';
+  html+='<div class="chico" style="text-align:center;padding:4px 0 10px">Los cuadros de MRB y reparación generales no se filtran por persona (no traen nombre). <a href="javascript:void(0)" onclick="clearPerson()">Ver todos</a></div>';
+  $("tabBody").innerHTML=html;
+  if(n){
+    var te=Object.keys(byT).sort(function(a,b){return byT[b]-byT[a];});
+    CHARTS.pt=new Chart($("chPTipo"),{type:"bar",data:{labels:te,datasets:[{label:"Cantidad",data:te.map(function(k){return byT[k];}),
+      backgroundColor:colorPersona(pid),borderRadius:4,maxBarThickness:30}]},options:Object.assign(baseOpts("Por tipo de elemento",true),{indexAxis:"y"})});
+    var ms=Object.keys(byMes).sort();
+    CHARTS.pm=new Chart($("chPMes"),{type:"bar",data:{labels:ms.map(mesLabel),datasets:[{label:"Videoscopías",data:ms.map(function(m){return byMes[m];}),
+      backgroundColor:colorPersona(pid),borderRadius:3,maxBarThickness:26}]},options:baseOpts("Por mes",true)});
+    var rows='<tr><th>Fecha</th><th>Tipo</th><th>Serial</th><th>Concl.</th></tr>'
+      +vp.slice().sort(function(a,b){return String(b.fecha).localeCompare(String(a.fecha));}).slice(0,40).map(function(v){
+        return '<tr><td>'+fmtFecha(v.fecha)+'</td><td>'+esc(v.tipo||"—")+'</td><td>'+esc(v.serial||"—")+'</td><td>'+esc(v.conclusion||"—")+'</td></tr>';}).join("");
+    $("tPSer").innerHTML=rows;
+  }
+  try{
+    var c=await sbRpc("dd_persona_cruce",{p_emp:EMP,p_persona:pid,p_desde:D.desde,p_hasta:D.hasta})||{};
+    $("cruceIn").innerHTML='<div class="kpis" style="margin:0">'
+      +kpi((sem||"—"),"Semanas laboradas","del informe")
+      +kpi(r2(c.vacaciones_dias||0),"Vacaciones","días")
+      +kpi(r2(c.horas_extra||0),"Horas extra","módulo HHEE")
+      +kpi(r2((c.permiso_dias||0)+(c.licencia_dias||0)+(c.incapacidad_dias||0)),"Otras ausencias","días")
+      +'</div><div class="chico" style="margin-top:8px">Recargo dom/festivo: '+r2(c.recargo||0)+' h · Recargo nocturno: '+r2(c.rnoct||0)+' h. Cruzado con el módulo de Horas Extra.</div>';
+  }catch(e){ $("cruceIn").innerHTML='<div class="chico">Cruce con Horas Extra no disponible ('+esc(e.message)+').</div>'; }
+}
 
 function graficarPersonas(vids, evals, semanas){
   var byP={}, byT={};
@@ -362,10 +451,11 @@ function graficarPersonas(vids, evals, semanas){
   var arr=Object.keys(byP).map(function(k){return byP[k];}).sort(function(a,b){return b.n-a.n;});
   var tot=vids.length;
   var evMap={}; (evals||[]).forEach(function(e){ if(e.semanas_laboradas) evMap[e.persona_id]=+e.semanas_laboradas; });
+  PERS_ARR=arr; TOTV=tot; EVP={}; (evals||[]).forEach(function(e){ EVP[e.persona_id]={mrb:+e.mrb_generados||0,sem:+e.semanas_laboradas||0}; });
   CHARTS.persona=new Chart($("chPersona"),{type:"bar",data:{labels:arr.map(function(p){return p.nombre;}),
     datasets:[{label:"Videoscopías",data:arr.map(function(p){return p.n;}),
       backgroundColor:arr.map(function(p){return p.pid?colorPersona(p.pid):"#5E6873";}),borderRadius:4,maxBarThickness:34}]},
-    options:baseOpts("Videoscopías por persona",true)});
+    options:Object.assign(baseOpts("Videoscopías por persona",true),{onClick:function(ev,el){ if(el&&el.length){ var p=arr[el[0].index]; selectPerson(p.pid,p.nombre); } }})});
   var te=Object.keys(byT).sort(function(a,b){return byT[b]-byT[a];});
   CHARTS.tipo=new Chart($("chTipo"),{type:"bar",data:{labels:te,datasets:[{label:"Cantidad",
     data:te.map(function(k){return byT[k];}),backgroundColor:"#F28C00",borderRadius:4,maxBarThickness:34}]},
@@ -373,7 +463,8 @@ function graficarPersonas(vids, evals, semanas){
   var rows='<tr><th>Persona</th><th class="n">Videoscopías</th><th class="n">Prom. semanal</th><th class="n">% participación</th></tr>';
   arr.forEach(function(p){
     var sem=(p.pid&&evMap[p.pid])?evMap[p.pid]:semanas;
-    rows+='<tr><td><span class="dot" style="background:'+(p.pid?colorPersona(p.pid):"#5E6873")+'"></span>'+esc(p.nombre)+'</td>'
+    var clk=p.pid?(' style="cursor:pointer" onclick="selectPerson(\''+p.pid+'\',\''+esc(p.nombre).replace(/'/g,"")+'\')" title="Ver detalle"'):'';
+    rows+='<tr'+clk+'><td><span class="dot" style="background:'+(p.pid?colorPersona(p.pid):"#5E6873")+'"></span>'+esc(p.nombre)+(p.pid?' <span class="chico">›</span>':'')+'</td>'
       +'<td class="n">'+p.n+'</td><td class="n">'+r2(p.n/sem)+'</td><td class="n">'+Math.round(p.n/tot*100)+'%</td></tr>';
   });
   $("tPersona").innerHTML=rows;
@@ -396,10 +487,19 @@ function graficarMrb(mrbs){
       backgroundColor:e[1],borderRadius:3,maxBarThickness:26};})},
     options:Object.assign(baseOpts("MRB por mes (tendencia)",false),{scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}})});
 }
+function normClase(c){
+  var s=String(c||"").toLowerCase();
+  s=s.normalize?s.normalize("NFKD").replace(/[̀-ͯ]/g,""):s;
+  if(/sello/.test(s)&&/(m[ae]?ll?ado|nellado)/.test(s)) return "Sello mellado";
+  if(/rosca/.test(s)) return "Rosca mellada";
+  if(/sello/.test(s)) return "Sello mellado";
+  if(!s.trim()||/otra|otro/.test(s)) return "Otra";
+  return c.trim();
+}
 function graficarRep(reps){
   var byMes={}, byClase={};
   reps.forEach(function(r){ var q=+r.cantidad||1; var ym=mesClave(r.fecha); if(ym) byMes[ym]=(byMes[ym]||0)+q;
-    var c=r.clase||r.observacion||"(sin clase)"; byClase[c]=(byClase[c]||0)+q; });
+    var c=normClase(r.clase||r.observacion); byClase[c]=(byClase[c]||0)+q; });
   var meses=Object.keys(byMes).sort();
   CHARTS.repMes=new Chart($("chRepMes"),{type:"bar",data:{labels:meses.map(mesLabel),
     datasets:[{label:"Reparaciones",data:meses.map(function(m){return byMes[m];}),backgroundColor:"#3D82C4",borderRadius:3,maxBarThickness:28}]},
@@ -459,7 +559,7 @@ async function guardarEval(){
   var b=$("evBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("evMsg","");
   try{
     await sbRpc("dd_guardar_eval",{p_persona:PERSONA,p_emp:EMP,p:{persona_id:per,periodo_desde:d1,periodo_hasta:d2,
-      semanas_laboradas:$("evSem").value||"",competencias:comps,narrativa:$("evNarr").value.trim()}});
+      semanas_laboradas:$("evSem").value||"",mrb_generados:$("evMrb").value||"",competencias:comps,narrativa:$("evNarr").value.trim()}});
     setMsg("evMsg","✓ Evaluación guardada.","ok"); cargarEvals();
   }catch(e){ setMsg("evMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Guardar evaluación"; }
@@ -470,11 +570,11 @@ async function cargarEvals(){
   try{
     var rows=await sbRpc("dd_evals",{p_emp:EMP,p_desde:d1,p_hasta:d2});
     if(!rows||!rows.length){ box.innerHTML='<div class="chico">Sin evaluaciones en el período.</div>'; return; }
-    box.innerHTML='<div style="overflow-x:auto"><table><tr><th>Persona</th><th>Período</th><th class="n">Sem.</th>'
+    box.innerHTML='<div style="overflow-x:auto"><table><tr><th>Persona</th><th>Período</th><th class="n">Sem.</th><th class="n">MRB</th>'
       +COMPES.map(function(c){return '<th class="n">'+c[1].split(" ")[0]+'</th>';}).join("")+'</tr>'
       +rows.map(function(e){ var c=e.competencias||{};
         return '<tr><td>'+esc(e.persona||"—")+'</td><td>'+fmtFecha(e.periodo_desde)+'–'+fmtFecha(e.periodo_hasta)+'</td>'
-          +'<td class="n">'+(e.semanas_laboradas||"—")+'</td>'
+          +'<td class="n">'+(e.semanas_laboradas||"—")+'</td><td class="n">'+(e.mrb_generados||"—")+'</td>'
           +COMPES.map(function(k){return '<td class="n">'+(c[k[0]]||"—")+'</td>';}).join("")+'</tr>';
       }).join("")+'</table></div>';
   }catch(e){ box.innerHTML='<div class="chico" style="color:#ff8a82">No se pudo cargar.</div>'; }

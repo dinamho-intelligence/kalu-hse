@@ -333,6 +333,9 @@ function renderTablero(){
 }
 function selectPerson(pid,name){ if(!pid) return; SEL_PID=pid; SEL_NAME=name||""; renderTablero(); try{window.scrollTo(0,0);}catch(_){} }
 function clearPerson(){ SEL_PID=null; SEL_NAME=""; renderTablero(); }
+var REP_MES=null;
+function repMesSel(m){ REP_MES=(REP_MES===m?null:m); renderTablero(); }
+function repMesClear(){ REP_MES=null; renderTablero(); }
 function filtroBanner(){
   if(!SEL_PID) return "";
   return '<div class="card" style="background:rgba(242,140,0,.10);border-color:rgba(242,140,0,.4);display:flex;justify-content:space-between;align-items:center;gap:10px">'
@@ -354,7 +357,8 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
 
   var html=''
    +'<div class="kpis">'
-   +kpi(totV,"Videoscopías","en el período")
+   +kpi(totV,"Videoscopías","KALU (por líder)")
+   +kpi(totHI||"—","Herram. inspecc.","informe de Lesly")
    +kpi(totM,"MRB", (semanas?r2(totM/semanas)+" /sem":""))
    +kpi(pScrap+"%","% Scrap", scrap+" de "+totM)
    +kpi(totR,"Reparaciones","piezas")
@@ -387,11 +391,11 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
   html+='</div>';
 
   // Reparaciones
-  html+='<div class="card"><h3>Reparaciones — general</h3>';
+  html+='<div class="card"><div class="head"><h3>Reparaciones — general</h3>'
+      +(REP_MES?'<span class="chico">mes: <b>'+mesLabel(REP_MES)+'</b> · <a href="javascript:void(0)" onclick="repMesClear()">ver todos</a></span>':'<span class="chico">tocá un mes para desglosar por tipo de rosca</span>')+'</div>';
   if(!totR){ html+='<div class="empty">Sin reparaciones en el período. Importá el Excel de reparación.</div>'; }
   else{ html+='<div class="grid2"><div class="cwrap"><canvas id="chRepMes"></canvas></div>'
-        +'<div class="cwrap"><canvas id="chRepClase"></canvas></div></div>'
-        +'<div class="cwrap" style="margin-top:14px"><canvas id="chRepNorma"></canvas></div>'; }
+        +'<div class="cwrap"><canvas id="chRepClaseRosca"></canvas></div></div>'; }
   html+='</div>';
 
   $("tabBody").innerHTML=html;
@@ -558,29 +562,26 @@ function normaRep(obs){
   if(/t2\s*mod|bhi\s*t2\s*mod/.test(t)) return "BHI-T2-MOD";
   if(/bhi\s*t2|\bt2\b/.test(t)) return "BHI-T2";
   if(/\bapi\b/.test(t)) return "API";
-  return "Sin norma";
+  if(/\bcdp\b/.test(t)) return "CDP";
+  return "Otro";
 }
 function graficarRep(reps){
-  var byMes={}, byClase={}, byNorma={};
-  reps.forEach(function(r){ var q=+r.cantidad||1; var ym=mesClave(r.fecha); if(ym) byMes[ym]=(byMes[ym]||0)+q;
-    var c=normClase(r.clase||r.observacion); byClase[c]=(byClase[c]||0)+q;
-    var n=normaRep(r.observacion); byNorma[n]=(byNorma[n]||0)+q; });
+  var all=reps, filt=REP_MES?reps.filter(function(r){return mesClave(r.fecha)===REP_MES;}):reps;
+  // Reparaciones por mes (todos) — clickable para filtrar
+  var byMes={}; all.forEach(function(r){ var ym=mesClave(r.fecha); if(ym) byMes[ym]=(byMes[ym]||0)+(+r.cantidad||1); });
   var meses=Object.keys(byMes).sort();
   CHARTS.repMes=new Chart($("chRepMes"),{type:"bar",data:{labels:meses.map(mesLabel),
-    datasets:[{label:"Reparaciones",data:meses.map(function(m){return byMes[m];}),backgroundColor:"#3D82C4",borderRadius:3,maxBarThickness:28}]},
-    options:baseOpts("Reparaciones por mes",false)});
-  var cl=Object.keys(byClase).sort(function(a,b){return byClase[b]-byClase[a];}).slice(0,8);
-  CHARTS.repClase=new Chart($("chRepClase"),{type:"bar",data:{labels:cl,datasets:[{label:"Cantidad",
-    data:cl.map(function(k){return byClase[k];}),backgroundColor:"#2FA574",borderRadius:3,maxBarThickness:28}]},
-    options:Object.assign(baseOpts("Reparaciones por clase",true),{indexAxis:"y"})});
-  if($("chRepNorma")){
-    var NORD=[["API","#3D82C4"],["BHI-T2","#F28C00"],["BHI-T2-MOD","#9B7EDE"],["Sin norma","#5E6873"]];
-    var nl=NORD.filter(function(x){return byNorma[x[0]];});
-    CHARTS.repNorma=new Chart($("chRepNorma"),{type:"bar",data:{labels:nl.map(function(x){return x[0];}),
-      datasets:[{label:"Reparaciones",data:nl.map(function(x){return byNorma[x[0]];}),
-        backgroundColor:nl.map(function(x){return x[1];}),borderRadius:4,maxBarThickness:44}]},
-      options:baseOpts("Reparaciones por tipo de rosca (API / BHI-T2 / BHI-T2-MOD)",true)});
-  }
+    datasets:[{label:"Reparaciones",data:meses.map(function(m){return byMes[m];}),
+      backgroundColor:meses.map(function(m){return m===REP_MES?"#F28C00":"#3D82C4";}),borderRadius:3,maxBarThickness:28}]},
+    options:Object.assign(baseOpts("Reparaciones por mes (tocá para filtrar)",true),{onClick:function(ev,el){ if(el&&el.length){ repMesSel(meses[el[0].index]); } }})});
+  // Reparaciones por clase, separadas por tipo de rosca (apilado) — filtradas por mes si hay
+  var NORD=[["API","#3D82C4"],["BHI-T2","#F28C00"],["BHI-T2-MOD","#9B7EDE"],["CDP","#2FA574"],["Otro","#5E6873"]];
+  var orderCl=["Rosca mellada","Sello mellado","Otra"], clases={};
+  filt.forEach(function(r){ var c=normClase(r.clase||r.observacion), n=normaRep(r.observacion); clases[c]=clases[c]||{}; clases[c][n]=(clases[c][n]||0)+(+r.cantidad||1); });
+  var cl=orderCl.filter(function(c){return clases[c];}).concat(Object.keys(clases).filter(function(c){return orderCl.indexOf(c)<0;}));
+  CHARTS.repCR=new Chart($("chRepClaseRosca"),{type:"bar",data:{labels:cl,
+    datasets:NORD.map(function(x){return {label:x[0],data:cl.map(function(c){return (clases[c]&&clases[c][x[0]])||0;}),backgroundColor:x[1],borderRadius:3,maxBarThickness:34};})},
+    options:Object.assign(baseOpts((REP_MES?mesLabel(REP_MES)+" · ":"")+"Reparaciones por clase y tipo de rosca",false),{indexAxis:"y",scales:{x:{stacked:true,beginAtZero:true},y:{stacked:true}}})});
 }
 function baseOpts(title,hideLegend){
   return {responsive:true,maintainAspectRatio:false,

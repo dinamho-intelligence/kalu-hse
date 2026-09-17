@@ -579,7 +579,7 @@ function graficarRep(reps){
     CHARTS.repNorma=new Chart($("chRepNorma"),{type:"bar",data:{labels:nl.map(function(x){return x[0];}),
       datasets:[{label:"Reparaciones",data:nl.map(function(x){return byNorma[x[0]];}),
         backgroundColor:nl.map(function(x){return x[1];}),borderRadius:4,maxBarThickness:44}]},
-      options:baseOpts("Reparaciones por norma (API / BHI-T2 / BHI-T2-MOD)",true)});
+      options:baseOpts("Reparaciones por tipo de rosca (API / BHI-T2 / BHI-T2-MOD)",true)});
   }
 }
 function baseOpts(title,hideLegend){
@@ -728,7 +728,7 @@ async function buildContexto(){
   return {periodo:{desde:desde,hasta:hasta,semanas:semanas}, total_videoscopias:totV, personas:personas,
     nota:"videoscopias_lider = inspecciones lideradas; videoscopias_apoyo = donde estuvo de apoyo. herramientas_inspeccionadas y mrb vienen del informe de Lesly.",
     mrb_general:{total:mrbs.length,por_estado:est,por_mes:mmes,scrap:scrap,scrap_pct:(mrbs.length?Math.round(scrap/mrbs.length*100):0)},
-    reparaciones:{total:reps.length,por_clase:rcl,por_mes:rmes,por_norma:rnorm}};
+    reparaciones:{total:reps.length,por_clase:rcl,por_mes:rmes,por_tipo_rosca:rnorm}};
 }
 async function enviarConsulta(){
   var q=$("qInput").value.trim(); if(!q) return;

@@ -163,8 +163,12 @@
       <div class="row">
         <div><label>Persona *</label><select id="evPersona"></select></div>
         <div><label>Semanas laboradas</label><input type="number" step="0.5" id="evSem" placeholder="Ej. 4"></div>
+      </div>
+      <div class="row">
+        <div><label>Herramientas inspeccionadas</label><input type="number" step="1" id="evHerr" placeholder="Ej. 41"></div>
         <div><label>MRB generados (del mes)</label><input type="number" step="1" id="evMrb" placeholder="Ej. 25"></div>
       </div>
+      <p class="chico" style="margin:2px 0 0">Estos números salen del informe mensual de Lesly. Cargá una evaluación por persona y por mes.</p>
       <div class="row">
         <div><label>Período desde *</label><input type="date" id="evDesde"></div>
         <div><label>Período hasta *</label><input type="date" id="evHasta"></div>
@@ -345,6 +349,8 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
   var scrap=mrbs.filter(function(m){return /scrap/i.test(m.status||"");}).length;
   var pScrap=totM? Math.round(scrap/totM*100):0;
   var totMP=(evals||[]).reduce(function(a,e){return a+(+e.mrb_generados||0);},0);
+  var totHI=(evals||[]).reduce(function(a,e){return a+(+e.herramientas_inspeccionadas||0);},0);
+  var hayInforme=(evals||[]).length>0 && (totMP||totHI);
 
   var html=''
    +'<div class="kpis">'
@@ -366,11 +372,11 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
   }
   html+='</div>';
 
-  // MRB por persona (del informe mensual)
-  html+='<div class="card"><div class="head"><h3>MRB por persona</h3>'
-      +'<span class="chico">del informe mensual · '+totMP+' MRB cargados</span></div>';
-  if(!totMP){ html+='<div class="empty">Todavía no cargaste MRB por persona en este período.<br>El Excel de MRB no trae nombre: cargá los «MRB generados» por persona en la pestaña «Competencias».</div>'; }
-  else{ html+='<div class="cwrap"><canvas id="chMrbPersona"></canvas></div>'; }
+  // Del informe mensual (Lesly): herramientas inspeccionadas + MRB por mes y persona
+  html+='<div class="card"><div class="head"><h3>Del informe mensual (Lesly)</h3>'
+      +'<span class="chico">herramientas inspeccionadas y MRB, por persona</span></div>';
+  if(!hayInforme){ html+='<div class="empty">Todavía no cargaste el informe mensual por persona.<br>El Excel de MRB no trae nombre: cargá «Herramientas inspeccionadas» y «MRB generados» por persona/mes en la pestaña «Competencias».</div>'; }
+  else{ html+='<div class="grid2"><div class="cwrap"><canvas id="chHerrPersona"></canvas></div><div class="cwrap"><canvas id="chMrbMesPersona"></canvas></div></div>'; }
   html+='</div>';
 
   // General MRB
@@ -384,66 +390,92 @@ function pintarTablero(vids, mrbs, reps, evals, desde, hasta){
   html+='<div class="card"><h3>Reparaciones — general</h3>';
   if(!totR){ html+='<div class="empty">Sin reparaciones en el período. Importá el Excel de reparación.</div>'; }
   else{ html+='<div class="grid2"><div class="cwrap"><canvas id="chRepMes"></canvas></div>'
-        +'<div class="cwrap"><canvas id="chRepClase"></canvas></div></div>'; }
+        +'<div class="cwrap"><canvas id="chRepClase"></canvas></div></div>'
+        +'<div class="cwrap" style="margin-top:14px"><canvas id="chRepNorma"></canvas></div>'; }
   html+='</div>';
 
   $("tabBody").innerHTML=html;
 
   if(totV) graficarPersonas(vids, evals, semanas);
-  if(totMP) graficarMrbPersona(evals);
+  if(hayInforme) graficarInforme(evals);
   if(totM) graficarMrb(mrbs);
   if(totR) graficarRep(reps);
 }
 function kpi(n,l,s){ return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+l+'</div><div class="s">'+(s||"")+'</div></div>'; }
 function nombrePersona(pid,texto){ return (pid&&PMAP[pid]?PMAP[pid].nombre:(texto||"—")); }
-// MRB por persona (del informe mensual, dd_evaluacion.mrb_generados)
-function graficarMrbPersona(evals){
-  var byP={};
-  (evals||[]).forEach(function(e){ var m=+e.mrb_generados||0; if(!m) return;
-    byP[e.persona_id]=byP[e.persona_id]||{n:0,nombre:e.persona||nombrePersona(e.persona_id),pid:e.persona_id}; byP[e.persona_id].n+=m; });
-  var arr=Object.keys(byP).map(function(k){return byP[k];}).sort(function(a,b){return b.n-a.n;});
-  if(!arr.length) return;
-  CHARTS.mrbPersona=new Chart($("chMrbPersona"),{type:"bar",data:{labels:arr.map(function(p){return p.nombre;}),
-    datasets:[{label:"MRB generados",data:arr.map(function(p){return p.n;}),
-      backgroundColor:arr.map(function(p){return p.pid?colorPersona(p.pid):"#5E6873";}),borderRadius:4,maxBarThickness:34}]},
-    options:Object.assign(baseOpts("MRB por persona",true),{onClick:function(ev,el){ if(el&&el.length){ var p=arr[el[0].index]; selectPerson(p.pid,p.nombre); } }})});
+// Del informe mensual: herramientas inspeccionadas por persona + MRB por mes y persona
+function graficarInforme(evals){
+  // Herramientas inspeccionadas por persona
+  var hp={};
+  (evals||[]).forEach(function(e){ var h=+e.herramientas_inspeccionadas||0; if(!h) return;
+    hp[e.persona_id]=hp[e.persona_id]||{n:0,nombre:e.persona||nombrePersona(e.persona_id),pid:e.persona_id}; hp[e.persona_id].n+=h; });
+  var ha=Object.keys(hp).map(function(k){return hp[k];}).sort(function(a,b){return b.n-a.n;});
+  if(ha.length && $("chHerrPersona")){
+    CHARTS.herr=new Chart($("chHerrPersona"),{type:"bar",data:{labels:ha.map(function(p){return p.nombre;}),
+      datasets:[{label:"Herramientas inspeccionadas",data:ha.map(function(p){return p.n;}),
+        backgroundColor:ha.map(function(p){return p.pid?colorPersona(p.pid):"#5E6873";}),borderRadius:4,maxBarThickness:34}]},
+      options:Object.assign(baseOpts("Herramientas inspeccionadas por persona (informe)",true),{onClick:function(ev,el){ if(el&&el.length){ var p=ha[el[0].index]; selectPerson(p.pid,p.nombre); } }})});
+  }
+  // MRB por mes y persona (apilado) → "de enero: Robin X, Maicol Y"
+  var meses={}, pers={};
+  (evals||[]).forEach(function(e){ var m=+e.mrb_generados||0; if(!m) return; var ym=String(e.periodo_desde||"").slice(0,7); if(!ym) return;
+    meses[ym]=true; pers[e.persona_id]=pers[e.persona_id]||{nombre:e.persona||nombrePersona(e.persona_id),pid:e.persona_id,byMes:{}};
+    pers[e.persona_id].byMes[ym]=(pers[e.persona_id].byMes[ym]||0)+m; });
+  var ml=Object.keys(meses).sort(), pl=Object.keys(pers).map(function(k){return pers[k];});
+  if(pl.length && $("chMrbMesPersona")){
+    CHARTS.mrbMesP=new Chart($("chMrbMesPersona"),{type:"bar",data:{labels:ml.map(mesLabel),
+      datasets:pl.map(function(p){return {label:p.nombre.split(" ").slice(0,2).join(" "),data:ml.map(function(m){return p.byMes[m]||0;}),
+        backgroundColor:p.pid?colorPersona(p.pid):"#5E6873",borderRadius:3,maxBarThickness:40};})},
+      options:Object.assign(baseOpts("MRB por mes y persona",false),{scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}})});
+  }
 }
-// Vista filtrada por persona (cruza con Horas Extra)
+// Vista filtrada por persona (líder + apoyo, cruza con Horas Extra)
+var AZUL_LID="#3D82C4", NAR_APY="#F28C00";
 async function pintarPersona(){
   destroyCharts();
   var D=LAST_DATA, pid=SEL_PID;
-  var vp=D.vids.filter(function(v){return v.lider_persona_id===pid;});
-  var n=vp.length, tot=D.vids.length;
+  var vpL=D.vids.filter(function(v){return v.lider_persona_id===pid;});
+  var vpA=D.vids.filter(function(v){return v.apoyo_persona_id===pid;});
+  var nL=vpL.length, nA=vpA.length, n=nL+nA, tot=D.vids.length;
+  var vpAll=vpL.map(function(v){return {v:v,rol:"Líder"};}).concat(vpA.map(function(v){return {v:v,rol:"Apoyo"};}));
   var ev=(D.evals||[]).filter(function(e){return e.persona_id===pid;});
   var mrb=ev.reduce(function(a,e){return a+(+e.mrb_generados||0);},0);
+  var herr=ev.reduce(function(a,e){return a+(+e.herramientas_inspeccionadas||0);},0);
   var sem=0; ev.forEach(function(e){ if(e.semanas_laboradas) sem=+e.semanas_laboradas; });
   var semanas=sem||SEMANAS_G;
-  var byT={}, byMes={}; vp.forEach(function(v){ var t=v.tipo||"(sin tipo)"; byT[t]=(byT[t]||0)+1; var ym=mesClave(v.fecha); if(ym) byMes[ym]=(byMes[ym]||0)+1; });
+  var tipos={}, meses={};
+  vpL.forEach(function(v){ var t=v.tipo||"(sin tipo)"; tipos[t]=tipos[t]||{L:0,A:0}; tipos[t].L++; var ym=mesClave(v.fecha); if(ym){meses[ym]=meses[ym]||{L:0,A:0};meses[ym].L++;} });
+  vpA.forEach(function(v){ var t=v.tipo||"(sin tipo)"; tipos[t]=tipos[t]||{L:0,A:0}; tipos[t].A++; var ym=mesClave(v.fecha); if(ym){meses[ym]=meses[ym]||{L:0,A:0};meses[ym].A++;} });
   var html=filtroBanner()
     +'<div class="kpis">'
-    +kpi(n,"Videoscopías","en el período")
-    +kpi(mrb||"—","MRB generados","del informe")
+    +kpi(n,"Videoscopías",'<span style="color:'+AZUL_LID+'">'+nL+' líder</span> · <span style="color:'+NAR_APY+'">'+nA+' apoyo</span>')
+    +kpi(herr||"—","Herram. inspecc.","informe")
+    +kpi(mrb||"—","MRB generados","informe")
     +kpi(r2(n/semanas),"Prom. semanal",semanas+" sem")
-    +kpi(Math.round(n/(tot||1)*100)+"%","% participación","del equipo")
     +'</div>';
   html+='<div class="card"><h3>Contexto del período — cruzado con Horas Extra</h3><div id="cruceIn"><div class="load">Cargando…</div></div></div>';
-  html+='<div class="card"><h3>Sus videoscopías</h3>';
-  if(!n){ html+='<div class="empty">Sin videoscopías en el período.</div>'; }
+  html+='<div class="card"><div class="head"><h3>Sus videoscopías</h3><span class="chico"><span class="dot" style="background:'+AZUL_LID+'"></span>líder <span class="dot" style="background:'+NAR_APY+';margin-left:8px"></span>apoyo</span></div>';
+  if(!n){ html+='<div class="empty">Sin videoscopías (ni como líder ni como apoyo) en el período.</div>'; }
   else{ html+='<div class="grid2"><div class="cwrap"><canvas id="chPTipo"></canvas></div><div class="cwrap"><canvas id="chPMes"></canvas></div></div>'
       +'<div style="overflow-x:auto;margin-top:12px"><table id="tPSer"></table></div>'; }
   html+='</div>';
   html+='<div class="chico" style="text-align:center;padding:4px 0 10px">Los cuadros de MRB y reparación generales no se filtran por persona (no traen nombre). <a href="javascript:void(0)" onclick="clearPerson()">Ver todos</a></div>';
   $("tabBody").innerHTML=html;
   if(n){
-    var te=Object.keys(byT).sort(function(a,b){return byT[b]-byT[a];});
-    CHARTS.pt=new Chart($("chPTipo"),{type:"bar",data:{labels:te,datasets:[{label:"Cantidad",data:te.map(function(k){return byT[k];}),
-      backgroundColor:colorPersona(pid),borderRadius:4,maxBarThickness:30}]},options:Object.assign(baseOpts("Por tipo de elemento",true),{indexAxis:"y"})});
-    var ms=Object.keys(byMes).sort();
-    CHARTS.pm=new Chart($("chPMes"),{type:"bar",data:{labels:ms.map(mesLabel),datasets:[{label:"Videoscopías",data:ms.map(function(m){return byMes[m];}),
-      backgroundColor:colorPersona(pid),borderRadius:3,maxBarThickness:26}]},options:baseOpts("Por mes",true)});
-    var rows='<tr><th>Fecha</th><th>Tipo</th><th>Serial</th><th>Concl.</th></tr>'
-      +vp.slice().sort(function(a,b){return String(b.fecha).localeCompare(String(a.fecha));}).slice(0,40).map(function(v){
-        return '<tr><td>'+fmtFecha(v.fecha)+'</td><td>'+esc(v.tipo||"—")+'</td><td>'+esc(v.serial||"—")+'</td><td>'+esc(v.conclusion||"—")+'</td></tr>';}).join("");
+    var te=Object.keys(tipos).sort(function(a,b){return (tipos[b].L+tipos[b].A)-(tipos[a].L+tipos[a].A);});
+    CHARTS.pt=new Chart($("chPTipo"),{type:"bar",data:{labels:te,datasets:[
+      {label:"Líder",data:te.map(function(k){return tipos[k].L;}),backgroundColor:AZUL_LID,borderRadius:3,maxBarThickness:26},
+      {label:"Apoyo",data:te.map(function(k){return tipos[k].A;}),backgroundColor:NAR_APY,borderRadius:3,maxBarThickness:26}]},
+      options:Object.assign(baseOpts("Por tipo (líder vs apoyo)",false),{indexAxis:"y",scales:{x:{stacked:true,beginAtZero:true},y:{stacked:true}}})});
+    var ms=Object.keys(meses).sort();
+    CHARTS.pm=new Chart($("chPMes"),{type:"bar",data:{labels:ms.map(mesLabel),datasets:[
+      {label:"Líder",data:ms.map(function(m){return meses[m].L;}),backgroundColor:AZUL_LID,borderRadius:3,maxBarThickness:26},
+      {label:"Apoyo",data:ms.map(function(m){return meses[m].A;}),backgroundColor:NAR_APY,borderRadius:3,maxBarThickness:26}]},
+      options:Object.assign(baseOpts("Por mes (líder vs apoyo)",false),{scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}})});
+    var rows='<tr><th>Fecha</th><th>Rol</th><th>Tipo</th><th>Serial</th><th>Concl.</th></tr>'
+      +vpAll.sort(function(a,b){return String(b.v.fecha).localeCompare(String(a.v.fecha));}).slice(0,50).map(function(x){
+        var col=x.rol==="Líder"?AZUL_LID:NAR_APY;
+        return '<tr><td>'+fmtFecha(x.v.fecha)+'</td><td><span class="dot" style="background:'+col+'"></span>'+x.rol+'</td><td>'+esc(x.v.tipo||"—")+'</td><td>'+esc(x.v.serial||"—")+'</td><td>'+esc(x.v.conclusion||"—")+'</td></tr>';}).join("");
     $("tPSer").innerHTML=rows;
   }
   try{
@@ -467,7 +499,10 @@ function graficarPersonas(vids, evals, semanas){
   });
   var arr=Object.keys(byP).map(function(k){return byP[k];}).sort(function(a,b){return b.n-a.n;});
   var tot=vids.length;
-  var evMap={}; (evals||[]).forEach(function(e){ if(e.semanas_laboradas) evMap[e.persona_id]=+e.semanas_laboradas; });
+  var evMap={},evHerr={},evMrbM={};
+  (evals||[]).forEach(function(e){ if(e.semanas_laboradas) evMap[e.persona_id]=+e.semanas_laboradas;
+    evHerr[e.persona_id]=(evHerr[e.persona_id]||0)+(+e.herramientas_inspeccionadas||0);
+    evMrbM[e.persona_id]=(evMrbM[e.persona_id]||0)+(+e.mrb_generados||0); });
   PERS_ARR=arr; TOTV=tot; EVP={}; (evals||[]).forEach(function(e){ EVP[e.persona_id]={mrb:+e.mrb_generados||0,sem:+e.semanas_laboradas||0}; });
   CHARTS.persona=new Chart($("chPersona"),{type:"bar",data:{labels:arr.map(function(p){return p.nombre;}),
     datasets:[{label:"Videoscopías",data:arr.map(function(p){return p.n;}),
@@ -477,12 +512,17 @@ function graficarPersonas(vids, evals, semanas){
   CHARTS.tipo=new Chart($("chTipo"),{type:"bar",data:{labels:te,datasets:[{label:"Cantidad",
     data:te.map(function(k){return byT[k];}),backgroundColor:"#F28C00",borderRadius:4,maxBarThickness:34}]},
     options:Object.assign(baseOpts("Videoscopías por tipo de elemento",true),{indexAxis:"y"})});
-  var rows='<tr><th>Persona</th><th class="n">Videoscopías</th><th class="n">Prom. semanal</th><th class="n">% participación</th></tr>';
+  var rows='<tr><th>Persona</th><th class="n">Videoscopías<br><span class="chico" style="font-weight:400">KALU</span></th>'
+    +'<th class="n">Herram.<br><span class="chico" style="font-weight:400">informe</span></th>'
+    +'<th class="n">MRB<br><span class="chico" style="font-weight:400">informe</span></th>'
+    +'<th class="n">Prom. semanal</th><th class="n">% participación</th></tr>';
   arr.forEach(function(p){
     var sem=(p.pid&&evMap[p.pid])?evMap[p.pid]:semanas;
+    var hi=(p.pid&&evHerr[p.pid])?evHerr[p.pid]:0, mi=(p.pid&&evMrbM[p.pid])?evMrbM[p.pid]:0;
     var clk=p.pid?(' style="cursor:pointer" onclick="selectPerson(\''+p.pid+'\',\''+esc(p.nombre).replace(/'/g,"")+'\')" title="Ver detalle"'):'';
     rows+='<tr'+clk+'><td><span class="dot" style="background:'+(p.pid?colorPersona(p.pid):"#5E6873")+'"></span>'+esc(p.nombre)+(p.pid?' <span class="chico">›</span>':'')+'</td>'
-      +'<td class="n">'+p.n+'</td><td class="n">'+r2(p.n/sem)+'</td><td class="n">'+Math.round(p.n/tot*100)+'%</td></tr>';
+      +'<td class="n">'+p.n+'</td><td class="n">'+(hi||"—")+'</td><td class="n">'+(mi||"—")+'</td>'
+      +'<td class="n">'+r2(p.n/sem)+'</td><td class="n">'+Math.round(p.n/tot*100)+'%</td></tr>';
   });
   $("tPersona").innerHTML=rows;
 }
@@ -513,10 +553,18 @@ function normClase(c){
   if(!s.trim()||/otra|otro/.test(s)) return "Otra";
   return c.trim();
 }
+function normaRep(obs){
+  var t=String(obs||"").toLowerCase().replace(/[^a-z0-9]/g," ");
+  if(/t2\s*mod|bhi\s*t2\s*mod/.test(t)) return "BHI-T2-MOD";
+  if(/bhi\s*t2|\bt2\b/.test(t)) return "BHI-T2";
+  if(/\bapi\b/.test(t)) return "API";
+  return "Sin norma";
+}
 function graficarRep(reps){
-  var byMes={}, byClase={};
+  var byMes={}, byClase={}, byNorma={};
   reps.forEach(function(r){ var q=+r.cantidad||1; var ym=mesClave(r.fecha); if(ym) byMes[ym]=(byMes[ym]||0)+q;
-    var c=normClase(r.clase||r.observacion); byClase[c]=(byClase[c]||0)+q; });
+    var c=normClase(r.clase||r.observacion); byClase[c]=(byClase[c]||0)+q;
+    var n=normaRep(r.observacion); byNorma[n]=(byNorma[n]||0)+q; });
   var meses=Object.keys(byMes).sort();
   CHARTS.repMes=new Chart($("chRepMes"),{type:"bar",data:{labels:meses.map(mesLabel),
     datasets:[{label:"Reparaciones",data:meses.map(function(m){return byMes[m];}),backgroundColor:"#3D82C4",borderRadius:3,maxBarThickness:28}]},
@@ -525,6 +573,14 @@ function graficarRep(reps){
   CHARTS.repClase=new Chart($("chRepClase"),{type:"bar",data:{labels:cl,datasets:[{label:"Cantidad",
     data:cl.map(function(k){return byClase[k];}),backgroundColor:"#2FA574",borderRadius:3,maxBarThickness:28}]},
     options:Object.assign(baseOpts("Reparaciones por clase",true),{indexAxis:"y"})});
+  if($("chRepNorma")){
+    var NORD=[["API","#3D82C4"],["BHI-T2","#F28C00"],["BHI-T2-MOD","#9B7EDE"],["Sin norma","#5E6873"]];
+    var nl=NORD.filter(function(x){return byNorma[x[0]];});
+    CHARTS.repNorma=new Chart($("chRepNorma"),{type:"bar",data:{labels:nl.map(function(x){return x[0];}),
+      datasets:[{label:"Reparaciones",data:nl.map(function(x){return byNorma[x[0]];}),
+        backgroundColor:nl.map(function(x){return x[1];}),borderRadius:4,maxBarThickness:44}]},
+      options:baseOpts("Reparaciones por norma (API / BHI-T2 / BHI-T2-MOD)",true)});
+  }
 }
 function baseOpts(title,hideLegend){
   return {responsive:true,maintainAspectRatio:false,
@@ -576,7 +632,8 @@ async function guardarEval(){
   var b=$("evBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("evMsg","");
   try{
     await sbRpc("dd_guardar_eval",{p_persona:PERSONA,p_emp:EMP,p:{persona_id:per,periodo_desde:d1,periodo_hasta:d2,
-      semanas_laboradas:$("evSem").value||"",mrb_generados:$("evMrb").value||"",competencias:comps,narrativa:$("evNarr").value.trim()}});
+      semanas_laboradas:$("evSem").value||"",herramientas_inspeccionadas:$("evHerr").value||"",mrb_generados:$("evMrb").value||"",
+      competencias:comps,narrativa:$("evNarr").value.trim()}});
     setMsg("evMsg","✓ Evaluación guardada.","ok"); cargarEvals();
   }catch(e){ setMsg("evMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Guardar evaluación"; }
@@ -587,11 +644,11 @@ async function cargarEvals(){
   try{
     var rows=await sbRpc("dd_evals",{p_emp:EMP,p_desde:d1,p_hasta:d2});
     if(!rows||!rows.length){ box.innerHTML='<div class="chico">Sin evaluaciones en el período.</div>'; return; }
-    box.innerHTML='<div style="overflow-x:auto"><table><tr><th>Persona</th><th>Período</th><th class="n">Sem.</th><th class="n">MRB</th>'
+    box.innerHTML='<div style="overflow-x:auto"><table><tr><th>Persona</th><th>Período</th><th class="n">Sem.</th><th class="n">Herram.</th><th class="n">MRB</th>'
       +COMPES.map(function(c){return '<th class="n">'+c[1].split(" ")[0]+'</th>';}).join("")+'</tr>'
       +rows.map(function(e){ var c=e.competencias||{};
         return '<tr><td>'+esc(e.persona||"—")+'</td><td>'+fmtFecha(e.periodo_desde)+'–'+fmtFecha(e.periodo_hasta)+'</td>'
-          +'<td class="n">'+(e.semanas_laboradas||"—")+'</td><td class="n">'+(e.mrb_generados||"—")+'</td>'
+          +'<td class="n">'+(e.semanas_laboradas||"—")+'</td><td class="n">'+(e.herramientas_inspeccionadas||"—")+'</td><td class="n">'+(e.mrb_generados||"—")+'</td>'
           +COMPES.map(function(k){return '<td class="n">'+(c[k[0]]||"—")+'</td>';}).join("")+'</tr>';
       }).join("")+'</table></div>';
   }catch(e){ box.innerHTML='<div class="chico" style="color:#ff8a82">No se pudo cargar.</div>'; }
@@ -650,20 +707,28 @@ async function buildContexto(){
   vids.forEach(function(v){ var pid=v.lider_persona_id, nm=pid&&PMAP[pid]?PMAP[pid].nombre:(v.lider_texto||"—"), key=pid||("txt:"+nm);
     byP[key]=byP[key]||{nombre:nm,videoscopias:0,por_mes:{},por_tipo:{},pid:pid}; var o=byP[key]; o.videoscopias++;
     var ym=(v.fecha||"").slice(0,7); if(ym) o.por_mes[ym]=(o.por_mes[ym]||0)+1; var t=v.tipo||"(sin tipo)"; o.por_tipo[t]=(o.por_tipo[t]||0)+1; });
-  var totV=vids.length, evByP={}; evals.forEach(function(e){ evByP[e.persona_id]={mrb:+e.mrb_generados||0,sem:+e.semanas_laboradas||0}; });
+  var totV=vids.length;
+  var apByP={}; vids.forEach(function(v){ if(v.apoyo_persona_id) apByP[v.apoyo_persona_id]=(apByP[v.apoyo_persona_id]||0)+1; });
+  var evByP={}; evals.forEach(function(e){ var pid=e.persona_id, o=evByP[pid]=evByP[pid]||{mrb:0,herr:0,sem:0,mrbMes:{},herrMes:{}}, ym=String(e.periodo_desde||"").slice(0,7);
+    o.mrb+=(+e.mrb_generados||0); o.herr+=(+e.herramientas_inspeccionadas||0); if(e.semanas_laboradas) o.sem=+e.semanas_laboradas;
+    if(ym){ o.mrbMes[ym]=(o.mrbMes[ym]||0)+(+e.mrb_generados||0); o.herrMes[ym]=(o.herrMes[ym]||0)+(+e.herramientas_inspeccionadas||0); } });
   var personas=Object.keys(byP).map(function(k){ var o=byP[k], ev=o.pid?evByP[o.pid]:null, cr=o.pid?cruce[o.pid]:null, sem=(ev&&ev.sem)||semanas;
-    return {nombre:o.nombre,videoscopias:o.videoscopias,por_mes:o.por_mes,por_tipo:o.por_tipo,
+    return {nombre:o.nombre, videoscopias_lider:o.videoscopias, videoscopias_apoyo:(o.pid?(apByP[o.pid]||0):0),
+      por_mes:o.por_mes, por_tipo:o.por_tipo,
       promedio_semanal:Math.round(o.videoscopias/sem*100)/100, participacion_pct:Math.round(o.videoscopias/(totV||1)*100),
-      mrb_generados:(ev?ev.mrb:0), semanas_laboradas:(ev?ev.sem:null),
+      herramientas_inspeccionadas:(ev?ev.herr:0), herramientas_por_mes:(ev?ev.herrMes:{}),
+      mrb_generados:(ev?ev.mrb:0), mrb_por_mes:(ev?ev.mrbMes:{}), semanas_laboradas:(ev?ev.sem:null),
       vacaciones_dias:(cr?cr.vacaciones_dias:null), horas_extra:(cr?cr.horas_extra:null)}; })
-    .sort(function(a,b){return b.videoscopias-a.videoscopias;});
+    .sort(function(a,b){return b.videoscopias_lider-a.videoscopias_lider;});
   function bk(s){s=(s||"").toLowerCase(); if(/dwr/.test(s))return"Aprobado por DWR"; if(/scrap/.test(s))return"Scrap"; if(/proces/.test(s))return"En proceso"; if(/aprob/.test(s))return"Aprobado"; return"Otro";}
   var est={},mmes={}; mrbs.forEach(function(m){var bb=bk(m.status); est[bb]=(est[bb]||0)+1; var ym=(m.fecha||"").slice(0,7); if(ym){mmes[ym]=mmes[ym]||{};mmes[ym][bb]=(mmes[ym][bb]||0)+1;}});
-  var scrap=est["Scrap"]||0, rcl={},rmes={};
-  reps.forEach(function(x){var c=normClase(x.clase||x.observacion); rcl[c]=(rcl[c]||0)+(+x.cantidad||1); var ym=(x.fecha||"").slice(0,7); if(ym) rmes[ym]=(rmes[ym]||0)+(+x.cantidad||1);});
+  var scrap=est["Scrap"]||0, rcl={},rmes={},rnorm={};
+  reps.forEach(function(x){var c=normClase(x.clase||x.observacion); rcl[c]=(rcl[c]||0)+(+x.cantidad||1); var ym=(x.fecha||"").slice(0,7); if(ym) rmes[ym]=(rmes[ym]||0)+(+x.cantidad||1);
+    var nn=normaRep(x.observacion); rnorm[nn]=(rnorm[nn]||0)+(+x.cantidad||1);});
   return {periodo:{desde:desde,hasta:hasta,semanas:semanas}, total_videoscopias:totV, personas:personas,
+    nota:"videoscopias_lider = inspecciones lideradas; videoscopias_apoyo = donde estuvo de apoyo. herramientas_inspeccionadas y mrb vienen del informe de Lesly.",
     mrb_general:{total:mrbs.length,por_estado:est,por_mes:mmes,scrap:scrap,scrap_pct:(mrbs.length?Math.round(scrap/mrbs.length*100):0)},
-    reparaciones:{total:reps.length,por_clase:rcl,por_mes:rmes}};
+    reparaciones:{total:reps.length,por_clase:rcl,por_mes:rmes,por_norma:rnorm}};
 }
 async function enviarConsulta(){
   var q=$("qInput").value.trim(); if(!q) return;

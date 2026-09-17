@@ -91,6 +91,7 @@
     <div class="tab" data-t="capturar" onclick="tab('capturar')">➕ Capturar</div>
     <div class="tab" data-t="compe" onclick="tab('compe')">⭐ Competencias</div>
     <div class="tab" data-t="catalogo" onclick="tab('catalogo')">🏷️ Catálogo</div>
+    <div class="tab" data-t="consulta" onclick="tab('consulta')">💬 Consulta</div>
   </div>
 
   <!-- ============ TABLERO ============ -->
@@ -193,6 +194,21 @@
       <div id="tLista" style="margin-top:14px"></div>
     </div>
   </div>
+
+  <!-- ============ CONSULTA (chat IA) ============ -->
+  <div id="tab_consulta" class="hide">
+    <div class="card">
+      <div class="head"><h1 style="margin:0">💬 Consultá a KALU</h1>
+        <a class="volver" href="javascript:void(0)" onclick="cfgWebhook()" id="cfgLink">⚙︎ conexión</a></div>
+      <h2>Preguntá en tu idioma sobre desempeño, MRB, reparaciones y horas extra del período elegido en el Tablero.</h2>
+      <div id="chatLog" style="max-height:52vh;overflow-y:auto;margin:6px 0 12px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="qInput" placeholder="Ej: ¿cuántos MRB hizo Robinson en enero?" onkeydown="if(event.key==='Enter')enviarConsulta()" style="flex:1">
+        <button class="btn" id="qBtn" onclick="enviarConsulta()">Enviar</button>
+      </div>
+      <div class="chico" id="qHint" style="margin-top:8px"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -265,10 +281,11 @@ function poblarSelects(){
   renderTipos();
 }
 function tab(t){
-  ["tablero","capturar","compe","catalogo"].forEach(function(x){ $("tab_"+x).classList.toggle("hide",x!==t); });
+  ["tablero","capturar","compe","catalogo","consulta"].forEach(function(x){ $("tab_"+x).classList.toggle("hide",x!==t); });
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(el){ el.classList.toggle("on",el.getAttribute("data-t")===t); });
   if(t==="capturar") cargarCapturas();
   if(t==="compe") cargarEvals();
+  if(t==="consulta") initConsulta();
 }
 
 /* ===================== Período ===================== */
@@ -597,6 +614,71 @@ async function guardarTipo(){
     var d=await sbRpc("dd_login",{p_ced:cedGuardada()}); if(d&&d.ok){ TIPOS=d.tipos||[]; poblarSelects(); }
     $("tNom").value=""; $("tSin").value=""; setMsg("tMsg","✓ Guardado.","ok");
   }catch(e){ setMsg("tMsg",(e&&e.message)||"No se pudo guardar.","err"); }
+}
+
+/* ===================== CONSULTA (chat IA vía n8n) ===================== */
+var WH_KEY="dd-webhook", WEBHOOK_DEFAULT="https://dnmintell.app.n8n.cloud/webhook/kalu-consulta", CHAT_INIT=false;
+function getWebhook(){ try{ return localStorage.getItem(WH_KEY)||WEBHOOK_DEFAULT; }catch(_){ return WEBHOOK_DEFAULT; } }
+function cfgWebhook(){ var v=prompt("URL del webhook de n8n para la consulta:", getWebhook());
+  if(v!=null){ try{ localStorage.setItem(WH_KEY, v.trim()); }catch(_){}; pushChat("kalu","Conexión guardada."); } }
+function initConsulta(){
+  var d1=$("fDesde").value, d2=$("fHasta").value;
+  $("qHint").textContent=(d1&&d2)?("Consultando el período "+fmtFecha(d1)+" a "+fmtFecha(d2)+" (lo cambiás en Tablero)."):"Elegí un período en el Tablero.";
+  if(CHAT_INIT) return; CHAT_INIT=true;
+  pushChat("kalu","¡Hola! Preguntame sobre el desempeño del período. Ej: «¿quién hizo más videoscopías?», «¿cuántos MRB tuvo enero?», «¿cuántas horas extra hizo Robinson?».");
+}
+function pushChat(who,txt){
+  var log=$("chatLog"), mine=who==="yo", b=document.createElement("div");
+  b.style.cssText="margin:6px 0;display:flex;"+(mine?"justify-content:flex-end":"justify-content:flex-start");
+  b.innerHTML='<div style="max-width:82%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.5;'
+    +(mine?"background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414":"background:var(--bg3);border:1px solid var(--line)")+'">'+esc(txt).replace(/\n/g,"<br>")+'</div>';
+  log.appendChild(b); log.scrollTop=log.scrollHeight; return b;
+}
+function addTyping(){ var b=pushChat("kalu","escribiendo…"); b.style.opacity=".6"; return b; }
+async function buildContexto(){
+  var desde=$("fDesde").value||"2024-01-01", hasta=$("fHasta").value||new Date().toISOString().slice(0,10);
+  var r=await Promise.all([
+    sbRpc("dd_videoscopias",{p_emp:EMP,p_desde:desde,p_hasta:hasta}),
+    sbRpc("dd_mrb_list",{p_emp:EMP,p_desde:desde,p_hasta:hasta}),
+    sbRpc("dd_rep_list",{p_emp:EMP,p_desde:desde,p_hasta:hasta}),
+    sbRpc("dd_evals",{p_emp:EMP,p_desde:desde,p_hasta:hasta}),
+    sbRpc("dd_consulta_cruce",{p_emp:EMP,p_desde:desde,p_hasta:hasta}).catch(function(){return {};})
+  ]);
+  var vids=r[0]||[],mrbs=r[1]||[],reps=r[2]||[],evals=r[3]||[],cruce=r[4]||{};
+  var semanas=Math.max(1,Math.round((new Date(hasta)-new Date(desde))/(7*864e5)));
+  var byP={};
+  vids.forEach(function(v){ var pid=v.lider_persona_id, nm=pid&&PMAP[pid]?PMAP[pid].nombre:(v.lider_texto||"—"), key=pid||("txt:"+nm);
+    byP[key]=byP[key]||{nombre:nm,videoscopias:0,por_mes:{},por_tipo:{},pid:pid}; var o=byP[key]; o.videoscopias++;
+    var ym=(v.fecha||"").slice(0,7); if(ym) o.por_mes[ym]=(o.por_mes[ym]||0)+1; var t=v.tipo||"(sin tipo)"; o.por_tipo[t]=(o.por_tipo[t]||0)+1; });
+  var totV=vids.length, evByP={}; evals.forEach(function(e){ evByP[e.persona_id]={mrb:+e.mrb_generados||0,sem:+e.semanas_laboradas||0}; });
+  var personas=Object.keys(byP).map(function(k){ var o=byP[k], ev=o.pid?evByP[o.pid]:null, cr=o.pid?cruce[o.pid]:null, sem=(ev&&ev.sem)||semanas;
+    return {nombre:o.nombre,videoscopias:o.videoscopias,por_mes:o.por_mes,por_tipo:o.por_tipo,
+      promedio_semanal:Math.round(o.videoscopias/sem*100)/100, participacion_pct:Math.round(o.videoscopias/(totV||1)*100),
+      mrb_generados:(ev?ev.mrb:0), semanas_laboradas:(ev?ev.sem:null),
+      vacaciones_dias:(cr?cr.vacaciones_dias:null), horas_extra:(cr?cr.horas_extra:null)}; })
+    .sort(function(a,b){return b.videoscopias-a.videoscopias;});
+  function bk(s){s=(s||"").toLowerCase(); if(/dwr/.test(s))return"Aprobado por DWR"; if(/scrap/.test(s))return"Scrap"; if(/proces/.test(s))return"En proceso"; if(/aprob/.test(s))return"Aprobado"; return"Otro";}
+  var est={},mmes={}; mrbs.forEach(function(m){var bb=bk(m.status); est[bb]=(est[bb]||0)+1; var ym=(m.fecha||"").slice(0,7); if(ym){mmes[ym]=mmes[ym]||{};mmes[ym][bb]=(mmes[ym][bb]||0)+1;}});
+  var scrap=est["Scrap"]||0, rcl={},rmes={};
+  reps.forEach(function(x){var c=normClase(x.clase||x.observacion); rcl[c]=(rcl[c]||0)+(+x.cantidad||1); var ym=(x.fecha||"").slice(0,7); if(ym) rmes[ym]=(rmes[ym]||0)+(+x.cantidad||1);});
+  return {periodo:{desde:desde,hasta:hasta,semanas:semanas}, total_videoscopias:totV, personas:personas,
+    mrb_general:{total:mrbs.length,por_estado:est,por_mes:mmes,scrap:scrap,scrap_pct:(mrbs.length?Math.round(scrap/mrbs.length*100):0)},
+    reparaciones:{total:reps.length,por_clase:rcl,por_mes:rmes}};
+}
+async function enviarConsulta(){
+  var q=$("qInput").value.trim(); if(!q) return;
+  var wh=getWebhook(); pushChat("yo",q); $("qInput").value="";
+  var b=$("qBtn"); b.disabled=true; b.textContent="…"; var typing=addTyping();
+  try{
+    var ctx=await buildContexto();
+    var res=await fetch(wh,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({empresa_id:EMP, pregunta:q, periodo:ctx.periodo, contexto:ctx})});
+    var txt=await res.text(); var d=null; try{ d=txt?JSON.parse(txt):null; }catch(_){ d=null; }
+    typing.remove();
+    var ans=(d&&(d.respuesta||d.answer||d.text))||(typeof d==="string"?d:"")||txt||"No recibí respuesta.";
+    pushChat("kalu", ans);
+  }catch(e){ typing.remove(); pushChat("kalu","No pude consultar ("+((e&&e.message)||e)+"). Revisá la conexión con ⚙︎."); }
+  finally{ b.disabled=false; b.textContent="Enviar"; }
 }
 </script>
 </body>

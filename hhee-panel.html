@@ -1,4 +1,3 @@
-<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -96,10 +95,10 @@
   <div class="brand">KALU · <b>HORAS EXTRA</b> · Panel <span style="color:var(--orange2);letter-spacing:normal">· v18-09-b (casillas + recargo)</span></div>
   <div class="who" id="who">—</div>
 </div>
-
+ 
 <div id="vCarga" class="card"><div class="load">Abriendo…</div></div>
 <div id="vBloqueo" class="card hide"><h1 id="bTit">—</h1><p id="bTxt" class="who">—</p><a class="volver" href="index.html">← Volver al inicio</a></div>
-
+ 
 <div id="app" class="hide">
   <div class="tabs">
     <button class="tab on" data-t="conc" onclick="tab('conc')">🗂️ Conciliación</button>
@@ -111,7 +110,7 @@
     <button class="tab" data-t="jor" onclick="tab('jor')">🧮 Jornada</button>
     <button class="tab" data-t="solic" onclick="tab('solic')">🌴 Solicitudes</button>
   </div>
-
+ 
   <!-- ===== Conciliación ===== -->
   <section id="tab_conc">
     <div class="card">
@@ -134,7 +133,7 @@
     </div>
     <div class="card"><div id="concList"><div class="load">—</div></div></div>
   </section>
-
+ 
   <!-- ===== Autorizaciones ===== -->
   <section id="tab_aut" class="hide">
     <div class="card">
@@ -166,7 +165,7 @@
     </div>
     <div class="card"><h2 style="margin-bottom:10px">Autorizaciones recientes</h2><div id="autList"><div class="load">—</div></div></div>
   </section>
-
+ 
   <!-- ===== Cuadrillas (armar) ===== -->
   <section id="tab_cuad" class="hide">
     <div class="card">
@@ -199,7 +198,7 @@
       <div id="baseMsg" class="msg"></div>
     </details>
   </section>
-
+ 
   <!-- ===== Almanaque (calendario) ===== -->
   <section id="tab_alm" class="hide">
     <div class="card">
@@ -222,7 +221,7 @@
     </div>
     <div class="card" id="diaDetalle" style="display:none"></div>
   </section>
-
+ 
   <!-- ===== Cierre ===== -->
   <section id="tab_cie" class="hide">
     <div class="card">
@@ -242,7 +241,7 @@
     </div>
     <div class="card"><div id="cieList"><div class="load">Elegí el rango y tocá Calcular.</div></div></div>
   </section>
-
+ 
   <!-- ===== Estadísticas ===== -->
   <section id="tab_est" class="hide">
     <div class="card">
@@ -258,7 +257,7 @@
     </div>
     <div id="estOut"><div class="load">Elegí el rango y tocá Calcular.</div></div>
   </section>
-
+ 
   <!-- ===== Jornada y ausencias ===== -->
   <section id="tab_jor" class="hide">
     <div class="card">
@@ -289,7 +288,7 @@
       <div id="auList" style="margin-top:12px"><div class="load">—</div></div>
     </div>
   </section>
-
+ 
   <!-- ===== Solicitudes (vacaciones / permisos) ===== -->
   <section id="tab_solic" class="hide">
     <div class="card">
@@ -310,10 +309,10 @@
       <div id="solSaldos"><div class="load">—</div></div>
     </div>
   </section>
-
+ 
   <a class="volver" href="index.html">← Volver al inicio</a>
 </div>
-
+ 
 <script>
 /* ===================== Motor de categorización HHEE (embebido) ===================== */
 var HE_CFG={nocturnoInicio:'19:00',nocturnoFin:'06:00'};
@@ -339,7 +338,7 @@ function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){retur
 function setMsg(id,t,c){ var m=$(id); if(m){ m.textContent=t||""; m.className="msg "+(c||""); } }
 function fmtFecha(iso){ if(!iso)return"—"; var p=String(iso).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0].slice(2); }
 function horarioTxt(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "🌙 cuadrilla"; if(!r.hora_inicio && !r.hora_fin) return "—"; return (r.hora_inicio||"?")+"–"+(r.hora_fin||"?"); }
-
+ 
 /* ---- sesión / token ---- */
 function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
 function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
@@ -360,7 +359,7 @@ async function asegurarToken(){
   }
   SB_TOKEN=s.access_token; return true;
 }
-
+ 
 /* ---- boot ---- */
 (async function(){
   if(!(await asegurarToken())){ return bloqueo("Entrá primero","Esta consola usa tu cuenta de KALU.<br><a href='ingreso.html'>Ir a ingresar →</a>"); }
@@ -386,7 +385,7 @@ async function asegurarToken(){
   }catch(e){ bloqueo("No se pudo abrir",(e&&e.message)||"Probá de nuevo."); }
 })();
 function bloqueo(t,html){ $("vCarga").classList.add("hide"); $("bTit").textContent=t; $("bTxt").innerHTML=html; $("vBloqueo").classList.remove("hide"); }
-
+ 
 function optPersonas(sel, incTodos){
   var o=(incTodos?'<option value="">— Toda la cuadrilla —</option>':'');
   o+=PERSONAS.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+(p.cargo?(' · '+esc(p.cargo)):'')+'</option>';}).join("");
@@ -480,7 +479,7 @@ function tab(t){
     document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
   if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst(); if(t==="jor") cargarJor(); if(t==="solic") cargarSolic();
 }
-
+ 
 /* ============ SOLICITUDES (vacaciones / permisos) ============ */
 function _solTipoLbl(t,sub){ return t==="vacaciones"?"🌴 Vacaciones":("📄 "+(sub||"Permiso")); }
 function _solEstLbl(e){ return {pendiente:"Pendiente",aprobada:"Aprobada",rechazada:"Rechazada",cancelada:"Cancelada"}[e]||e; }
@@ -592,7 +591,7 @@ function loadCuadColor(){ try{ CUAD_COLOR=JSON.parse(localStorage.getItem(_color
 function setCuadColor(pid,val){ if(CUAD_COLOR===null) loadCuadColor(); if(val){ CUAD_COLOR[pid]=val; } else { delete CUAD_COLOR[pid]; } try{ localStorage.setItem(_colorKey(),JSON.stringify(CUAD_COLOR)); }catch(e){} }
 function colorAuto(pid){ var h=0,s=String(pid); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return PALETA[h%PALETA.length]; }
 function colorPersona(pid){ if(!pid) return "#888"; if(CUAD_COLOR===null) loadCuadColor(); if(CUAD_COLOR&&CUAD_COLOR[pid]) return CUAD_COLOR[pid]; return colorAuto(pid); }
-
+ 
 /* ============ CONCILIACIÓN ============ */
 var CONC_ROWS=[], CONC_AUTS=[], CONC_CRUCES=[], MOD_R=null, MOD_TURNO=null, CUAD_ROWS=[], CUAD_E=null;
 /* segmentos del turno para una fecha (calcado de la app del trabajador) */
@@ -774,7 +773,7 @@ async function modGuardar(aprob){
   try{ await sbFetch("/rest/v1/he_reporte?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(patch)}); modCerrar(); setMsg("concMsg",aprob?"✓ Modificado y aprobado.":"✓ Cambios guardados.","ok"); cargarConc(); }
   catch(e){ alert((e&&e.message)||"No se pudo guardar."); }
 }
-
+ 
 /* ============ AUTORIZACIONES ============ */
 async function subirFoto(file){
   var ext=(file.name.split(".").pop()||"jpg").toLowerCase();
@@ -868,7 +867,7 @@ async function autGuardar(){
   try{ await sbFetch("/rest/v1/he_autorizacion?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(patch)}); autCerrar(); setMsg("autMsg","✓ Autorización actualizada.","ok"); cargarAut(); }
   catch(e){ alert((e&&e.message)||"No se pudo guardar."); }
 }
-
+ 
 /* ============ ALMANAQUE ============ */
 async function guardarCuadrillas(){
   var tid=$("mTurno").value, d1=$("mDesde").value, d2=$("mHasta").value;
@@ -1052,7 +1051,7 @@ async function cuadQuitarDia(){
     cuadCerrar(); await _cuadRefrescar();
   }catch(e){ alert("No se pudo quitar el día: "+((e&&e.message)||"")); }
 }
-
+ 
 /* ============ CIERRE ============ */
 var CIERRE_DATA=null;
 async function calcularCierre(){
@@ -1178,7 +1177,7 @@ async function cerrarPeriodo(){
     setMsg("cieMsg","✓ Período cerrado ("+ids.length+" persona(s)). Correlativos A.FR009 asignados.","ok"); calcularCierre();
   }catch(e){ setMsg("cieMsg",(e&&e.message)||"No se pudo cerrar.","err"); }
 }
-
+ 
 /* ============ ESTADÍSTICAS ============ */
 var CATS7=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"];
 var CATLBL={HED:"Extra diurna",HEN:"Extra nocturna",DOMD:"Recargo dom/fest",DOMN:"Recargo dom/fest noct.",HEFD:"Extra dom/fest",HEFN:"Extra dom/fest noct.",RNOCT:"Recargo nocturno"};
@@ -1274,7 +1273,7 @@ function renderEst(){
   EST_SNAP={perP:perP, pids:pids, dias:dias, filtros:{persona:F.persona,cat:F.cat,mes:F.mes,hist:EST_HIST}};
   $("estOut").innerHTML=html;
 }
-
+ 
 /* ============ EXPORTAR A EXCEL ============ */
 var EST_SNAP=null;
 function _hoy(){ return isoD(new Date()); }
@@ -1319,7 +1318,7 @@ function exportCierre(){
     aoa.push([per.nombre||"", per.cedula||"", per.cargo||"", tot.HED||"",tot.HEN||"",tot.DOMD||"",tot.DOMN||"",tot.HEFD||"",tot.HEFN||"",tot.RNOCT||"", Math.round(hh*100)/100, (CIERRE_DATA.corr&&CIERRE_DATA.corr[pid])||""]); });
   exportXLSX("KALU_cierre_"+fmtFecha(CIERRE_DATA.desde)+"_"+fmtFecha(CIERRE_DATA.hasta)+".xlsx",[{name:"Cierre",aoa:aoa}]);
 }
-
+ 
 /* ============ JORNADA Y AUSENCIAS (#6) ============ */
 var JOR_DATA=null;
 function jornadaDiaria(){

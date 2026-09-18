@@ -1630,16 +1630,17 @@ async function iniciarSesion(){
   const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');window.atsCerrado=false;document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
   try{
     // Subir adjuntos (procedimiento + fotos de zona) a Storage. Tolerante: si falla, el ATS igual arranca.
-    let procedimiento_path=null; const fotos_zona_paths=[];
+    let procedimiento_path=null, procedimiento_url=null, procedimiento_tipo=null; const fotos_zona_paths=[], fotos_zona_urls=[];
     if(procFile||fotosZona.length){
       const _emp=(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||'sin-empresa';
       const _carp='ats-adjuntos/'+_emp+'/'+Date.now();
+      const _firmar=async function(p){ try{ const s=await sb.storage.from('documentos').createSignedUrl(p, 3600); return (s&&s.data&&s.data.signedUrl)||null; }catch(_e){ return null; } };
       try{
-        if(procFile){ const _ext=((procFile.name||'').split('.').pop()||'dat').toLowerCase(); const _p=_carp+'/procedimiento.'+_ext; const _r=await sb.storage.from('documentos').upload(_p, procFile, {contentType:(procFile.type||'application/octet-stream')}); if(!_r.error) procedimiento_path=_p; }
-        for(let _i=0;_i<fotosZona.length;_i++){ const _p=_carp+'/zona'+(_i+1)+'.jpg'; const _r=await sb.storage.from('documentos').upload(_p, fotosZona[_i].file, {contentType:(fotosZona[_i].type||'image/jpeg')}); if(!_r.error) fotos_zona_paths.push(_p); }
+        if(procFile){ const _ext=((procFile.name||'').split('.').pop()||'dat').toLowerCase(); const _p=_carp+'/procedimiento.'+_ext; const _r=await sb.storage.from('documentos').upload(_p, procFile, {contentType:(procFile.type||'application/octet-stream')}); if(!_r.error){ procedimiento_path=_p; procedimiento_tipo=(procFile.type||''); procedimiento_url=await _firmar(_p); } }
+        for(let _i=0;_i<fotosZona.length;_i++){ const _p=_carp+'/zona'+(_i+1)+'.jpg'; const _r=await sb.storage.from('documentos').upload(_p, fotosZona[_i].file, {contentType:(fotosZona[_i].type||'image/jpeg')}); if(!_r.error){ fotos_zona_paths.push(_p); const _u=await _firmar(_p); if(_u) fotos_zona_urls.push(_u); } }
       }catch(_e){ /* Storage no disponible: seguimos sin adjuntos */ }
     }
-    const res=await kaluFetch(WEBHOOK_INICIAR,{empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,procedimiento_path,fotos_zona_paths,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,creado_por:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.email)||null,rehace_de:(window.__rehaceDe||null),motivo_devolucion:(window.__motivoDev||null),ats_anterior:(window.__atsAnterior||null)},150000);
+    const res=await kaluFetch(WEBHOOK_INICIAR,{empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,procedimiento_path,procedimiento_url,procedimiento_tipo,fotos_zona_paths,fotos_zona_urls,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,creado_por:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.email)||null,rehace_de:(window.__rehaceDe||null),motivo_devolucion:(window.__motivoDev||null),ats_anterior:(window.__atsAnterior||null)},150000);
     if(!res.ok) throw new Error('http '+res.status);
     const data=await res.json();detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
     if(data.bloqueado){btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');alert(data.mensaje);return;}

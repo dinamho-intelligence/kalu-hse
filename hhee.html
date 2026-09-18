@@ -103,6 +103,8 @@
       <small>Marcá a qué hora saliste. KALU sabe tu turno y calcula tus horas y de qué tipo.</small></button>
     <button class="big" onclick="abrir('extra')">➕ Reportar hora extra (manual)
       <small>Para casos especiales: cargás vos de qué hora a qué hora. El recargo nocturno de tu turno sale solo al reportar la salida.</small></button>
+    <button class="big" onclick="abrirSolicitud()">🌴 Solicitar vacaciones o permiso
+      <small>Pedí tus vacaciones o un permiso por rango de días. Le llega a tu gestor para aprobar.</small></button>
   </div>
   <div class="card">
     <h2 style="margin-bottom:10px">Mis últimos reportes</h2>
@@ -163,6 +165,31 @@
   <div class="msg" id="nMsg"></div>
 </div>
 
+<!-- ============ form: solicitar vacaciones / permiso ============ -->
+<div class="card hide" id="vSolic">
+  <h1>Solicitar vacaciones o permiso</h1>
+  <h2 id="solSaldo">—</h2>
+  <label>¿Qué querés pedir?</label>
+  <select id="solTipo" onchange="previewSolic()">
+    <option value="vacaciones">Vacaciones</option>
+    <option value="permiso">Permiso</option>
+  </select>
+  <div class="row2">
+    <div><label>Desde</label><input type="date" id="solDesde" onchange="previewSolic()"></div>
+    <div><label>Hasta</label><input type="date" id="solHasta" onchange="previewSolic()"></div>
+  </div>
+  <label>Motivo (opcional)</label>
+  <textarea id="solMotivo" placeholder="Ej. viaje familiar / trámite personal"></textarea>
+  <div class="prev" id="solPrev">Elegí el tipo y las fechas.</div>
+  <button class="btn" id="solBtn" onclick="enviarSolicitud()">Enviar solicitud</button>
+  <button class="btn sec" onclick="volverHome()">Cancelar</button>
+  <div class="msg" id="solMsg"></div>
+  <div style="margin-top:18px">
+    <h2 style="margin-bottom:8px">Mis solicitudes</h2>
+    <div id="solLista"><div class="load">—</div></div>
+  </div>
+</div>
+
 <script>
 /* ===================== Motor de categorización HHEE (embebido) ===================== */
 var HE_CFG={nocturnoInicio:'19:00',nocturnoFin:'06:00'};
@@ -181,7 +208,7 @@ var SB_TOKEN=null;   /* ingreso por cédula: usamos siempre la anon key */
 var EMP=null, PERSONA=null, NOMBRE="", CARGO="";
 var TURNOS=[], TURNO_NOCHE=null, FESTIVOS=new Set();
 var $=function(id){return document.getElementById(id);};
-function ver(id){ ["vCarga","vLogin","vBloqueo","vHome","vSalida","vExtra","vNoct"].forEach(function(v){ $(v).classList.toggle("hide", v!==id); }); }
+function ver(id){ ["vCarga","vLogin","vBloqueo","vHome","vSalida","vExtra","vNoct","vSolic"].forEach(function(v){ $(v).classList.toggle("hide", v!==id); }); }
 function setMsg(id,t,c){ var m=$(id); m.textContent=t||""; m.className="msg "+(c||""); }
 
 /* ===================== HTTP + cédula recordada ===================== */
@@ -306,6 +333,66 @@ function abrir(cual){
 ["eFecha","eIni","eFin"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewExtra(); }); });
 ["nDesde","nHasta"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewNoct(); }); });
 ["sFecha","sHora"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewSalida(); }); });
+
+/* ===================== Solicitudes: vacaciones / permiso ===================== */
+var SALDO_VAC=null;
+function _diasHabiles(d1,d2){ if(!d1||!d2) return 0; var a=new Date(d1+"T00:00:00"), b=new Date(d2+"T00:00:00"); if(b<a) return 0; var n=0, d=new Date(a); while(d<=b){ var iso=d.toISOString().slice(0,10); if(d.getDay()!==0 && !FESTIVOS.has(iso)) n++; d.setDate(d.getDate()+1); } return n; }
+async function abrirSolicitud(){
+  var hoy=new Date().toISOString().slice(0,10);
+  $("solTipo").value="vacaciones"; $("solDesde").value=hoy; $("solHasta").value=hoy; $("solMotivo").value="";
+  setMsg("solMsg",""); $("solBtn").disabled=false; $("solBtn").textContent="Enviar solicitud";
+  ver("vSolic"); cargarMisSolic();
+  try{ var s=await sbRpc("hhee_saldo_vac",{p_persona:PERSONA,p_emp:EMP}); SALDO_VAC=(s==null?null:Number(s)); }catch(e){ SALDO_VAC=null; }
+  previewSolic();
+}
+function previewSolic(){
+  var tipo=$("solTipo").value, d1=$("solDesde").value, d2=$("solHasta").value, box=$("solPrev");
+  $("solSaldo").innerHTML = (tipo!=="vacaciones") ? 'Permiso' : (SALDO_VAC!=null ? ('Tu saldo de vacaciones hoy: <b>'+(Math.round(SALDO_VAC*10)/10)+'</b> día(s) hábiles.') : 'Tu saldo todavía no está cargado — igual podés pedir y lo revisa tu gestor.');
+  if(!d1||!d2){ box.innerHTML="Elegí las fechas."; return; }
+  if(d2<d1){ box.innerHTML='<span class="z">La fecha Hasta no puede ser antes que Desde.</span>'; return; }
+  if(tipo==="vacaciones"){
+    var dh=_diasHabiles(d1,d2);
+    var extra=(SALDO_VAC!=null && dh>SALDO_VAC)?' <span class="z">— es más que tu saldo; igual podés pedirlo y lo revisa tu gestor.</span>':'';
+    box.innerHTML='Vacaciones: <b>'+dh+'</b> día(s) hábiles (sin domingos ni festivos).'+extra;
+  } else {
+    box.innerHTML='Permiso del <b>'+fmtFecha(d1)+'</b> al <b>'+fmtFecha(d2)+'</b>.';
+  }
+}
+async function enviarSolicitud(){
+  var tipo=$("solTipo").value, d1=$("solDesde").value, d2=$("solHasta").value, mot=$("solMotivo").value.trim();
+  if(!d1||!d2){ setMsg("solMsg","Elegí las fechas.","err"); return; }
+  if(d2<d1){ setMsg("solMsg","La fecha Hasta no puede ser antes que Desde.","err"); return; }
+  var b=$("solBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("solMsg","");
+  try{
+    await sbRpc("hhee_solicitar",{p_persona:PERSONA,p_emp:EMP,p:{tipo:tipo,fecha_desde:d1,fecha_hasta:d2,motivo:mot||null}});
+    setMsg("solMsg","✓ Solicitud enviada. Te avisamos cuando la revise tu gestor.","ok");
+    $("solMotivo").value=""; cargarMisSolic();
+  }catch(e){ setMsg("solMsg",(e&&e.message)||"No se pudo enviar.","err"); }
+  finally{ b.disabled=false; b.textContent="Enviar solicitud"; }
+}
+async function cargarMisSolic(){
+  var box=$("solLista"); box.innerHTML='<div class="load">Cargando…</div>';
+  try{
+    var rows=await sbRpc("hhee_mis_solicitudes",{p_persona:PERSONA,p_emp:EMP});
+    if(!rows||!rows.length){ box.innerHTML='<p class="chico">Todavía no pediste nada.</p>'; return; }
+    box.innerHTML=rows.map(function(s){
+      var col={pendiente:"var(--amber)",aprobada:"var(--ok)",rechazada:"var(--mal)",cancelada:"var(--tx3)"}[s.estado]||"var(--tx2)";
+      var et={pendiente:"Pendiente",aprobada:"Aprobada",rechazada:"Rechazada",cancelada:"Cancelada"}[s.estado]||s.estado;
+      var tipo=s.tipo==="vacaciones"?"🌴 Vacaciones":"📄 Permiso";
+      var dh=(s.tipo==="vacaciones"&&s.dias_habiles!=null)?(" · "+s.dias_habiles+" día(s) háb."):"";
+      return '<div class="rep"><div class="d"><b>'+tipo+'</b> '+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+dh
+        +(s.motivo?'<br><small>'+esc(s.motivo)+'</small>':'')
+        +(s.estado==="rechazada"&&s.motivo_resol?'<div class="flag" style="color:#ff8a82">Motivo: '+esc(s.motivo_resol)+'</div>':'')
+        +(s.estado==="pendiente"?'<br><button class="btn mini" style="margin-top:6px;padding:6px 11px" onclick="cancelarSolic(\''+s.id+'\')">Cancelar</button>':'')
+        +'</div><span class="chip" style="background:rgba(255,255,255,.06);color:'+col+'">'+et+'</span></div>';
+    }).join("");
+  }catch(e){ box.innerHTML='<p class="chico" style="color:#ff8a82">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+async function cancelarSolic(id){
+  if(!confirm("¿Cancelar esta solicitud?")) return;
+  try{ await sbRpc("hhee_cancelar_solicitud",{p_id:id,p_persona:PERSONA}); cargarMisSolic(); }
+  catch(e){ setMsg("solMsg",(e&&e.message)||"No se pudo cancelar.","err"); }
+}
 
 function tipoDia(iso){ var d=new Date(iso+"T00:00:00"); if(FESTIVOS.has(iso)) return "festivo"; if(d.getDay()===0) return "dominical"; return "semanal"; }
 function catResumen(c){ var m={HED:"extra diurna",HEN:"extra nocturna",DOMD:"recargo dominical/festivo",DOMN:"recargo domin./fest. nocturno",HEFD:"extra dominical/festiva",HEFN:"extra domin./fest. nocturna",RNOCT:"recargo nocturno"};

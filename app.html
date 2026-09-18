@@ -558,6 +558,20 @@
       </div>
       <div class="campo"><label>Condiciones ambientales</label><input type="text" id="input-condiciones" placeholder="Ej: Lluvia, calor extremo..."/></div>
       <div class="campo"><label>Observaciones <span style="color:var(--gris-3);font-weight:400">(opcional)</span></label><textarea id="input-observaciones" placeholder="Permisos especiales, restricciones..."></textarea></div>
+      <div class="campo">
+        <label>Procedimiento / ATS que ya tenés <span style="color:var(--gris-3);font-weight:400">(opcional — PDF o foto)</span></label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label class="btn-agregar" for="input-proc" style="cursor:pointer;padding:9px 14px">📄 Adjuntar procedimiento</label>
+          <span id="proc-nombre" style="font-size:13px;color:var(--gris-2)"></span>
+        </div>
+        <input type="file" id="input-proc" accept="application/pdf,image/*" style="display:none" onchange="setProc()">
+      </div>
+      <div class="campo">
+        <label>Fotos de zona / herramientas <span style="color:var(--gris-3);font-weight:400">(opcional — hasta 5, ayuda a KALU a entender lo poco común)</span></label>
+        <div id="fotos-zona-prev" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+        <label class="btn-agregar" id="btn-foto-zona" for="input-foto-zona" style="cursor:pointer;padding:9px 14px;display:inline-block">📷 Agregar foto</label>
+        <input type="file" id="input-foto-zona" accept="image/*" capture="environment" style="display:none" onchange="addFotoZona()">
+      </div>
       <div class="btns-nav"><button class="btn-volver" onclick="irPaso1()">← Volver</button><button class="btn-siguiente" id="btn-iniciar" onclick="iniciarSesion()">INICIAR CON KALU</button></div>
     </div>
   </div>
@@ -735,6 +749,7 @@ async function kaluFetch(url, body, ms){
   finally{ clearTimeout(t); }
 }
 let empleados=[],equipos=[],empleadoActivo='',sessionId='',atsItemId='';
+let procFile=null, fotosZona=[];
 let mensajesCount=0,mediaRecorder=null,audioChunks=[],grabando=false,grabandoInv=false;
 let subtitulosTimeout=null,pendingCountdown=false,autoCountdownTimer=null;
 let estadoAvatar='idle',audioCtx=null,analyser=null,lipSyncRAF=null,lipSyncSource=null;
@@ -1491,6 +1506,7 @@ function resetSesion(){
   document.getElementById('ats-banner').classList.remove('visible');document.getElementById('kalu-stats').innerHTML='';document.getElementById('kalu-modo-label').textContent='MODO —';
   ['chips','chips-equipos'].forEach(id=>document.getElementById(id).innerHTML='');
   ['input-tarea','input-empresa','input-area','input-responsable','input-nombre','input-equipo','input-condiciones','input-observaciones'].forEach(id=>document.getElementById(id).value='');
+  procFile=null; fotosZona=[]; if(document.getElementById('proc-nombre'))renderProc(); if(document.getElementById('fotos-zona-prev'))renderFotosZona();
   document.getElementById('input-cliente').value='Baker Hughes';document.querySelectorAll('.btn-equipo-sug').forEach(b=>b.classList.remove('seleccionado'));
   document.getElementById('subtitulos').textContent='// esperando respuesta de KALU...';document.getElementById('subtitulos').classList.add('vacia');
   document.getElementById('countdown-overlay').classList.remove('visible');document.getElementById('pantalla-chat').classList.remove('visible');
@@ -1602,12 +1618,28 @@ function iniciarMensajesGenerando(){
   },3800);
 }
 function detenerMensajesGenerando(){clearInterval(genMsgTimer);genMsgTimer=null;}
+function setProc(){ const inp=document.getElementById('input-proc'); const f=inp.files[0]; inp.value=''; if(!f) return; procFile=f; renderProc(); }
+function renderProc(){ const el=document.getElementById('proc-nombre'); if(!el) return; el.innerHTML = procFile ? ('📎 '+esc(procFile.name)+' <a href="#" onclick="quitarProc();return false;" style="color:#FF8A82;text-decoration:none;font-weight:700;margin-left:8px">✕</a>') : ''; }
+function quitarProc(){ procFile=null; renderProc(); }
+function addFotoZona(){ const inp=document.getElementById('input-foto-zona'); const f=inp.files[0]; inp.value=''; if(!f) return; if(fotosZona.length>=5){ alert('Máximo 5 fotos.'); return; } const rd=new FileReader(); rd.onload=e=>{ fotosZona.push({file:f,dataUrl:e.target.result,type:(f.type||'image/jpeg')}); renderFotosZona(); }; rd.readAsDataURL(f); }
+function renderFotosZona(){ const c=document.getElementById('fotos-zona-prev'); if(!c) return; c.innerHTML=fotosZona.map(function(ft,i){ return '<div style="position:relative;width:64px;height:64px"><img src="'+ft.dataUrl+'" style="width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.15)"><button type="button" onclick="quitarFotoZona('+i+')" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:#e23b3b;color:#fff;border:2px solid #12151b;font-size:12px;line-height:1;cursor:pointer;padding:0">×</button></div>'; }).join(''); const b=document.getElementById('btn-foto-zona'); if(b) b.style.display=(fotosZona.length>=5)?'none':'inline-block'; }
+function quitarFotoZona(i){ fotosZona.splice(i,1); renderFotosZona(); }
 async function iniciarSesion(){
   const tarea=document.getElementById('input-tarea').value.trim();const empresa=document.getElementById('input-empresa').value.trim();const cliente=document.getElementById('input-cliente').value.trim();const area=document.getElementById('input-area').value.trim();const responsable=document.getElementById('input-responsable').value.trim()||empleados[0]||'';const condiciones=document.getElementById('input-condiciones').value.trim();const observaciones=document.getElementById('input-observaciones').value.trim();
   if(equipos.length===0){alert('Agregá al menos un equipo');return;}if(!condiciones){alert('Describí las condiciones ambientales');return;}
   const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');window.atsCerrado=false;document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
   try{
-    const res=await kaluFetch(WEBHOOK_INICIAR,{empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,creado_por:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.email)||null,rehace_de:(window.__rehaceDe||null),motivo_devolucion:(window.__motivoDev||null),ats_anterior:(window.__atsAnterior||null)},150000);
+    // Subir adjuntos (procedimiento + fotos de zona) a Storage. Tolerante: si falla, el ATS igual arranca.
+    let procedimiento_path=null; const fotos_zona_paths=[];
+    if(procFile||fotosZona.length){
+      const _emp=(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||'sin-empresa';
+      const _carp='ats-adjuntos/'+_emp+'/'+Date.now();
+      try{
+        if(procFile){ const _ext=((procFile.name||'').split('.').pop()||'dat').toLowerCase(); const _p=_carp+'/procedimiento.'+_ext; const _r=await sb.storage.from('documentos').upload(_p, procFile, {contentType:(procFile.type||'application/octet-stream')}); if(!_r.error) procedimiento_path=_p; }
+        for(let _i=0;_i<fotosZona.length;_i++){ const _p=_carp+'/zona'+(_i+1)+'.jpg'; const _r=await sb.storage.from('documentos').upload(_p, fotosZona[_i].file, {contentType:(fotosZona[_i].type||'image/jpeg')}); if(!_r.error) fotos_zona_paths.push(_p); }
+      }catch(_e){ /* Storage no disponible: seguimos sin adjuntos */ }
+    }
+    const res=await kaluFetch(WEBHOOK_INICIAR,{empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,procedimiento_path,fotos_zona_paths,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,creado_por:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.email)||null,rehace_de:(window.__rehaceDe||null),motivo_devolucion:(window.__motivoDev||null),ats_anterior:(window.__atsAnterior||null)},150000);
     if(!res.ok) throw new Error('http '+res.status);
     const data=await res.json();detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
     if(data.bloqueado){btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');alert(data.mensaje);return;}

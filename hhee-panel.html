@@ -109,6 +109,7 @@
     <button class="tab" data-t="cie" onclick="tab('cie')">📄 Cierre</button>
     <button class="tab" data-t="est" onclick="tab('est')">📊 Estadísticas</button>
     <button class="tab" data-t="jor" onclick="tab('jor')">🧮 Jornada</button>
+    <button class="tab" data-t="solic" onclick="tab('solic')">🌴 Solicitudes</button>
   </div>
 
   <!-- ===== Conciliación ===== -->
@@ -285,6 +286,27 @@
     </div>
   </section>
 
+  <!-- ===== Solicitudes (vacaciones / permisos) ===== -->
+  <section id="tab_solic" class="hide">
+    <div class="card">
+      <h1>Solicitudes de vacaciones y permisos</h1>
+      <h2>Aprobá o rechazá lo que pide la gente. Al aprobar, se carga como ausencia (descuenta en Jornada) y, si es vacaciones, baja el saldo.</h2>
+      <div id="solMsg" class="msg"></div>
+      <div id="solPend"><div class="load">—</div></div>
+    </div>
+    <div class="card">
+      <details>
+        <summary style="cursor:pointer;font-weight:700;color:var(--tx)">Ver solicitudes ya resueltas</summary>
+        <div id="solHist" style="margin-top:10px"><div class="load">—</div></div>
+      </details>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:6px">Saldo de vacaciones por persona</h2>
+      <p class="who" style="margin:0 0 10px">El saldo se causa solo con el tiempo (15 días hábiles al año). Cargá la <b>fecha de ingreso</b> y los <b>días que le faltan hoy</b>; de ahí en más sube solo y baja cuando aprobás una vacación.</p>
+      <div id="solSaldos"><div class="load">—</div></div>
+    </div>
+  </section>
+
   <a class="volver" href="index.html">← Volver al inicio</a>
 </div>
 
@@ -450,9 +472,83 @@ function defaultsFechas(){
   $("eDesde").value=y+"-01-01"; $("eHasta").value=iso(hoy);
 }
 function tab(t){
-  ["conc","aut","cuad","alm","cie","est","jor"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
+  ["conc","aut","cuad","alm","cie","est","jor","solic"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
     document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
-  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst(); if(t==="jor") cargarJor();
+  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst(); if(t==="jor") cargarJor(); if(t==="solic") cargarSolic();
+}
+
+/* ============ SOLICITUDES (vacaciones / permisos) ============ */
+function _solTipoLbl(t){ return t==="vacaciones"?"🌴 Vacaciones":"📄 Permiso"; }
+function _solEstLbl(e){ return {pendiente:"Pendiente",aprobada:"Aprobada",rechazada:"Rechazada",cancelada:"Cancelada"}[e]||e; }
+function _solEstCol(e){ return {pendiente:"var(--amber)",aprobada:"var(--ok)",rechazada:"var(--mal)",cancelada:"var(--tx3)"}[e]||"var(--tx2)"; }
+async function cargarSolic(){
+  if(!(await asegurarToken())) return;
+  var pB=$("solPend"), hB=$("solHist"), sB=$("solSaldos");
+  pB.innerHTML='<div class="load">Cargando…</div>';
+  try{
+    var pend=await sbFetch("/rest/v1/he_solicitud?empresa_id=eq."+EMP+"&estado=eq.pendiente&order=creado_at.asc&select=id,persona_id,tipo,fecha_desde,fecha_hasta,motivo,dias_habiles,creado_at");
+    if(!pend.length){ pB.innerHTML='<p class="who">No hay solicitudes pendientes. 🎉</p>'; }
+    else{
+      pB.innerHTML='<table><tr><th>Persona</th><th>Tipo</th><th>Fechas</th><th>Motivo</th><th></th></tr>'+pend.map(function(s){
+        var per=(PMAP[s.persona_id]||{}).nombre||"—";
+        var dh=(s.tipo==="vacaciones"&&s.dias_habiles!=null)?(' <span class="who">('+s.dias_habiles+" día(s) háb.)</span>"):"";
+        return '<tr><td>'+esc(per)+'</td><td>'+_solTipoLbl(s.tipo)+'</td>'
+          +'<td>'+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+dh+'</td>'
+          +'<td>'+esc(s.motivo||"—")+'</td>'
+          +'<td style="white-space:nowrap"><button class="btn mini ok" onclick="resolverSolic(\''+s.id+'\',true)">Aprobar</button> '
+          +'<button class="btn mini no" onclick="resolverSolic(\''+s.id+'\',false)">Rechazar</button></td></tr>';
+      }).join("")+'</table>';
+    }
+  }catch(e){ pB.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+  // historial
+  try{
+    var hist=await sbFetch("/rest/v1/he_solicitud?empresa_id=eq."+EMP+"&estado=in.(aprobada,rechazada,cancelada)&order=resuelto_at.desc.nullslast,creado_at.desc&limit=40&select=id,persona_id,tipo,fecha_desde,fecha_hasta,estado,motivo_resol");
+    hB.innerHTML= hist.length? ('<table><tr><th>Persona</th><th>Tipo</th><th>Fechas</th><th>Estado</th></tr>'+hist.map(function(s){
+      var per=(PMAP[s.persona_id]||{}).nombre||"—";
+      return '<tr><td>'+esc(per)+'</td><td>'+_solTipoLbl(s.tipo)+'</td><td>'+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+'</td>'
+        +'<td><span style="color:'+_solEstCol(s.estado)+';font-weight:700">'+_solEstLbl(s.estado)+'</span>'+(s.motivo_resol?'<br><span class="who">'+esc(s.motivo_resol)+'</span>':'')+'</td></tr>';
+    }).join("")+'</table>') : '<p class="who">Nada resuelto todavía.</p>';
+  }catch(e){ hB.innerHTML='<p class="msg err">'+esc(e.message)+'</p>'; }
+  cargarSaldos();
+}
+async function resolverSolic(id, aprobar){
+  var motivo=null;
+  if(!aprobar){ motivo=prompt("Motivo del rechazo (opcional):"); if(motivo===null) return; }
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/rpc/he_solicitud_resolver",{method:"POST",body:JSON.stringify({p_id:id,p_aprobar:aprobar,p_motivo:motivo||null})});
+    setMsg("solMsg",aprobar?"✓ Aprobada. Se cargó como ausencia.":"Rechazada.","ok"); cargarSolic();
+  }catch(e){ setMsg("solMsg",(e&&e.message)||"No se pudo resolver.","err"); }
+}
+async function cargarSaldos(){
+  var box=$("solSaldos"); box.innerHTML='<div class="load">Cargando…</div>';
+  try{
+    var lst=await sbFetch("/rest/v1/rpc/he_saldos_lista",{method:"POST",body:"{}"});
+    var opts=PERSONAS.map(function(p){ return '<option value="'+p.id+'">'+esc(p.nombre)+'</option>'; }).join("");
+    var form='<div class="card" style="background:var(--bg3);margin:0 0 12px">'
+      +'<div class="grid g4">'
+      +'<div><label>Persona</label><select id="saPersona">'+opts+'</select></div>'
+      +'<div><label>Fecha de ingreso</label><input type="date" id="saIngreso"></div>'
+      +'<div><label>Días que le faltan hoy</label><input type="number" step="0.5" id="saBase" placeholder="ej. 12"></div>'
+      +'<div style="display:flex;align-items:flex-end"><button class="btn" onclick="guardarSaldo()">Guardar saldo</button></div>'
+      +'</div><div id="saMsg" class="msg"></div></div>';
+    var tabla = (lst&&lst.length)? ('<table><tr><th>Persona</th><th>Saldo hoy</th><th>Ingreso</th><th>Base (al corte)</th><th></th></tr>'+lst.map(function(s){
+        return '<tr><td>'+esc(s.nombre||"—")+'</td>'
+          +'<td class="tot">'+(s.saldo!=null?s.saldo:"—")+' d</td>'
+          +'<td>'+(s.fecha_ingreso?fmtFecha(s.fecha_ingreso):"—")+'</td>'
+          +'<td>'+(s.dias_base!=null?s.dias_base:"—")+' d <span class="who">('+fmtFecha(s.fecha_corte)+')</span></td>'
+          +'<td><button class="btn mini sec" onclick="editarSaldo(\''+s.persona_id+'\','+(s.dias_base||0)+',\''+(s.fecha_ingreso||"")+'\')">Editar</button></td></tr>';
+      }).join("")+'</table>') : '<p class="who">Todavía no cargaste ningún saldo.</p>';
+    box.innerHTML=form+tabla;
+  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+function editarSaldo(pid,base,ingreso){ if($("saPersona")) $("saPersona").value=pid; if($("saBase")) $("saBase").value=base; if($("saIngreso")) $("saIngreso").value=ingreso||""; }
+async function guardarSaldo(){
+  var pid=$("saPersona").value, ing=$("saIngreso").value||null, base=$("saBase").value;
+  if(base===""||isNaN(parseFloat(base))){ setMsg("saMsg","Poné los días que le faltan hoy.","err"); return; }
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/rpc/he_saldo_config",{method:"POST",body:JSON.stringify({p_persona:pid,p_fecha_ingreso:ing,p_dias_base:parseFloat(base),p_tasa_anual:15})});
+    setMsg("saMsg","✓ Saldo cargado. De hoy en más sube solo.","ok"); cargarSaldos();
+  }catch(e){ setMsg("saMsg",(e&&e.message)||"No se pudo guardar.","err"); }
 }
 /* Color fijo por persona (determinístico) para distinguir en el almanaque */
 var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];

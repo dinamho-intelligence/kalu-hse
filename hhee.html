@@ -174,6 +174,7 @@
     <option value="vacaciones">Vacaciones</option>
     <option value="permiso">Permiso</option>
   </select>
+  <div id="solSubWrap" style="display:none"><label>Tipo de permiso</label><select id="solSub" onchange="previewSolic()"></select></div>
   <div class="row2">
     <div><label>Desde</label><input type="date" id="solDesde" onchange="previewSolic()"></div>
     <div><label>Hasta</label><input type="date" id="solHasta" onchange="previewSolic()"></div>
@@ -336,10 +337,22 @@ function abrir(cual){
 
 /* ===================== Solicitudes: vacaciones / permiso ===================== */
 var SALDO_VAC=null;
+var PERMISOS=[
+  {v:"Cita médica",t:"Derecho legal"},
+  {v:"Ejercicio de sufragio",t:"Derecho legal"},
+  {v:"Día de cumpleaños",t:"Bienestar"},
+  {v:"No remunerado",t:"No remunerado"},
+  {v:"Licencia por luto",t:"Derecho legal"},
+  {v:"Calamidad doméstica",t:"Derecho legal"},
+  {v:"Matrimonio",t:"Derecho legal"},
+  {v:"Día de la familia",t:"Derecho legal"},
+  {v:"Trámites legales",t:"Permiso justificado"}
+];
 function _diasHabiles(d1,d2){ if(!d1||!d2) return 0; var a=new Date(d1+"T00:00:00"), b=new Date(d2+"T00:00:00"); if(b<a) return 0; var n=0, d=new Date(a); while(d<=b){ var iso=d.toISOString().slice(0,10); if(d.getDay()!==0 && !FESTIVOS.has(iso)) n++; d.setDate(d.getDate()+1); } return n; }
 async function abrirSolicitud(){
   var hoy=new Date().toISOString().slice(0,10);
   $("solTipo").value="vacaciones"; $("solDesde").value=hoy; $("solHasta").value=hoy; $("solMotivo").value="";
+  $("solSub").innerHTML=PERMISOS.map(function(o){return '<option value="'+esc(o.v)+'">'+esc(o.v)+' · '+esc(o.t)+'</option>';}).join("");
   setMsg("solMsg",""); $("solBtn").disabled=false; $("solBtn").textContent="Enviar solicitud";
   ver("vSolic"); cargarMisSolic();
   try{ var s=await sbRpc("hhee_saldo_vac",{p_persona:PERSONA,p_emp:EMP}); SALDO_VAC=(s==null?null:Number(s)); }catch(e){ SALDO_VAC=null; }
@@ -347,6 +360,7 @@ async function abrirSolicitud(){
 }
 function previewSolic(){
   var tipo=$("solTipo").value, d1=$("solDesde").value, d2=$("solHasta").value, box=$("solPrev");
+  $("solSubWrap").style.display = (tipo==="permiso")?"block":"none";
   $("solSaldo").innerHTML = (tipo!=="vacaciones") ? 'Permiso' : (SALDO_VAC!=null ? ('Tu saldo de vacaciones hoy: <b>'+(Math.round(SALDO_VAC*10)/10)+'</b> día(s) hábiles.') : 'Tu saldo todavía no está cargado — igual podés pedir y lo revisa tu gestor.');
   if(!d1||!d2){ box.innerHTML="Elegí las fechas."; return; }
   if(d2<d1){ box.innerHTML='<span class="z">La fecha Hasta no puede ser antes que Desde.</span>'; return; }
@@ -362,9 +376,10 @@ async function enviarSolicitud(){
   var tipo=$("solTipo").value, d1=$("solDesde").value, d2=$("solHasta").value, mot=$("solMotivo").value.trim();
   if(!d1||!d2){ setMsg("solMsg","Elegí las fechas.","err"); return; }
   if(d2<d1){ setMsg("solMsg","La fecha Hasta no puede ser antes que Desde.","err"); return; }
+  var sub=(tipo==="permiso")?($("solSub").value||null):null;
   var b=$("solBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("solMsg","");
   try{
-    await sbRpc("hhee_solicitar",{p_persona:PERSONA,p_emp:EMP,p:{tipo:tipo,fecha_desde:d1,fecha_hasta:d2,motivo:mot||null}});
+    await sbRpc("hhee_solicitar",{p_persona:PERSONA,p_emp:EMP,p:{tipo:tipo,submotivo:sub,fecha_desde:d1,fecha_hasta:d2,motivo:mot||null}});
     setMsg("solMsg","✓ Solicitud enviada. Te avisamos cuando la revise tu gestor.","ok");
     $("solMotivo").value=""; cargarMisSolic();
   }catch(e){ setMsg("solMsg",(e&&e.message)||"No se pudo enviar.","err"); }
@@ -378,7 +393,7 @@ async function cargarMisSolic(){
     box.innerHTML=rows.map(function(s){
       var col={pendiente:"var(--amber)",aprobada:"var(--ok)",rechazada:"var(--mal)",cancelada:"var(--tx3)"}[s.estado]||"var(--tx2)";
       var et={pendiente:"Pendiente",aprobada:"Aprobada",rechazada:"Rechazada",cancelada:"Cancelada"}[s.estado]||s.estado;
-      var tipo=s.tipo==="vacaciones"?"🌴 Vacaciones":"📄 Permiso";
+      var tipo=s.tipo==="vacaciones"?"🌴 Vacaciones":("📄 "+(s.submotivo||"Permiso"));
       var dh=(s.tipo==="vacaciones"&&s.dias_habiles!=null)?(" · "+s.dias_habiles+" día(s) háb."):"";
       return '<div class="rep"><div class="d"><b>'+tipo+'</b> '+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+dh
         +(s.motivo?'<br><small>'+esc(s.motivo)+'</small>':'')

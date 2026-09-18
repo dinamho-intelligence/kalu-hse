@@ -755,20 +755,64 @@ async function guardarAut(){
   }catch(e){ setMsg("autMsg",(e&&e.message)||"No se pudo guardar.","err"); }
   finally{ b.disabled=false; b.textContent="Guardar autorización"; }
 }
+var AUT_ROWS=[], AUT_E=null;
 async function cargarAut(){
   var box=$("autList"); box.innerHTML='<div class="load">Cargando…</div>';
   if(!(await asegurarToken())) return;
   try{
-    var rows=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&order=fecha.desc,creado_at.desc&limit=30&select=fecha,persona_id,hora_inicio,hora_fin,horas,es_interno,nota,foto_correo_url");
+    var rows=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&order=fecha.desc,creado_at.desc&limit=50&select=id,fecha,persona_id,hora_inicio,hora_fin,horas,es_interno,nota,foto_correo_url");
+    AUT_ROWS=rows||[];
     if(!rows.length){ box.innerHTML='<p class="who">Todavía no hay autorizaciones.</p>'; return; }
-    box.innerHTML='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+rows.map(function(r){
+    box.innerHTML='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Horas</th><th>Tipo</th><th>Nota</th><th></th></tr>'+rows.map(function(r){
       var per=r.persona_id?(PMAP[r.persona_id]||{}).nombre:"Toda la cuadrilla";
       var hor=(r.hora_inicio&&r.hora_fin)?(r.hora_inicio+"–"+r.hora_fin):"—";
-      return '<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per||"—")+'</td><td>'+esc(hor)+'</td><td>'+(r.horas!=null?r.horas:"—")+'</td>'
-        +'<td>'+(r.es_interno?'Interno':'Cliente')+'</td><td>'+esc(r.nota||"—")+'</td>'
-        +'<td>'+(r.foto_correo_url?'<a href="'+esc(r.foto_correo_url)+'" target="_blank">ver</a>':'—')+'</td></tr>';
+      return '<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per||"—")+(r.persona_id?'':' <span class="flag">(todos)</span>')+'</td><td>'+esc(hor)+'</td><td>'+(r.horas!=null?r.horas:"—")+'</td>'
+        +'<td>'+(r.es_interno?'Interno':'Cliente')+'</td><td>'+esc(r.nota||"—")+(r.foto_correo_url?' · <a href="'+esc(r.foto_correo_url)+'" target="_blank">correo</a>':'')+'</td>'
+        +'<td style="white-space:nowrap"><button class="btn mini sec" onclick="modificarAut(\''+r.id+'\')" title="Modificar">✎</button> <button class="btn mini no" onclick="borrarAut(\''+r.id+'\')" title="Eliminar">✕</button></td></tr>';
     }).join("")+'</table>';
   }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+}
+async function borrarAut(id){
+  if(!confirm("¿Eliminar esta autorización?\n(No borra reportes que ya hayas aprobado; esos se revisan en Conciliación.)")) return;
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_autorizacion?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}}); setMsg("autMsg","✓ Autorización eliminada.","ok"); cargarAut(); }
+  catch(e){ setMsg("autMsg",(e&&e.message)||"No se pudo eliminar.","err"); }
+}
+function modificarAut(id){
+  var r=(AUT_ROWS||[]).filter(function(x){return x.id===id;})[0]; if(!r) return;
+  AUT_E=r;
+  var opts='<option value=""'+(r.persona_id?'':' selected')+'>Toda la cuadrilla</option>'+PERSONAS.map(function(p){ return '<option value="'+p.id+'"'+(p.id===r.persona_id?' selected':'')+'>'+esc(p.nombre)+'</option>'; }).join("");
+  var ov='<div id="autOv" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)autCerrar()">'
+    +'<div style="background:var(--bg2);border:1px solid var(--line);border-radius:14px;max-width:440px;width:100%;padding:18px">'
+    +'<h2 style="color:var(--tx);margin:0 0 12px">Modificar autorización</h2>'
+    +'<label>¿Para quién?</label><select id="aePersona">'+opts+'</select>'
+    +'<p class="who" style="margin:4px 0 0;font-size:12px">"Toda la cuadrilla" aplica a todo el personal ese día. Elegí una persona para que sea solo de ella.</p>'
+    +'<label>Fecha</label><input type="date" id="aeFecha" value="'+esc(r.fecha)+'">'
+    +'<div class="grid g2">'
+    +'<div><label>Desde</label><input type="time" id="aeIni" value="'+esc(r.hora_inicio||"")+'"></div>'
+    +'<div><label>Hasta</label><input type="time" id="aeFin" value="'+esc(r.hora_fin||"")+'"></div>'
+    +'</div>'
+    +'<div class="grid g2">'
+    +'<div><label>Horas (opcional)</label><input type="number" step="0.5" id="aeHoras" value="'+(r.horas!=null?r.horas:"")+'"></div>'
+    +'<div><label>Tipo</label><select id="aeTipo"><option value="cliente"'+(r.es_interno?'':' selected')+'>Cliente</option><option value="interno"'+(r.es_interno?' selected':'')+'>Interno</option></select></div>'
+    +'</div>'
+    +'<label>Nota</label><input id="aeNota" value="'+esc(r.nota||"")+'">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
+    +'<button class="btn ok" onclick="autGuardar()">Guardar</button>'
+    +'<button class="btn sec" onclick="autCerrar()">Cancelar</button></div>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend',ov);
+}
+function autCerrar(){ var o=$("autOv"); if(o) o.remove(); AUT_E=null; }
+async function autGuardar(){
+  var r=AUT_E; if(!r) return;
+  var f=$("aeFecha").value; if(!f){ alert("Poné la fecha."); return; }
+  var patch={ persona_id:$("aePersona").value||null, fecha:f, hora_inicio:$("aeIni").value||null,
+    hora_fin:$("aeFin").value||null, horas:($("aeHoras").value!==""?parseFloat($("aeHoras").value):null),
+    es_interno:($("aeTipo").value==="interno"), nota:$("aeNota").value.trim()||null };
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_autorizacion?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(patch)}); autCerrar(); setMsg("autMsg","✓ Autorización actualizada.","ok"); cargarAut(); }
+  catch(e){ alert((e&&e.message)||"No se pudo guardar."); }
 }
 
 /* ============ ALMANAQUE ============ */

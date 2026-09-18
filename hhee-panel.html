@@ -644,8 +644,10 @@ async function cargarConc(_noAuto){
       +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" '+(auto?'checked':'')+' style="width:auto" onchange="setAutoCruce(this.checked)"> Autorizar solo cuando la cantidad coincide con la autorización</label>'
       +(nNo?('<span class="flag">⚠ '+nNo+' no coincide(n) con lo autorizado — revisá.</span>'):'')
       +((!auto && CONC_CRUCES.length)?('<button class="btn mini ok" onclick="aprobarCoincidencias()">△ Aprobar las '+CONC_CRUCES.length+' que coinciden</button>'):'')
+      +'<button class="btn mini ok" onclick="aprobarSel()">✓ Aprobar seleccionados</button>'
+      +'<button class="btn mini no" onclick="rechazarSel()">Rechazar seleccionados</button>'
       +'</div>';
-    var html='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th><th></th></tr>';
+    var html='<table><tr><th><input type="checkbox" id="concAll" onclick="concToggleAll(this.checked)" title="Marcar todos"></th><th>Fecha</th><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th><th></th></tr>';
     rows.forEach(function(r){
       var per=PMAP[r.persona_id]||{}; var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
@@ -655,7 +657,8 @@ async function cargarConc(_noAuto){
       var marca = nc ? ('<br><span class="flag" style="color:var(--amber)" title="'+esc(_autTxt(nc.a))+'">⚠ no coincide · reportó '+nc.hr+' h, autorizado '+nc.ha+' h</span>')
                      : (coin ? ('<br><span class="flag" style="color:var(--ok)" title="'+esc(_autTxt(autDeReporte(r)))+'">△ coincide con la autorización</span>')
                      : (r.fuera_de_plan?'<br><span class="flag">⚠ sin autorización</span>':''));
-      html+='<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per.nombre||"—")+'<br><span class="who">'+esc(per.cargo||"")+'</span></td>'
+      html+='<tr><td>'+(_esPend(r)?'<input type="checkbox" class="cchk" value="'+r.id+'">':'')+'</td>'
+        +'<td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per.nombre||"—")+'<br><span class="who">'+esc(per.cargo||"")+'</span></td>'
         +'<td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+' h)</span>'
         +marca
         +(r.justificacion?'<br><span class="who">'+esc(r.justificacion)+'</span>':'')
@@ -680,6 +683,24 @@ async function aprobarCoincidencias(){
   if(!(await asegurarToken())) return;
   try{ await sbFetch("/rest/v1/he_reporte?id=in.("+CONC_CRUCES.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); CONC_AUTOMSG=CONC_CRUCES.length; cargarConc(true); }
   catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
+}
+function concToggleAll(v){ Array.prototype.forEach.call(document.querySelectorAll('#concList .cchk'),function(c){ c.checked=v; }); }
+function _concSel(){ return Array.prototype.map.call(document.querySelectorAll('#concList .cchk:checked'),function(c){ return c.value; }); }
+async function aprobarSel(){
+  var ids=_concSel(); if(!ids.length){ setMsg("concMsg","Marcá al menos un reporte.","err"); return; }
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_reporte?id=in.("+ids.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})});
+    setMsg("concMsg","✓ "+ids.length+" reporte(s) aprobado(s).","ok"); cargarConc(true); }
+  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
+}
+async function rechazarSel(){
+  var ids=_concSel(); if(!ids.length){ setMsg("concMsg","Marcá al menos un reporte.","err"); return; }
+  var mot=prompt("Motivo del rechazo para los "+ids.length+" seleccionados (obligatorio):"); if(mot==null) return;
+  mot=mot.trim(); if(!mot){ setMsg("concMsg","El rechazo necesita un motivo.","err"); return; }
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_reporte?id=in.("+ids.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"rechazado",aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:mot})});
+    setMsg("concMsg",ids.length+" reporte(s) rechazado(s).","ok"); cargarConc(true); }
+  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al rechazar","err"); }
 }
 async function rechazar(id){
   var mot=prompt("Motivo del rechazo (obligatorio):"); if(mot==null) return;

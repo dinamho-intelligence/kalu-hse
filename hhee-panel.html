@@ -478,7 +478,7 @@ function tab(t){
 }
 
 /* ============ SOLICITUDES (vacaciones / permisos) ============ */
-function _solTipoLbl(t){ return t==="vacaciones"?"🌴 Vacaciones":"📄 Permiso"; }
+function _solTipoLbl(t,sub){ return t==="vacaciones"?"🌴 Vacaciones":("📄 "+(sub||"Permiso")); }
 function _solEstLbl(e){ return {pendiente:"Pendiente",aprobada:"Aprobada",rechazada:"Rechazada",cancelada:"Cancelada"}[e]||e; }
 function _solEstCol(e){ return {pendiente:"var(--amber)",aprobada:"var(--ok)",rechazada:"var(--mal)",cancelada:"var(--tx3)"}[e]||"var(--tx2)"; }
 async function cargarSolic(){
@@ -486,13 +486,13 @@ async function cargarSolic(){
   var pB=$("solPend"), hB=$("solHist"), sB=$("solSaldos");
   pB.innerHTML='<div class="load">Cargando…</div>';
   try{
-    var pend=await sbFetch("/rest/v1/he_solicitud?empresa_id=eq."+EMP+"&estado=eq.pendiente&order=creado_at.asc&select=id,persona_id,tipo,fecha_desde,fecha_hasta,motivo,dias_habiles,creado_at");
+    var pend=await sbFetch("/rest/v1/he_solicitud?empresa_id=eq."+EMP+"&estado=eq.pendiente&order=creado_at.asc&select=id,persona_id,tipo,submotivo,fecha_desde,fecha_hasta,motivo,dias_habiles,creado_at");
     if(!pend.length){ pB.innerHTML='<p class="who">No hay solicitudes pendientes. 🎉</p>'; }
     else{
       pB.innerHTML='<table><tr><th>Persona</th><th>Tipo</th><th>Fechas</th><th>Motivo</th><th></th></tr>'+pend.map(function(s){
         var per=(PMAP[s.persona_id]||{}).nombre||"—";
         var dh=(s.tipo==="vacaciones"&&s.dias_habiles!=null)?(' <span class="who">('+s.dias_habiles+" día(s) háb.)</span>"):"";
-        return '<tr><td>'+esc(per)+'</td><td>'+_solTipoLbl(s.tipo)+'</td>'
+        return '<tr><td>'+esc(per)+'</td><td>'+_solTipoLbl(s.tipo,s.submotivo)+'</td>'
           +'<td>'+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+dh+'</td>'
           +'<td>'+esc(s.motivo||"—")+'</td>'
           +'<td style="white-space:nowrap"><button class="btn mini ok" onclick="resolverSolic(\''+s.id+'\',true)">Aprobar</button> '
@@ -502,10 +502,10 @@ async function cargarSolic(){
   }catch(e){ pB.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
   // historial
   try{
-    var hist=await sbFetch("/rest/v1/he_solicitud?empresa_id=eq."+EMP+"&estado=in.(aprobada,rechazada,cancelada)&order=resuelto_at.desc.nullslast,creado_at.desc&limit=40&select=id,persona_id,tipo,fecha_desde,fecha_hasta,estado,motivo_resol");
+    var hist=await sbFetch("/rest/v1/he_solicitud?empresa_id=eq."+EMP+"&estado=in.(aprobada,rechazada,cancelada)&order=resuelto_at.desc.nullslast,creado_at.desc&limit=40&select=id,persona_id,tipo,submotivo,fecha_desde,fecha_hasta,estado,motivo_resol");
     hB.innerHTML= hist.length? ('<table><tr><th>Persona</th><th>Tipo</th><th>Fechas</th><th>Estado</th></tr>'+hist.map(function(s){
       var per=(PMAP[s.persona_id]||{}).nombre||"—";
-      return '<tr><td>'+esc(per)+'</td><td>'+_solTipoLbl(s.tipo)+'</td><td>'+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+'</td>'
+      return '<tr><td>'+esc(per)+'</td><td>'+_solTipoLbl(s.tipo,s.submotivo)+'</td><td>'+fmtFecha(s.fecha_desde)+' → '+fmtFecha(s.fecha_hasta)+'</td>'
         +'<td><span style="color:'+_solEstCol(s.estado)+';font-weight:700">'+_solEstLbl(s.estado)+'</span>'+(s.motivo_resol?'<br><span class="who">'+esc(s.motivo_resol)+'</span>':'')+'</td></tr>';
     }).join("")+'</table>') : '<p class="who">Nada resuelto todavía.</p>';
   }catch(e){ hB.innerHTML='<p class="msg err">'+esc(e.message)+'</p>'; }
@@ -536,12 +536,41 @@ async function cargarSaldos(){
           +'<td class="tot">'+(s.saldo!=null?s.saldo:"—")+' d</td>'
           +'<td>'+(s.fecha_ingreso?fmtFecha(s.fecha_ingreso):"—")+'</td>'
           +'<td>'+(s.dias_base!=null?s.dias_base:"—")+' d <span class="who">('+fmtFecha(s.fecha_corte)+')</span></td>'
-          +'<td><button class="btn mini sec" onclick="editarSaldo(\''+s.persona_id+'\','+(s.dias_base||0)+',\''+(s.fecha_ingreso||"")+'\')">Editar</button></td></tr>';
+          +'<td style="white-space:nowrap"><button class="btn mini sec" onclick="verDetalleVac(\''+s.persona_id+'\',\''+esc((s.nombre||"").replace(/'/g,""))+'\')">Detalle</button> '
+          +'<button class="btn mini sec" onclick="editarSaldo(\''+s.persona_id+'\','+(s.dias_base||0)+',\''+(s.fecha_ingreso||"")+'\')">Editar</button></td></tr>';
       }).join("")+'</table>') : '<p class="who">Todavía no cargaste ningún saldo.</p>';
     box.innerHTML=form+tabla;
   }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
 }
 function editarSaldo(pid,base,ingreso){ if($("saPersona")) $("saPersona").value=pid; if($("saBase")) $("saBase").value=base; if($("saIngreso")) $("saIngreso").value=ingreso||""; }
+async function verDetalleVac(pid, nombre){
+  if(!(await asegurarToken())) return;
+  var body='<div id="vacOv" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.remove()">'
+    +'<div style="background:var(--bg2);border:1px solid var(--line);border-radius:14px;max-width:520px;width:100%;padding:18px;max-height:80vh;overflow:auto">'
+    +'<h2 style="color:var(--tx);margin:0 0 4px">Detalle de vacaciones</h2>'
+    +'<p class="who" style="margin:0 0 12px">'+esc(nombre||"")+'</p>'
+    +'<div id="vacBody"><div class="load">Cargando…</div></div>'
+    +'<div style="margin-top:14px"><button class="btn sec" onclick="var o=document.getElementById(\'vacOv\');if(o)o.remove()">Cerrar</button></div>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend',body);
+  try{
+    var ev=await sbFetch("/rest/v1/rpc/he_vac_detalle",{method:"POST",body:JSON.stringify({p_persona:pid})});
+    var box=document.getElementById("vacBody"); if(!box) return;
+    if(!ev||!ev.length){ box.innerHTML='<p class="who">Sin vacaciones registradas todavía.</p>'; return; }
+    var byAnio={}; ev.forEach(function(e){ (byAnio[e.anio_servicio]=byAnio[e.anio_servicio]||[]).push(e); });
+    var html=''; Object.keys(byAnio).sort(function(a,b){return a-b;}).forEach(function(an){
+      var list=byAnio[an], tot=0, comp=0;
+      var filas=list.map(function(e){ tot+=(e.dias||0); comp+=(e.compensado||0);
+        return '<tr><td>'+fmtFecha(e.fecha_desde)+(e.fecha_hasta?' → '+fmtFecha(e.fecha_hasta):'')+'</td>'
+          +'<td class="tot">'+(e.dias!=null?e.dias:"—")+' d</td>'
+          +'<td>'+(e.compensado?e.compensado+" d $":"—")+'</td>'
+          +'<td><span class="who">'+(e.origen==="excel"?"histórico":"KALU")+'</span></td></tr>'; }).join("");
+      html+='<div style="margin-bottom:12px"><div style="font-weight:700;color:var(--orange2);margin-bottom:4px">Año de servicio '+an+' <span class="who">— tomó '+(Math.round(tot*10)/10)+' d'+(comp?(' + '+comp+' compensados'):'')+'</span></div>'
+        +'<table><tr><th>Período</th><th>Días</th><th>Compensado</th><th>Origen</th></tr>'+filas+'</table></div>';
+    });
+    box.innerHTML=html;
+  }catch(e){ var box=document.getElementById("vacBody"); if(box) box.innerHTML='<p class="msg err">'+esc(e.message)+'</p>'; }
+}
 async function guardarSaldo(){
   var pid=$("saPersona").value, ing=$("saIngreso").value||null, base=$("saBase").value;
   if(base===""||isNaN(parseFloat(base))){ setMsg("saMsg","Poné los días que le faltan hoy.","err"); return; }

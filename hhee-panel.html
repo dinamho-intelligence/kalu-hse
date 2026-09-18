@@ -234,6 +234,10 @@
         <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="calcularCierre()">Calcular</button><button class="btn sec" onclick="exportCierre()">⬇ Excel</button></div>
         <div style="display:flex;align-items:flex-end"><button class="btn sec" id="kCerrar" onclick="cerrarPeriodo()">Cerrar período</button></div>
       </div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn sec" onclick="generarRnoct()">🌙 Generar recargo nocturno del turno noche</button>
+        <span class="who" style="font-size:12px">Calcula el recargo desde la cuadrilla de turno noche (horario fijo del turno), descontando permisos/ausencias. No depende de que la gente reporte. Podés regenerar el PDF aunque el período figure cerrado.</span>
+      </div>
       <div id="cieMsg" class="msg"></div>
     </div>
     <div class="card"><div id="cieList"><div class="load">Elegí el rango y tocá Calcular.</div></div></div>
@@ -1054,6 +1058,54 @@ async function calcularCierre(){
     });
     box.innerHTML=html+'</table>';
   }catch(e){ box.innerHTML='<p class="msg err">No se pudo calcular ('+esc(e.message)+').</p>'; }
+}
+/* Genera el recargo nocturno (y dominical/festivo del turno) automáticamente desde la cuadrilla de turno noche,
+   con el horario FIJO del turno (no la hora que marca la gente), descontando ausencias. Idempotente. */
+async function generarRnoct(){
+  var d=$("kDesde").value, h=$("kHasta").value;
+  if(!d||!h){ setMsg("cieMsg","Elegí el rango (Desde/Hasta) primero.","err"); return; }
+  if(!confirm("¿Generar el recargo nocturno del turno noche para "+fmtFecha(d)+" a "+fmtFecha(h)+"?\nSe calcula desde la cuadrilla, descontando permisos/ausencias. Reemplaza lo que se haya generado automático antes (no toca lo cerrado ni lo que reportó la gente).")) return;
+  if(!(await asegurarToken())) return;
+  setMsg("cieMsg","Generando…","");
+  try{
+    var tmap={}; TURNOS.forEach(function(t){tmap[t.id]=t;});
+    var cuad=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_desde=lte."+h+"&fecha_hasta=gte."+d+"&select=persona_id,turno_id,fecha_desde,fecha_hasta");
+    var noche=(cuad||[]).filter(function(c){ var t=tmap[c.turno_id]; return t && t.tipo==="noche"; });
+    if(!noche.length){ setMsg("cieMsg","No hay nadie en cuadrilla de turno noche en ese rango.","err"); return; }
+    var aus=await sbFetch("/rest/v1/he_ausencia?empresa_id=eq."+EMP+"&fecha_desde=lte."+h+"&fecha_hasta=gte."+d+"&select=persona_id,fecha_desde,fecha_hasta");
+    function conAusencia(pid,iso){ return (aus||[]).some(function(a){ return a.persona_id===pid && a.fecha_desde<=iso && a.fecha_hasta>=iso; }); }
+    // borrar lo autogenerado antes (no cerrado) para poder regenerar limpio
+    try{ await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&origen=eq.rnoct_auto&estado=neq.cerrado&fecha=gte."+d+"&fecha=lte."+h,{method:"DELETE",headers:{Prefer:"return=minimal"}}); }catch(_){}
+    // reportes existentes (de la gente) para NO pisar ni duplicar
+    var ex=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=persona_id,fecha");
+    var yaHay={}; (ex||[]).forEach(function(r){ yaHay[r.persona_id+"|"+String(r.fecha).slice(0,10)]=1; });
+    function tipoDiaP(iso){ var dd=new Date(iso+"T00:00:00"); if(FEST.has(iso)) return "festivo"; if(dd.getDay()===0) return "dominical"; return "semanal"; }
+    var nuevos=[], di=new Date(d+"T00:00:00"), df=new Date(h+"T00:00:00");
+    noche.forEach(function(c){
+      var t=tmap[c.turno_id]; if(!t) return;
+      var ini=new Date(Math.max(di, new Date(c.fecha_desde+"T00:00:00")));
+      var fin=new Date(Math.min(df, new Date(c.fecha_hasta+"T00:00:00")));
+      for(var day=new Date(ini); day<=fin; day.setDate(day.getDate()+1)){
+        var iso=day.toISOString().slice(0,10);
+        if(conAusencia(c.persona_id,iso)) continue;            // no trabajó ese día
+        if(yaHay[c.persona_id+"|"+iso]) continue;               // ya tiene un reporte ese día
+        var segs=segmentosDe(t,iso); if(!segs.length) continue;  // el turno no trabaja ese día
+        var acc=segs.map(function(s){ return heCategorizar({fecha:iso,horaInicio:s[0],horaFin:s[1],esJornadaOrdinaria:true},FEST); });
+        var cats=heSumar(acc);
+        if(heTotalHoras(cats)<=0) continue;                     // sin recargo ese día
+        nuevos.push({ empresa_id:EMP, persona_id:c.persona_id, fecha:iso,
+          hora_inicio:segs[0][0], hora_fin:segs[segs.length-1][1], lugar:null,
+          justificacion:"Recargo del turno noche (automático)", tipo_dia:tipoDiaP(iso),
+          es_jornada_ordinaria:true, categorias:cats, estado:"autorizado", fuera_de_plan:false,
+          origen:"rnoct_auto", aprobado_por:MY_UID, aprobado_at:new Date().toISOString() });
+      }
+    });
+    if(!nuevos.length){ setMsg("cieMsg","No quedó recargo para generar (todos con ausencia o ya con reporte).","ok"); calcularCierre(); return; }
+    // insertar en lotes
+    for(var i=0;i<nuevos.length;i+=200){ await sbFetch("/rest/v1/he_reporte",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(nuevos.slice(i,i+200))}); }
+    setMsg("cieMsg","✓ Recargo nocturno generado: "+nuevos.length+" día(s)-persona. Ya entran al cierre y al A.FR009.","ok");
+    calcularCierre();
+  }catch(e){ setMsg("cieMsg",(e&&e.message)||"No se pudo generar.","err"); }
 }
 function pdfFHA(pid){
   if(!CIERRE_DATA||!CIERRE_DATA.byP[pid]) return;

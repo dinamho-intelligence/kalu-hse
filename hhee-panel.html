@@ -115,7 +115,7 @@
   <section id="tab_conc">
     <div class="card">
       <h1>Conciliación</h1>
-      <h2>Revisá los reportes y aprobá o rechazá. Lo marcado ⚠ llegó sin autorización cargada.</h2>
+      <h2>Revisá los reportes y aprobá, modificá o rechazá. ⚠ = llegó sin autorización cargada. △ pre-autorizada = cruza con una autorización que cargaste (podés aprobarla directo).</h2>
       <div class="grid g4">
         <div><label>Desde</label><input type="date" id="cDesde"></div>
         <div><label>Hasta</label><input type="date" id="cHasta"></div>
@@ -170,7 +170,7 @@
   <section id="tab_cuad" class="hide">
     <div class="card">
       <h1>Armar cuadrilla</h1>
-      <h2>Elegí el turno, marcá las personas y el rango de días. Cada persona conserva su color. En la app del trabajador el turno le aparece solo.</h2>
+      <h2>Elegí el turno, marcá las personas y el rango de días. Tocá el cuadrito de color de una persona para cambiar su color; si no elegís ninguno, KALU le asigna uno automático. En la app del trabajador el turno le aparece solo.</h2>
       <div class="grid g3">
         <div><label>Turno</label><select id="mTurno"></select></div>
         <div><label>Desde</label><input type="date" id="mDesde"></div>
@@ -346,7 +346,7 @@ async function asegurarToken(){
     if(p.estado && p.estado!=="activo"){ return bloqueo("Cuenta "+p.estado,"Contactá a tu administrador."); }
     var gestor = p.es_super || ["hse","supervisor","admin"].indexOf(p.rol)>=0 || p.acceso_consola;
     if(!gestor){ return bloqueo("Sin acceso","Este panel es para gestores. Si tenés que gestionar horas extra, pedí acceso a tu administrador."); }
-    EMP=p.empresa_id; NOMBRE=p.nombre||""; ES_SUPER=!!p.es_super;
+    EMP=p.empresa_id; NOMBRE=p.nombre||""; ES_SUPER=!!p.es_super; loadCuadColor();
     $("who").textContent=NOMBRE+" · gestor";
     try{ var e=await sbFetch("/rest/v1/empresas?id=eq."+EMP+"&select=razon_social,branding"); if(e&&e[0]){ EMP_NOMBRE=e[0].razon_social||""; BRANDING=e[0].branding||{}; } }catch(_){}
     PERSONAS=await sbFetch("/rest/v1/personas?empresa_id=eq."+EMP+"&vigente=eq.true&order=nombre&select=id,nombre,cedula,cargo");
@@ -373,10 +373,17 @@ function poblarSelects(){
   renderBaseChecks();
 }
 function _persListaFiltrada(soloBase){ return soloBase?PERSONAS.filter(function(p){return BASE.has(p.id);}):PERSONAS; }
-function _chkRow(cls,p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
+function _chkRow(cls,p){
+  var nm='<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span>';
+  if(cls==="pchk"){ /* en Cuadrillas el puntito es editable: se puede elegir el color de la persona */
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px">'
+      +'<input type="color" value="'+colorPersona(p.id)+'" onchange="setCuadColor(\''+p.id+'\',this.value)" title="Color de '+esc(p.nombre)+' — dejalo así para el automático" style="width:26px;height:22px;border:none;background:none;padding:0;flex:none;cursor:pointer">'
+      +'<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;margin:0">'
+      +'<input type="checkbox" class="pchk" value="'+p.id+'" style="width:auto;flex:none">'+nm+'</label></div>';
+  }
+  return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
   +'<input type="checkbox" class="'+cls+'" value="'+p.id+'" style="width:auto;flex:none">'
-  +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
-  +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }
+  +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'+nm+'</label>'; }
 function renderAutChecks(){
   var box=$("autPersonChecks"); if(!box) return;
   var lst=_persListaFiltrada($("aSoloBase")&&$("aSoloBase").checked);
@@ -415,7 +422,8 @@ async function cargarCuad(){
   if(!(await asegurarToken())) return;
   try{
     var hoy=isoD(new Date());
-    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+hoy+"&order=fecha_desde.asc&select=id,persona_id,turno_id,fecha_desde,fecha_hasta");
+    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+hoy+"&order=fecha_desde.asc&select=id,persona_id,turno_id,fecha_desde,fecha_hasta,color");
+    CUAD_ROWS=rows||[];
     var tmap={}; TURNOS.forEach(function(t){tmap[t.id]=t;});
     function pintar(box,tipo){
       if(!box) return;
@@ -425,7 +433,8 @@ async function cargarCuad(){
         return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
           +'<span class="dchip" style="background:'+colorPersona(r.persona_id)+'"></span>'
           +'<span style="flex:1">'+esc(per)+'<br><span class="who">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</span></span>'
-          +'<button class="btn no mini" onclick="borrarCuadrilla(\''+r.id+'\')">✕</button></div>'; }).join("");
+          +'<button class="btn sec mini" onclick="editarCuad(\''+r.id+'\')" title="Editar período o quitar un día">✎</button> '
+          +'<button class="btn no mini" onclick="borrarCuadrilla(\''+r.id+'\')" title="Borrar todo el período">✕</button></div>'; }).join("");
     }
     pintar(bd,"dia"); pintar(bn,"noche");
   }catch(e){ if(bd) bd.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
@@ -447,10 +456,42 @@ function tab(t){
 }
 /* Color fijo por persona (determinístico) para distinguir en el almanaque */
 var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];
-function colorPersona(pid){ if(!pid) return "#888"; var h=0,s=String(pid); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return PALETA[h%PALETA.length]; }
+/* Color por persona: si el gestor eligió uno, se respeta; si no, se asigna automático (hash). */
+var CUAD_COLOR=null;
+function _colorKey(){ return "kaluCuadColor_"+(EMP||""); }
+function loadCuadColor(){ try{ CUAD_COLOR=JSON.parse(localStorage.getItem(_colorKey())||"{}")||{}; }catch(e){ CUAD_COLOR={}; } }
+function setCuadColor(pid,val){ if(CUAD_COLOR===null) loadCuadColor(); if(val){ CUAD_COLOR[pid]=val; } else { delete CUAD_COLOR[pid]; } try{ localStorage.setItem(_colorKey(),JSON.stringify(CUAD_COLOR)); }catch(e){} }
+function colorAuto(pid){ var h=0,s=String(pid); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return PALETA[h%PALETA.length]; }
+function colorPersona(pid){ if(!pid) return "#888"; if(CUAD_COLOR===null) loadCuadColor(); if(CUAD_COLOR&&CUAD_COLOR[pid]) return CUAD_COLOR[pid]; return colorAuto(pid); }
 
 /* ============ CONCILIACIÓN ============ */
-async function cargarConc(){
+var CONC_ROWS=[], CONC_AUTS=[], CONC_CRUCES=[], MOD_R=null, MOD_TURNO=null, CUAD_ROWS=[], CUAD_E=null;
+/* segmentos del turno para una fecha (calcado de la app del trabajador) */
+function segmentosDe(t,iso){ if(!t||!t.horarios) return []; var d=new Date(iso+"T00:00:00"),w=d.getDay(),h=t.horarios; if(w===0)return h.dom||[]; if(w===6)return h.sab||[]; return h["L-V"]||[]; }
+/* ¿solapan dos rangos horarios (mismo día, admite cruce de medianoche)? */
+function _solapanHoras(i1,f1,i2,f2){ var a0=_toMin(i1),a1=_toMin(f1),b0=_toMin(i2),b1=_toMin(f2); if(a1<=a0)a1+=1440; if(b1<=b0)b1+=1440; return (Math.min(a1,b1)-Math.max(a0,b0))>0; }
+/* autorización que cruza con un reporte: misma fecha, misma persona (o "toda la cuadrilla"), y por hora si ambos la tienen */
+function autDeReporte(r){
+  if(!r) return null;
+  var list=(CONC_AUTS||[]).filter(function(a){
+    if(a.fecha!==r.fecha) return false;
+    if(a.persona_id && a.persona_id!==r.persona_id) return false;
+    if(a.hora_inicio && a.hora_fin && r.hora_inicio && r.hora_fin){ return _solapanHoras(r.hora_inicio,r.hora_fin,a.hora_inicio,a.hora_fin); }
+    return true; /* si alguno no tiene hora, cruza por día */
+  });
+  list.sort(function(x,y){ return (((y.persona_id?1:0)+(y.hora_inicio?1:0))-((x.persona_id?1:0)+(x.hora_inicio?1:0))); });
+  return list[0]||null;
+}
+function _autTxt(a){ var t=a.es_interno?"interna":"del correo"; var hor=(a.hora_inicio&&a.hora_fin)?(" "+a.hora_inicio+"–"+a.hora_fin):" (día completo)"; var ha=horasAut(a); return "Autorización "+t+hor+(ha!=null?(" · "+ha+" h"):"")+(a.nota?" · "+a.nota:""); }
+function _esPend(r){ return ["reportado","no_autorizado"].indexOf(r.estado)>=0; }
+/* horas que ampara la autorización: usa el campo horas; si no, las deriva del horario */
+function horasAut(a){ if(a.horas!=null) return Math.round(a.horas*100)/100; if(a.hora_inicio&&a.hora_fin){ return heTotalHoras(heCategorizar({fecha:a.fecha,horaInicio:a.hora_inicio,horaFin:a.hora_fin,esJornadaOrdinaria:false},FEST)); } return null; }
+/* coincide = lo reportado NO supera lo autorizado (la autorización es el tope). Sin cantidad (día completo) = coincide. */
+function compararAut(r,a){ var hr=heTotalHoras(r.categorias||{}); var ha=horasAut(a); if(ha==null) return {coincide:true,ha:null,hr:hr}; return {coincide:(hr<=ha+0.02),ha:ha,hr:hr}; }
+function autoCruceOn(){ try{ return localStorage.getItem("kaluAutoCruce_"+(EMP||""))!=="0"; }catch(e){ return true; } }
+function setAutoCruce(v){ try{ localStorage.setItem("kaluAutoCruce_"+(EMP||""), v?"1":"0"); }catch(e){} cargarConc(); }
+var CONC_NOCOIN={}, CONC_AUTOMSG=0;
+async function cargarConc(_noAuto){
   var box=$("concList"); box.innerHTML='<div class="load">Cargando…</div>'; setMsg("concMsg","");
   if(!(await asegurarToken())) return bloqueo("Sesión vencida","Entrá de nuevo.<br><a href='ingreso.html'>Ir a ingresar →</a>");
   var d=$("cDesde").value, h=$("cHasta").value, est=$("cEstado").value;
@@ -458,30 +499,57 @@ async function cargarConc(){
   if(est) q+="&estado=eq."+est;
   try{
     var rows=await sbFetch(q);
-    CONC_ROWS=rows||[];
+    try{ CONC_AUTS=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=id,persona_id,fecha,hora_inicio,hora_fin,horas,es_interno,nota")||[]; }catch(_){ CONC_AUTS=[]; }
+    CONC_ROWS=rows||[]; CONC_CRUCES=[]; CONC_NOCOIN={};
     if(!rows.length){ box.innerHTML='<p class="who">No hay reportes con ese filtro.</p>'; return; }
+    /* clasificar pendientes que cruzan con una autorización: coinciden (dentro de lo autorizado) vs no coinciden (reportan más) */
+    rows.forEach(function(r){ if(_esPend(r)){ var a=autDeReporte(r); if(a){ var c=compararAut(r,a); if(c.coincide) CONC_CRUCES.push(r.id); else CONC_NOCOIN[r.id]={ha:c.ha,hr:c.hr,a:a}; } } });
+    /* auto-autorizar las que coinciden (sin clic), si está activado */
+    if(!_noAuto && autoCruceOn() && CONC_CRUCES.length){
+      try{ await sbFetch("/rest/v1/he_reporte?id=in.("+CONC_CRUCES.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})});
+        CONC_AUTOMSG=CONC_CRUCES.length; return cargarConc(true);
+      }catch(_){}
+    }
+    var nNo=Object.keys(CONC_NOCOIN).length, auto=autoCruceOn();
+    var barra='<div style="margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+      +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" '+(auto?'checked':'')+' style="width:auto" onchange="setAutoCruce(this.checked)"> Autorizar solo cuando la cantidad coincide con la autorización</label>'
+      +(nNo?('<span class="flag">⚠ '+nNo+' no coincide(n) con lo autorizado — revisá.</span>'):'')
+      +((!auto && CONC_CRUCES.length)?('<button class="btn mini ok" onclick="aprobarCoincidencias()">△ Aprobar las '+CONC_CRUCES.length+' que coinciden</button>'):'')
+      +'</div>';
     var html='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th><th></th></tr>';
     rows.forEach(function(r){
       var per=PMAP[r.persona_id]||{}; var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
       var hor=horarioTxt(r);
+      var nc=CONC_NOCOIN[r.id];
+      var coin=_esPend(r)&&CONC_CRUCES.indexOf(r.id)>=0;
+      var marca = nc ? ('<br><span class="flag" style="color:var(--amber)" title="'+esc(_autTxt(nc.a))+'">⚠ no coincide · reportó '+nc.hr+' h, autorizado '+nc.ha+' h</span>')
+                     : (coin ? ('<br><span class="flag" style="color:var(--ok)" title="'+esc(_autTxt(autDeReporte(r)))+'">△ coincide con la autorización</span>')
+                     : (r.fuera_de_plan?'<br><span class="flag">⚠ sin autorización</span>':''));
       html+='<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per.nombre||"—")+'<br><span class="who">'+esc(per.cargo||"")+'</span></td>'
         +'<td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+' h)</span>'
-        +(r.fuera_de_plan?'<br><span class="flag">⚠ sin autorización</span>':'')
+        +marca
         +(r.justificacion?'<br><span class="who">'+esc(r.justificacion)+'</span>':'')
         +(r.motivo?'<br><span class="flag">rechazo: '+esc(r.motivo)+'</span>':'')+'</td>'
         +'<td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td>'
-        +'<td style="white-space:nowrap">'+(["reportado","no_autorizado"].indexOf(r.estado)>=0
-            ?('<button class="btn mini ok" onclick="aprobar(\''+r.id+'\')">Aprobar</button> <button class="btn mini no" onclick="rechazar(\''+r.id+'\')">Rechazar</button>')
+        +'<td style="white-space:nowrap">'+(_esPend(r)
+            ?('<button class="btn mini ok" onclick="aprobar(\''+r.id+'\')">Aprobar</button> <button class="btn mini sec" onclick="modificar(\''+r.id+'\')">✎ Modificar</button> <button class="btn mini no" onclick="rechazar(\''+r.id+'\')">Rechazar</button>')
             :'')+'</td></tr>';
     });
-    box.innerHTML=html+'</table>';
+    box.innerHTML=barra+html+'</table>';
+    if(CONC_AUTOMSG){ setMsg("concMsg","✓ "+CONC_AUTOMSG+" autorizada(s) automáticamente por coincidir con la autorización cargada.","ok"); CONC_AUTOMSG=0; }
   }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
 }
 function etiq(e){ return {reportado:"Enviado",autorizado:"Autorizado",no_autorizado:"Sin autorizar",rechazado:"Rechazado",cerrado:"Cerrado"}[e]||e; }
 async function aprobar(id){
   if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); cargarConc(); }
+  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); cargarConc(true); }
+  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
+}
+async function aprobarCoincidencias(){
+  if(!CONC_CRUCES||!CONC_CRUCES.length) return;
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_reporte?id=in.("+CONC_CRUCES.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); CONC_AUTOMSG=CONC_CRUCES.length; cargarConc(true); }
   catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
 }
 async function rechazar(id){
@@ -490,6 +558,71 @@ async function rechazar(id){
   if(!(await asegurarToken())) return;
   try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"rechazado",aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:mot})}); cargarConc(); }
   catch(e){ setMsg("concMsg",(e&&e.message)||"Error al rechazar","err"); }
+}
+/* ---- Modificar un reporte desde el panel (sin rebotarlo al trabajador) ---- */
+function _recompSalida(turno,iso,exit){
+  var segs=segmentosDe(turno,iso); if(!segs.length) return null;
+  var fin=segs[segs.length-1][1], exitMin=_toMin(exit), endMin=_toMin(fin), acc=[];
+  segs.forEach(function(s){ var iniMin=_toMin(s[0]), finMin=Math.min(_toMin(s[1]),exitMin);
+    if(finMin>iniMin){ var finH=(finMin===_toMin(s[1]))?s[1]:exit; acc.push(heCategorizar({fecha:iso,horaInicio:s[0],horaFin:finH,esJornadaOrdinaria:true},FEST)); } });
+  if(exitMin>endMin){ acc.push(heCategorizar({fecha:iso,horaInicio:fin,horaFin:exit,esJornadaOrdinaria:false},FEST)); }
+  return { cats:heSumar(acc), ini:segs[0][0], fin:exit };
+}
+async function modificar(id){
+  var r=(CONC_ROWS||[]).filter(function(x){return x.id===id;})[0]; if(!r) return;
+  MOD_R=r; MOD_TURNO=null;
+  var esSalida = !!(r.es_jornada_ordinaria && r.hora_inicio);
+  if(esSalida){ /* buscar el turno de la cuadrilla ese día para recalcular bien la parte normal vs extra */
+    try{ var cu=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&persona_id=eq."+r.persona_id+"&fecha_desde=lte."+r.fecha+"&fecha_hasta=gte."+r.fecha+"&select=turno_id,fecha_desde,fecha_hasta");
+      if(cu&&cu.length){ var best=cu[0]; cu.forEach(function(c){ if((new Date(c.fecha_hasta)-new Date(c.fecha_desde))<(new Date(best.fecha_hasta)-new Date(best.fecha_desde))) best=c; }); var tm={}; TURNOS.forEach(function(t){tm[t.id]=t;}); MOD_TURNO=tm[best.turno_id]||null; }
+    }catch(_){}
+  }
+  var per=(PMAP[r.persona_id]||{}).nombre||"—";
+  var iniLock = !!MOD_TURNO;
+  var nota = MOD_TURNO
+    ? 'Reporte de <b>salida de cuadrilla</b>: KALU toma la entrada del turno y cuenta como <b>hora extra</b> lo que pase de la salida del turno. Cambiá la <b>hora de salida real</b> y recalcula solo.'
+    : 'Editá el horario y KALU recalcula las categorías (se toma como hora extra).';
+  var ov='<div id="modOv" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)modCerrar()">'
+    +'<div style="background:var(--bg2,#14161B);border:1px solid var(--line);border-radius:14px;max-width:420px;width:100%;padding:18px">'
+    +'<h2 style="color:var(--tx);margin:0 0 4px">Modificar reporte</h2>'
+    +'<p class="who" style="margin:0 0 10px">'+esc(per)+' · '+fmtFecha(r.fecha)+'</p>'
+    +'<p class="who" style="margin:0 0 12px;font-size:12px">'+nota+'</p>'
+    +'<div class="grid g2">'
+    +'<div><label>Entrada</label><input type="time" id="modIni" value="'+esc(r.hora_inicio||"")+'" '+(iniLock?'disabled':'')+' onchange="modPreview()"></div>'
+    +'<div><label>Salida</label><input type="time" id="modFin" value="'+esc(r.hora_fin||"")+'" onchange="modPreview()"></div>'
+    +'</div>'
+    +'<label>Qué hizo / justificación</label><textarea id="modJust" rows="2">'+esc(r.justificacion||"")+'</textarea>'
+    +'<div id="modPrev" style="margin:10px 0;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--tx2)"></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'
+    +'<button class="btn ok" onclick="modGuardar(true)">Guardar y aprobar</button>'
+    +'<button class="btn sec" onclick="modGuardar(false)">Solo guardar</button>'
+    +'<button class="btn sec" onclick="modCerrar()">Cancelar</button></div>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend',ov); modPreview();
+}
+function _modCalc(){
+  var r=MOD_R; if(!r) return null;
+  var ini=$("modIni")?$("modIni").value:r.hora_inicio, fin=$("modFin")?$("modFin").value:r.hora_fin;
+  if(MOD_TURNO){ if(!fin) return null; return _recompSalida(MOD_TURNO,r.fecha,fin); }
+  if(!ini||!fin) return null;
+  return { cats:heCategorizar({fecha:r.fecha,horaInicio:ini,horaFin:fin,esJornadaOrdinaria:!!r.es_jornada_ordinaria},FEST), ini:ini, fin:fin };
+}
+function modPreview(){
+  var box=$("modPrev"); if(!box) return; var c=_modCalc();
+  if(!c){ box.innerHTML='<span class="who">Completá el horario para ver el cálculo.</span>'; return; }
+  var parts=CATS7.filter(function(k){return c.cats[k];}).map(function(k){return CATLBL[k]+" "+c.cats[k]+" h";});
+  box.innerHTML= parts.length? ('Queda: <b style="color:var(--tx)">'+parts.join(" · ")+'</b> <span class="who">· total '+heTotalHoras(c.cats)+' h</span>') : 'Ese horario da 0 h.';
+}
+function modCerrar(){ var o=$("modOv"); if(o) o.remove(); MOD_R=null; MOD_TURNO=null; }
+async function modGuardar(aprob){
+  var r=MOD_R; if(!r) return; var c=_modCalc();
+  if(!c){ alert("Completá el horario."); return; }
+  if(!(await asegurarToken())) return;
+  var just=($("modJust")?$("modJust").value.trim():"")||null;
+  var patch={ hora_inicio:c.ini, hora_fin:c.fin, categorias:c.cats, justificacion:just };
+  if(aprob){ patch.estado="autorizado"; patch.fuera_de_plan=false; patch.aprobado_por=MY_UID; patch.aprobado_at=new Date().toISOString(); patch.motivo=null; }
+  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(patch)}); modCerrar(); setMsg("concMsg",aprob?"✓ Modificado y aprobado.":"✓ Cambios guardados.","ok"); cargarConc(); }
+  catch(e){ alert((e&&e.message)||"No se pudo guardar."); }
 }
 
 /* ============ AUTORIZACIONES ============ */
@@ -664,6 +797,66 @@ async function borrarCuadrilla(id){
   try{ await sbFetch("/rest/v1/he_cuadrilla?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}});
     var sel=ALM_SEL; await renderMes(); cargarCuad(); if(sel) verDia(sel);
   }catch(e){ alert("No se pudo borrar: "+((e&&e.message)||"")); }
+}
+/* ---- Editar el período de una cuadrilla: acortar/extender, quitar un día, o partir ---- */
+function _addDias(iso,n){ var d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function editarCuad(id){
+  var r=(CUAD_ROWS||[]).filter(function(x){return x.id===id;})[0]; if(!r) return;
+  CUAD_E=r;
+  var per=(PMAP[r.persona_id]||{}).nombre||"—";
+  var tn=(TURNOS.filter(function(t){return t.id===r.turno_id;})[0]||{}).nombre||"";
+  var ov='<div id="cuadOv" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)cuadCerrar()">'
+    +'<div style="background:var(--bg2);border:1px solid var(--line);border-radius:14px;max-width:430px;width:100%;padding:18px">'
+    +'<h2 style="color:var(--tx);margin:0 0 4px">Editar cuadrilla</h2>'
+    +'<p class="who" style="margin:0 0 12px">'+esc(per)+' · '+esc(tn)+' · '+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</p>'
+    +'<label style="font-weight:700;color:var(--tx)">Cambiar el período (acortar o extender)</label>'
+    +'<div class="grid g2">'
+    +'<div><label>Desde</label><input type="date" id="ceDesde" value="'+esc(r.fecha_desde)+'"></div>'
+    +'<div><label>Hasta</label><input type="date" id="ceHasta" value="'+esc(r.fecha_hasta)+'"></div>'
+    +'</div>'
+    +'<button class="btn ok" style="margin-top:10px" onclick="cuadGuardarRango()">Guardar período</button>'
+    +'<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">'
+    +'<label style="font-weight:700;color:var(--tx)">Quitar un día puntual</label>'
+    +'<p class="who" style="margin:2px 0 6px;font-size:12px">Ej.: estaba del '+fmtFecha(r.fecha_desde)+' al '+fmtFecha(r.fecha_hasta)+' pero un día no vino. Elegí ese día y KALU recorta (o parte) el período sin borrar el resto.</p>'
+    +'<div style="display:flex;gap:8px;align-items:flex-end">'
+    +'<div style="flex:1"><label>Día a quitar</label><input type="date" id="ceQuita" min="'+esc(r.fecha_desde)+'" max="'+esc(r.fecha_hasta)+'"></div>'
+    +'<button class="btn sec" onclick="cuadQuitarDia()">Quitar ese día</button></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">'
+    +'<button class="btn sec" onclick="cuadCerrar()">Cerrar</button></div>'
+    +'</div></div>';
+  document.body.insertAdjacentHTML('beforeend',ov);
+}
+function cuadCerrar(){ var o=$("cuadOv"); if(o) o.remove(); CUAD_E=null; }
+async function _cuadRefrescar(){ var sel=ALM_SEL; await renderMes(); cargarCuad(); if(sel) verDia(sel); }
+async function cuadGuardarRango(){
+  var r=CUAD_E; if(!r) return;
+  var d1=$("ceDesde").value, d2=$("ceHasta").value;
+  if(!d1||!d2){ alert("Poné las dos fechas."); return; }
+  if(d1>d2){ alert("La fecha Desde no puede ser mayor que Hasta."); return; }
+  if(!(await asegurarToken())) return;
+  try{ await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_desde:d1,fecha_hasta:d2})});
+    cuadCerrar(); await _cuadRefrescar();
+  }catch(e){ alert("No se pudo guardar: "+((e&&e.message)||"")); }
+}
+async function cuadQuitarDia(){
+  var r=CUAD_E; if(!r) return;
+  var q=$("ceQuita").value; if(!q){ alert("Elegí el día a quitar."); return; }
+  if(q<r.fecha_desde||q>r.fecha_hasta){ alert("Ese día está fuera del período."); return; }
+  if(!(await asegurarToken())) return;
+  try{
+    if(q===r.fecha_desde && q===r.fecha_hasta){
+      if(!confirm("Es el único día del período. ¿Borrar la asignación?")) return;
+      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"DELETE",headers:{Prefer:"return=minimal"}});
+    } else if(q===r.fecha_desde){
+      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_desde:_addDias(q,1)})});
+    } else if(q===r.fecha_hasta){
+      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_hasta:_addDias(q,-1)})});
+    } else { /* día en el medio: parte en dos */
+      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_hasta:_addDias(q,-1)})});
+      await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify([{ empresa_id:EMP, persona_id:r.persona_id, turno_id:r.turno_id, fecha_desde:_addDias(q,1), fecha_hasta:r.fecha_hasta, color:colorPersona(r.persona_id), creado_por:MY_UID }])});
+    }
+    cuadCerrar(); await _cuadRefrescar();
+  }catch(e){ alert("No se pudo quitar el día: "+((e&&e.message)||"")); }
 }
 
 /* ============ CIERRE ============ */
@@ -841,7 +1034,7 @@ function renderEst(){
 }
 
 /* ============ EXPORTAR A EXCEL ============ */
-var CONC_ROWS=[], EST_SNAP=null;
+var EST_SNAP=null;
 function _hoy(){ return isoD(new Date()); }
 function exportXLSX(nombre, sheets){
   if(typeof XLSX==="undefined"){ alert("No cargó la librería de Excel. Reintentá con conexión."); return; }

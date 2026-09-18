@@ -2,290 +2,165 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Horas Extra · Panel — KALU</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Horas Extra — KALU</title>
 <style>
   :root{
     --bg:#0E1014; --bg2:#171A21; --bg3:#1D212A; --line:#252A34;
     --tx:#E8EAEE; --tx2:#95A0AD; --tx3:#5E6873;
     --orange:#F28C00; --orange2:#FF9F1C; --cy:#00D4FF;
-    --ok:#3DBE8B; --amber:#E4A14B; --mal:#D9534F; --glow:rgba(242,140,0,.28);
+    --ok:#3DBE8B; --amber:#E4A14B; --mal:#D9534F;
+    --glow:rgba(242,140,0,.28);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  body{max-width:1040px;margin:0 auto;padding:16px 16px 48px}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100%}
+  body{max-width:560px;margin:0 auto;padding:18px 16px 40px}
   a{color:var(--cy)}
-  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-  .brand{font-size:12px;letter-spacing:.16em;color:var(--tx2);text-transform:uppercase}
+  .brand{font-size:12px;letter-spacing:.16em;color:var(--tx2);text-transform:uppercase;text-align:center;margin-bottom:14px}
   .brand b{color:var(--orange);letter-spacing:.2em}
-  .who{font-size:13px;color:var(--tx2)}
-  .tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:16px}
-  .tab{background:none;border:none;color:var(--tx2);font-family:inherit;font-size:14px;font-weight:600;padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent}
-  .tab.on{color:var(--orange);border-bottom-color:var(--orange)}
-  .card{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
-  h1{font-size:19px;margin:0 0 2px}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+  h1{font-size:21px;margin:0 0 4px}
   h2{font-size:14px;color:var(--tx2);font-weight:500;margin:0 0 14px}
-  label{display:block;font-size:12px;color:var(--tx2);margin:12px 0 5px;font-weight:600}
-  input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:11px 12px;color:var(--tx);font-size:15px;font-family:inherit}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--glow)}
-  .grid{display:grid;gap:12px}
-  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
-  @media(max-width:720px){.g2,.g3,.g4{grid-template-columns:1fr}}
-  .btn{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+  p{line-height:1.55;margin:0 0 10px}
+  .chico{font-size:13px;color:var(--tx2);line-height:1.5}
+  label{display:block;font-size:12px;color:var(--tx2);margin:14px 0 5px;font-weight:600}
+  input,select,textarea{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:11px;
+    padding:13px 14px;color:var(--tx);font-size:16px;font-family:inherit}
+  input:focus,select,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--glow)}
+  textarea{min-height:70px;resize:vertical}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .btn{width:100%;margin-top:18px;background:linear-gradient(135deg,var(--orange),var(--orange2));color:#141414;
+    border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit}
   .btn:disabled{opacity:.55;cursor:default}
   .btn.sec{background:var(--bg3);color:var(--tx);border:1px solid var(--line)}
-  .btn.mini{padding:6px 11px;font-size:12.5px;border-radius:8px}
-  .btn.ok{background:rgba(61,190,139,.16);color:var(--ok);border:1px solid var(--ok)}
-  .btn.no{background:rgba(217,83,79,.14);color:var(--mal);border:1px solid var(--mal)}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;color:var(--tx3);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:8px 8px;border-bottom:1px solid var(--line)}
-  td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-  .chip{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap;display:inline-block}
+  .big{display:block;width:100%;text-align:left;cursor:pointer;background:var(--bg3);color:var(--tx);
+    border:1px solid var(--line);border-radius:14px;padding:18px 16px;margin-bottom:12px;font-size:17px;font-weight:700;font-family:inherit}
+  .big small{display:block;font-size:13px;font-weight:400;color:var(--tx2);margin-top:5px;line-height:1.45}
+  .big:active{background:#232834}
+  .prev{background:rgba(242,140,0,.08);border:1px solid rgba(242,140,0,.3);border-radius:12px;padding:12px 14px;margin-top:16px;font-size:14px}
+  .prev b{color:var(--orange2)}
+  .prev .z{color:var(--tx3)}
+  .msg{margin-top:12px;font-size:13.5px;min-height:1px;line-height:1.5}
+  .msg.err{color:#ff8a82}
+  .msg.ok{color:#4fd98b}
+  .rep{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line)}
+  .rep:last-child{border-bottom:0}
+  .rep .d{font-size:13px}
+  .rep .d small{color:var(--tx2)}
+  .chip{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
   .chip.reportado{background:rgba(0,212,255,.12);color:var(--cy)}
   .chip.autorizado{background:rgba(61,190,139,.14);color:var(--ok)}
   .chip.no_autorizado{background:rgba(228,161,75,.15);color:var(--amber)}
   .chip.rechazado{background:rgba(217,83,79,.14);color:var(--mal)}
   .chip.cerrado{background:rgba(149,160,173,.15);color:var(--tx2)}
-  .flag{color:var(--amber);font-size:11.5px}
-  .msg{font-size:13px;margin-top:10px;min-height:1px}
-  .msg.err{color:#ff8a82}.msg.ok{color:#4fd98b}
-  .load{color:var(--tx2);padding:16px;text-align:center}
-  .bar{height:22px;border-radius:6px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:#0c0c0c;font-weight:700;overflow:hidden;white-space:nowrap}
-  .volver{display:block;text-align:center;color:var(--tx2);font-size:13px;margin-top:16px;text-decoration:none}
+  .volver{display:block;text-align:center;color:var(--tx2);font-size:13px;margin-top:18px;text-decoration:none}
   .hide{display:none}
-  .tot{font-weight:800;color:var(--orange2)}
-  .pill{display:inline-block;background:var(--bg3);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11px;color:var(--tx2);margin-left:6px}
-  .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-  .caldow{font-size:10px;color:var(--tx3);text-transform:uppercase;text-align:center;padding:3px 0;font-weight:700}
-  .calcell{min-height:76px;background:var(--bg3);border:1px solid var(--line);border-radius:9px;padding:5px;cursor:pointer;display:flex;flex-direction:column;gap:3px}
-  .calcell.empty{background:transparent;border:none;cursor:default}
-  .calcell.hoy{border-color:var(--cy)}
-  .calcell.sel{border-color:var(--orange);box-shadow:0 0 0 2px var(--glow)}
-  .calcell.warn{box-shadow:inset 3px 0 0 var(--amber)}
-  .calcell.dom{background:rgba(217,83,79,.10)}
-  .calcell.fest{background:rgba(178,84,242,.15)}
-  .calnum .ff{font-size:9px;color:var(--mal);font-weight:700;margin-left:3px}
-  .calcell:hover:not(.empty){border-color:var(--tx3)}
-  .calnum{font-size:11px;color:var(--tx2);font-weight:700}
-  .caldots{display:flex;flex-wrap:wrap;gap:3px}
-  .caldot{width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.3)}
-  .calbadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;font-size:10px;font-weight:700}
-  .calb.rep{color:var(--cy)}.calb.warn{color:var(--amber)}.calb.aut{color:var(--ok)}
-  .dchip{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.3)}
-  @media(max-width:720px){.calcell{min-height:58px}.caldow{font-size:9px}}
-  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 4px}
-  @media(max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}}
-  .tile{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px}
-  .tile .n{font-size:22px;font-weight:800;color:var(--orange2)}
-  .tile .l{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
-  .tile .tsub{font-size:11px;color:var(--tx3);margin-top:5px}
-  .hbar{display:flex;align-items:center;gap:8px;margin:6px 0}
-  .hbar .nm{width:160px;font-size:12.5px;color:var(--tx);flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .hbar .track{flex:1;background:var(--bg);border-radius:6px;height:18px;overflow:hidden}
-  .hbar .fill{display:block;height:100%;border-radius:6px;min-width:3px}
-  .hbar.clic{cursor:pointer}
-  .hbar.clic:hover .nm{color:var(--orange2)}
-  .hbar.sel .nm{color:var(--orange2);font-weight:800}
-  .estfiltro{display:flex;align-items:center;gap:10px;background:rgba(242,140,0,.1);border:1px solid rgba(242,140,0,.35);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
-  .hbar .v{width:58px;text-align:right;font-size:12.5px;font-weight:700;color:var(--orange2);flex:none}
-  @media(max-width:720px){.hbar .nm{width:100px}}
+  .flag{font-size:12px;color:var(--amber);margin-top:6px}
+  .hh{color:var(--tx2);font-size:13px}
+  .resbox{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .rsline{display:flex;flex-wrap:wrap;gap:8px}
+  .rsum{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--tx2)}
+  .rsum b{color:var(--tx);font-size:13px}
+  .rsum.big{font-size:13px;padding:6px 12px}
+  .rsum.big b{color:var(--orange2);font-size:15px}
+  .rsum.cy b{color:var(--cy)}
+  .load{color:var(--tx2);text-align:center;padding:20px}
 </style>
 </head>
 <body>
-<div class="top">
-  <div class="brand">KALU · <b>HORAS EXTRA</b> · Panel</div>
-  <div class="who" id="who">—</div>
+<div class="brand">KALU · <b>HORAS EXTRA</b></div>
+
+<!-- ============ cargando ============ -->
+<div class="card" id="vCarga"><div class="load">Abriendo…</div></div>
+
+<!-- ============ ingreso por cédula ============ -->
+<div class="card hide" id="vLogin">
+  <h1>Ingresá tu cédula</h1>
+  <p class="chico">Escribí tu número de cédula para reportar tus horas. No necesitás usuario ni contraseña.</p>
+  <label>Cédula</label>
+  <input type="tel" inputmode="numeric" id="lCed" placeholder="Ej. 1030526516" autocomplete="off"
+         onkeydown="if(event.key==='Enter')identificar()">
+  <button class="btn" id="lBtn" onclick="identificar()">Entrar →</button>
+  <div class="msg" id="lMsg"></div>
+  <a class="volver" href="index.html">← Volver al inicio</a>
 </div>
 
-<div id="vCarga" class="card"><div class="load">Abriendo…</div></div>
-<div id="vBloqueo" class="card hide"><h1 id="bTit">—</h1><p id="bTxt" class="who">—</p><a class="volver" href="index.html">← Volver al inicio</a></div>
-
-<div id="app" class="hide">
-  <div class="tabs">
-    <button class="tab on" data-t="conc" onclick="tab('conc')">🗂️ Conciliación</button>
-    <button class="tab" data-t="aut" onclick="tab('aut')">✅ Autorizaciones</button>
-    <button class="tab" data-t="cuad" onclick="tab('cuad')">👥 Cuadrillas</button>
-    <button class="tab" data-t="alm" onclick="tab('alm')">🗓️ Almanaque</button>
-    <button class="tab" data-t="cie" onclick="tab('cie')">📄 Cierre</button>
-    <button class="tab" data-t="est" onclick="tab('est')">📊 Estadísticas</button>
-    <button class="tab" data-t="jor" onclick="tab('jor')">🧮 Jornada</button>
-  </div>
-
-  <!-- ===== Conciliación ===== -->
-  <section id="tab_conc">
-    <div class="card">
-      <h1>Conciliación</h1>
-      <h2>Revisá los reportes y aprobá, modificá o rechazá. ⚠ = llegó sin autorización cargada. △ pre-autorizada = cruza con una autorización que cargaste (podés aprobarla directo).</h2>
-      <div class="grid g4">
-        <div><label>Desde</label><input type="date" id="cDesde"></div>
-        <div><label>Hasta</label><input type="date" id="cHasta"></div>
-        <div><label>Estado</label><select id="cEstado">
-          <option value="reportado">Pendientes (enviados)</option>
-          <option value="">Todos</option>
-          <option value="autorizado">Autorizados</option>
-          <option value="no_autorizado">Sin autorizar</option>
-          <option value="rechazado">Rechazados</option>
-          <option value="cerrado">Cerrados</option>
-        </select></div>
-        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="cargarConc()">Buscar</button><button class="btn sec" onclick="exportConc()">⬇ Excel</button></div>
-      </div>
-      <div id="concMsg" class="msg"></div>
-    </div>
-    <div class="card"><div id="concList"><div class="load">—</div></div></div>
-  </section>
-
-  <!-- ===== Autorizaciones ===== -->
-  <section id="tab_aut" class="hide">
-    <div class="card">
-      <h1>Autorizar horas extra</h1>
-      <h2>Cargá las autorizaciones (del correo del cliente o internas). Con esto los reportes dejan de salir ⚠.</h2>
-      <div class="grid g4">
-        <div><label>Fecha</label><input type="date" id="aFecha" onchange="previewAut()"></div>
-        <div><label>Desde (opcional)</label><input type="time" id="aIni" onchange="previewAut()" oninput="previewAut()"></div>
-        <div><label>Hasta (opcional)</label><input type="time" id="aFin" onchange="previewAut()" oninput="previewAut()"></div>
-        <div><label>Horas autorizadas (opcional)</label><input type="number" step="0.5" id="aHoras" placeholder="Ej. 3"></div>
-      </div>
-      <div class="grid g2">
-        <div><label>Tipo</label><select id="aTipo"><option value="cliente">Cliente</option><option value="interno">Interno</option></select></div>
-        <div><label>Cliente / nota</label><input id="aCliente" placeholder="Ej. Baker Hughes"></div>
-      </div>
-      <div id="autPrev" class="who" style="margin-top:6px"></div>
-      <label>Personas (un correo puede pedir varias)</label>
-      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
-        <button class="btn sec mini" type="button" onclick="marcarAut(true)">Marcar todos</button>
-        <button class="btn sec mini" type="button" onclick="marcarAut(false)">Ninguno</button>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" id="aSoloBase" style="width:auto" onchange="renderAutChecks()"> Solo base del cliente</label>
-      </div>
-      <div id="autPersonChecks" style="max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
-      <div class="who" style="margin-top:4px">Sin marcar a nadie = aplica a toda la cuadrilla.</div>
-      <label>Foto del correo (opcional)</label>
-      <input type="file" id="aFoto" accept="image/*">
-      <button class="btn" id="aBtn" onclick="guardarAut()" style="margin-top:16px">Guardar autorización</button>
-      <div id="autMsg" class="msg"></div>
-    </div>
-    <div class="card"><h2 style="margin-bottom:10px">Autorizaciones recientes</h2><div id="autList"><div class="load">—</div></div></div>
-  </section>
-
-  <!-- ===== Cuadrillas (armar) ===== -->
-  <section id="tab_cuad" class="hide">
-    <div class="card">
-      <h1>Armar cuadrilla</h1>
-      <h2>Elegí el turno, marcá las personas y el rango de días. Tocá el cuadrito de color de una persona para cambiar su color; si no elegís ninguno, KALU le asigna uno automático. En la app del trabajador el turno le aparece solo.</h2>
-      <div class="grid g3">
-        <div><label>Turno</label><select id="mTurno"></select></div>
-        <div><label>Desde</label><input type="date" id="mDesde"></div>
-        <div><label>Hasta</label><input type="date" id="mHasta"></div>
-      </div>
-      <label>Personas</label>
-      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
-        <button class="btn sec mini" type="button" onclick="marcarTodos(true)">Marcar todos</button>
-        <button class="btn sec mini" type="button" onclick="marcarTodos(false)">Ninguno</button>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" id="mSoloBase" style="width:auto" onchange="renderPersonChecks()"> Solo base del cliente</label>
-      </div>
-      <div id="personChecks" style="max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
-      <button class="btn" id="mBtn" onclick="guardarCuadrillas()" style="margin-top:14px">Asignar a la cuadrilla</button>
-      <div id="almMsg" class="msg"></div>
-    </div>
-    <div class="grid g2">
-      <div class="card"><h2 style="margin-bottom:10px">🌅 Turno mañana</h2><div id="cuadDia"><div class="load">—</div></div></div>
-      <div class="card"><h2 style="margin-bottom:10px">🌙 Turno noche</h2><div id="cuadNoche"><div class="load">—</div></div></div>
-    </div>
-    <details class="card">
-      <summary style="cursor:pointer;font-weight:700;color:var(--tx)">🏷️ Base del cliente — marcar quién está registrado</summary>
-      <p class="who" style="margin:8px 0">El cliente solo pide personas de su base. Marcá quiénes están (los administrativos quedan afuera). Con esto podés filtrar arriba y en Autorizaciones.</p>
-      <div id="baseChecks" style="max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--bg3)"></div>
-      <button class="btn" id="baseBtn" onclick="guardarBase()" style="margin-top:12px">Guardar base del cliente</button>
-      <div id="baseMsg" class="msg"></div>
-    </details>
-  </section>
-
-  <!-- ===== Almanaque (calendario) ===== -->
-  <section id="tab_alm" class="hide">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-        <h1 style="margin:0">Almanaque</h1>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button class="btn sec mini" onclick="mesNav(-1)">‹</button>
-          <b id="mesLbl" style="min-width:150px;text-align:center;display:inline-block">—</b>
-          <button class="btn sec mini" onclick="mesNav(1)">›</button>
-        </div>
-      </div>
-      <h2 style="margin:8px 0 4px">Tocá un día para ver cuadrilla, autorizaciones y reportes. Los días con ⚠ tienen horas sin autorizar.</h2>
-      <div id="cal"><div class="load">—</div></div>
-      <div id="leyendaCal" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px"></div>
-      <div class="who" style="margin-top:8px">
-        <span class="calb rep">🕒 reportes</span> &nbsp; <span class="calb aut">✅ autorizaciones</span> &nbsp; <span class="calb warn">⚠ sin autorizar</span>
-        &nbsp;·&nbsp; <span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:rgba(217,83,79,.35);vertical-align:-1px"></span> domingo
-        &nbsp; <span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:rgba(178,84,242,.4);vertical-align:-1px"></span> festivo
-      </div>
-    </div>
-    <div class="card" id="diaDetalle" style="display:none"></div>
-  </section>
-
-  <!-- ===== Cierre ===== -->
-  <section id="tab_cie" class="hide">
-    <div class="card">
-      <h1>Cierre de período</h1>
-      <h2>Calculá los totales por persona y generá el A.FR009. El corte por defecto es del 21 al 20.</h2>
-      <div class="grid g4">
-        <div><label>Desde</label><input type="date" id="kDesde"></div>
-        <div><label>Hasta</label><input type="date" id="kHasta"></div>
-        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="calcularCierre()">Calcular</button><button class="btn sec" onclick="exportCierre()">⬇ Excel</button></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn sec" id="kCerrar" onclick="cerrarPeriodo()">Cerrar período</button></div>
-      </div>
-      <div id="cieMsg" class="msg"></div>
-    </div>
-    <div class="card"><div id="cieList"><div class="load">Elegí el rango y tocá Calcular.</div></div></div>
-  </section>
-
-  <!-- ===== Estadísticas ===== -->
-  <section id="tab_est" class="hide">
-    <div class="card">
-      <h1>Estadísticas</h1>
-      <h2>Horas por persona, por categoría y por mes. Por defecto cuenta lo autorizado y cerrado.</h2>
-      <div class="grid g4">
-        <div><label>Desde</label><input type="date" id="eDesde"></div>
-        <div><label>Hasta</label><input type="date" id="eHasta"></div>
-        <div><label>Incluir</label><select id="eInc"><option value="ok">Autorizadas + cerradas</option><option value="all">Todas</option></select></div>
-        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="cargarEst()">Calcular</button><button class="btn sec" onclick="exportEst()">⬇ Excel</button></div>
-      </div>
-      <div id="estMsg" class="msg"></div>
-    </div>
-    <div id="estOut"><div class="load">Elegí el rango y tocá Calcular.</div></div>
-  </section>
-
-  <!-- ===== Jornada y ausencias ===== -->
-  <section id="tab_jor" class="hide">
-    <div class="card">
-      <h1>Jornada y ausencias</h1>
-      <h2>Jornada normal ≈42 h/sem (del horario del turno). <b>Horas efectivas = normales + extras − ausencias.</b> El recargo nocturno va aparte (solo pago).</h2>
-      <div class="grid g4">
-        <div><label>Desde</label><input type="date" id="jDesde"></div>
-        <div><label>Hasta</label><input type="date" id="jHasta"></div>
-        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn" onclick="calcularJornada()">Calcular</button><button class="btn sec" onclick="exportJor()">⬇ Excel</button></div>
-        <div></div>
-      </div>
-      <div id="jorMsg" class="msg"></div>
-    </div>
-    <div id="jorOut"><div class="load">Elegí el período y tocá Calcular.</div></div>
-    <div class="card">
-      <h2 style="margin-bottom:10px">Cargar permiso / vacaciones</h2>
-      <div class="grid g4">
-        <div><label>Persona</label><select id="auPersona"></select></div>
-        <div><label>Tipo</label><select id="auTipo"><option value="permiso">Permiso</option><option value="vacaciones">Vacaciones</option><option value="licencia">Licencia</option><option value="incapacidad">Incapacidad</option></select></div>
-        <div><label>Desde</label><input type="date" id="auDesde"></div>
-        <div><label>Hasta</label><input type="date" id="auHasta"></div>
-      </div>
-      <div class="grid g2">
-        <div><label>Motivo (opcional)</label><input id="auMotivo" placeholder="Ej. cita médica"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn" id="auBtn" onclick="guardarAusencia()">Guardar ausencia</button></div>
-      </div>
-      <div id="auMsg" class="msg"></div>
-      <div id="auList" style="margin-top:12px"><div class="load">—</div></div>
-    </div>
-  </section>
-
+<!-- ============ sin acceso / sin padrón ============ -->
+<div class="card hide" id="vBloqueo">
+  <h1 id="bTit">—</h1>
+  <p id="bTxt" class="chico">—</p>
   <a class="volver" href="index.html">← Volver al inicio</a>
+</div>
+
+<!-- ============ home ============ -->
+<div class="hide" id="vHome">
+  <div class="card">
+    <h1 id="hHola">—</h1>
+    <h2 id="hCargo">—</h2>
+    <a class="volver" style="text-align:right;margin:-6px 0 10px" href="javascript:void(0)" onclick="salir()">No soy yo · cambiar cédula</a>
+    <button class="big" onclick="abrirSalida()">🚪 Reportar salida
+      <small>Marcá a qué hora saliste. KALU sabe tu turno y calcula tus horas y de qué tipo.</small></button>
+    <button class="big" onclick="abrir('extra')">➕ Reportar hora extra (manual)
+      <small>Para casos especiales: cargás vos de qué hora a qué hora. El recargo nocturno de tu turno sale solo al reportar la salida.</small></button>
+  </div>
+  <div class="card">
+    <h2 style="margin-bottom:10px">Mis últimos reportes</h2>
+    <div id="hLista"><div class="load">—</div></div>
+  </div>
+  <a class="volver" href="index.html">← Volver al inicio</a>
+</div>
+
+<!-- ============ form: reportar salida ============ -->
+<div class="card hide" id="vSalida">
+  <h1>Reportar salida</h1>
+  <h2 id="sSub">Marcá a qué hora saliste.</h2>
+  <label>Turno de hoy</label>
+  <select id="sTurno" onchange="previewSalida()"></select>
+  <label>Fecha</label>
+  <input type="date" id="sFecha">
+  <label>¿A qué hora saliste?</label>
+  <input type="time" id="sHora">
+  <label>Justificación (si te quedaste extra)</label>
+  <textarea id="sJust" placeholder="Ej. videoscopia prioritaria"></textarea>
+  <div class="prev" id="sPrev">—</div>
+  <button class="btn" id="sBtn" onclick="enviarSalida()">Enviar salida</button>
+  <button class="btn sec" onclick="volverHome()">Cancelar</button>
+  <div class="msg" id="sMsg"></div>
+</div>
+
+<!-- ============ form: hora extra ============ -->
+<div class="card hide" id="vExtra">
+  <h1>Reportar hora extra</h1>
+  <h2>Al terminar la jornada. Tenés hasta 24 h para cargarla.</h2>
+  <label>Fecha</label>
+  <input type="date" id="eFecha">
+  <div class="row2">
+    <div><label>Desde</label><input type="time" id="eIni"></div>
+    <div><label>Hasta</label><input type="time" id="eFin"></div>
+  </div>
+  <label>Lugar de trabajo</label>
+  <input id="eLugar" placeholder="Ej. Base BH, Villavicencio">
+  <label>Justificación</label>
+  <textarea id="eJust" placeholder="Ej. videoscopia prioritaria"></textarea>
+  <div class="prev" id="ePrev">Cargá los horarios para ver el cálculo.</div>
+  <button class="btn" id="eBtn" onclick="enviarExtra()">Enviar reporte</button>
+  <button class="btn sec" onclick="volverHome()">Cancelar</button>
+  <div class="msg" id="eMsg"></div>
+</div>
+
+<!-- ============ form: recargo nocturno ============ -->
+<div class="card hide" id="vNoct">
+  <h1>Recargo nocturno</h1>
+  <h2>Cuadrilla de noche. Cargá el rango de días trabajados.</h2>
+  <div class="row2">
+    <div><label>Desde</label><input type="date" id="nDesde"></div>
+    <div><label>Hasta</label><input type="date" id="nHasta"></div>
+  </div>
+  <div class="prev" id="nPrev">Elegí el rango para ver el recargo calculado.</div>
+  <button class="btn" id="nBtn" onclick="enviarNoct()">Enviar reporte</button>
+  <button class="btn sec" onclick="volverHome()">Cancelar</button>
+  <div class="msg" id="nMsg"></div>
 </div>
 
 <script>
@@ -298,868 +173,297 @@ function _esDomFest(fechaISO,festivos){var set=(festivos instanceof Set)?festivo
 function heCategorizar(rep,festivos,cfg){cfg=cfg||HE_CFG;var cats={HED:0,HEN:0,DOMD:0,DOMN:0,HEFD:0,HEFN:0,RNOCT:0};if(!rep||!rep.fecha||!rep.horaInicio||!rep.horaFin)return cats;var sp=_splitDiurnoNocturno(_toMin(rep.horaInicio),_toMin(rep.horaFin),cfg);var diurH=sp.diurMin/60,noctH=sp.noctMin/60;var domFest=_esDomFest(rep.fecha,festivos);var ord=!!rep.esJornadaOrdinaria;if(domFest){if(ord){cats.DOMD=diurH;cats.DOMN=noctH;}else{cats.HEFD=diurH;cats.HEFN=noctH;}}else{if(ord){cats.RNOCT=noctH;}else{cats.HED=diurH;cats.HEN=noctH;}}for(var k in cats){cats[k]=Math.round(cats[k]*100)/100;}return cats;}
 function heSumar(lista){var t={HED:0,HEN:0,DOMD:0,DOMN:0,HEFD:0,HEFN:0,RNOCT:0};(lista||[]).forEach(function(c){for(var k in t){t[k]+=(c[k]||0);}});for(var k in t){t[k]=Math.round(t[k]*100)/100;}return t;}
 function heTotalHoras(c){var s=0;for(var k in c){s+=(c[k]||0);}return Math.round(s*100)/100;}
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script>
+
+/* ===================== Config KALU ===================== */
 var SB_URL="https://nignqeipzlemwfrwmpip.supabase.co";
 var SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZ25xZWlwemxlbXdmcndtcGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5OTgyNTgsImV4cCI6MjEwMDU3NDI1OH0.bPpfNiOeDfsrYHECSULa9Cwfxa1_QxaWVLKBhTOPwOs";
-var SB_REF="nignqeipzlemwfrwmpip", SESS_KEY="sb-"+SB_REF+"-auth-token";
-var SB_TOKEN=null, MY_UID=null, EMP=null, NOMBRE="", ES_SUPER=false;
-var PERSONAS=[], PMAP={}, TURNOS=[], EMP_NOMBRE="", BRANDING={}, FEST=new Set(), BASE=new Set();
+var SB_TOKEN=null;   /* ingreso por cédula: usamos siempre la anon key */
+var EMP=null, PERSONA=null, NOMBRE="", CARGO="";
+var TURNOS=[], TURNO_NOCHE=null, FESTIVOS=new Set();
 var $=function(id){return document.getElementById(id);};
-function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
-function setMsg(id,t,c){ var m=$(id); if(m){ m.textContent=t||""; m.className="msg "+(c||""); } }
-function fmtFecha(iso){ if(!iso)return"—"; var p=String(iso).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0].slice(2); }
-function horarioTxt(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "🌙 cuadrilla"; if(!r.hora_inicio && !r.hora_fin) return "—"; return (r.hora_inicio||"?")+"–"+(r.hora_fin||"?"); }
+function ver(id){ ["vCarga","vLogin","vBloqueo","vHome","vSalida","vExtra","vNoct"].forEach(function(v){ $(v).classList.toggle("hide", v!==id); }); }
+function setMsg(id,t,c){ var m=$(id); m.textContent=t||""; m.className="msg "+(c||""); }
 
-/* ---- sesión / token ---- */
-function readSession(){ try{ return JSON.parse(localStorage.getItem(SESS_KEY)||"null"); }catch(_){ return null; } }
-function saveSession(d){ try{ localStorage.setItem(SESS_KEY, JSON.stringify(d)); }catch(_){} }
+/* ===================== HTTP + cédula recordada ===================== */
 async function sbFetch(path, opts){
   opts=opts||{}; opts.headers=Object.assign({ apikey:SB_ANON, "Content-Type":"application/json" }, opts.headers||{});
-  if(SB_TOKEN) opts.headers["Authorization"]="Bearer "+SB_TOKEN;
+  opts.headers["Authorization"]="Bearer "+(SB_TOKEN||SB_ANON);
   var res=await fetch(SB_URL+path, opts);
   var txt=await res.text(); var data=null; try{ data=txt?JSON.parse(txt):null; }catch(e){ data=txt; }
   if(!res.ok) throw new Error((data&&(data.message||data.error_description||data.msg))||("HTTP "+res.status));
   return data;
 }
-async function asegurarToken(){
-  var s=readSession(); if(!s||!s.access_token) return false;
-  var now=Math.floor(Date.now()/1000);
-  if(s.expires_at && s.expires_at<now+60){
-    try{ var d=await sbFetch("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:JSON.stringify({refresh_token:s.refresh_token})});
-      if(!d||!d.access_token) return false; saveSession(d); SB_TOKEN=d.access_token; return true; }catch(_){ return false; }
-  }
-  SB_TOKEN=s.access_token; return true;
-}
+async function sbRpc(fn, args){ return await sbFetch("/rest/v1/rpc/"+fn, {method:"POST", body:JSON.stringify(args||{})}); }
+var CED_KEY="hhee-ced";
+function recordarCed(c){ try{ localStorage.setItem(CED_KEY,c); }catch(_){} }
+function cedGuardada(){ try{ return localStorage.getItem(CED_KEY)||""; }catch(_){ return ""; } }
+function olvidarCed(){ try{ localStorage.removeItem(CED_KEY); }catch(_){} }
 
-/* ---- boot ---- */
-(async function(){
-  if(!(await asegurarToken())){ return bloqueo("Entrá primero","Esta consola usa tu cuenta de KALU.<br><a href='ingreso.html'>Ir a ingresar →</a>"); }
-  try{
-    var u=await sbFetch("/auth/v1/user",{}); MY_UID=u.id;
-    var perf=await sbFetch("/rest/v1/perfiles?id=eq."+u.id+"&select=empresa_id,nombre,rol,es_super,estado,acceso_consola");
-    if(!perf||!perf.length){ return bloqueo("Sin perfil","Tu usuario no tiene perfil. Contactá a tu administrador."); }
-    var p=perf[0];
-    if(p.estado && p.estado!=="activo"){ return bloqueo("Cuenta "+p.estado,"Contactá a tu administrador."); }
-    var gestor = p.es_super || ["hse","supervisor","admin"].indexOf(p.rol)>=0 || p.acceso_consola;
-    if(!gestor){ return bloqueo("Sin acceso","Este panel es para gestores. Si tenés que gestionar horas extra, pedí acceso a tu administrador."); }
-    EMP=p.empresa_id; NOMBRE=p.nombre||""; ES_SUPER=!!p.es_super; loadCuadColor();
-    $("who").textContent=NOMBRE+" · gestor";
-    try{ var e=await sbFetch("/rest/v1/empresas?id=eq."+EMP+"&select=razon_social,branding"); if(e&&e[0]){ EMP_NOMBRE=e[0].razon_social||""; BRANDING=e[0].branding||{}; } }catch(_){}
-    PERSONAS=await sbFetch("/rest/v1/personas?empresa_id=eq."+EMP+"&vigente=eq.true&order=nombre&select=id,nombre,cedula,cargo");
-    PERSONAS.forEach(function(x){ PMAP[x.id]=x; });
-    try{ TURNOS=await sbFetch("/rest/v1/he_turnos?empresa_id=eq."+EMP+"&activo=eq.true&select=id,nombre,tipo,horarios"); }catch(_){ TURNOS=[]; }
-    try{ var fs=await sbFetch("/rest/v1/he_festivos?select=fecha"); FEST=new Set((fs||[]).map(function(x){return String(x.fecha).slice(0,10);})); }catch(_){}
-    try{ var bc=await sbFetch("/rest/v1/he_base_cliente?empresa_id=eq."+EMP+"&select=persona_id"); BASE=new Set((bc||[]).map(function(x){return x.persona_id;})); }catch(_){}
-    poblarSelects(); defaultsFechas();
-    $("vCarga").classList.add("hide"); $("app").classList.remove("hide");
-    cargarConc();
-  }catch(e){ bloqueo("No se pudo abrir",(e&&e.message)||"Probá de nuevo."); }
+/* ===================== Boot (ingreso por cédula) ===================== */
+(async function boot(){
+  var c=cedGuardada();
+  if(!c){ ver("vLogin"); return; }
+  await ingresarCon(c, true);
 })();
-function bloqueo(t,html){ $("vCarga").classList.add("hide"); $("bTit").textContent=t; $("bTxt").innerHTML=html; $("vBloqueo").classList.remove("hide"); }
 
-function optPersonas(sel, incTodos){
-  var o=(incTodos?'<option value="">— Toda la cuadrilla —</option>':'');
-  o+=PERSONAS.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+(p.cargo?(' · '+esc(p.cargo)):'')+'</option>';}).join("");
-  sel.innerHTML=o;
-}
-function poblarSelects(){
-  renderAutChecks();
-  $("mTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos)</option>';
-  renderPersonChecks();
-  renderBaseChecks();
-}
-function _persListaFiltrada(soloBase){ return soloBase?PERSONAS.filter(function(p){return BASE.has(p.id);}):PERSONAS; }
-function _chkRow(cls,p){
-  var nm='<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span>';
-  if(cls==="pchk"){ /* en Cuadrillas el puntito es editable: se puede elegir el color de la persona */
-    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px">'
-      +'<input type="color" value="'+colorPersona(p.id)+'" onchange="setCuadColor(\''+p.id+'\',this.value)" title="Color de '+esc(p.nombre)+' — dejalo así para el automático" style="width:26px;height:22px;border:none;background:none;padding:0;flex:none;cursor:pointer">'
-      +'<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;margin:0">'
-      +'<input type="checkbox" class="pchk" value="'+p.id+'" style="width:auto;flex:none">'+nm+'</label></div>';
+async function ingresarCon(ced, silencioso){
+  ced=String(ced||"").replace(/\D/g,"");
+  if(!ced){ ver("vLogin"); return; }
+  var b=$("lBtn");
+  if(!silencioso){ if(b){ b.disabled=true; b.textContent="Entrando…"; } setMsg("lMsg",""); }
+  ver("vCarga");
+  try{
+    var d=await sbRpc("hhee_login",{p_ced:ced});
+    if(!d||!d.ok){
+      olvidarCed(); ver("vLogin"); if($("lCed")) $("lCed").value=ced;
+      setMsg("lMsg",(d&&d.error)||"No pudimos identificarte.","err"); return;
+    }
+    EMP=d.empresa.id; PERSONA=d.persona.id; NOMBRE=d.persona.nombre||""; CARGO=d.persona.cargo||"";
+    TURNOS=d.turnos||[]; TURNO_NOCHE=(TURNOS||[]).filter(function(t){return t.tipo==="noche";})[0]||null;
+    FESTIVOS=new Set(d.festivos||[]);
+    recordarCed(ced);
+    entrarHome();
+  }catch(e){
+    ver("vLogin"); if($("lCed")) $("lCed").value=ced;
+    setMsg("lMsg",(e&&e.message)||"No se pudo conectar. Probá con señal.","err");
+  }finally{
+    if(!silencioso && b){ b.disabled=false; b.textContent="Entrar →"; }
   }
-  return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
-  +'<input type="checkbox" class="'+cls+'" value="'+p.id+'" style="width:auto;flex:none">'
-  +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'+nm+'</label>'; }
-function renderAutChecks(){
-  var box=$("autPersonChecks"); if(!box) return;
-  var lst=_persListaFiltrada($("aSoloBase")&&$("aSoloBase").checked);
-  box.innerHTML=lst.length?lst.map(function(p){return _chkRow("achk",p);}).join(""):'<p class="who" style="margin:4px">Nadie en la base del cliente todavía.</p>';
 }
-function marcarAut(v){ Array.prototype.forEach.call(document.querySelectorAll('#autPersonChecks .achk'),function(c){c.checked=v;}); }
-function renderPersonChecks(){
-  var box=$("personChecks"); if(!box) return;
-  var lst=_persListaFiltrada($("mSoloBase")&&$("mSoloBase").checked);
-  box.innerHTML=lst.length?lst.map(function(p){return _chkRow("pchk",p);}).join(""):'<p class="who" style="margin:4px">Nadie en la base del cliente todavía.</p>';
-}
-function marcarTodos(v){ Array.prototype.forEach.call(document.querySelectorAll('#personChecks .pchk'),function(c){c.checked=v;}); }
-function renderBaseChecks(){
-  var box=$("baseChecks"); if(!box) return;
-  box.innerHTML=PERSONAS.map(function(p){ return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">'
-    +'<input type="checkbox" class="bchk" value="'+p.id+'" '+(BASE.has(p.id)?'checked':'')+' style="width:auto;flex:none">'
-    +'<span class="dchip" style="background:'+colorPersona(p.id)+'"></span>'
-    +'<span style="flex:1">'+esc(p.nombre)+(p.cargo?(' · <span class="who">'+esc(p.cargo)+'</span>'):'')+'</span></label>'; }).join("");
-}
-async function guardarBase(){
-  var b=$("baseBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("baseMsg","");
-  try{
-    if(!(await asegurarToken())) return;
-    var sel=Array.prototype.map.call(document.querySelectorAll('#baseChecks .bchk:checked'),function(c){return c.value;});
-    await sbFetch("/rest/v1/he_base_cliente?empresa_id=eq."+EMP,{method:"DELETE",headers:{Prefer:"return=minimal"}});
-    if(sel.length){ await sbFetch("/rest/v1/he_base_cliente",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(sel.map(function(pid){return {empresa_id:EMP,persona_id:pid};}))}); }
-    BASE=new Set(sel);
-    setMsg("baseMsg","✓ Base del cliente guardada ("+sel.length+").","ok");
-    renderPersonChecks(); renderAutChecks();
-  }catch(e){ setMsg("baseMsg",(e&&e.message)||"No se pudo guardar.","err"); }
-  finally{ b.disabled=false; b.textContent="Guardar base del cliente"; }
-}
-async function cargarCuad(){
-  var bd=$("cuadDia"), bn=$("cuadNoche");
-  if(bd) bd.innerHTML='<div class="load">…</div>'; if(bn) bn.innerHTML='<div class="load">…</div>';
-  if(!(await asegurarToken())) return;
-  try{
-    var hoy=isoD(new Date());
-    var rows=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_hasta=gte."+hoy+"&order=fecha_desde.asc&select=id,persona_id,turno_id,fecha_desde,fecha_hasta,color");
-    CUAD_ROWS=rows||[];
-    var tmap={}; TURNOS.forEach(function(t){tmap[t.id]=t;});
-    function pintar(box,tipo){
-      if(!box) return;
-      var rs=(rows||[]).filter(function(r){ var t=tmap[r.turno_id]; return t && t.tipo===tipo; });
-      if(!rs.length){ box.innerHTML='<p class="who">Nadie asignado.</p>'; return; }
-      box.innerHTML=rs.map(function(r){ var per=(PMAP[r.persona_id]||{}).nombre||"—";
-        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
-          +'<span class="dchip" style="background:'+colorPersona(r.persona_id)+'"></span>'
-          +'<span style="flex:1">'+esc(per)+'<br><span class="who">'+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</span></span>'
-          +'<button class="btn sec mini" onclick="editarCuad(\''+r.id+'\')" title="Editar período o quitar un día">✎</button> '
-          +'<button class="btn no mini" onclick="borrarCuadrilla(\''+r.id+'\')" title="Borrar todo el período">✕</button></div>'; }).join("");
-    }
-    pintar(bd,"dia"); pintar(bn,"noche");
-  }catch(e){ if(bd) bd.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
-}
-function defaultsFechas(){
-  var hoy=new Date(); var y=hoy.getFullYear(), m=hoy.getMonth();
-  // período por defecto: 21 del mes anterior → 20 de este mes
-  var desde=new Date(y,m-1,21), hasta=new Date(y,m,20);
-  var iso=function(d){return d.toISOString().slice(0,10);};
-  ["cDesde","kDesde"].forEach(function(id){$(id).value=iso(desde);});
-  ["cHasta","kHasta"].forEach(function(id){$(id).value=iso(hasta);});
-  $("aFecha").value=iso(hoy); $("mDesde").value=iso(hoy); $("mHasta").value=iso(hoy);
-  $("eDesde").value=y+"-01-01"; $("eHasta").value=iso(hoy);
-}
-function tab(t){
-  ["conc","aut","cuad","alm","cie","est","jor"].forEach(function(x){ $("tab_"+x).classList.toggle("hide", x!==t);
-    document.querySelector('.tab[data-t="'+x+'"]').classList.toggle("on", x===t); });
-  if(t==="aut") cargarAut(); if(t==="cuad") cargarCuad(); if(t==="alm") renderMes(); if(t==="est") cargarEst(); if(t==="jor") cargarJor();
-}
-/* Color fijo por persona (determinístico) para distinguir en el almanaque */
-var PALETA=["#F28C00","#00D4FF","#3DBE8B","#E4A14B","#B084F2","#FF6B6B","#4C8DFF","#F25CA2","#7ED957","#F2C14E","#59C3C3","#C08457","#9AA0FF","#E8637E","#5AD1A0","#FFB03B"];
-/* Color por persona: si el gestor eligió uno, se respeta; si no, se asigna automático (hash). */
-var CUAD_COLOR=null;
-function _colorKey(){ return "kaluCuadColor_"+(EMP||""); }
-function loadCuadColor(){ try{ CUAD_COLOR=JSON.parse(localStorage.getItem(_colorKey())||"{}")||{}; }catch(e){ CUAD_COLOR={}; } }
-function setCuadColor(pid,val){ if(CUAD_COLOR===null) loadCuadColor(); if(val){ CUAD_COLOR[pid]=val; } else { delete CUAD_COLOR[pid]; } try{ localStorage.setItem(_colorKey(),JSON.stringify(CUAD_COLOR)); }catch(e){} }
-function colorAuto(pid){ var h=0,s=String(pid); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return PALETA[h%PALETA.length]; }
-function colorPersona(pid){ if(!pid) return "#888"; if(CUAD_COLOR===null) loadCuadColor(); if(CUAD_COLOR&&CUAD_COLOR[pid]) return CUAD_COLOR[pid]; return colorAuto(pid); }
+function identificar(){ ingresarCon($("lCed").value, false); }
+function salir(){ olvidarCed(); PERSONA=null; EMP=null; if($("lCed")) $("lCed").value=""; setMsg("lMsg",""); ver("vLogin"); }
 
-/* ============ CONCILIACIÓN ============ */
-var CONC_ROWS=[], CONC_AUTS=[], CONC_CRUCES=[], MOD_R=null, MOD_TURNO=null, CUAD_ROWS=[], CUAD_E=null;
-/* segmentos del turno para una fecha (calcado de la app del trabajador) */
-function segmentosDe(t,iso){ if(!t||!t.horarios) return []; var d=new Date(iso+"T00:00:00"),w=d.getDay(),h=t.horarios; if(w===0)return h.dom||[]; if(w===6)return h.sab||[]; return h["L-V"]||[]; }
-/* ¿solapan dos rangos horarios (mismo día, admite cruce de medianoche)? */
-function _solapanHoras(i1,f1,i2,f2){ var a0=_toMin(i1),a1=_toMin(f1),b0=_toMin(i2),b1=_toMin(f2); if(a1<=a0)a1+=1440; if(b1<=b0)b1+=1440; return (Math.min(a1,b1)-Math.max(a0,b0))>0; }
-/* autorización que cruza con un reporte: misma fecha, misma persona (o "toda la cuadrilla"), y por hora si ambos la tienen */
-function autDeReporte(r){
-  if(!r) return null;
-  var list=(CONC_AUTS||[]).filter(function(a){
-    if(a.fecha!==r.fecha) return false;
-    if(a.persona_id && a.persona_id!==r.persona_id) return false;
-    if(a.hora_inicio && a.hora_fin && r.hora_inicio && r.hora_fin){ return _solapanHoras(r.hora_inicio,r.hora_fin,a.hora_inicio,a.hora_fin); }
-    return true; /* si alguno no tiene hora, cruza por día */
-  });
-  list.sort(function(x,y){ return (((y.persona_id?1:0)+(y.hora_inicio?1:0))-((x.persona_id?1:0)+(x.hora_inicio?1:0))); });
-  return list[0]||null;
+function bloqueo(tit,txt){ $("bTit").textContent=tit; $("bTxt").textContent=txt; ver("vBloqueo"); }
+function entrarHome(){
+  $("hHola").textContent="Hola, "+(NOMBRE.split(" ")[0]||NOMBRE)+".";
+  $("hCargo").textContent=CARGO||"";
+  ver("vHome"); cargarMisReportes();
 }
-function _autTxt(a){ var t=a.es_interno?"interna":"del correo"; var hor=(a.hora_inicio&&a.hora_fin)?(" "+a.hora_inicio+"–"+a.hora_fin):" (día completo)"; var ha=horasAut(a); return "Autorización "+t+hor+(ha!=null?(" · "+ha+" h"):"")+(a.nota?" · "+a.nota:""); }
-function _esPend(r){ return ["reportado","no_autorizado"].indexOf(r.estado)>=0; }
-/* horas que ampara la autorización: usa el campo horas; si no, las deriva del horario */
-function horasAut(a){ if(a.horas!=null) return Math.round(a.horas*100)/100; if(a.hora_inicio&&a.hora_fin){ return heTotalHoras(heCategorizar({fecha:a.fecha,horaInicio:a.hora_inicio,horaFin:a.hora_fin,esJornadaOrdinaria:false},FEST)); } return null; }
-/* coincide = lo reportado NO supera lo autorizado (la autorización es el tope). Sin cantidad (día completo) = coincide. */
-function compararAut(r,a){ var hr=heTotalHoras(r.categorias||{}); var ha=horasAut(a); if(ha==null) return {coincide:true,ha:null,hr:hr}; return {coincide:(hr<=ha+0.02),ha:ha,hr:hr}; }
-function autoCruceOn(){ try{ return localStorage.getItem("kaluAutoCruce_"+(EMP||""))!=="0"; }catch(e){ return true; } }
-function setAutoCruce(v){ try{ localStorage.setItem("kaluAutoCruce_"+(EMP||""), v?"1":"0"); }catch(e){} cargarConc(); }
-var CONC_NOCOIN={}, CONC_AUTOMSG=0;
-async function cargarConc(_noAuto){
-  var box=$("concList"); box.innerHTML='<div class="load">Cargando…</div>'; setMsg("concMsg","");
-  if(!(await asegurarToken())) return bloqueo("Sesión vencida","Entrá de nuevo.<br><a href='ingreso.html'>Ir a ingresar →</a>");
-  var d=$("cDesde").value, h=$("cHasta").value, est=$("cEstado").value;
-  var q="/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&order=fecha.desc,creado_at.desc&select=id,persona_id,fecha,hora_inicio,hora_fin,lugar,justificacion,categorias,estado,fuera_de_plan,es_jornada_ordinaria,motivo";
-  if(est) q+="&estado=eq."+est;
+function volverHome(){ ver("vHome"); }
+
+/* ===================== Home: mis reportes ===================== */
+var MIS=[], EDIT_ID=null, MIS_MES=null;
+var _MESN_MIS=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function horarioLinea(r){ if(r.es_jornada_ordinaria && !r.hora_inicio) return "🌙 cuadrilla"; if(!r.hora_inicio && !r.hora_fin) return "—"; return (r.hora_inicio||"?")+"–"+(r.hora_fin||"?"); }
+function misMesNav(n){ if(!MIS_MES) return; MIS_MES=new Date(MIS_MES.getFullYear(),MIS_MES.getMonth()+n,1); pintarMis(); }
+async function cargarMisReportes(){
+  var box=$("hLista"); box.innerHTML='<div class="load">Cargando…</div>';
+  if(!PERSONA){ ver("vLogin"); return; }
   try{
-    var rows=await sbFetch(q);
-    try{ CONC_AUTS=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=id,persona_id,fecha,hora_inicio,hora_fin,horas,es_interno,nota")||[]; }catch(_){ CONC_AUTS=[]; }
-    CONC_ROWS=rows||[]; CONC_CRUCES=[]; CONC_NOCOIN={};
-    if(!rows.length){ box.innerHTML='<p class="who">No hay reportes con ese filtro.</p>'; return; }
-    /* clasificar pendientes que cruzan con una autorización: coinciden (dentro de lo autorizado) vs no coinciden (reportan más) */
-    rows.forEach(function(r){ if(_esPend(r)){ var a=autDeReporte(r); if(a){ var c=compararAut(r,a); if(c.coincide) CONC_CRUCES.push(r.id); else CONC_NOCOIN[r.id]={ha:c.ha,hr:c.hr,a:a}; } } });
-    /* auto-autorizar las que coinciden (sin clic), si está activado */
-    if(!_noAuto && autoCruceOn() && CONC_CRUCES.length){
-      try{ await sbFetch("/rest/v1/he_reporte?id=in.("+CONC_CRUCES.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})});
-        CONC_AUTOMSG=CONC_CRUCES.length; return cargarConc(true);
-      }catch(_){}
-    }
-    var nNo=Object.keys(CONC_NOCOIN).length, auto=autoCruceOn();
-    var barra='<div style="margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
-      +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx2);margin:0"><input type="checkbox" '+(auto?'checked':'')+' style="width:auto" onchange="setAutoCruce(this.checked)"> Autorizar solo cuando la cantidad coincide con la autorización</label>'
-      +(nNo?('<span class="flag">⚠ '+nNo+' no coincide(n) con lo autorizado — revisá.</span>'):'')
-      +((!auto && CONC_CRUCES.length)?('<button class="btn mini ok" onclick="aprobarCoincidencias()">△ Aprobar las '+CONC_CRUCES.length+' que coinciden</button>'):'')
-      +'</div>';
-    var html='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th><th></th></tr>';
-    rows.forEach(function(r){
-      var per=PMAP[r.persona_id]||{}; var tot=heTotalHoras(r.categorias||{});
+    var rows=await sbRpc("hhee_mis_reportes",{p_persona:PERSONA,p_emp:EMP});
+    MIS=rows||[];
+    if(!MIS.length){ box.innerHTML='<p class="chico">Todavía no cargaste ningún reporte.</p>'; return; }
+    var f0=String(MIS[0].fecha).slice(0,7); MIS_MES=new Date(f0+"-01T00:00:00"); // arranca en el mes del último reporte
+    pintarMis();
+  }catch(e){ box.innerHTML='<p class="chico" style="color:#ff8a82">No se pudieron cargar tus reportes ('+esc(e.message)+').</p>'; }
+}
+function pintarMis(){
+  var box=$("hLista"); var y=MIS_MES.getFullYear(), mo=MIS_MES.getMonth();
+  var ym=y+"-"+("0"+(mo+1)).slice(-2);
+  var mes=MIS.filter(function(r){return String(r.fecha).slice(0,7)===ym;});
+  var nav='<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">'
+    +'<button class="btn sec" style="padding:8px 13px;margin:0" onclick="misMesNav(-1)">‹</button>'
+    +'<b style="min-width:150px;text-align:center">'+_MESN_MIS[mo]+' '+y+'</b>'
+    +'<button class="btn sec" style="padding:8px 13px;margin:0" onclick="misMesNav(1)">›</button></div>';
+  var CATS=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"], sum={}; CATS.forEach(function(k){sum[k]=0;});
+  mes.forEach(function(r){ var c=r.categorias||{}; CATS.forEach(function(k){ sum[k]+=(c[k]||0); }); });
+  var hHombre=sum.HED+sum.HEN+sum.DOMD+sum.DOMN+sum.HEFD+sum.HEFN;
+  var chips=CATS.filter(function(k){return sum[k];}).map(function(k){return '<span class="rsum">'+k+' <b>'+Math.round(sum[k]*100)/100+'</b></span>';}).join("");
+  var resumen='<div class="resbox"><div class="chico" style="margin-bottom:6px">Resumen de '+_MESN_MIS[mo]+' '+y+'</div>'
+    +'<div class="rsline"><span class="rsum big">Horas extra <b>'+(Math.round(hHombre*100)/100)+'</b></span>'
+    +'<span class="rsum big cy">Recargo nocturno <b>'+(Math.round(sum.RNOCT*100)/100)+'</b></span></div>'
+    +(chips?'<div class="rsline" style="margin-top:6px">'+chips+'</div>':'')+'</div>';
+  var lista= mes.length? mes.map(function(r){
+      var tot=heTotalHoras(r.categorias||{});
       var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
-      var hor=horarioTxt(r);
-      var nc=CONC_NOCOIN[r.id];
-      var coin=_esPend(r)&&CONC_CRUCES.indexOf(r.id)>=0;
-      var marca = nc ? ('<br><span class="flag" style="color:var(--amber)" title="'+esc(_autTxt(nc.a))+'">⚠ no coincide · reportó '+nc.hr+' h, autorizado '+nc.ha+' h</span>')
-                     : (coin ? ('<br><span class="flag" style="color:var(--ok)" title="'+esc(_autTxt(autDeReporte(r)))+'">△ coincide con la autorización</span>')
-                     : (r.fuera_de_plan?'<br><span class="flag">⚠ sin autorización</span>':''));
-      html+='<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per.nombre||"—")+'<br><span class="who">'+esc(per.cargo||"")+'</span></td>'
-        +'<td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+' h)</span>'
-        +marca
-        +(r.justificacion?'<br><span class="who">'+esc(r.justificacion)+'</span>':'')
-        +(r.motivo?'<br><span class="flag">rechazo: '+esc(r.motivo)+'</span>':'')+'</td>'
-        +'<td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td>'
-        +'<td style="white-space:nowrap">'+(_esPend(r)
-            ?('<button class="btn mini ok" onclick="aprobar(\''+r.id+'\')">Aprobar</button> <button class="btn mini sec" onclick="modificar(\''+r.id+'\')">✎ Modificar</button> <button class="btn mini no" onclick="rechazar(\''+r.id+'\')">Rechazar</button>')
-            :'')+'</td></tr>';
-    });
-    box.innerHTML=barra+html+'</table>';
-    if(CONC_AUTOMSG){ setMsg("concMsg","✓ "+CONC_AUTOMSG+" autorizada(s) automáticamente por coincidir con la autorización cargada.","ok"); CONC_AUTOMSG=0; }
-  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
+      return '<div class="rep"><div class="d"><b>'+fmtFecha(r.fecha)+'</b> · '+tot+' h · <span class="hh">'+esc(horarioLinea(r))+'</span>'
+        +'<br><small>'+esc(cats)+'</small>'
+        +(r.fuera_de_plan?'<div class="flag">⚠ fuera de lo planificado</div>':'')
+        +(r.estado==="rechazado"?'<div class="flag" style="color:#ff8a82">✕ Rechazado'+(r.motivo?': '+esc(r.motivo):'')+'</div><button class="btn mini" style="margin-top:6px;padding:7px 12px" onclick="corregir(\''+r.id+'\')">✎ Corregir y reenviar</button>':'')
+        +'</div><span class="chip '+r.estado+'">'+etiqEstado(r.estado)+'</span></div>';
+    }).join("") : '<p class="chico">Sin reportes en '+_MESN_MIS[mo]+'.</p>';
+  box.innerHTML=nav+resumen+lista;
 }
-function etiq(e){ return {reportado:"Enviado",autorizado:"Autorizado",no_autorizado:"Sin autorizar",rechazado:"Rechazado",cerrado:"Cerrado"}[e]||e; }
-async function aprobar(id){
-  if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); cargarConc(true); }
-  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
+function corregir(id){
+  var r=MIS.filter(function(x){return x.id===id;})[0]; if(!r) return;
+  EDIT_ID=id;
+  $("eFecha").value=String(r.fecha).slice(0,10);
+  $("eIni").value=r.hora_inicio||""; $("eFin").value=r.hora_fin||"";
+  $("eLugar").value=r.lugar||""; $("eJust").value=r.justificacion||"";
+  setMsg("eMsg", r.motivo?("Rechazado: "+r.motivo+". Corregí y reenviá."):"Corregí y reenviá.", "err");
+  $("eBtn").textContent="Reenviar corregido"; previewExtra(); ver("vExtra");
 }
-async function aprobarCoincidencias(){
-  if(!CONC_CRUCES||!CONC_CRUCES.length) return;
-  if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_reporte?id=in.("+CONC_CRUCES.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"autorizado",fuera_de_plan:false,aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:null})}); CONC_AUTOMSG=CONC_CRUCES.length; cargarConc(true); }
-  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al aprobar","err"); }
-}
-async function rechazar(id){
-  var mot=prompt("Motivo del rechazo (obligatorio):"); if(mot==null) return;
-  mot=mot.trim(); if(!mot){ setMsg("concMsg","El rechazo necesita un motivo.","err"); return; }
-  if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"rechazado",aprobado_por:MY_UID,aprobado_at:new Date().toISOString(),motivo:mot})}); cargarConc(); }
-  catch(e){ setMsg("concMsg",(e&&e.message)||"Error al rechazar","err"); }
-}
-/* ---- Modificar un reporte desde el panel (sin rebotarlo al trabajador) ---- */
-function _recompSalida(turno,iso,exit){
-  var segs=segmentosDe(turno,iso); if(!segs.length) return null;
-  var fin=segs[segs.length-1][1], exitMin=_toMin(exit), endMin=_toMin(fin), acc=[];
-  segs.forEach(function(s){ var iniMin=_toMin(s[0]), finMin=Math.min(_toMin(s[1]),exitMin);
-    if(finMin>iniMin){ var finH=(finMin===_toMin(s[1]))?s[1]:exit; acc.push(heCategorizar({fecha:iso,horaInicio:s[0],horaFin:finH,esJornadaOrdinaria:true},FEST)); } });
-  if(exitMin>endMin){ acc.push(heCategorizar({fecha:iso,horaInicio:fin,horaFin:exit,esJornadaOrdinaria:false},FEST)); }
-  return { cats:heSumar(acc), ini:segs[0][0], fin:exit };
-}
-async function modificar(id){
-  var r=(CONC_ROWS||[]).filter(function(x){return x.id===id;})[0]; if(!r) return;
-  MOD_R=r; MOD_TURNO=null;
-  var esSalida = !!(r.es_jornada_ordinaria && r.hora_inicio);
-  if(esSalida){ /* buscar el turno de la cuadrilla ese día para recalcular bien la parte normal vs extra */
-    try{ var cu=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&persona_id=eq."+r.persona_id+"&fecha_desde=lte."+r.fecha+"&fecha_hasta=gte."+r.fecha+"&select=turno_id,fecha_desde,fecha_hasta");
-      if(cu&&cu.length){ var best=cu[0]; cu.forEach(function(c){ if((new Date(c.fecha_hasta)-new Date(c.fecha_desde))<(new Date(best.fecha_hasta)-new Date(best.fecha_desde))) best=c; }); var tm={}; TURNOS.forEach(function(t){tm[t.id]=t;}); MOD_TURNO=tm[best.turno_id]||null; }
-    }catch(_){}
-  }
-  var per=(PMAP[r.persona_id]||{}).nombre||"—";
-  var iniLock = !!MOD_TURNO;
-  var nota = MOD_TURNO
-    ? 'Reporte de <b>salida de cuadrilla</b>: KALU toma la entrada del turno y cuenta como <b>hora extra</b> lo que pase de la salida del turno. Cambiá la <b>hora de salida real</b> y recalcula solo.'
-    : 'Editá el horario y KALU recalcula las categorías (se toma como hora extra).';
-  var ov='<div id="modOv" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)modCerrar()">'
-    +'<div style="background:var(--bg2,#14161B);border:1px solid var(--line);border-radius:14px;max-width:420px;width:100%;padding:18px">'
-    +'<h2 style="color:var(--tx);margin:0 0 4px">Modificar reporte</h2>'
-    +'<p class="who" style="margin:0 0 10px">'+esc(per)+' · '+fmtFecha(r.fecha)+'</p>'
-    +'<p class="who" style="margin:0 0 12px;font-size:12px">'+nota+'</p>'
-    +'<div class="grid g2">'
-    +'<div><label>Entrada</label><input type="time" id="modIni" value="'+esc(r.hora_inicio||"")+'" '+(iniLock?'disabled':'')+' onchange="modPreview()"></div>'
-    +'<div><label>Salida</label><input type="time" id="modFin" value="'+esc(r.hora_fin||"")+'" onchange="modPreview()"></div>'
-    +'</div>'
-    +'<label>Qué hizo / justificación</label><textarea id="modJust" rows="2">'+esc(r.justificacion||"")+'</textarea>'
-    +'<div id="modPrev" style="margin:10px 0;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--tx2)"></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'
-    +'<button class="btn ok" onclick="modGuardar(true)">Guardar y aprobar</button>'
-    +'<button class="btn sec" onclick="modGuardar(false)">Solo guardar</button>'
-    +'<button class="btn sec" onclick="modCerrar()">Cancelar</button></div>'
-    +'</div></div>';
-  document.body.insertAdjacentHTML('beforeend',ov); modPreview();
-}
-function _modCalc(){
-  var r=MOD_R; if(!r) return null;
-  var ini=$("modIni")?$("modIni").value:r.hora_inicio, fin=$("modFin")?$("modFin").value:r.hora_fin;
-  if(MOD_TURNO){ if(!fin) return null; return _recompSalida(MOD_TURNO,r.fecha,fin); }
-  if(!ini||!fin) return null;
-  return { cats:heCategorizar({fecha:r.fecha,horaInicio:ini,horaFin:fin,esJornadaOrdinaria:!!r.es_jornada_ordinaria},FEST), ini:ini, fin:fin };
-}
-function modPreview(){
-  var box=$("modPrev"); if(!box) return; var c=_modCalc();
-  if(!c){ box.innerHTML='<span class="who">Completá el horario para ver el cálculo.</span>'; return; }
-  var parts=CATS7.filter(function(k){return c.cats[k];}).map(function(k){return CATLBL[k]+" "+c.cats[k]+" h";});
-  box.innerHTML= parts.length? ('Queda: <b style="color:var(--tx)">'+parts.join(" · ")+'</b> <span class="who">· total '+heTotalHoras(c.cats)+' h</span>') : 'Ese horario da 0 h.';
-}
-function modCerrar(){ var o=$("modOv"); if(o) o.remove(); MOD_R=null; MOD_TURNO=null; }
-async function modGuardar(aprob){
-  var r=MOD_R; if(!r) return; var c=_modCalc();
-  if(!c){ alert("Completá el horario."); return; }
-  if(!(await asegurarToken())) return;
-  var just=($("modJust")?$("modJust").value.trim():"")||null;
-  var patch={ hora_inicio:c.ini, hora_fin:c.fin, categorias:c.cats, justificacion:just };
-  if(aprob){ patch.estado="autorizado"; patch.fuera_de_plan=false; patch.aprobado_por=MY_UID; patch.aprobado_at=new Date().toISOString(); patch.motivo=null; }
-  try{ await sbFetch("/rest/v1/he_reporte?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(patch)}); modCerrar(); setMsg("concMsg",aprob?"✓ Modificado y aprobado.":"✓ Cambios guardados.","ok"); cargarConc(); }
-  catch(e){ alert((e&&e.message)||"No se pudo guardar."); }
-}
+function etiqEstado(e){ return {reportado:"Enviado",autorizado:"Autorizado",no_autorizado:"Sin autorizar",rechazado:"Rechazado",cerrado:"Cerrado"}[e]||e; }
+function fmtFecha(iso){ if(!iso)return"—"; var p=String(iso).slice(0,10).split("-"); return p[2]+"/"+p[1]+"/"+p[0].slice(2); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 
-/* ============ AUTORIZACIONES ============ */
-async function subirFoto(file){
-  var ext=(file.name.split(".").pop()||"jpg").toLowerCase();
-  var path=EMP+"/hhee/"+Date.now()+"_"+Math.random().toString(16).slice(2)+"."+ext;
-  var res=await fetch(SB_URL+"/storage/v1/object/evidencias/"+path,{method:"POST",headers:{apikey:SB_ANON,Authorization:"Bearer "+SB_TOKEN,"Content-Type":file.type||"application/octet-stream","x-upsert":"true"},body:file});
-  if(!res.ok) throw new Error("No se pudo subir la foto ("+res.status+")");
-  return SB_URL+"/storage/v1/object/public/evidencias/"+path;
+/* ===================== Abrir formularios ===================== */
+function abrir(cual){
+  var hoy=new Date().toISOString().slice(0,10);
+  if(cual==="extra"){ EDIT_ID=null; $("eBtn").textContent="Enviar reporte"; $("eFecha").value=hoy; $("eIni").value=""; $("eFin").value=""; $("eLugar").value=""; $("eJust").value=""; setMsg("eMsg",""); previewExtra(); ver("vExtra"); }
+  else { $("nDesde").value=hoy; $("nHasta").value=hoy; setMsg("nMsg",""); previewNoct(); ver("vNoct"); }
 }
-function previewAut(){
-  var f=$("aFecha").value, i=$("aIni").value, fin=$("aFin").value, box=$("autPrev");
-  if(!box) return;
-  if(!f||!i||!fin){ box.innerHTML=""; return; }
-  var c=heCategorizar({fecha:f,horaInicio:i,horaFin:fin,esJornadaOrdinaria:false}, FEST);
-  var parts=CATS7.filter(function(k){return c[k];}).map(function(k){return CATLBL[k]+" "+c[k]+" h";});
-  box.innerHTML= parts.length? 'Sería: <b style="color:var(--tx)">'+parts.join(" · ")+'</b>' : "Ese horario da 0 h.";
-}
-async function guardarAut(){
-  var f=$("aFecha").value; if(!f){ setMsg("autMsg","Poné la fecha.","err"); return; }
-  var b=$("aBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("autMsg","");
-  try{
-    if(!(await asegurarToken())) return;
-    var foto=null, file=$("aFoto").files[0];
-    if(file){ foto=await subirFoto(file); }
-    var sel=Array.prototype.map.call(document.querySelectorAll('#autPersonChecks .achk:checked'),function(c){return c.value;});
-    var base={ empresa_id:EMP, fecha:f, hora_inicio:$("aIni").value||null, hora_fin:$("aFin").value||null,
-      horas:$("aHoras").value?parseFloat($("aHoras").value):null,
-      es_interno:$("aTipo").value==="interno", nota:$("aCliente").value.trim()||null, foto_correo_url:foto, creado_por:MY_UID };
-    var regs = sel.length ? sel.map(function(pid){ return Object.assign({persona_id:pid}, base); }) : [Object.assign({persona_id:null}, base)];
-    await sbFetch("/rest/v1/he_autorizacion",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(regs)});
-    setMsg("autMsg","✓ "+regs.length+" autorización(es) guardada(s).","ok"); $("aHoras").value=""; $("aCliente").value=""; $("aFoto").value=""; $("aIni").value=""; $("aFin").value=""; $("autPrev").innerHTML=""; marcarAut(false);
-    cargarAut();
-  }catch(e){ setMsg("autMsg",(e&&e.message)||"No se pudo guardar.","err"); }
-  finally{ b.disabled=false; b.textContent="Guardar autorización"; }
-}
-async function cargarAut(){
-  var box=$("autList"); box.innerHTML='<div class="load">Cargando…</div>';
-  if(!(await asegurarToken())) return;
-  try{
-    var rows=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&order=fecha.desc,creado_at.desc&limit=30&select=fecha,persona_id,hora_inicio,hora_fin,horas,es_interno,nota,foto_correo_url");
-    if(!rows.length){ box.innerHTML='<p class="who">Todavía no hay autorizaciones.</p>'; return; }
-    box.innerHTML='<table><tr><th>Fecha</th><th>Persona</th><th>Horario</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+rows.map(function(r){
-      var per=r.persona_id?(PMAP[r.persona_id]||{}).nombre:"Toda la cuadrilla";
-      var hor=(r.hora_inicio&&r.hora_fin)?(r.hora_inicio+"–"+r.hora_fin):"—";
-      return '<tr><td>'+fmtFecha(r.fecha)+'</td><td>'+esc(per||"—")+'</td><td>'+esc(hor)+'</td><td>'+(r.horas!=null?r.horas:"—")+'</td>'
-        +'<td>'+(r.es_interno?'Interno':'Cliente')+'</td><td>'+esc(r.nota||"—")+'</td>'
-        +'<td>'+(r.foto_correo_url?'<a href="'+esc(r.foto_correo_url)+'" target="_blank">ver</a>':'—')+'</td></tr>';
-    }).join("")+'</table>';
-  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
-}
+["eFecha","eIni","eFin"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewExtra(); }); });
+["nDesde","nHasta"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewNoct(); }); });
+["sFecha","sHora"].forEach(function(id){ document.addEventListener("input",function(e){ if(e.target&&e.target.id===id) previewSalida(); }); });
 
-/* ============ ALMANAQUE ============ */
-async function guardarCuadrillas(){
-  var tid=$("mTurno").value, d1=$("mDesde").value, d2=$("mHasta").value;
-  var sel=Array.prototype.map.call(document.querySelectorAll('#personChecks .pchk:checked'),function(c){return c.value;});
-  if(!tid){ setMsg("almMsg","Elegí el turno.","err"); return; }
-  if(!sel.length){ setMsg("almMsg","Marcá al menos una persona.","err"); return; }
-  if(!d1||!d2||d1>d2){ setMsg("almMsg","Revisá las fechas (desde/hasta).","err"); return; }
-  var b=$("mBtn"); b.disabled=true; b.textContent="Asignando…"; setMsg("almMsg","");
+function tipoDia(iso){ var d=new Date(iso+"T00:00:00"); if(FESTIVOS.has(iso)) return "festivo"; if(d.getDay()===0) return "dominical"; return "semanal"; }
+function catResumen(c){ var m={HED:"extra diurna",HEN:"extra nocturna",DOMD:"recargo dominical/festivo",DOMN:"recargo domin./fest. nocturno",HEFD:"extra dominical/festiva",HEFN:"extra domin./fest. nocturna",RNOCT:"recargo nocturno"};
+  var parts=Object.keys(c).filter(function(k){return c[k];}).map(function(k){return "<b>"+c[k]+" h</b> "+m[k];}); return parts.length?parts.join(" · "):'<span class="z">0 h</span>'; }
+
+/* ===================== Preview / envío: hora extra ===================== */
+function previewExtra(){
+  var f=$("eFecha").value, i=$("eIni").value, fin=$("eFin").value;
+  if(!f||!i||!fin){ $("ePrev").innerHTML="Cargá fecha y horarios para ver el cálculo."; return; }
+  var c=heCategorizar({fecha:f,horaInicio:i,horaFin:fin,esJornadaOrdinaria:false}, FESTIVOS);
+  var tot=heTotalHoras(c);
+  $("ePrev").innerHTML="KALU calcula: "+catResumen(c)+' <span class="z">· total '+tot+' h</span>';
+}
+async function enviarExtra(){
+  var f=$("eFecha").value, i=$("eIni").value, fin=$("eFin").value, lugar=$("eLugar").value.trim(), just=$("eJust").value.trim();
+  if(!f||!i||!fin){ setMsg("eMsg","Completá fecha, desde y hasta.","err"); return; }
+  var c=heCategorizar({fecha:f,horaInicio:i,horaFin:fin,esJornadaOrdinaria:false}, FESTIVOS);
+  if(heTotalHoras(c)<=0){ setMsg("eMsg","El horario da 0 horas. Revisá.","err"); return; }
+  var b=$("eBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("eMsg","");
   try{
-    if(!(await asegurarToken())) return;
-    var regs=sel.map(function(pid){ return { empresa_id:EMP, persona_id:pid, turno_id:tid, fecha_desde:d1, fecha_hasta:d2, color:colorPersona(pid), creado_por:MY_UID }; });
-    await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(regs)});
-    setMsg("almMsg","✓ "+regs.length+" persona(s) asignada(s) a "+turnoNom(tid)+".","ok");
-    marcarTodos(false); cargarCuad(); renderMes();
-  }catch(e){ setMsg("almMsg",(e&&e.message)||"No se pudo asignar.","err"); }
-  finally{ b.disabled=false; b.textContent="Asignar a la cuadrilla"; }
-}
-var ALM_MES=null, ALM_SEL=null, ALM_CACHE={cuad:[],reps:[],auts:[]};
-var _MESN=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-function isoD(d){ var m=d.getMonth()+1,dd=d.getDate(); return d.getFullYear()+"-"+(m<10?"0"+m:m)+"-"+(dd<10?"0"+dd:dd); }
-function turnoNom(id){ var t=TURNOS.filter(function(x){return x.id===id;})[0]; return t?t.nombre:"turno"; }
-/* excepción de un día: si una persona tiene 2 asignaciones que cubren el día, gana la más específica (menor rango) */
-function _spanC(c){ return (new Date(c.fecha_hasta)-new Date(c.fecha_desde)); }
-function efectivas(cuList){ var by={}; cuList.forEach(function(c){ var e=by[c.persona_id]; if(!e || _spanC(c)<_spanC(e)) by[c.persona_id]=c; }); return Object.keys(by).map(function(k){return by[k];}); }
-function pendiente(r){ return (r.estado==="reportado"||r.estado==="no_autorizado")||r.fuera_de_plan; }
-function mesNav(n){ if(!ALM_MES){ var d=new Date(); ALM_MES=new Date(d.getFullYear(),d.getMonth(),1); } ALM_MES=new Date(ALM_MES.getFullYear(),ALM_MES.getMonth()+n,1); ALM_SEL=null; $("diaDetalle").style.display="none"; renderMes(); }
-async function renderMes(){
-  if(!ALM_MES){ var d=new Date(); ALM_MES=new Date(d.getFullYear(),d.getMonth(),1); }
-  var y=ALM_MES.getFullYear(), mo=ALM_MES.getMonth();
-  $("mesLbl").textContent=_MESN[mo]+" "+y;
-  var ini=new Date(y,mo,1), fin=new Date(y,mo+1,0), isoIni=isoD(ini), isoFin=isoD(fin);
-  $("cal").innerHTML='<div class="load">Cargando…</div>';
-  if(!(await asegurarToken())) return;
-  try{
-    var cuad=await sbFetch("/rest/v1/he_cuadrilla?empresa_id=eq."+EMP+"&fecha_desde=lte."+isoFin+"&fecha_hasta=gte."+isoIni+"&select=id,persona_id,turno_id,fecha_desde,fecha_hasta,color");
-    var reps=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+isoIni+"&fecha=lte."+isoFin+"&select=id,persona_id,fecha,categorias,estado,fuera_de_plan,es_jornada_ordinaria,hora_inicio,hora_fin,justificacion,motivo");
-    var auts=await sbFetch("/rest/v1/he_autorizacion?empresa_id=eq."+EMP+"&fecha=gte."+isoIni+"&fecha=lte."+isoFin+"&select=id,persona_id,fecha,horas,es_interno,nota,foto_correo_url");
-    ALM_CACHE={cuad:cuad||[],reps:reps||[],auts:auts||[]};
-    pintarCal(y,mo);
-  }catch(e){ $("cal").innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
-}
-function pintarCal(y,mo){
-  var fin=new Date(y,mo+1,0).getDate();
-  var offset=(new Date(y,mo,1).getDay()+6)%7; // lunes=0
-  var hoy=isoD(new Date());
-  var dow=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-  var h='<div class="calgrid">'+dow.map(function(d){return '<div class="caldow">'+d+'</div>';}).join("");
-  for(var i=0;i<offset;i++){ h+='<div class="calcell empty"></div>'; }
-  for(var day=1;day<=fin;day++){
-    var diso=isoD(new Date(y,mo,day));
-    var cu=efectivas(ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;}));
-    var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
-    var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
-    var sinAut=rp.filter(pendiente).length;
-    var dd=new Date(y,mo,day).getDay(), esDom=dd===0, esFest=FEST.has(diso);
-    var dots=cu.slice(0,8).map(function(c){return '<span class="caldot" style="background:'+colorPersona(c.persona_id)+'" title="'+esc((PMAP[c.persona_id]||{}).nombre||"")+'"></span>';}).join("");
-    var badges='';
-    if(rp.length) badges+='<span class="calb rep">🕒'+rp.length+'</span>';
-    if(au.length) badges+='<span class="calb aut">✅'+au.length+'</span>';
-    if(sinAut)    badges+='<span class="calb warn">⚠'+sinAut+'</span>';
-    h+='<div class="calcell'+(diso===hoy?" hoy":"")+(diso===ALM_SEL?" sel":"")+(sinAut?" warn":"")+(esFest?" fest":(esDom?" dom":""))+'"'+(esFest?' title="Festivo"':(esDom?' title="Domingo"':''))+' onclick="verDia(\''+diso+'\')">'
-      +'<div class="calnum">'+day+(esFest?'<span class="ff">FER</span>':(esDom?'<span class="ff">DOM</span>':''))+'</div>'
-      +(dots?'<div class="caldots">'+dots+'</div>':'')
-      +'<div class="calbadges">'+badges+'</div></div>';
-  }
-  h+='</div>';
-  $("cal").innerHTML=h;
-  // leyenda: personas en cuadrilla este mes, con su color
-  var seen={}, leg=[];
-  ALM_CACHE.cuad.forEach(function(c){ if(!seen[c.persona_id]){ seen[c.persona_id]=1; leg.push(c.persona_id); } });
-  var lb=$("leyendaCal");
-  if(lb){ lb.innerHTML = leg.length? leg.map(function(pid){ return '<span class="who"><span class="dchip" style="background:'+colorPersona(pid)+'"></span>'+esc((PMAP[pid]||{}).nombre||"—")+'</span>'; }).join("") : '<span class="who">Sin cuadrillas cargadas este mes.</span>'; }
-}
-function verDia(diso){
-  ALM_SEL=diso;
-  var cu=efectivas(ALM_CACHE.cuad.filter(function(c){return c.fecha_desde<=diso && c.fecha_hasta>=diso;}));
-  var rp=ALM_CACHE.reps.filter(function(r){return String(r.fecha).slice(0,10)===diso;});
-  var au=ALM_CACHE.auts.filter(function(a){return String(a.fecha).slice(0,10)===diso;});
-  var box=$("diaDetalle"); box.style.display="block";
-  var h='<div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin:0">'+fmtFecha(diso)+'</h1>'
-    +'<button class="btn sec mini" onclick="cerrarDia()">✕</button></div>';
-  // Cuadrilla
-  h+='<h2 style="margin:14px 0 6px">Cuadrilla del día</h2>';
-  if(!cu.length){ h+='<p class="who">Nadie asignado a cuadrilla este día.</p>'; }
-  else {
-    var tmapD={}; TURNOS.forEach(function(t){tmapD[t.id]=t;});
-    var filaC=function(c){ var p=PMAP[c.persona_id]||{};
-      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'
-        +'<span class="dchip" style="background:'+colorPersona(c.persona_id)+'"></span>'
-        +'<span style="flex:1"><b>'+esc(p.nombre||"—")+'</b> <span class="who">('+fmtFecha(c.fecha_desde)+'→'+fmtFecha(c.fecha_hasta)+')</span></span>'
-        +'<button class="btn no mini" onclick="borrarCuadrilla(\''+c.id+'\')">Borrar</button></div>'; };
-    var grupo=function(tipo,titulo){ var rs=cu.filter(function(c){ var t=tmapD[c.turno_id]; return t&&t.tipo===tipo; });
-      return '<div style="margin-bottom:6px"><div class="who" style="font-weight:700;margin:4px 0">'+titulo+' ('+rs.length+')</div>'+(rs.length?rs.map(filaC).join(""):'<p class="who" style="margin:2px 0">—</p>')+'</div>'; };
-    h+=grupo("dia","🌅 Turno mañana")+grupo("noche","🌙 Turno noche");
-    var otros=cu.filter(function(c){ var t=tmapD[c.turno_id]; return !t; });
-    if(otros.length) h+='<div class="who" style="font-weight:700;margin:4px 0">Sin turno</div>'+otros.map(filaC).join("");
-  }
-  // Autorizaciones
-  h+='<h2 style="margin:16px 0 6px">Autorizaciones</h2>';
-  h+= au.length? '<table><tr><th>Persona</th><th>Horas</th><th>Tipo</th><th>Nota</th><th>Correo</th></tr>'+au.map(function(a){
-      var per=a.persona_id?((PMAP[a.persona_id]||{}).nombre||"—"):"Toda la cuadrilla";
-      return '<tr><td>'+esc(per)+'</td><td>'+(a.horas!=null?a.horas:"—")+'</td><td>'+(a.es_interno?"Interno":"Cliente")+'</td><td>'+esc(a.nota||"—")+'</td><td>'+(a.foto_correo_url?'<a href="'+esc(a.foto_correo_url)+'" target="_blank">ver</a>':"—")+'</td></tr>';
-    }).join("")+'</table>':'<p class="who">Sin autorizaciones cargadas este día.</p>';
-  // Reportes
-  h+='<h2 style="margin:16px 0 6px">Reportes del día</h2>';
-  h+= rp.length? '<table><tr><th>Persona</th><th>Horario</th><th>Cálculo</th><th>Estado</th></tr>'+rp.map(function(r){
-      var per=(PMAP[r.persona_id]||{}).nombre||"—"; var tot=heTotalHoras(r.categorias||{});
-      var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
-      var hor=horarioTxt(r);
-      return '<tr><td>'+esc(per)+'</td><td>'+esc(hor)+'</td><td>'+esc(cats)+' <span class="tot">('+tot+'h)</span>'+(r.fuera_de_plan?' <span class="flag">⚠</span>':'')+'</td><td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td></tr>';
-    }).join("")+'</table>':'<p class="who">Sin reportes este día.</p>';
-  box.innerHTML=h;
-  pintarCal(ALM_MES.getFullYear(),ALM_MES.getMonth());
-  box.scrollIntoView({behavior:"smooth",block:"nearest"});
-}
-function cerrarDia(){ ALM_SEL=null; $("diaDetalle").style.display="none"; pintarCal(ALM_MES.getFullYear(),ALM_MES.getMonth()); }
-async function borrarCuadrilla(id){
-  if(!confirm("¿Borrar esta asignación de cuadrilla?")) return;
-  if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_cuadrilla?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}});
-    var sel=ALM_SEL; await renderMes(); cargarCuad(); if(sel) verDia(sel);
-  }catch(e){ alert("No se pudo borrar: "+((e&&e.message)||"")); }
-}
-/* ---- Editar el período de una cuadrilla: acortar/extender, quitar un día, o partir ---- */
-function _addDias(iso,n){ var d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
-function editarCuad(id){
-  var r=(CUAD_ROWS||[]).filter(function(x){return x.id===id;})[0]; if(!r) return;
-  CUAD_E=r;
-  var per=(PMAP[r.persona_id]||{}).nombre||"—";
-  var tn=(TURNOS.filter(function(t){return t.id===r.turno_id;})[0]||{}).nombre||"";
-  var ov='<div id="cuadOv" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)cuadCerrar()">'
-    +'<div style="background:var(--bg2);border:1px solid var(--line);border-radius:14px;max-width:430px;width:100%;padding:18px">'
-    +'<h2 style="color:var(--tx);margin:0 0 4px">Editar cuadrilla</h2>'
-    +'<p class="who" style="margin:0 0 12px">'+esc(per)+' · '+esc(tn)+' · '+fmtFecha(r.fecha_desde)+' → '+fmtFecha(r.fecha_hasta)+'</p>'
-    +'<label style="font-weight:700;color:var(--tx)">Cambiar el período (acortar o extender)</label>'
-    +'<div class="grid g2">'
-    +'<div><label>Desde</label><input type="date" id="ceDesde" value="'+esc(r.fecha_desde)+'"></div>'
-    +'<div><label>Hasta</label><input type="date" id="ceHasta" value="'+esc(r.fecha_hasta)+'"></div>'
-    +'</div>'
-    +'<button class="btn ok" style="margin-top:10px" onclick="cuadGuardarRango()">Guardar período</button>'
-    +'<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">'
-    +'<label style="font-weight:700;color:var(--tx)">Quitar un día puntual</label>'
-    +'<p class="who" style="margin:2px 0 6px;font-size:12px">Ej.: estaba del '+fmtFecha(r.fecha_desde)+' al '+fmtFecha(r.fecha_hasta)+' pero un día no vino. Elegí ese día y KALU recorta (o parte) el período sin borrar el resto.</p>'
-    +'<div style="display:flex;gap:8px;align-items:flex-end">'
-    +'<div style="flex:1"><label>Día a quitar</label><input type="date" id="ceQuita" min="'+esc(r.fecha_desde)+'" max="'+esc(r.fecha_hasta)+'"></div>'
-    +'<button class="btn sec" onclick="cuadQuitarDia()">Quitar ese día</button></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">'
-    +'<button class="btn sec" onclick="cuadCerrar()">Cerrar</button></div>'
-    +'</div></div>';
-  document.body.insertAdjacentHTML('beforeend',ov);
-}
-function cuadCerrar(){ var o=$("cuadOv"); if(o) o.remove(); CUAD_E=null; }
-async function _cuadRefrescar(){ var sel=ALM_SEL; await renderMes(); cargarCuad(); if(sel) verDia(sel); }
-async function cuadGuardarRango(){
-  var r=CUAD_E; if(!r) return;
-  var d1=$("ceDesde").value, d2=$("ceHasta").value;
-  if(!d1||!d2){ alert("Poné las dos fechas."); return; }
-  if(d1>d2){ alert("La fecha Desde no puede ser mayor que Hasta."); return; }
-  if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_desde:d1,fecha_hasta:d2})});
-    cuadCerrar(); await _cuadRefrescar();
-  }catch(e){ alert("No se pudo guardar: "+((e&&e.message)||"")); }
-}
-async function cuadQuitarDia(){
-  var r=CUAD_E; if(!r) return;
-  var q=$("ceQuita").value; if(!q){ alert("Elegí el día a quitar."); return; }
-  if(q<r.fecha_desde||q>r.fecha_hasta){ alert("Ese día está fuera del período."); return; }
-  if(!(await asegurarToken())) return;
-  try{
-    if(q===r.fecha_desde && q===r.fecha_hasta){
-      if(!confirm("Es el único día del período. ¿Borrar la asignación?")) return;
-      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"DELETE",headers:{Prefer:"return=minimal"}});
-    } else if(q===r.fecha_desde){
-      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_desde:_addDias(q,1)})});
-    } else if(q===r.fecha_hasta){
-      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_hasta:_addDias(q,-1)})});
-    } else { /* día en el medio: parte en dos */
-      await sbFetch("/rest/v1/he_cuadrilla?id=eq."+r.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({fecha_hasta:_addDias(q,-1)})});
-      await sbFetch("/rest/v1/he_cuadrilla",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify([{ empresa_id:EMP, persona_id:r.persona_id, turno_id:r.turno_id, fecha_desde:_addDias(q,1), fecha_hasta:r.fecha_hasta, color:colorPersona(r.persona_id), creado_por:MY_UID }])});
+    if(!PERSONA){ ver("vLogin"); return; }
+    var fuera=await esFueraDePlan(f);
+    var p={ fecha:f, hora_inicio:i, hora_fin:fin, lugar:lugar||null, justificacion:just||null,
+      tipo_dia:tipoDia(f), es_jornada_ordinaria:false, categorias:c, fuera_de_plan:fuera };
+    if(EDIT_ID){
+      await sbRpc("hhee_corregir",{p_id:EDIT_ID,p_persona:PERSONA,p:p});
+      setMsg("eMsg","✓ Reenviado corregido.","ok");
+    } else {
+      await sbRpc("hhee_reportar",{p_persona:PERSONA,p_emp:EMP,p:p});
+      setMsg("eMsg","✓ Reporte enviado.","ok");
     }
-    cuadCerrar(); await _cuadRefrescar();
-  }catch(e){ alert("No se pudo quitar el día: "+((e&&e.message)||"")); }
+    EDIT_ID=null;
+    setTimeout(function(){ volverHome(); cargarMisReportes(); }, 700);
+  }catch(e){ setMsg("eMsg",(e&&e.message)||"No se pudo enviar.","err"); }
+  finally{ b.disabled=false; b.textContent="Enviar reporte"; }
+}
+async function esFueraDePlan(fecha){
+  try{ return !(await sbRpc("hhee_autorizada",{p_persona:PERSONA,p_emp:EMP,p_fecha:fecha})); }
+  catch(_){ return true; }
 }
 
-/* ============ CIERRE ============ */
-var CIERRE_DATA=null;
-async function calcularCierre(){
-  var box=$("cieList"); box.innerHTML='<div class="load">Calculando…</div>'; setMsg("cieMsg","");
-  if(!(await asegurarToken())) return;
-  var d=$("kDesde").value, h=$("kHasta").value;
-  try{
-    var rows=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=id,persona_id,fecha,hora_inicio,hora_fin,lugar,justificacion,categorias,estado,es_jornada_ordinaria");
-    var pend=rows.filter(function(r){return r.estado==="reportado"||r.estado==="no_autorizado";}).length;
-    var buenos=rows.filter(function(r){return r.estado==="autorizado"||r.estado==="cerrado";});
-    var byP={};
-    buenos.forEach(function(r){ (byP[r.persona_id]=byP[r.persona_id]||[]).push(r); });
-    var ids=Object.keys(byP);
-    if(!ids.length){ box.innerHTML='<p class="who">No hay reportes autorizados en el rango. '+(pend?('Hay '+pend+' pendientes de conciliar.'):'')+'</p>'; CIERRE_DATA=null; return; }
-    CIERRE_DATA={desde:d,hasta:h,byP:byP,corr:{}};
-    try{ var cz=await sbFetch("/rest/v1/he_cierre?empresa_id=eq."+EMP+"&periodo_desde=eq."+d+"&periodo_hasta=eq."+h+"&select=persona_id,correlativo"); (cz||[]).forEach(function(z){ if(z.correlativo!=null) CIERRE_DATA.corr[z.persona_id]=z.correlativo; }); }catch(_){}
-    var html=(pend?('<p class="flag">⚠ Hay '+pend+' reporte(s) sin conciliar en el rango — no entran al cierre hasta aprobarlos.</p>'):'');
-    html+='<table><tr><th>Persona</th><th>HED</th><th>HEN</th><th>DOMD</th><th>DOMN</th><th>HEFD</th><th>HEFN</th><th>RNOCT</th><th>Total</th><th></th></tr>';
-    ids.forEach(function(pid){
-      var tot=heSumar(byP[pid].map(function(r){return r.categorias||{};}));
-      var per=PMAP[pid]||{}; var cc=CIERRE_DATA.corr[pid];
-      html+='<tr><td>'+esc(per.nombre||"—")+'</td>'+["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"].map(function(k){return '<td>'+(tot[k]||0)+'</td>';}).join("")
-        +'<td class="tot">'+heTotalHoras(tot)+'</td><td><button class="btn mini" onclick="pdfFHA(\''+pid+'\')">A.FR009'+(cc!=null?(' N°'+cc):'')+'</button></td></tr>';
-    });
-    box.innerHTML=html+'</table>';
-  }catch(e){ box.innerHTML='<p class="msg err">No se pudo calcular ('+esc(e.message)+').</p>'; }
-}
-function pdfFHA(pid){
-  if(!CIERRE_DATA||!CIERRE_DATA.byP[pid]) return;
-  var per=PMAP[pid]||{}, rows=CIERRE_DATA.byP[pid];
-  var jsPDF=window.jspdf.jsPDF; var doc=new jsPDF({unit:"pt",format:"a4"});
-  var W=doc.internal.pageSize.getWidth();
-  doc.setFontSize(15); doc.setTextColor(180,30,30);
-  doc.text("Formato individual de horas extras y auxilios extralegales", W/2, 46, {align:"center"});
-  doc.setFontSize(9); doc.setTextColor(120);
-  var cc=(CIERRE_DATA.corr&&CIERRE_DATA.corr[pid]!=null)?("A.FR009 N° "+CIERRE_DATA.corr[pid]):"A.FR009 · BORRADOR (sin correlativo hasta cerrar el período)";
-  doc.text(cc+" · Versión 002 · "+(EMP_NOMBRE||""), W/2, 62, {align:"center"});
-  doc.setTextColor(20); doc.setFontSize(10);
-  doc.text("Nombre: "+(per.nombre||""), 40, 92);
-  doc.text("Identificación: "+(per.cedula||""), 40, 108);
-  doc.text("Cargo: "+(per.cargo||""), 40, 124);
-  doc.text("Período: "+fmtFecha(CIERRE_DATA.desde)+"  a  "+fmtFecha(CIERRE_DATA.hasta), 40, 140);
-  var body=rows.slice().sort(function(a,b){return a.fecha<b.fecha?-1:1;}).map(function(r){
-    var c=r.categorias||{};
-    return [ fmtFecha(r.fecha), r.lugar||"", (r.es_jornada_ordinaria?"cuadrilla":((r.hora_inicio||"")+"–"+(r.hora_fin||""))),
-      c.HED||"", c.HEN||"", c.DOMD||"", c.DOMN||"", c.RNOCT||"", r.justificacion||"" ];
-  });
-  var tot=heSumar(rows.map(function(r){return r.categorias||{};}));
-  body.push([{content:"TOTAL",styles:{fontStyle:"bold"}},"","",tot.HED||0,tot.HEN||0,tot.DOMD||0,tot.DOMN||0,tot.RNOCT||0,""]);
-  doc.autoTable({ startY:154, head:[["Fecha","Lugar","Horario","HED","HEN","DOMD","DOMN","RNOCT","Justificación"]], body:body,
-    styles:{fontSize:8,cellPadding:3}, headStyles:{fillColor:[40,40,40]}, columnStyles:{8:{cellWidth:120}} });
-  var y=doc.lastAutoTable.finalY+18; doc.setFontSize(7.5); doc.setTextColor(120);
-  doc.text("HED: extra diurna (06–19h) · HEN: extra nocturna (19–06h) · DOMD/DOMN: recargo dominical/festivo diurno/nocturno · RNOCT: recargo nocturno.", 40, y, {maxWidth:W-80});
-  var cnum=(CIERRE_DATA.corr&&CIERRE_DATA.corr[pid]!=null)?("AFR009-"+CIERRE_DATA.corr[pid]+"_"):"";
-  doc.save("A.FR009_"+cnum+(per.nombre||"persona").replace(/\s+/g,"_")+".pdf");
-}
-async function cerrarPeriodo(){
-  if(!CIERRE_DATA){ setMsg("cieMsg","Primero calculá el período.","err"); return; }
-  if(!confirm("¿Cerrar el período "+fmtFecha(CIERRE_DATA.desde)+" a "+fmtFecha(CIERRE_DATA.hasta)+"? Los reportes autorizados quedan como 'cerrado'.")) return;
-  if(!(await asegurarToken())) return;
-  setMsg("cieMsg","Cerrando…","");
-  try{
-    var ids=Object.keys(CIERRE_DATA.byP), cierres=[];
-    // correlativo de auditoría: siguiente número por empresa
-    var mx=0; try{ var last=await sbFetch("/rest/v1/he_cierre?empresa_id=eq."+EMP+"&correlativo=not.is.null&order=correlativo.desc&limit=1&select=correlativo"); if(last&&last[0]&&last[0].correlativo) mx=last[0].correlativo; }catch(_){}
-    // reemplazar cierres previos de este mismo período (re-cierre)
-    try{ await sbFetch("/rest/v1/he_cierre?empresa_id=eq."+EMP+"&periodo_desde=eq."+CIERRE_DATA.desde+"&periodo_hasta=eq."+CIERRE_DATA.hasta,{method:"DELETE",headers:{Prefer:"return=minimal"}}); }catch(_){}
-    for(var i=0;i<ids.length;i++){ var pid=ids[i]; var rows=CIERRE_DATA.byP[pid];
-      var tot=heSumar(rows.map(function(r){return r.categorias||{};}));
-      cierres.push({empresa_id:EMP,persona_id:pid,periodo_desde:CIERRE_DATA.desde,periodo_hasta:CIERRE_DATA.hasta,totales:tot,correlativo:(++mx),aprobado_por:MY_UID,aprobado_at:new Date().toISOString()});
-      var rids=rows.filter(function(r){return r.estado==="autorizado";}).map(function(r){return r.id;});
-      if(rids.length){ await sbFetch("/rest/v1/he_reporte?id=in.("+rids.join(",")+")",{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({estado:"cerrado"})}); }
-    }
-    await sbFetch("/rest/v1/he_cierre",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(cierres)});
-    setMsg("cieMsg","✓ Período cerrado ("+ids.length+" persona(s)). Correlativos A.FR009 asignados.","ok"); calcularCierre();
-  }catch(e){ setMsg("cieMsg",(e&&e.message)||"No se pudo cerrar.","err"); }
-}
-
-/* ============ ESTADÍSTICAS ============ */
-var CATS7=["HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT"];
-var CATLBL={HED:"Extra diurna",HEN:"Extra nocturna",DOMD:"Recargo dom/fest",DOMN:"Recargo dom/fest noct.",HEFD:"Extra dom/fest",HEFN:"Extra dom/fest noct.",RNOCT:"Recargo nocturno"};
-var _MESN2=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-function r1(x){ return Math.round(x*10)/10; }
-var EST_ROWS=[], EST_F={persona:null,cat:null,mes:null}, EST_HIST=true;
-function estHist(){ EST_HIST=!EST_HIST; renderEst(); }
-async function cargarEst(){
-  var out=$("estOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("estMsg","");
-  if(!(await asegurarToken())) return;
-  var d=$("eDesde").value, h=$("eHasta").value, inc=$("eInc").value;
-  var q="/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&select=persona_id,fecha,categorias,estado,justificacion,hora_inicio,hora_fin,es_jornada_ordinaria,origen";
-  if(inc==="ok") q+="&estado=in.(autorizado,cerrado)";
-  try{
-    var rows=await sbFetch(q);
-    EST_ROWS=rows||[]; EST_F={persona:null,cat:null,mes:null};
-    if(!EST_ROWS.length){ out.innerHTML='<div class="card"><p class="who">No hay datos en ese rango.</p></div>'; return; }
-    renderEst();
-  }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }
-}
-function estFiltrar(k,v){ EST_F[k]=(EST_F[k]===v?null:v); renderEst(); }
-function estQuitar(k){ if(k){ EST_F[k]=null; } else { EST_F={persona:null,cat:null,mes:null}; } renderEst(); }
-function _lblF(k,v){ if(k==="persona")return (PMAP[v]||{}).nombre||"persona"; if(k==="cat")return CATLBL[v]; return _MESN2[parseInt(v.slice(5,7),10)-1]+" "+v.slice(0,4); }
-function _fchip(k){ return '<span style="display:inline-block;background:var(--bg2);border:1px solid var(--nar);border-radius:999px;padding:2px 6px 2px 10px;margin-right:6px;font-size:12px">'+esc(_lblF(k,EST_F[k]))+' <a onclick="estQuitar(\''+k+'\')" style="cursor:pointer;color:var(--mal);font-weight:700;margin-left:2px">✕</a></span>'; }
-function renderEst(){
-  var F=EST_F, val=function(r,k){ return (r.categorias||{})[k]||0; };
-  var rows = EST_HIST ? EST_ROWS : EST_ROWS.filter(function(r){ return r.origen!=="historico"; });
-  function pasa(r,excl){
-    if(F.persona && excl!=="persona" && r.persona_id!==F.persona) return false;
-    if(F.mes && excl!=="mes" && String(r.fecha).slice(0,7)!==F.mes) return false;
-    if(F.cat && excl!=="cat" && !(val(r,F.cat)>0)) return false;
-    return true;
-  }
-  function catset(excl){ return (F.cat && excl!=="cat")?[F.cat]:CATS7; }
-  // por persona (aplica mes+cat)
-  var perP={}, cP=catset("persona");
-  rows.forEach(function(r){ if(!pasa(r,"persona"))return; var pid=r.persona_id; if(!perP[pid])perP[pid]={tot:0}; cP.forEach(function(k){var v=val(r,k);perP[pid][k]=(perP[pid][k]||0)+v;perP[pid].tot+=v;}); });
-  var barP=function(o){ return F.cat ? (o.tot||0) : ((o.tot||0)-(o.RNOCT||0)); }; // horas hombre salvo que filtres una categoría
-  var pids=Object.keys(perP).sort(function(a,b){return barP(perP[b])-barP(perP[a]);});
-  var maxP=Math.max.apply(null,pids.map(function(p){return barP(perP[p]);}).concat([1]));
-  // por categoría (aplica persona+mes)
-  var perC={}; CATS7.forEach(function(k){perC[k]=0;});
-  rows.forEach(function(r){ if(!pasa(r,"cat"))return; CATS7.forEach(function(k){ perC[k]+=val(r,k); }); });
-  var maxC=Math.max.apply(null,CATS7.map(function(k){return perC[k];}).concat([1]));
-  // por mes (aplica persona+cat)
-  var perM={}, cM=catset("mes");
-  rows.forEach(function(r){ if(!pasa(r,"mes"))return; var ym=String(r.fecha).slice(0,7); if(!perM[ym])perM[ym]=0; cM.forEach(function(k){ perM[ym]+=val(r,k); }); });
-  var yms=Object.keys(perM).sort(), maxM=Math.max.apply(null,yms.map(function(m){return perM[m];}).concat([1]));
-  // tiles + días (aplica TODOS los filtros)
-  var cT=(F.cat)?[F.cat]:CATS7, np={}, extras=0, domfest=0, rnoct=0, dias=[];
-  rows.forEach(function(r){
-    if(F.persona&&r.persona_id!==F.persona)return;
-    if(F.mes&&String(r.fecha).slice(0,7)!==F.mes)return;
-    if(F.cat&&!(val(r,F.cat)>0))return;
-    np[r.persona_id]=1; var rt=0;
-    cT.forEach(function(k){var v=val(r,k); rt+=v;
-      if(k==="RNOCT") rnoct+=v; else if(k==="DOMD"||k==="DOMN") domfest+=v; else extras+=v; });
-    dias.push({r:r,tot:rt});
-  });
-  var horasHombre=extras+domfest; // RNOCT NO cuenta como hora hombre (solo pago)
-  var anyF=F.persona||F.cat||F.mes;
-  var html="";
-  html+='<div style="margin-bottom:10px"><button class="btn '+(EST_HIST?"":"sec")+' mini" onclick="estHist()">'+(EST_HIST?"✓ Histórico importado incluido":"Histórico importado excluido")+'</button> <span class="who">tocá para '+(EST_HIST?"excluirlo y ver solo lo cargado en vivo":"incluirlo")+'</span></div>';
-  if(anyF){ html+='<div class="estfiltro"><b>Filtros:</b> '+(F.persona?_fchip("persona"):"")+(F.cat?_fchip("cat"):"")+(F.mes?_fchip("mes"):"")+'<button class="btn sec mini" onclick="estQuitar()">quitar todo</button></div>'; }
-  html+='<div class="card"><div class="tiles">'
-    +'<div class="tile"><div class="n">'+r1(horasHombre)+'</div><div class="l">Horas hombre</div></div>'
-    +'<div class="tile"><div class="n">'+r1(extras)+'</div><div class="l">Horas extra</div></div>'
-    +'<div class="tile"><div class="n">'+r1(domfest)+'</div><div class="l">Recargo dom/fest</div></div>'
-    +'<div class="tile"><div class="n">'+Object.keys(np).length+'</div><div class="l">Personas</div></div>'
-    +'<div class="tile" style="border-color:rgba(0,212,255,.4)"><div class="n" style="color:var(--cy)">'+r1(rnoct)+'</div><div class="l">Recargo nocturno · solo pago, no hora hombre</div></div></div></div>';
-  html+='<div class="card"><h2 style="margin-bottom:8px">Horas hombre por persona <span class="who">(sin recargo nocturno · clic para filtrar)</span></h2>';
-  pids.forEach(function(p){ var col=colorPersona(p),tot=barP(perP[p]),selc=(F.persona===p)?" sel":"";
-    html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'persona\',\''+p+'\')"><span class="nm">'+esc((PMAP[p]||{}).nombre||"—")+'</span><span class="track"><span class="fill" style="width:'+(tot/maxP*100)+'%;background:'+col+'"></span></span><span class="v">'+r1(tot)+' h</span></div>'; });
-  html+='</div>';
-  html+='<div class="card"><h2 style="margin-bottom:8px">Por categoría <span class="who">(clic para filtrar)</span></h2>';
-  CATS7.forEach(function(k){ var selc=(F.cat===k)?" sel":"";
-    html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'cat\',\''+k+'\')"><span class="nm">'+CATLBL[k]+'</span><span class="track"><span class="fill" style="width:'+(perC[k]/maxC*100)+'%;background:var(--orange)"></span></span><span class="v">'+r1(perC[k])+' h</span></div>'; });
-  html+='</div>';
-  html+='<div class="card"><h2 style="margin-bottom:8px">Por mes <span class="who">(clic para filtrar)</span></h2>';
-  yms.forEach(function(m){ var lbl=_MESN2[parseInt(m.slice(5,7),10)-1]+" "+m.slice(0,4),selc=(F.mes===m)?" sel":"";
-    html+='<div class="hbar clic'+selc+'" onclick="estFiltrar(\'mes\',\''+m+'\')"><span class="nm">'+lbl+'</span><span class="track"><span class="fill" style="width:'+(perM[m]/maxM*100)+'%;background:var(--cy)"></span></span><span class="v">'+r1(perM[m])+' h</span></div>'; });
-  html+='</div>';
-  // días (detalle día por día) — sólo con algún filtro
-  if(anyF){
-    dias.sort(function(a,b){return String(a.r.fecha)<String(b.r.fecha)?1:-1;});
-    html+='<div class="card"><h2 style="margin-bottom:8px">Días con horas ('+dias.length+')</h2><div style="overflow-x:auto"><table><tr><th>Fecha</th>'+(F.persona?'':'<th>Persona</th>')+'<th>Horario</th><th>Cálculo</th><th>Horas</th><th>Estado</th></tr>';
-    dias.forEach(function(x){ var r=x.r; var cats=Object.keys(r.categorias||{}).filter(function(k){return r.categorias[k];}).map(function(k){return k+" "+r.categorias[k];}).join(" · ")||"—";
-      html+='<tr><td>'+fmtFecha(r.fecha)+'</td>'+(F.persona?'':'<td>'+esc((PMAP[r.persona_id]||{}).nombre||"—")+'</td>')+'<td>'+esc(horarioTxt(r))+'</td><td>'+esc(cats)+(r.justificacion?'<br><span class="who">'+esc(r.justificacion)+'</span>':'')+'</td><td class="tot">'+r1(x.tot)+'</td><td><span class="chip '+r.estado+'">'+etiq(r.estado)+'</span></td></tr>'; });
-    html+='</table></div></div>';
-  } else {
-    html+='<div class="card"><p class="who">Tocá una persona, una categoría o un mes (podés combinar) para ver acá el detalle día por día.</p></div>';
-  }
-  EST_SNAP={perP:perP, pids:pids, dias:dias, filtros:{persona:F.persona,cat:F.cat,mes:F.mes,hist:EST_HIST}};
-  $("estOut").innerHTML=html;
-}
-
-/* ============ EXPORTAR A EXCEL ============ */
-var EST_SNAP=null;
-function _hoy(){ return isoD(new Date()); }
-function exportXLSX(nombre, sheets){
-  if(typeof XLSX==="undefined"){ alert("No cargó la librería de Excel. Reintentá con conexión."); return; }
-  var wb=XLSX.utils.book_new();
-  sheets.forEach(function(s){ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.aoa), s.name.slice(0,31)); });
-  XLSX.writeFile(wb, nombre);
-}
-function exportConc(){
-  if(!CONC_ROWS.length){ alert("Primero buscá reportes."); return; }
-  var head=["Fecha","Persona","Cargo","Horario","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Total","Estado","Fuera de plan","Justificación","Motivo rechazo"];
-  var aoa=[head];
-  CONC_ROWS.forEach(function(r){ var p=PMAP[r.persona_id]||{}, c=r.categorias||{};
-    aoa.push([fmtFecha(r.fecha), p.nombre||"", p.cargo||"", horarioTxt(r),
-      c.HED||"",c.HEN||"",c.DOMD||"",c.DOMN||"",c.HEFD||"",c.HEFN||"",c.RNOCT||"",
-      heTotalHoras(c), etiq(r.estado), r.fuera_de_plan?"Sí":"", r.justificacion||"", r.motivo||""]); });
-  exportXLSX("KALU_conciliacion_"+_hoy()+".xlsx",[{name:"Conciliación",aoa:aoa}]);
-}
-function exportEst(){
-  if(!EST_SNAP){ alert("Primero calculá las estadísticas."); return; }
-  var perP=EST_SNAP.perP, pids=EST_SNAP.pids;
-  var h1=["Persona","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Horas hombre"];
-  var s1=[h1]; pids.forEach(function(p){ var o=perP[p]; var hh=(o.tot||0)-(o.RNOCT||0);
-    s1.push([(PMAP[p]||{}).nombre||"", o.HED||"",o.HEN||"",o.DOMD||"",o.DOMN||"",o.HEFD||"",o.HEFN||"",o.RNOCT||"", Math.round(hh*100)/100]); });
-  var sheets=[{name:"Por persona",aoa:s1}];
-  if(EST_SNAP.dias && EST_SNAP.dias.length){
-    var h2=["Fecha","Persona","Horario","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Total","Estado","Justificación"];
-    var s2=[h2]; EST_SNAP.dias.forEach(function(x){ var r=x.r,c=r.categorias||{};
-      s2.push([fmtFecha(r.fecha),(PMAP[r.persona_id]||{}).nombre||"",horarioTxt(r),
-        c.HED||"",c.HEN||"",c.DOMD||"",c.DOMN||"",c.HEFD||"",c.HEFN||"",c.RNOCT||"", r1(x.tot), etiq(r.estado), r.justificacion||""]); });
-    sheets.push({name:"Días",aoa:s2});
-  }
-  exportXLSX("KALU_estadisticas_"+_hoy()+".xlsx",sheets);
-}
-function exportCierre(){
-  if(!CIERRE_DATA){ alert("Primero calculá el período."); return; }
-  var head=["Persona","Identificación","Cargo","HED","HEN","DOMD","DOMN","HEFD","HEFN","RNOCT","Horas hombre","N° A.FR009"];
-  var aoa=[head]; var ids=Object.keys(CIERRE_DATA.byP);
-  ids.forEach(function(pid){ var per=PMAP[pid]||{}, tot=heSumar(CIERRE_DATA.byP[pid].map(function(r){return r.categorias||{};}));
-    var hh=(heTotalHoras(tot))-(tot.RNOCT||0);
-    aoa.push([per.nombre||"", per.cedula||"", per.cargo||"", tot.HED||"",tot.HEN||"",tot.DOMD||"",tot.DOMN||"",tot.HEFD||"",tot.HEFN||"",tot.RNOCT||"", Math.round(hh*100)/100, (CIERRE_DATA.corr&&CIERRE_DATA.corr[pid])||""]); });
-  exportXLSX("KALU_cierre_"+fmtFecha(CIERRE_DATA.desde)+"_"+fmtFecha(CIERRE_DATA.hasta)+".xlsx",[{name:"Cierre",aoa:aoa}]);
-}
-
-/* ============ JORNADA Y AUSENCIAS (#6) ============ */
-var JOR_DATA=null;
-function jornadaDiaria(){
-  var t=TURNOS.filter(function(x){return x.tipo==="dia";})[0]||TURNOS[0];
-  function sumSeg(segs){ var s=0; (segs||[]).forEach(function(a){ s+=(_toMin(a[1])-_toMin(a[0]))/60; }); return s; }
-  if(t&&t.horarios){ return {lv:sumSeg(t.horarios["L-V"]), sab:sumSeg(t.horarios["sab"]), dom:sumSeg(t.horarios["dom"])}; }
-  return {lv:7.5, sab:4.5, dom:0};
-}
-function _horasRango(d1,d2,jd){ // horas de jornada esperada entre d1..d2 (descuenta festivos y domingos)
-  if(!d1||!d2||d1>d2) return 0;
-  var cur=new Date(d1+"T00:00:00"), end=new Date(d2+"T00:00:00"), s=0;
-  while(cur<=end){ var iso=isoD(cur), dow=cur.getDay();
-    if(!FEST.has(iso)){ if(dow===6) s+=jd.sab; else if(dow!==0) s+=jd.lv; }
-    cur.setDate(cur.getDate()+1); }
-  return Math.round(s*100)/100;
-}
-async function calcularJornada(){
-  var out=$("jorOut"); out.innerHTML='<div class="load">Calculando…</div>'; setMsg("jorMsg","");
-  if(!(await asegurarToken())) return;
-  var d=$("jDesde").value, h=$("jHasta").value;
-  if(!d||!h||d>h){ setMsg("jorMsg","Revisá el período.","err"); return; }
-  try{
-    var reps=await sbFetch("/rest/v1/he_reporte?empresa_id=eq."+EMP+"&fecha=gte."+d+"&fecha=lte."+h+"&estado=in.(autorizado,cerrado)&select=persona_id,categorias");
-    var aus=await sbFetch("/rest/v1/he_ausencia?empresa_id=eq."+EMP+"&fecha_desde=lte."+h+"&fecha_hasta=gte."+d+"&select=persona_id,fecha_desde,fecha_hasta,tipo");
-    var jd=jornadaDiaria(), esp=_horasRango(d,h,jd);
-    var exP={}, rnP={}, ausP={};
-    reps.forEach(function(r){ var c=r.categorias||{}; exP[r.persona_id]=(exP[r.persona_id]||0)+((c.HED||0)+(c.HEN||0)+(c.DOMD||0)+(c.DOMN||0)+(c.HEFD||0)+(c.HEFN||0)); rnP[r.persona_id]=(rnP[r.persona_id]||0)+(c.RNOCT||0); });
-    aus.forEach(function(a){ var dd=(a.fecha_desde>d?a.fecha_desde:d), hh=(a.fecha_hasta<h?a.fecha_hasta:h); ausP[a.persona_id]=(ausP[a.persona_id]||0)+_horasRango(dd,hh,jd); });
-    var rows=PERSONAS.map(function(p){ var au=ausP[p.id]||0, norm=Math.max(0,esp-au), ex=exP[p.id]||0;
-      return {pid:p.id,nombre:p.nombre,esp:esp,aus:Math.round(au*100)/100,norm:Math.round(norm*100)/100,ex:Math.round(ex*100)/100,rn:Math.round((rnP[p.id]||0)*100)/100,efe:Math.round((norm+ex)*100)/100}; });
-    rows.sort(function(a,b){return b.efe-a.efe;});
-    JOR_DATA={desde:d,hasta:h,rows:rows,esp:esp};
-    var html='<div class="card"><h2 style="margin-bottom:8px">Jornada del período · esperada '+esp+' h por persona</h2><div style="overflow-x:auto"><table>'
-      +'<tr><th>Persona</th><th>Jornada esperada</th><th>Ausencias</th><th>Normales</th><th>Extra</th><th>Efectivas</th><th>Rec. noct.</th></tr>';
-    rows.forEach(function(r){ html+='<tr><td>'+esc(r.nombre||"—")+'</td><td>'+r.esp+'</td><td>'+(r.aus||"")+'</td><td>'+r.norm+'</td><td>'+(r.ex||"")+'</td><td class="tot">'+r.efe+'</td><td>'+(r.rn||"")+'</td></tr>'; });
-    html+='</table></div><div class="who" style="margin-top:8px">Normales = jornada esperada − ausencias. Efectivas = normales + extra. El recargo nocturno no entra (solo pago).</div></div>';
-    out.innerHTML=html;
-  }catch(e){ out.innerHTML='<div class="card"><p class="msg err">No se pudo calcular ('+esc(e.message)+').</p></div>'; }
-}
-function exportJor(){
-  if(!JOR_DATA){ alert("Primero calculá la jornada."); return; }
-  var head=["Persona","Jornada esperada","Ausencias","Normales","Extra","Efectivas","Recargo nocturno"];
-  var aoa=[head]; JOR_DATA.rows.forEach(function(r){ aoa.push([r.nombre,r.esp,r.aus,r.norm,r.ex,r.efe,r.rn]); });
-  exportXLSX("KALU_jornada_"+fmtFecha(JOR_DATA.desde)+"_"+fmtFecha(JOR_DATA.hasta)+".xlsx",[{name:"Jornada",aoa:aoa}]);
-}
-async function guardarAusencia(){
-  var pid=$("auPersona").value, tipo=$("auTipo").value, d1=$("auDesde").value, d2=$("auHasta").value;
-  if(!pid||!d1||!d2){ setMsg("auMsg","Completá persona y fechas.","err"); return; }
-  if(d1>d2){ setMsg("auMsg","El 'desde' no puede ser mayor al 'hasta'.","err"); return; }
-  var b=$("auBtn"); b.disabled=true; b.textContent="Guardando…"; setMsg("auMsg","");
-  try{
-    if(!(await asegurarToken())) return;
-    var reg={empresa_id:EMP,persona_id:pid,tipo:tipo,fecha_desde:d1,fecha_hasta:d2,motivo:$("auMotivo").value.trim()||null,creado_por:MY_UID};
-    await sbFetch("/rest/v1/he_ausencia",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify(reg)});
-    setMsg("auMsg","✓ Ausencia guardada.","ok"); $("auMotivo").value=""; cargarAusList();
-  }catch(e){ setMsg("auMsg",(e&&e.message)||"No se pudo guardar.","err"); }
-  finally{ b.disabled=false; b.textContent="Guardar ausencia"; }
-}
-async function cargarAusList(){
-  var box=$("auList"); if(!box) return; box.innerHTML='<div class="load">…</div>';
-  if(!(await asegurarToken())) return;
-  try{
-    var rows=await sbFetch("/rest/v1/he_ausencia?empresa_id=eq."+EMP+"&order=fecha_desde.desc&limit=40&select=id,persona_id,tipo,fecha_desde,fecha_hasta,motivo");
-    if(!rows.length){ box.innerHTML='<p class="who">Sin permisos/vacaciones cargados.</p>'; return; }
-    box.innerHTML='<table><tr><th>Persona</th><th>Tipo</th><th>Desde</th><th>Hasta</th><th>Motivo</th><th></th></tr>'+rows.map(function(r){
-      return '<tr><td>'+esc((PMAP[r.persona_id]||{}).nombre||"—")+'</td><td>'+esc(r.tipo)+'</td><td>'+fmtFecha(r.fecha_desde)+'</td><td>'+fmtFecha(r.fecha_hasta)+'</td><td>'+esc(r.motivo||"—")+'</td>'
-        +'<td><button class="btn no mini" onclick="borrarAusencia(\''+r.id+'\')">✕</button></td></tr>';
-    }).join("")+'</table>';
-  }catch(e){ box.innerHTML='<p class="msg err">No se pudo cargar ('+esc(e.message)+').</p>'; }
-}
-async function borrarAusencia(id){
-  if(!confirm("¿Borrar esta ausencia?")) return;
-  if(!(await asegurarToken())) return;
-  try{ await sbFetch("/rest/v1/he_ausencia?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}}); cargarAusList(); }
-  catch(e){ alert("No se pudo borrar: "+((e&&e.message)||"")); }
-}
-function cargarJor(){
-  if(!$("auPersona").innerHTML){ $("auPersona").innerHTML=PERSONAS.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+'</option>';}).join(""); }
+/* ===================== Reportar salida (según turno) ===================== */
+function segmentosDe(t, iso){ if(!t||!t.horarios) return []; var d=new Date(iso+"T00:00:00"),w=d.getDay(),h=t.horarios; if(w===0)return h.dom||[]; if(w===6)return h.sab||[]; return h["L-V"]||[]; }
+function turnoSel(){ var id=$("sTurno").value; return TURNOS.filter(function(t){return t.id===id;})[0]||null; }
+async function abrirSalida(){
   var hoy=new Date();
-  if(!$("jDesde").value){ $("jDesde").value=isoD(new Date(hoy.getFullYear(),hoy.getMonth()-1,21)); $("jHasta").value=isoD(new Date(hoy.getFullYear(),hoy.getMonth(),20)); }
-  if(!$("auDesde").value){ $("auDesde").value=isoD(hoy); $("auHasta").value=isoD(hoy); }
-  cargarAusList();
+  $("sFecha").value=hoy.toISOString().slice(0,10);
+  $("sHora").value=("0"+hoy.getHours()).slice(-2)+":"+("0"+hoy.getMinutes()).slice(-2);
+  $("sJust").value=""; setMsg("sMsg","");
+  $("sTurno").innerHTML=TURNOS.map(function(t){return '<option value="'+t.id+'">'+esc(t.nombre)+'</option>';}).join("")||'<option value="">(sin turnos configurados)</option>';
+  $("sSub").textContent="Marcá a qué hora saliste.";
+  ver("vSalida");
+  try{
+    var iso=$("sFecha").value;
+    var cu=await sbRpc("hhee_cuadrilla_dia",{p_persona:PERSONA,p_emp:EMP,p_dia:iso});
+    if(cu&&cu.turno_id){ $("sTurno").value=cu.turno_id; $("sSub").textContent="Tu turno de hoy ya está en el almanaque. Confirmá la hora de salida."; }
+  }catch(_){}
+  previewSalida();
+}
+function calcSalida(){
+  var t=turnoSel(), iso=$("sFecha").value, exit=$("sHora").value;
+  var res={cats:{},ini:null,fin:null,exit:exit,ord:true,noturno:false};
+  if(!t||!iso||!exit) return res;
+  var segs=segmentosDe(t,iso); if(!segs.length){ res.noturno=true; return res; }
+  res.ini=segs[0][0]; res.fin=segs[segs.length-1][1];
+  var exitMin=_toMin(exit), endMin=_toMin(res.fin), acc=[];
+  segs.forEach(function(s){
+    var iniMin=_toMin(s[0]), finMin=Math.min(_toMin(s[1]), exitMin);
+    if(finMin>iniMin){
+      var finH=(finMin===_toMin(s[1]))?s[1]:exit;
+      acc.push(heCategorizar({fecha:iso,horaInicio:s[0],horaFin:finH,esJornadaOrdinaria:true},FESTIVOS));
+    }
+  });
+  if(exitMin>endMin){ acc.push(heCategorizar({fecha:iso,horaInicio:res.fin,horaFin:exit,esJornadaOrdinaria:false},FESTIVOS)); res.ord=false; }
+  res.cats=heSumar(acc);
+  return res;
+}
+function previewSalida(){
+  var r=calcSalida();
+  if(r.noturno){ $("sPrev").innerHTML='<span class="z">Ese turno no trabaja este día. Usá "hora extra manual".</span>'; return; }
+  if(!r.fin){ $("sPrev").innerHTML="Elegí turno y hora de salida."; return; }
+  var tot=heTotalHoras(r.cats);
+  if(tot<=0){ $("sPrev").innerHTML='Turno '+esc(r.ini)+'–'+esc(r.fin)+'. Saliste '+esc(r.exit)+' → <b>sin horas para reportar</b> (saliste en horario).'; return; }
+  $("sPrev").innerHTML='Turno '+esc(r.ini)+'–'+esc(r.fin)+'. Saliste '+esc(r.exit)+' → KALU calcula: '+catResumen(r.cats)+' <span class="z">· total '+tot+' h</span>';
+}
+async function enviarSalida(){
+  var r=calcSalida(), iso=$("sFecha").value, exit=$("sHora").value;
+  if(r.noturno){ setMsg("sMsg","Ese turno no trabaja este día. Usá la carga manual.","err"); return; }
+  if(!r.fin){ setMsg("sMsg","Elegí turno y hora de salida.","err"); return; }
+  if(heTotalHoras(r.cats)<=0){ setMsg("sMsg","No hay horas para reportar (saliste en horario).","err"); return; }
+  var b=$("sBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("sMsg","");
+  try{
+    if(!PERSONA){ ver("vLogin"); return; }
+    var fuera=await esFueraDePlan(iso);
+    var p={ fecha:iso, hora_inicio:r.ini, hora_fin:exit, lugar:null,
+      justificacion:$("sJust").value.trim()||"Salida de turno", tipo_dia:tipoDia(iso),
+      es_jornada_ordinaria:r.ord, categorias:r.cats, fuera_de_plan:fuera };
+    await sbRpc("hhee_reportar",{p_persona:PERSONA,p_emp:EMP,p:p});
+    setMsg("sMsg","✓ Salida reportada.","ok");
+    setTimeout(function(){ volverHome(); cargarMisReportes(); }, 700);
+  }catch(e){ setMsg("sMsg",(e&&e.message)||"No se pudo enviar.","err"); }
+  finally{ b.disabled=false; b.textContent="Enviar salida"; }
+}
+
+/* ===================== Preview / envío: recargo nocturno (cuadrilla) ===================== */
+function segmentosNoche(iso){
+  /* devuelve los segmentos [ini,fin] del turno noche para el día de esa fecha */
+  if(!TURNO_NOCHE||!TURNO_NOCHE.horarios) return [];
+  var d=new Date(iso+"T00:00:00"), dow=d.getDay();
+  var h=TURNO_NOCHE.horarios;
+  if(dow===0) return h["dom"]||[];
+  if(dow===6) return h["sab"]||[];
+  return h["L-V"]||[];
+}
+function calcNoct(){
+  var d1=$("nDesde").value, d2=$("nHasta").value;
+  var out={dias:0, filas:[], total:{}};
+  if(!d1||!d2||d1>d2) return out;
+  var cur=new Date(d1+"T00:00:00"), end=new Date(d2+"T00:00:00");
+  var acc=[];
+  while(cur<=end){
+    var iso=cur.toISOString().slice(0,10);
+    var segs=segmentosNoche(iso);
+    segs.forEach(function(s){
+      var c=heCategorizar({fecha:iso,horaInicio:s[0],horaFin:s[1],esJornadaOrdinaria:true}, FESTIVOS);
+      if(heTotalHoras(c)>0){ out.filas.push({fecha:iso,cat:c}); acc.push(c); }
+    });
+    out.dias++;
+    cur.setDate(cur.getDate()+1);
+  }
+  out.total=heSumar(acc);
+  return out;
+}
+function previewNoct(){
+  if(!TURNO_NOCHE){ $("nPrev").innerHTML='<span class="z">No hay turno noche configurado todavía. Avisá a tu supervisor.</span>'; return; }
+  var r=calcNoct();
+  if(!r.filas.length){ $("nPrev").innerHTML="Elegí un rango válido para ver el recargo."; return; }
+  $("nPrev").innerHTML="KALU calcula: "+catResumen(r.total)+' <span class="z">· '+r.filas.length+' día(s) con recargo</span>';
+}
+async function enviarNoct(){
+  if(!TURNO_NOCHE){ setMsg("nMsg","No hay turno noche configurado.","err"); return; }
+  var r=calcNoct();
+  if(!r.filas.length){ setMsg("nMsg","El rango no genera recargo nocturno. Revisá las fechas.","err"); return; }
+  var b=$("nBtn"); b.disabled=true; b.textContent="Enviando…"; setMsg("nMsg","");
+  try{
+    if(!PERSONA){ ver("vLogin"); return; }
+    var n=0;
+    for(var k=0;k<r.filas.length;k++){ var fila=r.filas[k];
+      var fuera=await esFueraDePlan(fila.fecha);
+      await sbRpc("hhee_reportar",{p_persona:PERSONA,p_emp:EMP,p:{ fecha:fila.fecha, hora_inicio:null, hora_fin:null,
+        lugar:null, justificacion:"Cuadrilla nocturna", tipo_dia:tipoDia(fila.fecha),
+        es_jornada_ordinaria:true, categorias:fila.cat, fuera_de_plan:fuera }});
+      n++;
+    }
+    setMsg("nMsg","✓ Recargo enviado ("+n+" día(s)).","ok");
+    setTimeout(function(){ volverHome(); cargarMisReportes(); }, 800);
+  }catch(e){ setMsg("nMsg",(e&&e.message)||"No se pudo enviar.","err"); }
+  finally{ b.disabled=false; b.textContent="Enviar reporte"; }
 }
 </script>
 </body>

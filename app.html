@@ -727,6 +727,13 @@ const WEBHOOK_STT     = `${N8N_BASE}/kalu-hse-stt`;
 const WEBHOOK_TTS     = `${N8N_BASE}/kalu-hse-tts`;
 const WEBHOOK_INV_INICIAR = `${N8N_BASE}/kalu-investigador-iniciar${GL_SUF}`;
 const WEBHOOK_INV_MENSAJE = `${N8N_BASE}/kalu-investigador-mensaje${GL_SUF}`;
+// fetch con timeout: KALU puede tardar; si tarda de más cortamos limpio y avisamos sin asustar ni invitar a reenviar.
+async function kaluFetch(url, body, ms){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), ms||120000);
+  try{ return await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:ctrl.signal}); }
+  finally{ clearTimeout(t); }
+}
 let empleados=[],equipos=[],empleadoActivo='',sessionId='',atsItemId='';
 let mensajesCount=0,mediaRecorder=null,audioChunks=[],grabando=false,grabandoInv=false;
 let subtitulosTimeout=null,pendingCountdown=false,autoCountdownTimer=null;
@@ -1458,11 +1465,17 @@ async function enviarMensaje(){
   agregarMensajeUsuario(texto,empleadoActivo);ta.value='';ta.style.height='auto';
   mostrarTyping(true);document.getElementById('error-msg').style.display='none';
   try{
-    const res=await fetch(WEBHOOK_MENSAJE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,atsItemId,mensaje:texto,empleado:empleadoActivo})});
+    const res=await kaluFetch(WEBHOOK_MENSAJE,{sessionId,atsItemId,mensaje:texto,empleado:empleadoActivo},120000);
+    if(!res.ok) throw new Error('http '+res.status);
     const data=await res.json();mostrarTyping(false);setEstadoAvatar('hablando');
     agregarMensajeKALU(data.mensaje||'Sin respuesta',true);
     if(data.atsDetectado){window.atsCerrado=true;document.getElementById('ats-banner').classList.add('visible');ta.disabled=true;btnEnv.disabled=true;btnMic.disabled=true;ta.placeholder='ATS generado — sesión cerrada.';if(autoCountdownTimer)clearTimeout(autoCountdownTimer);autoCountdownTimer=setTimeout(()=>iniciarCountdown(),12000);}
-  }catch(e){mostrarTyping(false);setEstadoAvatar('alerta');setTimeout(()=>setEstadoAvatar('idle'),3000);document.getElementById('error-msg').textContent='Error de conexión.';document.getElementById('error-msg').style.display='block';}
+  }catch(e){mostrarTyping(false);setEstadoAvatar('alerta');setTimeout(()=>setEstadoAvatar('idle'),3000);
+    const lento=(e&&e.name==='AbortError');const em=document.getElementById('error-msg');
+    em.textContent = lento
+      ? 'KALU está tardando en responder. NO reenvíes ni pegues el mensaje otra vez — reintentar lo empeora. Si el ATS ya se generó, aparece en la Consola HSE (pestaña ATS). Esperá un momento y revisá ahí.'
+      : 'No se pudo enviar en este momento. No repitas el mensaje varias veces: si el ATS ya se generó, aparece en la Consola HSE. Revisá tu conexión y esperá un momento.';
+    em.style.display='block';}
   finally{ if(!window.atsCerrado){ btnEnv.disabled=false;btnMic.disabled=false;ta.disabled=false;ta.focus(); } }
 }
 function iniciarCountdown(){
@@ -1594,7 +1607,8 @@ async function iniciarSesion(){
   if(equipos.length===0){alert('Agregá al menos un equipo');return;}if(!condiciones){alert('Describí las condiciones ambientales');return;}
   const btn=document.getElementById('btn-iniciar');btn.disabled=true;btn.textContent='GENERANDO ATS...';setEstadoAvatar('escuchando');window.atsCerrado=false;document.getElementById('generando-overlay').classList.add('visible');iniciarMensajesGenerando();
   try{
-    const res=await fetch(WEBHOOK_INICIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,creado_por:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.email)||null,rehace_de:(window.__rehaceDe||null),motivo_devolucion:(window.__motivoDev||null),ats_anterior:(window.__atsAnterior||null)})});
+    const res=await kaluFetch(WEBHOOK_INICIAR,{empleados,tarea,empresa,cliente,area,responsable,equipos,condiciones,observaciones,empresa_id:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.empresa_id)||null,creado_por:(window.kaluAuth&&window.kaluAuth.perfil&&window.kaluAuth.perfil.email)||null,rehace_de:(window.__rehaceDe||null),motivo_devolucion:(window.__motivoDev||null),ats_anterior:(window.__atsAnterior||null)},150000);
+    if(!res.ok) throw new Error('http '+res.status);
     const data=await res.json();detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
     if(data.bloqueado){btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');alert(data.mensaje);return;}
     sessionId=data.sessionId||'';atsItemId=data.atsItemId||'';empleadoActivo=empleados[0];
@@ -1603,7 +1617,12 @@ async function iniciarSesion(){
     document.getElementById('chat-topbar').innerHTML=`<span class="tag-tarea">${tarea}</span>${empleados.map(e=>`<span class="tag-empleado">${e}</span>`).join('')}`;
     const inicio=document.getElementById('pantalla-inicio');inicio.style.transition='opacity 0.5s ease,transform 0.5s ease';inicio.style.opacity='0';inicio.style.transform='translateY(-20px)';
     setTimeout(()=>{inicio.classList.remove('visible');inicio.style.opacity='';inicio.style.transform='';document.getElementById('pantalla-chat').classList.add('visible');renderSelectorEmp();setEstadoAvatar('hablando');agregarMensajeKALU(data.mensaje,true);},500);
-  }catch(e){detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');alert('Error al conectar con KALU.');btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');}
+  }catch(e){detenerMensajesGenerando();document.getElementById('generando-overlay').classList.remove('visible');
+    const lento=(e&&e.name==='AbortError');
+    alert(lento
+      ? 'KALU está tardando más de lo normal en armar el ATS, pero es muy probable que se haya generado igual. Esperá un par de minutos y revisalo en la Consola HSE, pestaña ATS, antes de volver a intentar. No lo inicies varias veces seguidas. Si pegaste un texto muy largo en Observaciones, probá con un resumen más corto.'
+      : 'No se pudo iniciar con KALU en este momento. Revisá tu conexión e intentá de nuevo en un rato. Si igual se generó, va a aparecer en la Consola HSE (pestaña ATS).');
+    btn.disabled=false;btn.textContent='INICIAR CON KALU';setEstadoAvatar('idle');}
 }
 </script>
 <script>
